@@ -1,4 +1,9 @@
-import type { AmbientKind, AmbientMixerSettings, LandmarkBiome } from '../types/citylit';
+import type {
+  AmbientKind,
+  AmbientMixerSettings,
+  AmbientSiteProfile,
+  LandmarkBiome,
+} from '../types/citylit';
 
 interface FilterBand {
   fl: BiquadFilterNode;
@@ -20,6 +25,38 @@ class AmbientAudioController {
   private trafficPassTimer = 3.5;
   private hapticsEnabled = true;
   private reducedMotion = false;
+  private site: AmbientSiteProfile | null = null;
+  private cameraYaw = 0;
+
+  /** Site-specific sound profile supplied by the diorama kit. */
+  setSiteProfile(profile: AmbientSiteProfile | null): void {
+    this.site = profile;
+  }
+
+  /** Camera azimuth (radians) used to pan site events around the listener. */
+  setCameraYaw(yaw: number): void {
+    this.cameraYaw = yaw;
+  }
+
+  private eventPan(jitter = 0): number {
+    const anchor = this.site?.pan ?? 0;
+    const p = Math.sin(this.cameraYaw * 0.55 + anchor) * 0.72 + jitter;
+    return Math.max(-0.95, Math.min(0.95, p));
+  }
+
+  private connectPanned(node: AudioNode, pan: number): void {
+    const ctx = this.ctx;
+    const master = this.masterGain;
+    if (!ctx || !master) return;
+    if (typeof ctx.createStereoPanner === 'function') {
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = pan;
+      node.connect(panner);
+      panner.connect(master);
+    } else {
+      node.connect(master);
+    }
+  }
 
   setPreferences(opts: {
     volume: number;
@@ -205,7 +242,7 @@ class AmbientAudioController {
     g.gain.linearRampToValueAtTime(peak, t + 0.025);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.connect(g);
-    g.connect(this.masterGain);
+    this.connectPanned(g, this.eventPan((Math.random() - 0.5) * 0.45));
     osc.start(t);
     osc.stop(t + dur + 0.04);
   }
@@ -228,9 +265,86 @@ class AmbientAudioController {
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     src.connect(fl);
     fl.connect(g);
-    g.connect(this.masterGain);
+    this.connectPanned(g, this.eventPan((Math.random() - 0.5) * 0.35));
     src.start(t);
     src.stop(t + dur + 0.1);
+  }
+
+  private shorebird(): void {
+    if (!this.ctx || !this.masterGain) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const notes = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < notes; i++) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      const f = 1400 + Math.random() * 520;
+      const dur = 0.12 + Math.random() * 0.1;
+      const at = t + i * (0.18 + Math.random() * 0.12);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, at);
+      osc.frequency.exponentialRampToValueAtTime(f * 0.62, at + dur);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.032 * this.mixer.birds, at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+      osc.connect(g);
+      this.connectPanned(g, this.eventPan((Math.random() - 0.5) * 0.5));
+      osc.start(at);
+      osc.stop(at + dur + 0.05);
+    }
+  }
+
+  private cicada(): void {
+    if (!this.ctx || !this.masterGain || !this.whiteBuf) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const dur = 0.5 + Math.random() * 0.4;
+    const src = ctx.createBufferSource();
+    src.buffer = this.whiteBuf;
+    const fl = ctx.createBiquadFilter();
+    fl.type = 'bandpass';
+    fl.frequency.value = 4200 + Math.random() * 900;
+    fl.Q.value = 9;
+    const g = ctx.createGain();
+    const base = 0.018 * this.mixer.birds;
+    g.gain.setValueAtTime(base, t);
+    g.gain.linearRampToValueAtTime(base, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 38 + Math.random() * 10;
+    lfoGain.gain.value = 0.011;
+    lfo.connect(lfoGain);
+    lfoGain.connect(g.gain);
+    src.connect(fl);
+    fl.connect(g);
+    this.connectPanned(g, this.eventPan((Math.random() - 0.5) * 0.55));
+    src.start(t);
+    src.stop(t + dur + 0.05);
+    lfo.start(t);
+    lfo.stop(t + dur + 0.05);
+  }
+
+  private frog(): void {
+    if (!this.ctx || !this.masterGain) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const croaks = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < croaks; i++) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      const at = t + i * 0.16;
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(210 + Math.random() * 60, at);
+      osc.frequency.exponentialRampToValueAtTime(150, at + 0.08);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.018 * this.mixer.birds, at + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.12);
+      osc.connect(g);
+      this.connectPanned(g, this.eventPan((Math.random() - 0.5) * 0.7));
+      osc.start(at);
+      osc.stop(at + 0.16);
+    }
   }
 
   update(
@@ -315,6 +429,21 @@ class AmbientAudioController {
       if (this.trafficPassTimer <= 0) {
         this.trafficPassby(this.mixer.traffic * urbanFactor);
         this.trafficPassTimer = (3.2 + Math.random() * 4.5) / Math.max(0.3, urbanFactor);
+      }
+    }
+
+    const site = this.site;
+    if (this.enabled && site && site.events.length > 0 && this.mixer.birds > 0.02) {
+      const density = dt * site.density * (1 - night * 0.8) * (1 - rain * 0.85);
+      for (let i = 0; i < site.events.length; i++) {
+        const event = site.events[i];
+        if (event === 'shorebird') {
+          if (Math.random() < density * 0.16 * this.mixer.birds) this.shorebird();
+        } else if (event === 'cicada') {
+          if (night < 0.35 && Math.random() < density * 0.1 * this.mixer.birds) this.cicada();
+        } else if (night > 0.4 && Math.random() < density * 0.12 * this.mixer.birds) {
+          this.frog();
+        }
       }
     }
   }

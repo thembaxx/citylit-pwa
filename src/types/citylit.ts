@@ -51,6 +51,17 @@ export type LandmarkBiome =
 
 export type LandmarkDot = readonly [x: number, y: number, z: number, text: string];
 
+/** Discrete site sounds layered over the biome bed. */
+export type AmbientEvent = 'shorebird' | 'cicada' | 'frog';
+
+export interface AmbientSiteProfile {
+  events: readonly AmbientEvent[];
+  /** Stereo anchor of the site's sound field, -1 (left) .. 1 (right). */
+  pan: number;
+  /** Relative event density multiplier. */
+  density: number;
+}
+
 export interface LandmarkMeta {
   k: string;
   c: string;

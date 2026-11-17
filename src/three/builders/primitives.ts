@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   cascadeize,
+  getBrushedRoughnessTexture,
+  getCanvasBumpTexture,
   getPlasterBumpTexture,
+  getRoofBumpTexture,
   getSoftTexture,
   getStoneBumpTexture,
   getWoodBumpTexture,
@@ -69,6 +73,87 @@ export function updateWetSurfaces(rain: number): void {
     entry.mat.color.copy(entry.dryColor).lerp(entry.wetColor, wetFactor * 0.55);
     entry.mat.envMapIntensity = 0.45 + wetFactor * 0.85;
   }
+}
+
+export function MRoof(
+  c: THREE.ColorRepresentation,
+  r = 0.82,
+  bumpScale = 0.026
+): THREE.MeshStandardMaterial {
+  const colHex = tmpColor.set(c).getHexString();
+  const key = `roof_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
+  if (matCache[key]) return matCache[key];
+  const mat = new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: r,
+    metalness: 0.03,
+    bumpMap: getRoofBumpTexture(),
+    bumpScale,
+  });
+  matCache[key] = mat;
+  return mat;
+}
+
+export function MSteel(
+  c: THREE.ColorRepresentation,
+  r = 0.78,
+  m = 0.82
+): THREE.MeshStandardMaterial {
+  const colHex = tmpColor.set(c).getHexString();
+  const key = `steel_${colHex}_${r.toFixed(2)}_${m.toFixed(2)}`;
+  if (matCache[key]) return matCache[key];
+  const mat = new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: r,
+    metalness: m,
+    roughnessMap: getBrushedRoughnessTexture(),
+  });
+  matCache[key] = mat;
+  return mat;
+}
+
+export function MCanvas(
+  c: THREE.ColorRepresentation,
+  r = 0.9,
+  bumpScale = 0.018
+): THREE.MeshStandardMaterial {
+  const colHex = tmpColor.set(c).getHexString();
+  const key = `canvas_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
+  if (matCache[key]) return matCache[key];
+  const mat = new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: r,
+    metalness: 0,
+    bumpMap: getCanvasBumpTexture(),
+    bumpScale,
+  });
+  matCache[key] = mat;
+  return mat;
+}
+
+export function MGlass(
+  c: THREE.ColorRepresentation,
+  opacity = 0.62,
+  r = 0.09,
+  m = 0.42
+): THREE.MeshStandardMaterial {
+  const colHex = tmpColor.set(c).getHexString();
+  const key = `glass_${colHex}_${opacity.toFixed(2)}_${r.toFixed(2)}_${m.toFixed(2)}`;
+  if (matCache[key]) return matCache[key];
+  const mat = new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: r,
+    metalness: m,
+    transparent: opacity < 1,
+    opacity,
+    depthWrite: opacity >= 0.9,
+  });
+  matCache[key] = mat;
+  return mat;
+}
+
+export function MPatina(c: THREE.ColorRepresentation): THREE.MeshStandardMaterial {
+  return M(c, 0.58, 0.42);
 }
 
 export function M(c: THREE.ColorRepresentation, r = 0.7, m = 0): THREE.MeshStandardMaterial {
@@ -535,75 +620,162 @@ export function grassTufts(
   instancedMeshes(g, tuftGeoCache, mat, items, cols);
 }
 
-export function tree(g: THREE.Object3D, x: number, z: number, s = 1, k = 1, y = 0): THREE.Group {
-  const t = new THREE.Group();
-  t.position.set(x, y, z);
-  t.scale.setScalar(s);
-  t.rotation.y = R(x * 3 + z) * 6.28;
+interface TreePart {
+  g: THREE.BufferGeometry;
+  c: THREE.ColorRepresentation;
+  p?: [number, number, number];
+  r?: [number, number, number];
+  s?: [number, number, number];
+}
+
+interface TreeSpec {
+  x: number;
+  y: number;
+  z: number;
+  s: number;
+  k: number;
+  ry: number;
+  variant: number;
+  tint: number;
+  holder: THREE.Object3D;
+}
+
+const treeBatches = new WeakMap<THREE.Object3D, TreeSpec[]>();
+const treeGeoCache: Record<string, THREE.BufferGeometry> = {};
+let treeMat: THREE.MeshStandardMaterial | null = null;
+
+const treeMergeMatrix = new THREE.Matrix4();
+const treeMergeQuat = new THREE.Quaternion();
+const treeMergeEuler = new THREE.Euler();
+const treeMergePos = new THREE.Vector3();
+const treeMergeScale = new THREE.Vector3();
+const treeMergeColor = new THREE.Color();
+
+function treeMaterial(): THREE.MeshStandardMaterial {
+  if (!treeMat) {
+    treeMat = windy(
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.02 }),
+      'wind_tree_vc'
+    );
+  }
+  return treeMat;
+}
+
+function mergeTreeParts(parts: readonly TreePart[]): THREE.BufferGeometry {
+  const geos: THREE.BufferGeometry[] = [];
+  for (let k = 0; k < parts.length; k++) {
+    const part = parts[k];
+    const geo = part.g.index ? part.g.toNonIndexed() : part.g.clone();
+    part.g.dispose();
+    geo.deleteAttribute('uv');
+    geo.deleteAttribute('uv1');
+    geo.deleteAttribute('uv2');
+    treeMergeEuler.set(part.r?.[0] ?? 0, part.r?.[1] ?? 0, part.r?.[2] ?? 0);
+    treeMergeQuat.setFromEuler(treeMergeEuler);
+    treeMergePos.set(part.p?.[0] ?? 0, part.p?.[1] ?? 0, part.p?.[2] ?? 0);
+    treeMergeScale.set(part.s?.[0] ?? 1, part.s?.[1] ?? 1, part.s?.[2] ?? 1);
+    treeMergeMatrix.compose(treeMergePos, treeMergeQuat, treeMergeScale);
+    geo.applyMatrix4(treeMergeMatrix);
+    treeMergeColor.set(part.c);
+    const vertCount = geo.attributes.position.count;
+    const arr = new Float32Array(vertCount * 3);
+    for (let i = 0; i < vertCount; i++) {
+      arr[i * 3] = treeMergeColor.r;
+      arr[i * 3 + 1] = treeMergeColor.g;
+      arr[i * 3 + 2] = treeMergeColor.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    geos.push(geo);
+  }
+  const merged = mergeGeometries(geos, false);
+  geos.forEach((geo) => geo.dispose());
+  if (!merged) {
+    throw new Error('Unable to merge tree geometry');
+  }
+  merged.computeVertexNormals();
+  merged.computeBoundingSphere();
+  return merged;
+}
+
+function crownGeo(radius: number, seed: number): THREE.BufferGeometry {
+  const geo = new THREE.IcosahedronGeometry(radius, 1);
+  const p = geo.attributes.position;
+  const a = R(seed * 3 + 1);
+  const b = R(seed * 7 + 4);
+  for (let i = 0; i < p.count; i++) {
+    const X = p.getX(i);
+    const Y = p.getY(i);
+    const Z = p.getZ(i);
+    const d =
+      1 +
+      0.18 * Math.sin(X * (17 + a * 9) + seed) * Math.cos(Z * (13 + b * 7) + Y * 9) +
+      0.07 * Math.sin(Y * 23 + seed * 4);
+    p.setXYZ(i, X * d, Y * d, Z * d);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
+  const parts: TreePart[] = [];
+  const rs = (i: number) => R(variant * 97 + i * 13 + k * 211);
 
   if (k === 3) {
-    // Coastal palm / wild banana
-    const trunkMat = MWood('#6e553e', 0.9);
+    const trunkMat = '#6e553e';
     for (let i = 0; i < 6; i++) {
-      const seg = add(
-        t,
-        C(0.045 - i * 0.004, 0.055 - i * 0.004, 0.24, 7),
-        trunkMat,
-        Math.sin(i * 0.25) * 0.08,
-        0.12 + i * 0.2,
-        0
-      );
-      seg.rotation.z = -0.06 * i;
+      parts.push({
+        g: new THREE.CylinderGeometry(0.045 - i * 0.004, 0.055 - i * 0.004, 0.24, 7),
+        c: trunkMat,
+        p: [Math.sin(i * 0.25 + variant * 0.2) * 0.08, 0.12 + i * 0.2, 0],
+        r: [0, 0, -0.06 * i],
+      });
     }
-    const crown = new THREE.Group();
-    crown.position.set(0.22, 1.28, 0);
-    t.add(crown);
-    const frondMat = Mc('#3c7b3b');
-    const frondGeo = new THREE.ConeGeometry(0.14, 0.85, 4);
-    frondGeo.scale(1, 1, 0.25);
-    frondGeo.rotateZ(-Math.PI / 2.2);
-    for (let i = 0; i < 7; i++) {
-      const fr = add(crown, frondGeo, frondMat, 0, 0.02, 0);
-      fr.rotation.y = (i * Math.PI * 2) / 7;
-      fr.rotation.z = -0.35 - (i % 2) * 0.2;
+    const crownX = 0.22 + (variant - 1) * 0.05;
+    for (let i = 0; i < 8; i++) {
+      parts.push({
+        g: new THREE.ConeGeometry(0.13 + rs(i) * 0.03, 0.82 + rs(i + 2) * 0.2, 4),
+        c: i % 3 === 0 ? '#4f9146' : '#3c7b3b',
+        p: [crownX, 1.28, 0],
+        r: [0, (i * Math.PI * 2) / 8, -0.35 - (i % 2) * 0.2 + variant * 0.04],
+        s: [1, 1, 0.25],
+      });
     }
-    g.add(t);
-    swayItems.push({ o: crown, ph: R(x * 7 + z) * 6, a: 0.05, sp: 1.4 });
-    return t;
+    return mergeTreeParts(parts);
   }
 
   if (k === 4) {
-    // Tall Cape pine / stone pine or cypress
-    add(t, C(0.035, 0.075, 0.95, 8), MWood('#4e3826', 0.92), 0, 0.47, 0);
-    const f = new THREE.Group();
-    f.position.y = 0.82;
-    t.add(f);
+    parts.push({
+      g: new THREE.CylinderGeometry(0.035, 0.075, 0.95, 8),
+      c: '#4e3826',
+      p: [0, 0.47, 0],
+    });
     const pineCols = ['#2a5630', '#36693a', '#447943'];
-    for (let i = 0; i < 4; i++) {
-      const rB = 0.42 - i * 0.08;
-      const tier = add(f, C(rB * 0.25, rB, 0.36, 9), Mc(pineCols[i % 3]), 0, i * 0.24, 0);
-      tier.rotation.y = i * 0.5;
+    for (let i = 0; i < 5; i++) {
+      const rB = 0.45 - i * 0.068 + (variant - 1) * 0.03;
+      parts.push({
+        g: new THREE.CylinderGeometry(rB * 0.22, rB, 0.34 + rs(i) * 0.08, 9),
+        c: pineCols[i % 3],
+        p: [0, 0.82 + i * 0.22, 0],
+        r: [0, i * 0.5 + variant * 0.3, 0],
+      });
     }
-    g.add(t);
-    swayItems.push({ o: f, ph: R(x * 7 + z) * 6, a: 0.025, sp: 1.0 });
-    return t;
+    return mergeTreeParts(parts);
   }
 
-  // Standard Jacaranda (0), Broadleaf/Fynbos Oak (1), Umbrella Acacia (2)
   const trunkCol = k === 2 ? '#4d3624' : '#4a3a2a';
-  add(t, C(0.038, 0.088, 0.92, 8), MWood(trunkCol, 0.92), 0, 0.46, 0);
-  for (let i = 0; i < 3; i++) {
-    const a = i * 2.1 + R(x + i) * 0.3;
-    const b = add(
-      t,
-      C(0.015, 0.034, 0.54, 6),
-      MWood(trunkCol, 0.92),
-      Math.cos(a) * 0.13,
-      0.88,
-      Math.sin(a) * 0.13
-    );
-    b.rotation.z = -Math.cos(a) * (k === 2 ? 0.92 : 0.68);
-    b.rotation.x = Math.sin(a) * (k === 2 ? 0.92 : 0.68);
+  parts.push({
+    g: new THREE.CylinderGeometry(0.038, 0.092, 0.94, 8),
+    c: trunkCol,
+    p: [0, 0.46, 0],
+  });
+  for (let i = 0; i < 3 + (variant > 0 ? 1 : 0); i++) {
+    const a = i * 2.1 + rs(i) * 0.5;
+    parts.push({
+      g: new THREE.CylinderGeometry(0.014, 0.034, 0.56, 6),
+      c: trunkCol,
+      p: [Math.cos(a) * 0.13, 0.88, Math.sin(a) * 0.13],
+      r: [-Math.sin(a) * (k === 2 ? 0.92 : 0.68), 0, -Math.cos(a) * (k === 2 ? 0.92 : 0.68)],
+    });
   }
   const palettes: Record<number, readonly [string, string, string]> = {
     0: ['#8a5bc4', '#a77ae0', '#6d45a6'],
@@ -611,36 +783,93 @@ export function tree(g: THREE.Object3D, x: number, z: number, s = 1, k = 1, y = 
     2: ['#7e8d3b', '#98a64a', '#5f6e2d'],
   };
   const cs = palettes[k] ?? palettes[1];
-  const f = new THREE.Group();
-  f.position.y = k === 2 ? 1.12 : 1.05;
-  t.add(f);
-  if (k === 2) f.scale.set(1.55, 0.44, 1.55);
-
-  const count = k === 2 ? 7 : 8;
+  const baseY = k === 2 ? 1.12 : 1.05;
+  const count = k === 2 ? 8 : 9 + variant;
   for (let i = 0; i < count; i++) {
-    const ge = new THREE.IcosahedronGeometry(0.21 + R(i + k * 9) * 0.13, 1);
-    const p = ge.attributes.position;
-    for (let j = 0; j < p.count; j++) {
-      const X = p.getX(j);
-      const Y = p.getY(j);
-      const Z = p.getZ(j);
-      const d = 1 + 0.16 * Math.sin(X * 21 + i) * Math.cos(Z * 17 + Y * 11);
-      p.setXYZ(j, X * d, Y * d, Z * d);
-    }
-    ge.computeVertexNormals();
-    const q = (k === 2 ? 0.36 : 0.3) * (1 + (i % 3) * 0.28);
-    add(
-      f,
-      ge,
-      Mc(cs[i % 3]),
-      Math.cos(i * 2.39) * q,
-      R(i + 3) * (k === 2 ? 0.22 : 0.42) + (i > 5 && k !== 2 ? 0.28 : 0),
-      Math.sin(i * 2.39) * q
-    );
+    const r = 0.19 + rs(i + 7) * 0.15 + (variant === 2 ? 0.03 : 0);
+    const q = (k === 2 ? 0.37 : 0.31) * (1 + (i % 3) * 0.28);
+    const px = Math.cos(i * 2.39 + variant * 0.4) * q;
+    const pz = Math.sin(i * 2.39 + variant * 0.4) * q;
+    const py = rs(i + 3) * (k === 2 ? 0.2 : 0.4) + (i > 5 && k !== 2 ? 0.24 : 0);
+    parts.push({
+      g: crownGeo(r, i + variant * 11 + k * 5),
+      c: cs[i % 3],
+      p: [px, baseY + py, pz],
+      s: k === 2 ? [1.55, 0.44, 1.55] : [1, 1, 1],
+      r: [0, rs(i + 5) * 2, 0],
+    });
   }
-  g.add(t);
-  swayItems.push({ o: f, ph: R(x * 7 + z) * 6, a: 0.03, sp: 1.1 });
-  return t;
+  return mergeTreeParts(parts);
+}
+
+function treeGeometry(k: number, variant: number): THREE.BufferGeometry {
+  const key = `tree_${k}_${variant}`;
+  const cached = treeGeoCache[key];
+  if (cached) return cached;
+  const geo = buildTreeGeometry(k, variant);
+  treeGeoCache[key] = geo;
+  return geo;
+}
+
+export function finalizeTreeBatch(g: THREE.Object3D): void {
+  const specs = treeBatches.get(g);
+  if (!specs || !specs.length) return;
+  treeBatches.delete(g);
+  const groups = new Map<string, TreeSpec[]>();
+  for (let i = 0; i < specs.length; i++) {
+    const spec = specs[i];
+    spec.holder.removeFromParent();
+    const key = `${spec.k}_${spec.variant}`;
+    const list = groups.get(key);
+    if (list) list.push(spec);
+    else groups.set(key, [spec]);
+  }
+  const mat = treeMaterial();
+  const color = new THREE.Color();
+  groups.forEach((list, key) => {
+    const [kText, vText] = key.split('_');
+    const geo = treeGeometry(Number(kText), Number(vText));
+    const im = new THREE.InstancedMesh(geo, mat, list.length);
+    for (let i = 0; i < list.length; i++) {
+      const spec = list[i];
+      const spread = 0.9 + spec.tint * 0.2;
+      treeMergePos.set(spec.x, spec.y, spec.z);
+      treeMergeEuler.set(0, spec.ry, 0);
+      treeMergeQuat.setFromEuler(treeMergeEuler);
+      treeMergeScale.set(spec.s * spread, spec.s, spec.s * (1.9 - spread));
+      treeMergeMatrix.compose(treeMergePos, treeMergeQuat, treeMergeScale);
+      im.setMatrixAt(i, treeMergeMatrix);
+      const warm = 0.9 + spec.tint * 0.14;
+      color.setRGB(warm, warm, warm * (0.94 + spec.tint * 0.06));
+      im.setColorAt(i, color);
+    }
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.computeBoundingSphere();
+    g.add(im);
+  });
+}
+
+export function tree(g: THREE.Object3D, x: number, z: number, s = 1, k = 1, y = 0): THREE.Group {
+  const holder = new THREE.Group();
+  holder.position.set(x, y, z);
+  holder.visible = false;
+  g.add(holder);
+  const specs = treeBatches.get(g);
+  const spec: TreeSpec = {
+    x,
+    y,
+    z,
+    s,
+    k,
+    ry: R(x * 3 + z) * 6.28,
+    variant: Math.floor(R(x * 17.3 + z * 5.1 + s * 29.7) * 3) % 3,
+    tint: R(x * 7.7 + z * 11.3),
+    holder,
+  };
+  if (specs) specs.push(spec);
+  else treeBatches.set(g, [spec]);
+  return holder;
 }
 
 export function rondavel(
@@ -762,6 +991,54 @@ export function colonialHouse(
 export function lampPost(g: THREE.Object3D, x: number, y: number, z: number, h = 0.65): void {
   add(g, C(0.016, 0.024, h, 6), M('#22262e', 0.4, 0.75), x, y + h / 2, z);
   add(g, new THREE.SphereGeometry(0.04, 8, 6), G('#ffdc96', 1.25), x, y + h + 0.03, z);
+}
+
+export type StreamFill = (i: number, t: number, out: THREE.Vector3) => void;
+
+export interface StreamHandle {
+  update: (t: number) => void;
+  material: THREE.PointsMaterial;
+}
+
+/**
+ * Zero-allocation particle stream. The fill callback writes into a shared vector,
+ * so animation ticks never create arrays or vectors.
+ */
+export function stream(
+  g: THREE.Object3D,
+  count: number,
+  col: THREE.ColorRepresentation,
+  sz: number,
+  fill: StreamFill,
+  opacity = 0.78,
+  additive = true
+): StreamHandle {
+  const p = new Float32Array(count * 3);
+  const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(p, 3));
+  const mat = new THREE.PointsMaterial({
+    color: col,
+    size: sz * 1.6,
+    map: getSoftTexture(),
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  g.add(points);
+  const out = new THREE.Vector3();
+  const update = (t: number) => {
+    for (let i = 0; i < count; i++) {
+      fill(i, t, out);
+      p[i * 3] = out.x;
+      p[i * 3 + 1] = out.y;
+      p[i * 3 + 2] = out.z;
+    }
+    geo.attributes.position.needsUpdate = true;
+  };
+  update(0);
+  return { update, material: mat };
 }
 
 export function drift(

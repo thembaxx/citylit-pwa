@@ -60,6 +60,7 @@ import {
   tree,
   type InstanceTransform,
 } from './primitives';
+import { applyDioramaUpgrade } from './dioramaKit';
 
 export function augrabies(): THREE.Group {
   const g = new THREE.Group();
@@ -1463,7 +1464,7 @@ export function donkin(): THREE.Group {
   return g;
 }
 
-export const LANDMARK_BUILDERS: Record<string, () => THREE.Group> = {
+const RAW_BUILDERS: Record<string, () => THREE.Group> = {
   'Table Mountain': table,
   'Union Buildings': union,
   'Moses Mabhida Stadium': stadium,
@@ -1508,3 +1509,15 @@ export const LANDMARK_BUILDERS: Record<string, () => THREE.Group> = {
   'Knysna Heads': knysna,
   'Donkin Reserve': donkin,
 };
+
+/**
+ * Every landmark is wrapped with the shared diorama upgrade so the crafted
+ * rim, biome cover, micro-weather, batched foliage and audio profile are
+ * applied consistently without touching each individual builder.
+ */
+export const LANDMARK_BUILDERS: Record<string, () => THREE.Group> = {};
+for (const key of Object.keys(RAW_BUILDERS)) {
+  const build = RAW_BUILDERS[key];
+  LANDMARK_BUILDERS[key] = () => applyDioramaUpgrade(key, build());
+}
+

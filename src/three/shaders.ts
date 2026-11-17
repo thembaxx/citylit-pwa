@@ -22,7 +22,12 @@ function applyDissolveToShader(shader: THREE.WebGLProgramParametersWithUniforms)
     .replace('#include <common>', '#include <common>\nvarying vec3 vWD;uniform float uDY;')
     .replace(
       '#include <begin_vertex>',
-      '#include <begin_vertex>\nvWD=(modelMatrix*vec4(transformed,1.)).xyz;'
+      `#include <begin_vertex>
+#ifdef USE_INSTANCING
+vWD=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
+#else
+vWD=(modelMatrix*vec4(transformed,1.)).xyz;
+#endif`
     );
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vWD;uniform float uDY;')
@@ -145,6 +150,109 @@ export function getPlasterBumpTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+let roofBumpCache: THREE.CanvasTexture | null = null;
+let canvasBumpCache: THREE.CanvasTexture | null = null;
+let brushedRoughCache: THREE.CanvasTexture | null = null;
+
+export function getRoofBumpTexture(): THREE.CanvasTexture {
+  if (roofBumpCache) return roofBumpCache;
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    const img = ctx.createImageData(size, size);
+    const data = img.data;
+    for (let y = 0; y < size; y++) {
+      const row = Math.floor(y / 16);
+      const course = Math.sin(((y % 16) / 16) * Math.PI) * 22;
+      for (let x = 0; x < size; x++) {
+        const offset = row % 2 ? 8 : 0;
+        const tile = Math.sin((((x + offset) % 16) / 16) * Math.PI) * 14;
+        const grain = (hash2d(x * 1.7, y * 1.3) - 0.5) * 18;
+        const v = Math.max(0, Math.min(255, Math.round(128 + course + tile + grain)));
+        const idx = (y * size + x) * 4;
+        data[idx] = v;
+        data[idx + 1] = v;
+        data[idx + 2] = v;
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  roofBumpCache = tex;
+  return tex;
+}
+
+export function getCanvasBumpTexture(): THREE.CanvasTexture {
+  if (canvasBumpCache) return canvasBumpCache;
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    const img = ctx.createImageData(size, size);
+    const data = img.data;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const weave = Math.sin((x / size) * Math.PI * 64) * Math.sin((y / size) * Math.PI * 64);
+        const slub = (hash2d(Math.floor(x * 0.5), Math.floor(y * 0.5)) - 0.5) * 22;
+        const v = Math.max(0, Math.min(255, Math.round(128 + weave * 10 + slub)));
+        const idx = (y * size + x) * 4;
+        data[idx] = v;
+        data[idx + 1] = v;
+        data[idx + 2] = v;
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  canvasBumpCache = tex;
+  return tex;
+}
+
+export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
+  if (brushedRoughCache) return brushedRoughCache;
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    const img = ctx.createImageData(size, size);
+    const data = img.data;
+    for (let y = 0; y < size; y++) {
+      const broad = Math.sin((y / size) * Math.PI * 6) * 12;
+      for (let x = 0; x < size; x++) {
+        const streak = (hash2d(Math.floor(x * 0.2), y * 2.2) - 0.5) * 26;
+        const v = Math.max(0, Math.min(255, Math.round(178 + broad + streak)));
+        const idx = (y * size + x) * 4;
+        data[idx] = v;
+        data[idx + 1] = v;
+        data[idx + 2] = v;
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 1);
+  brushedRoughCache = tex;
+  return tex;
+}
+
 export function getWoodBumpTexture(): THREE.CanvasTexture {
   if (woodBumpCache) return woodBumpCache;
   const size = 128;
@@ -188,7 +296,12 @@ export function waterize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMat
       .replace('#include <common>', '#include <common>\nvarying vec3 vW;')
       .replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvW=(modelMatrix*vec4(transformed,1.)).xyz;'
+        `#include <begin_vertex>
+#ifdef USE_INSTANCING
+vW=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
+#else
+vW=(modelMatrix*vec4(transformed,1.)).xyz;
+#endif`
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -233,7 +346,10 @@ export function cascadeize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardM
   return mat;
 }
 
-export function windy(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+export function windy(
+  mat: THREE.MeshStandardMaterial,
+  cacheKey = 'wind'
+): THREE.MeshStandardMaterial {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
     shader.uniforms.uWd = WU.wind;
@@ -242,11 +358,17 @@ export function windy(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMateri
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
-{vec3 wp=(modelMatrix*vec4(transformed,1.)).xyz;float k=max(position.y+.3,0.);transformed.x+=(sin(uWT*1.8+wp.x*.9+wp.z*.7)*.05+sin(uWT*7.+wp.x*5.)*.012)*uWd*k;transformed.z+=cos(uWT*1.5+wp.z*.8)*.035*uWd*k;}`
+{
+#ifdef USE_INSTANCING
+vec3 wp=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
+#else
+vec3 wp=(modelMatrix*vec4(transformed,1.)).xyz;
+#endif
+float k=max(position.y+.3,0.);transformed.x+=(sin(uWT*1.8+wp.x*.9+wp.z*.7)*.05+sin(uWT*7.+wp.x*5.)*.012)*uWd*k;transformed.z+=cos(uWT*1.5+wp.z*.8)*.035*uWd*k;}`
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'wind';
+  mat.customProgramCacheKey = () => cacheKey;
   return mat;
 }
 
@@ -258,7 +380,12 @@ export function lights(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMater
       .replace('#include <common>', '#include <common>\nvarying vec3 vW;')
       .replace(
         '#include <begin_vertex>',
-        '#include <begin_vertex>\nvW=(modelMatrix*vec4(transformed,1.)).xyz;'
+        `#include <begin_vertex>
+#ifdef USE_INSTANCING
+vW=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
+#else
+vW=(modelMatrix*vec4(transformed,1.)).xyz;
+#endif`
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vW;uniform float uWT,uLit;')

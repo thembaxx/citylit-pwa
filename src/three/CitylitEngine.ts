@@ -8,6 +8,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { ambientAudio } from '../audio/ambientAudio';
 import { LANDMARKS } from '../data/landmarks';
 import type {
+  AmbientSiteProfile,
   MediaItem,
   QualityIndex,
   QualitySetting,
@@ -344,6 +345,9 @@ export class CitylitEngine {
     }
     resetSceneDynamicLists(this.ringMat);
     this.currentGroup = this.buildLandmarkGroup(index);
+    ambientAudio.setSiteProfile(
+      (this.currentGroup.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
+    );
     this.heroRoot.add(this.currentGroup);
     this.rebuildMarkers(index);
     this.dissolvePhase = 0;
@@ -903,6 +907,12 @@ export class CitylitEngine {
 
       // Update ambient audio synthesizer
       const lm = LANDMARKS[this.activeIndex];
+      ambientAudio.setCameraYaw(
+        Math.atan2(
+          this.camera.position.x - this.controls.target.x,
+          this.camera.position.z - this.controls.target.z
+        )
+      );
       ambientAudio.update(
         dt,
         this.elapsed,
