@@ -5,12 +5,30 @@
   "description": "Explore South African landmarks as interactive 3D places with live-style weather, time of day and ambient sound.",
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "vite --host 0.0.0.0 --port 3000",
     "start": "node server.js",
-    "build": "node --check server.js",
-    "lint": "node --check server.js"
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "lint": "oxlint && tsc --noEmit",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "@phosphor-icons/react": "^2.1.10",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "express": "^4.21.2",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.5",
+    "three": "^0.187.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0"
   }
 }

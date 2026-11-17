@@ -1,0 +1,129 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: dark;
+  --cl-bg: #0e0f13;
+  --cl-fg: #f3efe6;
+  --cl-mut: #a9a69e;
+  --cl-card: rgba(18, 19, 25, 0.9);
+  --cl-line: rgba(255, 255, 255, 0.14);
+  --cl-acc: #e8b04a;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--cl-bg);
+  color: var(--cl-fg);
+  overflow: hidden;
+}
+
+.font-serif-display {
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+@keyframes cardUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.animate-card-in {
+  animation: cardUp 0.5s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+@keyframes titleCine {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+    letter-spacing: 0.3em;
+  }
+  25%,
+  70% {
+    opacity: 1;
+    transform: none;
+    letter-spacing: 0.04em;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.animate-title-cine {
+  animation: titleCine 2.2s ease both;
+}
+
+@keyframes stampGo {
+  0% {
+    opacity: 0;
+    transform: rotate(-14deg) scale(2.6);
+  }
+  14% {
+    opacity: 1;
+    transform: rotate(-14deg) scale(1);
+  }
+  22% {
+    transform: rotate(-14deg) scale(1.07);
+  }
+  30% {
+    transform: rotate(-14deg) scale(1);
+  }
+  78% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(-14deg) scale(0.96);
+  }
+}
+
+.animate-stamp {
+  animation: stampGo 2.2s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+@keyframes shimmerSlide {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.shimmer-bg {
+  background-image: linear-gradient(110deg, #1b1d25 30%, #2a2e3a 50%, #1b1d25 70%);
+  background-size: 200% 100%;
+  animation: shimmerSlide 1.2s linear infinite;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.squircle-card {
+  border-radius: 22px;
+}
+
+@supports (corner-shape: squircle) {
+  .squircle-card {
+    corner-shape: squircle;
+    border-radius: 34px;
+  }
+}
+
+body.rm * {
+  animation: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

@@ -1,0 +1,931 @@
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ambientAudio } from '../audio/ambientAudio';
+import { LANDMARKS } from '../data/landmarks';
+import type {
+  MediaItem,
+  QualityIndex,
+  QualitySetting,
+  WeatherConditionKey,
+} from '../types/citylit';
+import { LANDMARK_BUILDERS } from './builders/landmarksB';
+import { glowMaterials, resetSceneDynamicLists, swayItems } from './builders/primitives';
+import { createGlobeScene, type GlobeController } from './globeScene';
+import { getSoftTexture, installDissolveShader, WU } from './shaders';
+import { createWeatherScene, type WeatherSceneController } from './weatherScene';
+
+export interface EngineCallbacks {
+  onSelectLandmarkFromGlobe?: (index: number) => void;
+  onFactDot?: (text: string) => void;
+  onFirstInteract?: () => void;
+  onThunder?: () => void;
+  onSwipeLandmark?: (dir: 1 | -1) => void;
+}
+
+export class CitylitEngine {
+  readonly container: HTMLElement;
+  readonly renderer: THREE.WebGLRenderer;
+  readonly scene: THREE.Scene;
+  readonly camera: THREE.PerspectiveCamera;
+  readonly controls: OrbitControls;
+  readonly isSoftwareGl: boolean;
+  readonly weather: WeatherSceneController;
+  readonly globe: GlobeController;
+
+  private readonly pmrem: THREE.PMREMGenerator;
+  private readonly envTex: THREE.Texture;
+  private readonly composer: EffectComposer;
+  private readonly renderPass: RenderPass;
+  private readonly bloomPass: UnrealBloomPass;
+  private readonly outputPass: OutputPass;
+
+  private readonly keyLight: THREE.DirectionalLight;
+  private readonly fillLight: THREE.DirectionalLight;
+  private readonly hemiLight: THREE.HemisphereLight;
+  private readonly plinthGroup: THREE.Group;
+  private readonly ringMat: THREE.MeshStandardMaterial;
+  private readonly heroRoot: THREE.Group;
+  private readonly markerGroup: THREE.Group;
+  private readonly dustPoints: THREE.Points;
+  private readonly dustPositions: Float32Array;
+  private readonly dustGeo: THREE.BufferGeometry;
+
+  private currentGroup: THREE.Group | null = null;
+  private outgoingGroup: THREE.Group | null = null;
+  private markerSprites: THREE.Sprite[] = [];
+  private activeIndex = 0;
+
+  private dissolvePhase = 0;
+  private dissolveT = 0;
+  private pendingIndex: number | null = null;
+  private lastTick = 0;
+  private elapsed = 0;
+  private rafId = 0;
+  private disposed = false;
+  private afterDrawTimer = 0;
+
+  private qualitySetting: QualitySetting = 'auto';
+  private qualityIndex: QualityIndex = 0;
+  private motionScale = 1;
+  private autoRotateSpeed = 0.3;
+  private contextLost = false;
+  private autoScaleTimer = 0;
+  private autoScaleSamples = 0;
+  private autoScaleAcc = 0;
+
+  private tiltEnabled = false;
+  private tiltOffsetX = 0;
+  private tiltOffsetY = 0;
+  private camGoal: THREE.Vector3 | null = null;
+  private camStart = new THREE.Vector3();
+  private camTargetPos = new THREE.Vector3();
+  private camGoalT = 1;
+  private tapDown = { x: 0, y: 0, t: 0 };
+  private pinchDist = 0;
+
+  private callbacks: EngineCallbacks;
+
+  constructor(container: HTMLElement, callbacks: EngineCallbacks = {}) {
+    this.container = container;
+    this.callbacks = callbacks;
+    installDissolveShader();
+
+    this.isSoftwareGl = CitylitEngine.detectSoftwareGl();
+
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: !this.isSoftwareGl,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: false,
+    });
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isSoftwareGl ? 1 : 2));
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
+    if (!this.isSoftwareGl) {
+      this.renderer.shadowMap.enabled = true;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
+
+    const canvas = this.renderer.domElement;
+    canvas.className = 'block fixed inset-0 w-full h-full touch-none';
+    this.container.appendChild(canvas);
+
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color('#0e0f13');
+    this.scene.fog = new THREE.FogExp2('#0e0f13', 0.01);
+
+    this.camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.2, 200);
+    this.camera.position.set(11.5, 6.2, 13);
+
+    this.controls = new OrbitControls(this.camera, canvas);
+    this.controls.enableDamping = !this.isSoftwareGl;
+    this.controls.dampingFactor = 0.06;
+    this.controls.target.set(0, 1.5, 0);
+    this.controls.minDistance = 6;
+    this.controls.maxDistance = 30;
+    this.controls.maxPolarAngle = Math.PI * 0.485;
+    this.controls.autoRotate = !this.isSoftwareGl;
+    this.controls.autoRotateSpeed = 0.3;
+
+    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.envTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.scene.environment = this.envTex;
+    this.scene.environmentIntensity = 0.45;
+
+    this.hemiLight = new THREE.HemisphereLight('#d9e7ff', '#1b1610', 1);
+    this.scene.add(this.hemiLight);
+
+    this.keyLight = new THREE.DirectionalLight('#fff5dd', 3.4);
+    this.keyLight.position.set(12, 18, 10);
+    if (!this.isSoftwareGl) {
+      this.keyLight.castShadow = true;
+      this.keyLight.shadow.mapSize.set(2048, 2048);
+      this.keyLight.shadow.camera.near = 2;
+      this.keyLight.shadow.camera.far = 45;
+      this.keyLight.shadow.camera.left = -10;
+      this.keyLight.shadow.camera.right = 10;
+      this.keyLight.shadow.camera.top = 10;
+      this.keyLight.shadow.camera.bottom = -10;
+      this.keyLight.shadow.bias = -0.0005;
+    }
+    this.scene.add(this.keyLight);
+
+    this.fillLight = new THREE.DirectionalLight('#4a72b0', 0.8);
+    this.fillLight.position.set(-12, 8, -10);
+    this.scene.add(this.fillLight);
+
+    // Post-processing pipeline
+    this.composer = new EffectComposer(this.renderer);
+    this.renderPass = new RenderPass(this.scene, this.camera);
+    this.bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      0.24,
+      0.45,
+      0.9
+    );
+    this.outputPass = new OutputPass();
+    this.composer.addPass(this.renderPass);
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(this.outputPass);
+    if (this.isSoftwareGl) {
+      this.bloomPass.enabled = false;
+    }
+
+    // Plinth & glowing ring
+    this.plinthGroup = new THREE.Group();
+    this.scene.add(this.plinthGroup);
+
+    const plinthTop = new THREE.Mesh(
+      new THREE.CylinderGeometry(8.5, 9, 0.5, 72),
+      new THREE.MeshStandardMaterial({ color: '#1a1c24', roughness: 0.88 })
+    );
+    plinthTop.position.y = -0.25;
+    plinthTop.receiveShadow = true;
+    this.plinthGroup.add(plinthTop);
+
+    const plinthBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(9.2, 9.6, 0.2, 72),
+      new THREE.MeshStandardMaterial({ color: '#111218', roughness: 0.9 })
+    );
+    plinthBase.position.y = -0.6;
+    this.plinthGroup.add(plinthBase);
+
+    this.ringMat = new THREE.MeshStandardMaterial({
+      color: '#e8b04a',
+      emissive: '#e8b04a',
+      emissiveIntensity: 0.35,
+      roughness: 0.4,
+    });
+    this.ringMat.userData.i = 0.6;
+    const plinthRing = new THREE.Mesh(
+      new THREE.TorusGeometry(8.52, 0.035, 8, 96).rotateX(Math.PI / 2),
+      this.ringMat
+    );
+    plinthRing.position.y = 0.01;
+    this.plinthGroup.add(plinthRing);
+
+    this.heroRoot = new THREE.Group();
+    this.scene.add(this.heroRoot);
+
+    this.markerGroup = new THREE.Group();
+    this.scene.add(this.markerGroup);
+
+    // Dissolve dust particles
+    const DN = 160;
+    this.dustPositions = new Float32Array(DN * 3);
+    this.dustGeo = new THREE.BufferGeometry().setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.dustPositions, 3)
+    );
+    this.dustPoints = new THREE.Points(
+      this.dustGeo,
+      new THREE.PointsMaterial({
+        color: '#ffd280',
+        size: 0.28,
+        map: getSoftTexture(),
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+    );
+    this.dustPoints.frustumCulled = false;
+    this.scene.add(this.dustPoints);
+
+    // Weather & Globe sub-controllers
+    this.weather = createWeatherScene(this.scene);
+    this.globe = createGlobeScene(
+      canvas,
+      window.innerWidth / window.innerHeight,
+      this.isSoftwareGl
+    );
+    this.scene.add(this.globe.group);
+
+    this.bindEvents(canvas);
+    this.lastTick = performance.now();
+    this.scheduleNextFrame();
+  }
+
+  private static detectSoftwareGl(): boolean {
+    try {
+      const testCanvas = document.createElement('canvas');
+      const gl = testCanvas.getContext('webgl2');
+      let software = false;
+      if (gl) {
+        const ext = gl.getExtension('WEBGL_debug_renderer_info');
+        const rendererStr = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
+        software = /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(String(rendererStr));
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
+      }
+      return software;
+    } catch {
+      return false;
+    }
+  }
+
+  private createMarkerTexture(): THREE.CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const ctx = c.getContext('2d');
+    if (ctx) {
+      ctx.beginPath();
+      ctx.arc(32, 32, 22, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(232,176,74,.25)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(32, 32, 11, 0, Math.PI * 2);
+      ctx.fillStyle = '#e8b04a';
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#fff';
+      ctx.stroke();
+    }
+    return new THREE.CanvasTexture(c);
+  }
+
+  private markerTexture: THREE.CanvasTexture | null = null;
+
+  private rebuildMarkers(index: number): void {
+    this.markerSprites.forEach((s) => this.markerGroup.remove(s));
+    this.markerSprites = [];
+    if (!this.markerTexture) {
+      this.markerTexture = this.createMarkerTexture();
+    }
+    const dots = LANDMARKS[index].dots;
+    dots.forEach(([x, y, z, text]) => {
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: this.markerTexture!,
+          depthTest: false,
+          transparent: true,
+        })
+      );
+      sprite.position.set(x, y, z);
+      sprite.scale.setScalar(0.6);
+      sprite.userData.factText = text;
+      sprite.renderOrder = 2;
+      this.markerGroup.add(sprite);
+      this.markerSprites.push(sprite);
+    });
+  }
+
+  private buildLandmarkGroup(index: number): THREE.Group {
+    const meta = LANDMARKS[index];
+    const builder = LANDMARK_BUILDERS[meta.k];
+    const group = builder ? builder() : new THREE.Group();
+    group.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.castShadow = !this.isSoftwareGl;
+        obj.receiveShadow = !this.isSoftwareGl;
+      }
+    });
+    return group;
+  }
+
+  showLandmarkImmediate(index: number): void {
+    this.activeIndex = index;
+    if (this.currentGroup) {
+      this.heroRoot.remove(this.currentGroup);
+    }
+    if (this.outgoingGroup) {
+      this.heroRoot.remove(this.outgoingGroup);
+      this.outgoingGroup = null;
+    }
+    resetSceneDynamicLists(this.ringMat);
+    this.currentGroup = this.buildLandmarkGroup(index);
+    this.heroRoot.add(this.currentGroup);
+    this.rebuildMarkers(index);
+    this.dissolvePhase = 0;
+    WU.dy.value = 100;
+    this.dustPoints.visible = false;
+  }
+
+  transitionToLandmark(index: number): void {
+    if (!this.currentGroup) {
+      this.showLandmarkImmediate(index);
+      return;
+    }
+    this.activeIndex = index;
+    if (this.outgoingGroup) {
+      this.heroRoot.remove(this.outgoingGroup);
+      this.outgoingGroup = null;
+    }
+    if (this.motionScale === 0) {
+      this.showLandmarkImmediate(index);
+      return;
+    }
+    this.pendingIndex = index;
+    this.dissolvePhase = 1;
+    this.dissolveT = 0;
+    ambientAudio.playSfx('whoosh');
+    ambientAudio.vibrate(15);
+  }
+
+  applyQuality(setting: QualitySetting): void {
+    this.qualitySetting = setting;
+    const idx: QualityIndex =
+      setting === 'low'
+        ? 2
+        : setting === 'balanced'
+          ? 1
+          : setting === 'high'
+            ? 0
+            : this.isSoftwareGl
+              ? 2
+              : 0;
+    this.setQualityIndex(idx);
+  }
+
+  private setQualityIndex(idx: QualityIndex): void {
+    this.qualityIndex = idx;
+    const pr = [Math.min(devicePixelRatio || 1, 2), Math.min(devicePixelRatio || 1, 1.4), 1][idx];
+    this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : pr);
+    this.bloomPass.enabled = !this.isSoftwareGl && idx === 0;
+    this.renderer.shadowMap.enabled = !this.isSoftwareGl && idx < 2;
+  }
+
+  setMotionPreferences(reduced: boolean): void {
+    this.motionScale = reduced ? 0 : 1;
+    this.autoRotateSpeed = reduced || this.isSoftwareGl ? 0 : 0.3;
+    this.controls.autoRotate = !reduced && !this.isSoftwareGl && !this.globe.isOpen;
+    this.controls.autoRotateSpeed = this.autoRotateSpeed;
+  }
+
+  setTiltEnabled(enabled: boolean): void {
+    this.tiltEnabled = enabled;
+    if (!enabled) {
+      this.tiltOffsetX = 0;
+      this.tiltOffsetY = 0;
+    }
+  }
+
+  async requestTiltPermission(): Promise<boolean> {
+    const devOri = window.DeviceOrientationEvent as unknown as {
+      requestPermission?: () => Promise<'granted' | 'denied'>;
+    };
+    if (devOri && typeof devOri.requestPermission === 'function') {
+      try {
+        const res = await devOri.requestPermission();
+        return res === 'granted';
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  setWeather(condition: WeatherConditionKey, night: boolean, timeOfDay?: number): void {
+    this.weather.applyCondition(condition, night, timeOfDay);
+  }
+
+  setSunAltitudeFromSlider(val: number): void {
+    this.weather.target.timeOfDay = val;
+    this.weather.target.night = val < 6 || val >= 19 ? 1 : 0;
+  }
+
+  toggleRainRainbow(): void {
+    if (this.weather.target.rain > 0) {
+      this.weather.target.rain = 0;
+      this.weather.target.cover = 0.25;
+      this.weather.triggerRainbow(12);
+    }
+  }
+
+  openGlobe(visited: Set<number>): void {
+    this.heroRoot.visible = false;
+    this.plinthGroup.visible = false;
+    this.markerGroup.visible = false;
+    this.dustPoints.visible = false;
+    this.weather.setHidden(true);
+    this.controls.enabled = false;
+    this.controls.autoRotate = false;
+    this.globe.open(visited);
+    ambientAudio.playSfx('open');
+  }
+
+  closeGlobe(): void {
+    this.globe.close();
+    this.heroRoot.visible = true;
+    this.plinthGroup.visible = true;
+    this.markerGroup.visible = true;
+    this.weather.setHidden(false);
+    this.controls.enabled = true;
+    this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
+  }
+
+  flyCameraPreset(pos: [number, number, number]): void {
+    this.camStart.copy(this.camera.position);
+    this.camTargetPos.set(pos[0], pos[1], pos[2]);
+    this.camGoal = this.camTargetPos;
+    this.camGoalT = 0;
+  }
+
+  resetCamera(isPortrait: boolean): void {
+    this.camera.position.set(isPortrait ? 13 : 11.5, 6.2, isPortrait ? 14.5 : 13);
+    this.controls.target.set(0, 1.5, 0);
+  }
+
+  generateThumbnails(): Record<number, string> {
+    const out: Record<number, string> = {};
+    const thumbCam = new THREE.PerspectiveCamera(36, 1.5, 0.5, 60);
+    thumbCam.position.set(10.5, 5.8, 11.8);
+    thumbCam.lookAt(0, 1.4, 0);
+
+    const prevBg = (this.scene.background as THREE.Color).clone();
+    const prevFog = this.scene.fog;
+    const prevPixelRatio = this.renderer.getPixelRatio();
+    const prevShowPlinth = this.plinthGroup.visible;
+    const prevShowMarkers = this.markerGroup.visible;
+    const prevShowHero = this.heroRoot.visible;
+    const prevWeatherVisible = this.weather.root.visible;
+
+    this.scene.fog = null;
+    this.weather.setHidden(true);
+    this.plinthGroup.visible = true;
+    this.markerGroup.visible = false;
+    this.heroRoot.visible = true;
+    (this.scene.background as THREE.Color).set('#141721');
+
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(210, 140, false);
+
+    const savedGroup = this.currentGroup;
+    if (savedGroup) this.heroRoot.remove(savedGroup);
+
+    LANDMARKS.forEach((_, idx) => {
+      const grp = this.buildLandmarkGroup(idx);
+      this.heroRoot.add(grp);
+      this.renderer.render(this.scene, thumbCam);
+      out[idx] = this.renderer.domElement.toDataURL('image/webp', 0.72);
+      this.heroRoot.remove(grp);
+    });
+
+    if (savedGroup) this.heroRoot.add(savedGroup);
+
+    this.renderer.setPixelRatio(prevPixelRatio);
+    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
+    this.scene.fog = prevFog;
+    (this.scene.background as THREE.Color).copy(prevBg);
+    this.plinthGroup.visible = prevShowPlinth;
+    this.markerGroup.visible = prevShowMarkers;
+    this.heroRoot.visible = prevShowHero;
+    this.weather.setHidden(!prevWeatherVisible);
+    this.showLandmarkImmediate(this.activeIndex);
+    return out;
+  }
+
+  captureGalleryShots(index: number): MediaItem[] {
+    const lm = LANDMARKS[index];
+    const shots: Array<{ pos: [number, number, number]; label: string }> = [
+      { pos: [11.5, 6.2, 13], label: '3D view' },
+      { pos: [-12, 8.5, 8], label: '3D oblique' },
+      { pos: [0, 15, 3], label: '3D aerial' },
+      { pos: [12, 2.2, -5], label: '3D low angle' },
+    ];
+    const savedPos = this.camera.position.clone();
+    const savedTarget = this.controls.target.clone();
+    const savedMarkers = this.markerGroup.visible;
+    this.markerGroup.visible = false;
+
+    const results: MediaItem[] = shots.map((sh) => {
+      this.camera.position.set(sh.pos[0], sh.pos[1], sh.pos[2]);
+      this.camera.lookAt(0, 1.5, 0);
+      this.renderCurrentPass();
+      const url = this.renderer.domElement.toDataURL('image/jpeg', 0.86);
+      return {
+        v: false,
+        src: url,
+        full: url,
+        cap: lm.f,
+        t: lm.f,
+        cr: `${lm.k} · ${sh.label}`,
+        lic: 'Interactive 3D render',
+        rend: true,
+      };
+    });
+
+    this.markerGroup.visible = savedMarkers;
+    this.camera.position.copy(savedPos);
+    this.controls.target.copy(savedTarget);
+    return results;
+  }
+
+  capturePostcard(index: number, weatherText: string): string {
+    const lm = LANDMARKS[index];
+    const wasMarkersVisible = this.markerGroup.visible;
+    this.markerGroup.visible = false;
+    this.renderCurrentPass();
+    this.markerGroup.visible = wasMarkersVisible;
+
+    const srcCanvas = this.renderer.domElement;
+    const out = document.createElement('canvas');
+    out.width = 1080;
+    out.height = 1350;
+    const ctx = out.getContext('2d');
+    if (!ctx) return '';
+
+    ctx.fillStyle = '#0e0f13';
+    ctx.fillRect(0, 0, 1080, 1350);
+
+    const aspect = srcCanvas.width / srcCanvas.height;
+    const targetW = 1080;
+    const targetH = targetW / aspect;
+    const drawY = (1350 - targetH) / 2;
+    ctx.drawImage(srcCanvas, 0, drawY, targetW, targetH);
+
+    const grad = ctx.createLinearGradient(0, 820, 0, 1350);
+    grad.addColorStop(0, 'rgba(14,15,19,0)');
+    grad.addColorStop(0.6, 'rgba(14,15,19,0.78)');
+    grad.addColorStop(1, 'rgba(14,15,19,0.96)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 820, 1080, 530);
+
+    ctx.fillStyle = '#e8b04a';
+    ctx.font = 'italic 600 28px Georgia, serif';
+    ctx.fillText('cıtylit', 68, 86);
+
+    ctx.font = '600 22px system-ui, sans-serif';
+    ctx.fillText(lm.c.toUpperCase(), 68, 1140);
+
+    ctx.fillStyle = '#f3efe6';
+    ctx.font = 'italic 400 72px Georgia, serif';
+    ctx.fillText(lm.k, 68, 1222);
+
+    ctx.fillStyle = '#a9a69e';
+    ctx.font = '500 24px system-ui, sans-serif';
+    ctx.fillText(weatherText, 68, 1278);
+
+    return out.toDataURL('image/png');
+  }
+
+  private renderCurrentPass(): void {
+    if (this.globe.isOpen) {
+      this.renderer.render(this.globe.group, this.globe.camera);
+    } else if (!this.isSoftwareGl && this.qualityIndex === 0 && this.bloomPass.enabled) {
+      this.composer.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
+  }
+
+  private bindEvents(canvas: HTMLCanvasElement): void {
+    const onResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+      this.globe.setAspect(w / h);
+      this.renderer.setSize(w, h);
+      this.composer.setSize(w, h);
+    };
+
+    const raycaster = new THREE.Raycaster();
+    const onPointerDown = (e: PointerEvent) => {
+      this.camGoal = null;
+      this.tapDown = { x: e.clientX, y: e.clientY, t: performance.now() };
+      this.callbacks.onFirstInteract?.();
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      const dx = e.clientX - this.tapDown.x;
+      const dy = e.clientY - this.tapDown.y;
+      const dt = performance.now() - this.tapDown.t;
+      if (dt < 280 && Math.hypot(dx, dy) < 9) {
+        const ndcX = (e.clientX / window.innerWidth) * 2 - 1;
+        const ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
+        if (this.globe.isOpen) {
+          const picked = this.globe.pickPin(ndcX, ndcY);
+          if (picked !== null) {
+            ambientAudio.vibrate(10);
+            this.callbacks.onSelectLandmarkFromGlobe?.(picked);
+          }
+          return;
+        }
+        raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+        const hits = raycaster.intersectObjects(this.markerSprites, false);
+        if (hits.length) {
+          const text = hits[0].object.userData.factText as string | undefined;
+          if (text) {
+            ambientAudio.playSfx('ping');
+            ambientAudio.vibrate(10);
+            this.callbacks.onFactDot?.(text);
+          }
+        }
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      if (!this.globe.isOpen) return;
+      e.preventDefault();
+      this.globe.zoomBy(1 + Math.sign(e.deltaY) * 0.08);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (this.globe.isOpen && e.touches.length === 2) {
+        this.pinchDist = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (this.globe.isOpen && e.touches.length === 2 && this.pinchDist > 0) {
+        const d = Math.hypot(
+          e.touches[0].pageX - e.touches[1].pageX,
+          e.touches[0].pageY - e.touches[1].pageY
+        );
+        this.globe.zoomBy(this.pinchDist / d);
+        this.pinchDist = d;
+      }
+    };
+
+    const onOrientation = (e: DeviceOrientationEvent) => {
+      if (!this.tiltEnabled || e.beta == null || e.gamma == null) return;
+      this.tiltOffsetX = Math.max(-1, Math.min(1, e.gamma / 35)) * 0.55;
+      this.tiltOffsetY = Math.max(-1, Math.min(1, (e.beta - 45) / 35)) * 0.35;
+    };
+
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      this.contextLost = true;
+    };
+
+    const onContextRestored = () => {
+      this.contextLost = false;
+      this.lastTick = performance.now();
+      this.scheduleNextFrame();
+    };
+
+    window.addEventListener('resize', onResize);
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('deviceorientation', onOrientation);
+    canvas.addEventListener('webglcontextlost', onContextLost);
+    canvas.addEventListener('webglcontextrestored', onContextRestored);
+
+    this.unbindListeners = () => {
+      window.removeEventListener('resize', onResize);
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('wheel', onWheel);
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('deviceorientation', onOrientation);
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored);
+    };
+  }
+
+  private unbindListeners: () => void = () => {};
+
+  private scheduleNextFrame(): void {
+    if (this.disposed) return;
+    this.rafId = requestAnimationFrame(this.frame);
+  }
+
+  private afterDraw(cb: () => void): void {
+    if (!this.isSoftwareGl) {
+      cb();
+      return;
+    }
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (!gl.fenceSync) {
+      this.afterDrawTimer = window.setTimeout(cb, 80);
+      return;
+    }
+    const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!sync) {
+      this.afterDrawTimer = window.setTimeout(cb, 80);
+      return;
+    }
+    gl.flush();
+    const start = performance.now();
+    const poll = () => {
+      if (this.disposed) {
+        gl.deleteSync(sync);
+        return;
+      }
+      const status = gl.clientWaitSync(sync, 0, 0);
+      if (
+        status === gl.ALREADY_SIGNALED ||
+        status === gl.CONDITION_SATISFIED ||
+        status === gl.WAIT_FAILED ||
+        performance.now() - start > 100
+      ) {
+        gl.deleteSync(sync);
+        cb();
+      } else {
+        this.afterDrawTimer = window.setTimeout(poll, 8);
+      }
+    };
+    this.afterDrawTimer = window.setTimeout(poll, 4);
+  }
+
+  private readonly frame = (now: number): void => {
+    if (this.disposed || this.contextLost) return;
+
+    const dt = Math.min(0.05, (now - this.lastTick) / 1000);
+    this.lastTick = now;
+    this.elapsed += dt;
+
+    // Auto quality monitor when qualitySetting === 'auto'
+    if (this.qualitySetting === 'auto' && !this.isSoftwareGl) {
+      this.autoScaleTimer += dt;
+      this.autoScaleAcc += dt;
+      this.autoScaleSamples++;
+      if (this.autoScaleTimer > 2 && this.autoScaleSamples > 10) {
+        const avgDt = this.autoScaleAcc / this.autoScaleSamples;
+        if (avgDt > 0.04 && this.qualityIndex < 2) {
+          this.setQualityIndex((this.qualityIndex + 1) as QualityIndex);
+        }
+        this.autoScaleTimer = 0;
+        this.autoScaleAcc = 0;
+        this.autoScaleSamples = 0;
+      }
+    }
+
+    if (this.globe.isOpen) {
+      this.globe.update(dt, this.elapsed, this.motionScale);
+      this.renderer.render(this.globe.group, this.globe.camera);
+    } else {
+      // Camera fly preset interpolation
+      if (this.camGoal) {
+        this.camGoalT = Math.min(1, this.camGoalT + dt * 1.4);
+        const s = this.camGoalT * this.camGoalT * (3 - 2 * this.camGoalT);
+        this.camera.position.lerpVectors(this.camStart, this.camTargetPos, s);
+        if (this.camGoalT >= 1) this.camGoal = null;
+      }
+
+      // Dust-dissolve landmark switch
+      if (this.dissolvePhase === 1) {
+        this.dissolveT += dt * 2.2;
+        const cutY = Math.max(-0.5, 9 * (1 - this.dissolveT));
+        WU.dy.value = cutY;
+        this.dustPoints.visible = true;
+        const dm = this.dustPoints.material as THREE.PointsMaterial;
+        dm.opacity = Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
+        for (let i = 0; i < 160; i++) {
+          this.dustPositions[i * 3] = Math.cos(i * 2.1 + this.elapsed * 3) * (1 + (i % 7) * 0.9);
+          this.dustPositions[i * 3 + 1] = cutY + ((i % 9) - 4) * 0.16;
+          this.dustPositions[i * 3 + 2] =
+            Math.sin(i * 1.7 + this.elapsed * 2) * (1 + (i % 7) * 0.9);
+        }
+        this.dustGeo.attributes.position.needsUpdate = true;
+        if (this.dissolveT >= 1) {
+          if (this.pendingIndex !== null) {
+            this.showLandmarkImmediate(this.pendingIndex);
+            this.pendingIndex = null;
+            this.dissolvePhase = 2;
+            this.dissolveT = 0;
+            WU.dy.value = -0.5;
+          }
+        }
+      } else if (this.dissolvePhase === 2) {
+        this.dissolveT += dt * 2.1;
+        const cutY = -0.5 + 9.5 * Math.min(1, this.dissolveT);
+        WU.dy.value = cutY;
+        this.dustPoints.visible = true;
+        const dm = this.dustPoints.material as THREE.PointsMaterial;
+        dm.opacity = Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.85;
+        for (let i = 0; i < 160; i++) {
+          this.dustPositions[i * 3] = Math.cos(i * 2.1 + this.elapsed * 3) * (1 + (i % 7) * 0.9);
+          this.dustPositions[i * 3 + 1] = cutY + ((i % 9) - 4) * 0.16;
+          this.dustPositions[i * 3 + 2] =
+            Math.sin(i * 1.7 + this.elapsed * 2) * (1 + (i % 7) * 0.9);
+        }
+        this.dustGeo.attributes.position.needsUpdate = true;
+        if (this.dissolveT >= 1) {
+          this.dissolvePhase = 0;
+          WU.dy.value = 100;
+          this.dustPoints.visible = false;
+        }
+      }
+
+      // Landmark tick + sway + glowing windows
+      const tickFn = this.currentGroup?.userData.tick as
+        | ((t: number, dt: number) => void)
+        | undefined;
+      if (tickFn) {
+        tickFn(this.elapsed * this.motionScale, dt * this.motionScale);
+      }
+      for (const sw of swayItems) {
+        sw.o.rotation.z =
+          Math.sin(this.elapsed * sw.sp * this.motionScale + sw.ph) *
+          sw.a *
+          (0.6 + this.weather.current.wind * 0.35);
+      }
+      const litStrength = WU.lit.value;
+      for (const gm of glowMaterials) {
+        const baseI = (gm.userData.i as number | undefined) ?? 1;
+        gm.emissiveIntensity = baseI * (0.15 + litStrength * 1.45);
+      }
+
+      // Marker sprite pulse
+      this.markerSprites.forEach((sp, i) => {
+        const s = 0.56 + 0.08 * Math.sin(this.elapsed * 3 * this.motionScale + i);
+        sp.scale.setScalar(s);
+      });
+
+      // Weather simulation
+      this.weather.update(dt, this.elapsed, {
+        qualityIndex: this.qualityIndex,
+        motionScale: this.motionScale,
+        keyLight: this.keyLight,
+        fillLight: this.fillLight,
+        hemiLight: this.hemiLight,
+        scene: this.scene,
+        renderer: this.renderer,
+        onThunder: () => {
+          ambientAudio.playSfx('thunder');
+          this.callbacks.onThunder?.();
+        },
+      });
+
+      // Update ambient audio synthesizer
+      const lm = LANDMARKS[this.activeIndex];
+      ambientAudio.update(
+        dt,
+        this.elapsed,
+        lm.ambient,
+        this.weather.current.wind,
+        this.weather.current.rain,
+        this.weather.current.night,
+        this.weather.current.storm
+      );
+
+      // Gentle gyro tilt offset
+      this.controls.target.set(this.tiltOffsetX, 1.5 + this.tiltOffsetY, 0);
+      this.controls.update();
+
+      this.renderCurrentPass();
+    }
+
+    this.afterDraw(() => this.scheduleNextFrame());
+  };
+
+  dispose(): void {
+    this.disposed = true;
+    cancelAnimationFrame(this.rafId);
+    window.clearTimeout(this.afterDrawTimer);
+    this.unbindListeners();
+    this.controls.dispose();
+    this.globe.dispose();
+    this.pmrem.dispose();
+    this.envTex.dispose();
+    this.composer.dispose();
+    this.renderer.dispose();
+    if (this.renderer.domElement.parentNode === this.container) {
+      this.container.removeChild(this.renderer.domElement);
+    }
+  }
+}
