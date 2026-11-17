@@ -1,0 +1,16 @@
+{
+  "name": "citylit-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Explore South African landmarks as interactive 3D places with live-style weather, time of day and ambient sound.",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "node --check server.js",
+    "lint": "node --check server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
