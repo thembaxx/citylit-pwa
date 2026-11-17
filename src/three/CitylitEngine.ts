@@ -23,6 +23,7 @@ import {
 } from './builders/primitives';
 import { createGlobeScene, type GlobeController } from './globeScene';
 import { getSoftTexture, installDissolveShader, WU } from './shaders';
+import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
 
 export interface EngineCallbacks {
@@ -33,6 +34,9 @@ export interface EngineCallbacks {
   onSwipeLandmark?: (dir: 1 | -1) => void;
 }
 
+const audioRight = new THREE.Vector3();
+const audioForward = new THREE.Vector3();
+
 export class CitylitEngine {
   readonly container: HTMLElement;
   readonly renderer: THREE.WebGLRenderer;
@@ -42,6 +46,7 @@ export class CitylitEngine {
   readonly isSoftwareGl: boolean;
   readonly weather: WeatherSceneController;
   readonly globe: GlobeController;
+  readonly atmosphere: AtmosphereSceneController;
 
   private readonly pmrem: THREE.PMREMGenerator;
   private readonly envTex: THREE.Texture;
@@ -245,6 +250,7 @@ export class CitylitEngine {
 
     // Weather & Globe sub-controllers
     this.weather = createWeatherScene(this.scene);
+    this.atmosphere = createAtmosphereScene(this.scene);
     this.globe = createGlobeScene(
       canvas,
       window.innerWidth / window.innerHeight,
@@ -348,6 +354,10 @@ export class CitylitEngine {
     ambientAudio.setSiteProfile(
       (this.currentGroup.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
     );
+    this.atmosphere.setSite({
+      key: LANDMARKS[index].k,
+      biome: LANDMARKS[index].biome,
+    });
     this.heroRoot.add(this.currentGroup);
     this.rebuildMarkers(index);
     this.dissolvePhase = 0;
@@ -456,6 +466,8 @@ export class CitylitEngine {
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
     this.weather.setHidden(true);
+    this.atmosphere.setHidden(true);
+    ambientAudio.setSpatialActive(false);
     this.controls.enabled = false;
     this.controls.autoRotate = false;
     this.globe.open(visited);
@@ -468,6 +480,8 @@ export class CitylitEngine {
     this.plinthGroup.visible = true;
     this.markerGroup.visible = true;
     this.weather.setHidden(false);
+    this.atmosphere.setHidden(false);
+    ambientAudio.setSpatialActive(true);
     this.controls.enabled = true;
     this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
   }
@@ -497,9 +511,11 @@ export class CitylitEngine {
     const prevShowMarkers = this.markerGroup.visible;
     const prevShowHero = this.heroRoot.visible;
     const prevWeatherVisible = this.weather.root.visible;
+    const prevAtmosphereVisible = this.atmosphere.root.visible;
 
     this.scene.fog = null;
     this.weather.setHidden(true);
+    this.atmosphere.setHidden(true);
     this.plinthGroup.visible = true;
     this.markerGroup.visible = false;
     this.heroRoot.visible = true;
@@ -529,6 +545,7 @@ export class CitylitEngine {
     this.markerGroup.visible = prevShowMarkers;
     this.heroRoot.visible = prevShowHero;
     this.weather.setHidden(!prevWeatherVisible);
+    this.atmosphere.setHidden(!prevAtmosphereVisible);
     this.showLandmarkImmediate(this.activeIndex);
     return out;
   }
@@ -905,14 +922,39 @@ export class CitylitEngine {
       });
       updateWetSurfaces(this.weather.current.rain);
 
-      // Update ambient audio synthesizer
+      // Localized atmosphere shell: ridge fog, heat shimmer, sea and spray mist
+      const fog = this.scene.fog;
+      this.atmosphere.update(dt, this.elapsed, {
+        qualityIndex: this.qualityIndex,
+        motionScale: this.motionScale,
+        night: this.weather.current.night,
+        rain: this.weather.current.rain,
+        fog: this.weather.current.fog,
+        cover: this.weather.current.cover,
+        wind: this.weather.current.wind,
+        fogColor: fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color),
+      });
+
+      // Gentle gyro tilt offset
+      this.controls.target.set(this.tiltOffsetX, 1.5 + this.tiltOffsetY, 0);
+      this.controls.update();
+
+      // Update ambient audio synthesizer and position the listener in the diorama
       const lm = LANDMARKS[this.activeIndex];
+      this.camera.updateMatrixWorld();
+      audioRight.setFromMatrixColumn(this.camera.matrixWorld, 0).normalize();
+      audioForward.setFromMatrixColumn(this.camera.matrixWorld, 2).normalize().negate();
       ambientAudio.setCameraYaw(
         Math.atan2(
           this.camera.position.x - this.controls.target.x,
           this.camera.position.z - this.controls.target.z
         )
       );
+      ambientAudio.updateSpatialListener({
+        position: [this.camera.position.x, this.camera.position.y, this.camera.position.z],
+        right: [audioRight.x, audioRight.y, audioRight.z],
+        forward: [audioForward.x, audioForward.y, audioForward.z],
+      });
       ambientAudio.update(
         dt,
         this.elapsed,
@@ -923,10 +965,6 @@ export class CitylitEngine {
         this.weather.current.night,
         this.weather.current.storm
       );
-
-      // Gentle gyro tilt offset
-      this.controls.target.set(this.tiltOffsetX, 1.5 + this.tiltOffsetY, 0);
-      this.controls.update();
 
       this.renderCurrentPass();
     }
@@ -941,6 +979,7 @@ export class CitylitEngine {
     this.unbindListeners();
     this.controls.dispose();
     this.globe.dispose();
+    this.atmosphere.dispose();
     this.pmrem.dispose();
     this.envTex.dispose();
     this.composer.dispose();

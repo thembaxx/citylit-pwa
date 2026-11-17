@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { AmbientEvent, AmbientSiteProfile, LandmarkBiome } from '../../types/citylit';
+import type {
+  AmbientEvent,
+  AmbientSiteProfile,
+  LandmarkBiome,
+  SpatialAudioSource,
+} from '../../types/citylit';
 import { getStoneBumpTexture, WU } from '../shaders';
 import {
   add,
@@ -1036,6 +1041,93 @@ function keyAngle(key: string): number {
 }
 
 /**
+ * Exact world positions for the modelling team's waterfall meshes, so the
+ * cascade's voice comes from the ribbon rather than a generic rim slot.
+ */
+const WATERFALL_ANCHORS: Record<string, readonly [number, number, number]> = {
+  'Drakensberg Amphitheatre': [-2.4, 2.2, -3.05],
+  'Augrabies Falls': [0, 2.2, -3.95],
+  "Bourke's Luck Potholes": [0, 0.8, 0],
+  'Bloukrans Bridge': [0, 0.6, 0],
+  'Gariep Dam': [0, 1.2, 0.4],
+  'Hartbeespoort Dam': [0, 1.0, -0.15],
+};
+
+/**
+ * Places the site's audible features around the diorama. Waterfalls and surf
+ * sit on the same rim as their visual counterparts; bird and insect voices
+ * perch on opposite sides so orbiting the camera sweeps them across the mix.
+ */
+function buildSpatialSources(
+  key: string,
+  profile: SiteProfile,
+  angle: number
+): readonly SpatialAudioSource[] {
+  const sources: SpatialAudioSource[] = [];
+  const at = (radius: number, heading: number, y: number): [number, number, number] => [
+    Math.cos(heading) * radius,
+    y,
+    Math.sin(heading) * radius,
+  ];
+  const { biome } = profile;
+
+  if (biome === 'waterfall') {
+    sources.push({
+      id: 'falls',
+      kind: 'waterfall',
+      position: WATERFALL_ANCHORS[key] ?? at(3.6, angle + 0.35, 1.6),
+      gain: 0.32,
+      radius: 7,
+    });
+  } else if (biome === 'coastal' || biome === 'wetland') {
+    sources.push({
+      id: 'surf',
+      kind: 'surf',
+      position: at(5.4, angle + Math.PI, 0.2),
+      gain: 0.26,
+      radius: 8,
+    });
+  }
+
+  if (
+    biome === 'waterfall' ||
+    biome === 'coastal' ||
+    biome === 'wetland' ||
+    biome === 'savannah' ||
+    biome === 'mountain' ||
+    biome === 'urban' ||
+    biome === 'desert'
+  ) {
+    sources.push({
+      id: 'birds-near',
+      kind: 'birds',
+      position: at(4.2, angle + 1.35, 2.7),
+      gain: 2.1,
+      radius: 6,
+    });
+    sources.push({
+      id: 'birds-far',
+      kind: 'birds',
+      position: at(5.1, angle - 1.9, 3.6),
+      gain: 1.5,
+      radius: 5.5,
+    });
+  }
+
+  if (biome === 'desert' || biome === 'savannah' || biome === 'wetland') {
+    sources.push({
+      id: 'insects',
+      kind: 'insects',
+      position: at(4.4, angle + 0.8, 0.5),
+      gain: 1.4,
+      radius: 6,
+    });
+  }
+
+  return sources;
+}
+
+/**
  * Applies the shared crafted-diorama layer to a landmark group: stratified
  * base rim, biome ground cover, a secondary anchor prop, micro-weather and
  * spatial audio metadata. Tree instances are batched at the end.
@@ -1058,7 +1150,10 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
     if (prev) prev(t, dt);
     for (let i = 0; i < updates.length; i++) updates[i](t);
   };
-  group.userData.audioProfile = profile.audio;
+  group.userData.audioProfile = {
+    ...profile.audio,
+    sources: buildSpatialSources(key, profile, angle),
+  } satisfies AmbientSiteProfile;
   group.userData.biome = profile.biome;
   return group;
 }

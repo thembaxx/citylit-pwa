@@ -3,11 +3,37 @@ import type {
   AmbientMixerSettings,
   AmbientSiteProfile,
   LandmarkBiome,
+  SpatialAudioSource,
 } from '../types/citylit';
 
 interface FilterBand {
   fl: BiquadFilterNode;
   g: GainNode;
+}
+
+interface SpatialEmitter {
+  def: SpatialAudioSource;
+  gain: GainNode;
+  panner: StereoPannerNode | null;
+  /** Bandpass/lowpass nodes whose cutoff is gently modulated per frame. */
+  filters: BiquadFilterNode[];
+  /** Looping buffer sources that need stopping when the site changes. */
+  sources: AudioBufferSourceNode[];
+  /** Every node owned by the emitter, disconnected together on teardown. */
+  nodes: AudioNode[];
+  /** Countdown to the next one-shot event for birds or insects. */
+  timer: number;
+  /** Per-emitter phase so emitters never swell in lockstep. */
+  phase: number;
+}
+
+export interface SpatialListener {
+  /** Listener (camera) position in diorama space. */
+  position: readonly [x: number, y: number, z: number];
+  /** Camera right axis in world space, used for stereo panning. */
+  right: readonly [x: number, y: number, z: number];
+  /** Camera forward axis in world space, used to soften rear sources. */
+  forward: readonly [x: number, y: number, z: number];
 }
 
 class AmbientAudioController {
@@ -27,15 +53,37 @@ class AmbientAudioController {
   private reducedMotion = false;
   private site: AmbientSiteProfile | null = null;
   private cameraYaw = 0;
+  private spatialSources: readonly SpatialAudioSource[] = [];
+  private spatialEmitters = new Map<string, SpatialEmitter>();
+  private listener: SpatialListener | null = null;
+  private spatialActive = true;
 
   /** Site-specific sound profile supplied by the diorama kit. */
   setSiteProfile(profile: AmbientSiteProfile | null): void {
     this.site = profile;
+    this.spatialSources = profile?.sources ?? [];
+    this.rebuildSpatialEmitters();
   }
 
   /** Camera azimuth (radians) used to pan site events around the listener. */
   setCameraYaw(yaw: number): void {
     this.cameraYaw = yaw;
+  }
+
+  /** Listener basis supplied by the engine each frame. */
+  updateSpatialListener(listener: SpatialListener): void {
+    this.listener = listener;
+  }
+
+  /** Mute positional emitters while the globe overlay replaces the diorama. */
+  setSpatialActive(active: boolean): void {
+    this.spatialActive = active;
+    if (!active && this.ctx) {
+      const now = this.ctx.currentTime;
+      for (const emitter of this.spatialEmitters.values()) {
+        emitter.gain.gain.setTargetAtTime(0, now, 0.08);
+      }
+    }
   }
 
   private eventPan(jitter = 0): number {
@@ -143,6 +191,229 @@ class AmbientAudioController {
     this.waterBand = makeBand(this.brownBuf, 'lowpass', 600, 0.4);
     this.hissBand = makeBand(this.whiteBuf, 'bandpass', 3000, 0.5);
     this.trafficBand = makeBand(this.brownBuf, 'bandpass', 155, 0.72);
+
+    this.rebuildSpatialEmitters();
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Positional emitters                                                 */
+  /* ------------------------------------------------------------------ */
+
+  private rebuildSpatialEmitters(): void {
+    for (const emitter of this.spatialEmitters.values()) {
+      for (const source of emitter.sources) {
+        try {
+          source.stop();
+        } catch {
+          // Source may already have ended; disconnecting below is enough.
+        }
+      }
+      for (const node of emitter.nodes) {
+        node.disconnect();
+      }
+    }
+    this.spatialEmitters.clear();
+
+    const ctx = this.ctx;
+    const master = this.masterGain;
+    if (!ctx || !master) return;
+
+    for (const def of this.spatialSources) {
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      const nodes: AudioNode[] = [gain];
+
+      let panner: StereoPannerNode | null = null;
+      if (typeof ctx.createStereoPanner === 'function') {
+        panner = ctx.createStereoPanner();
+        gain.connect(panner);
+        panner.connect(master);
+        nodes.push(panner);
+      } else {
+        gain.connect(master);
+      }
+
+      const filters: BiquadFilterNode[] = [];
+      const sources: AudioBufferSourceNode[] = [];
+
+      if (def.kind === 'waterfall' || def.kind === 'surf') {
+        const brown = this.brownBuf;
+        if (brown) {
+          const source = ctx.createBufferSource();
+          source.buffer = brown;
+          source.loop = true;
+          const filter = ctx.createBiquadFilter();
+          filter.type = def.kind === 'waterfall' ? 'lowpass' : 'bandpass';
+          filter.frequency.value = def.kind === 'waterfall' ? 760 : 520;
+          filter.Q.value = def.kind === 'waterfall' ? 0.55 : 0.9;
+          source.connect(filter);
+          filter.connect(gain);
+          source.start();
+          sources.push(source);
+          filters.push(filter);
+          nodes.push(source, filter);
+        }
+
+        if (def.kind === 'waterfall' && this.whiteBuf) {
+          const spraySource = ctx.createBufferSource();
+          spraySource.buffer = this.whiteBuf;
+          spraySource.loop = true;
+          const sprayFilter = ctx.createBiquadFilter();
+          sprayFilter.type = 'bandpass';
+          sprayFilter.frequency.value = 2650;
+          sprayFilter.Q.value = 0.75;
+          const sprayGain = ctx.createGain();
+          sprayGain.gain.value = 0.22;
+          spraySource.connect(sprayFilter);
+          sprayFilter.connect(sprayGain);
+          sprayGain.connect(gain);
+          spraySource.start();
+          sources.push(spraySource);
+          filters.push(sprayFilter);
+          nodes.push(spraySource, sprayFilter, sprayGain);
+        }
+      }
+
+      this.spatialEmitters.set(def.id, {
+        def,
+        gain,
+        panner,
+        filters,
+        sources,
+        nodes,
+        timer: 0.6 + Math.random() * 2.4,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  private updateSpatial(
+    dt: number,
+    elapsed: number,
+    biome: LandmarkBiome,
+    night: number,
+    rain: number
+  ): void {
+    const ctx = this.ctx;
+    const listener = this.listener;
+    if (!ctx || !listener) return;
+
+    const now = ctx.currentTime;
+    const [lx, ly, lz] = listener.position;
+    const [rx, , rz] = listener.right;
+    const [fx, fy, fz] = listener.forward;
+
+    for (const emitter of this.spatialEmitters.values()) {
+      const [px, py, pz] = emitter.def.position;
+      const dx = px - lx;
+      const dy = py - ly;
+      const dz = pz - lz;
+      const distance = Math.max(0.001, Math.hypot(dx, dy, dz));
+      const horizontal = Math.max(0.0001, Math.hypot(dx, dz));
+
+      // Inverse-distance falloff anchored to the source's physical radius.
+      const closeness = emitter.def.radius / (emitter.def.radius + distance);
+      // Project the source onto the camera-right axis for stereo placement.
+      const pan = Math.max(-0.95, Math.min(0.95, ((dx * rx + dz * rz) / horizontal) * 0.9));
+      // Rear sources sit a little softer than sources in front of the camera.
+      const facing = (dx * fx + dy * fy + dz * fz) / distance;
+      const frontal = 0.72 + 0.28 * Math.max(0, facing);
+      const bus =
+        emitter.def.kind === 'birds' || emitter.def.kind === 'insects' ? this.mixer.birds : 1;
+      const active = this.spatialActive && this.enabled ? 1 : 0;
+      const target = emitter.def.gain * closeness * frontal * bus * active;
+
+      emitter.gain.gain.setTargetAtTime(target, now, 0.12);
+      emitter.panner?.pan.setTargetAtTime(pan, now, 0.12);
+
+      for (let i = 0; i < emitter.filters.length; i++) {
+        const filter = emitter.filters[i];
+        const base = emitter.def.kind === 'waterfall' ? (i === 0 ? 760 : 2650) : 520;
+        const swing = emitter.def.kind === 'waterfall' ? (i === 0 ? 180 : 460) : 120;
+        filter.frequency.setTargetAtTime(
+          base + Math.sin(elapsed * (0.55 + i * 0.23) + emitter.phase) * swing,
+          now,
+          0.35
+        );
+      }
+
+      if (!this.enabled || !this.spatialActive) continue;
+
+      emitter.timer -= dt;
+      if (emitter.timer > 0) continue;
+
+      if (emitter.def.kind === 'birds') {
+        const clear = 1 - night * 0.7;
+        const dry = 1 - rain * 0.85;
+        if (Math.random() < 0.8 * clear * dry) this.emitterChirp(emitter, biome);
+        emitter.timer = (1.5 + Math.random() * 3.1) / Math.max(0.2, this.mixer.birds);
+      } else if (emitter.def.kind === 'insects') {
+        if (night > 0.35 && Math.random() < 1 - rain * 0.7) this.emitterCicada(emitter);
+        emitter.timer = 1.3 + Math.random() * 2.6;
+      }
+    }
+  }
+
+  private emitterChirp(emitter: SpatialEmitter, biome: LandmarkBiome): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const coastal = biome === 'coastal';
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const freq = coastal ? 1150 + Math.random() * 550 : 2200 + Math.random() * 1900;
+    const duration = coastal ? 0.32 : 0.16;
+
+    osc.type = coastal ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(
+      freq * (coastal ? 0.65 + Math.random() * 0.2 : 0.7 + Math.random() * 0.7),
+      now + duration * 0.85
+    );
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(coastal ? 0.045 : 0.055, now + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    osc.connect(gain);
+    gain.connect(emitter.gain);
+    osc.start(now);
+    osc.stop(now + duration + 0.04);
+    osc.onended = () => gain.disconnect();
+  }
+
+  private emitterCicada(emitter: SpatialEmitter): void {
+    const ctx = this.ctx;
+    const white = this.whiteBuf;
+    if (!ctx || !white) return;
+    const now = ctx.currentTime;
+    const duration = 0.5 + Math.random() * 0.4;
+    const source = ctx.createBufferSource();
+    source.buffer = white;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 4200 + Math.random() * 900;
+    filter.Q.value = 9;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.018, now);
+    gain.gain.linearRampToValueAtTime(0.018, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    const lfo = ctx.createOscillator();
+    const lfoGain = ctx.createGain();
+    lfo.frequency.value = 38 + Math.random() * 10;
+    lfoGain.gain.value = 0.011;
+    lfo.connect(lfoGain);
+    lfoGain.connect(gain.gain);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(emitter.gain);
+    source.start(now);
+    source.stop(now + duration + 0.05);
+    lfo.start(now);
+    lfo.stop(now + duration + 0.05);
+    source.onended = () => {
+      filter.disconnect();
+      gain.disconnect();
+      lfoGain.disconnect();
+    };
   }
 
   toggle(): boolean {
@@ -410,6 +681,7 @@ class AmbientAudioController {
     );
 
     if (this.enabled && this.mixer.birds > 0.01) {
+      const hasSpatialBirds = this.spatialSources.some((source) => source.kind === 'birds');
       const birdSiteRate =
         biome === 'savannah' || biome === 'wetland'
           ? 1.4
@@ -418,7 +690,9 @@ class AmbientAudioController {
             : kind === 'b'
               ? 1.25
               : 0.45;
-      const prob = dt * (1 - night * 0.75) * (1 - rain * 0.8) * birdSiteRate * this.mixer.birds;
+      const spatialBed = hasSpatialBirds ? 0.45 : 1;
+      const prob =
+        dt * (1 - night * 0.75) * (1 - rain * 0.8) * birdSiteRate * spatialBed * this.mixer.birds;
       if (Math.random() < prob) {
         this.chirp(biome);
       }
@@ -446,6 +720,8 @@ class AmbientAudioController {
         }
       }
     }
+
+    this.updateSpatial(dt, elapsed, biome, night, rain);
   }
 
   handleVisibilityChange(hidden: boolean): void {

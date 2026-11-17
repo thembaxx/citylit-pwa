@@ -54,12 +54,29 @@ export type LandmarkDot = readonly [x: number, y: number, z: number, text: strin
 /** Discrete site sounds layered over the biome bed. */
 export type AmbientEvent = 'shorebird' | 'cicada' | 'frog';
 
+/** Continuous or intermittent voices that live at a point in the diorama. */
+export type SpatialSoundKind = 'waterfall' | 'surf' | 'birds' | 'insects';
+
+export interface SpatialAudioSource {
+  /** Stable id so the mixer can reuse an emitter across a site switch. */
+  id: string;
+  kind: SpatialSoundKind;
+  /** Position in diorama space, relative to the hero group origin. */
+  position: readonly [x: number, y: number, z: number];
+  /** Peak gain multiplier at the listener's position. */
+  gain: number;
+  /** Distance (diorama units) at which the source is roughly half volume. */
+  radius: number;
+}
+
 export interface AmbientSiteProfile {
   events: readonly AmbientEvent[];
   /** Stereo anchor of the site's sound field, -1 (left) .. 1 (right). */
   pan: number;
   /** Relative event density multiplier. */
   density: number;
+  /** Positional emitters embedded in the diorama, mixed against the camera. */
+  sources?: readonly SpatialAudioSource[];
 }
 
 export interface LandmarkMeta {
