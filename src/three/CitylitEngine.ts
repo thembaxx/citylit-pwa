@@ -424,6 +424,10 @@ export class CitylitEngine {
     this.weather.applyCondition(condition, night, timeOfDay);
   }
 
+  setSeasonMonth(month: number, immediate = false): void {
+    this.weather.setSeasonMonth(month, immediate);
+  }
+
   setSunAltitudeFromSlider(val: number): void {
     this.weather.target.timeOfDay = val;
     this.weather.target.night = val < 6 || val >= 19 ? 1 : 0;

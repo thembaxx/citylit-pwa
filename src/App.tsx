@@ -47,6 +47,7 @@ function readStoredSet(key: string): Set<number> {
 }
 
 function readSettings(): CitylitSettings {
+  const defaultMixer = { wind: 80, birds: 75, traffic: 40 };
   try {
     const raw = localStorage.getItem('cl-st');
     if (raw) {
@@ -54,6 +55,12 @@ function readSettings(): CitylitSettings {
       return {
         quality: parsed.quality ?? 'auto',
         volume: typeof parsed.volume === 'number' ? parsed.volume : 80,
+        mixer: {
+          wind: typeof parsed.mixer?.wind === 'number' ? parsed.mixer.wind : defaultMixer.wind,
+          birds: typeof parsed.mixer?.birds === 'number' ? parsed.mixer.birds : defaultMixer.birds,
+          traffic:
+            typeof parsed.mixer?.traffic === 'number' ? parsed.mixer.traffic : defaultMixer.traffic,
+        },
         haptics: parsed.haptics ?? true,
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
@@ -62,7 +69,14 @@ function readSettings(): CitylitSettings {
   } catch {
     // Ignore invalid stored settings
   }
-  return { quality: 'auto', volume: 80, haptics: true, motion: 'auto', tilt: false };
+  return {
+    quality: 'auto',
+    volume: 80,
+    mixer: defaultMixer,
+    haptics: true,
+    motion: 'auto',
+    tilt: false,
+  };
 }
 
 export function App() {
@@ -226,6 +240,7 @@ export function App() {
     engineRef.current = engine;
 
     const initialIdx = readInitialLandmarkIndex();
+    engine.setSeasonMonth(new Date().getMonth() + 1, true);
     engine.showLandmarkImmediate(initialIdx);
 
     const thumbTimer = window.setTimeout(() => {
@@ -252,6 +267,7 @@ export function App() {
     document.body.classList.toggle('rm', reducedMotion);
     ambientAudio.setPreferences({
       volume: settings.volume / 100,
+      mixer: settings.mixer,
       haptics: settings.haptics,
       reducedMotion,
     });
@@ -287,6 +303,7 @@ export function App() {
       engineRef.current?.setWeather(k, isNight, timeHour);
     };
 
+    engineRef.current?.setSeasonMonth(month);
     applyState(cond.k, cond.temp, night, 'Climate');
 
     if (isNow && isOnline) {

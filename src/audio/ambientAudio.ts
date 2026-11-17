@@ -1,4 +1,4 @@
-import type { AmbientKind } from '../types/citylit';
+import type { AmbientKind, AmbientMixerSettings } from '../types/citylit';
 
 interface FilterBand {
   fl: BiquadFilterNode;
@@ -13,13 +13,28 @@ class AmbientAudioController {
   private windBand: FilterBand | null = null;
   private waterBand: FilterBand | null = null;
   private hissBand: FilterBand | null = null;
+  private trafficBand: FilterBand | null = null;
   private enabled = false;
   private volume = 0.8;
+  private mixer = { wind: 0.8, birds: 0.75, traffic: 0.4 };
+  private trafficPassTimer = 3.5;
   private hapticsEnabled = true;
   private reducedMotion = false;
 
-  setPreferences(opts: { volume: number; haptics: boolean; reducedMotion: boolean }): void {
-    this.volume = opts.volume;
+  setPreferences(opts: {
+    volume: number;
+    mixer?: AmbientMixerSettings;
+    haptics: boolean;
+    reducedMotion: boolean;
+  }): void {
+    this.volume = Math.max(0, Math.min(1, opts.volume));
+    if (opts.mixer) {
+      this.mixer = {
+        wind: Math.max(0, Math.min(1, opts.mixer.wind / 100)),
+        birds: Math.max(0, Math.min(1, opts.mixer.birds / 100)),
+        traffic: Math.max(0, Math.min(1, opts.mixer.traffic / 100)),
+      };
+    }
     this.hapticsEnabled = opts.haptics;
     this.reducedMotion = opts.reducedMotion;
     if (this.enabled && this.masterGain && this.ctx) {
@@ -90,6 +105,7 @@ class AmbientAudioController {
     this.windBand = makeBand(this.brownBuf, 'bandpass', 500, 0.6);
     this.waterBand = makeBand(this.brownBuf, 'lowpass', 600, 0.4);
     this.hissBand = makeBand(this.whiteBuf, 'bandpass', 3000, 0.5);
+    this.trafficBand = makeBand(this.brownBuf, 'bandpass', 155, 0.72);
   }
 
   toggle(): boolean {
@@ -171,20 +187,44 @@ class AmbientAudioController {
   }
 
   private chirp(): void {
-    if (!this.ctx || !this.masterGain) return;
+    if (!this.ctx || !this.masterGain || this.mixer.birds <= 0.001) return;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     const t = this.ctx.currentTime;
     const f = 2200 + Math.random() * 1800;
+    const peak = 0.055 * this.mixer.birds;
     osc.frequency.setValueAtTime(f, t);
     osc.frequency.exponentialRampToValueAtTime(f * (0.7 + Math.random() * 0.7), t + 0.12);
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.05, t + 0.02);
+    g.gain.linearRampToValueAtTime(peak, t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
     osc.connect(g);
     g.connect(this.masterGain);
     osc.start(t);
     osc.stop(t + 0.2);
+  }
+
+  private trafficPassby(intensity: number): void {
+    if (!this.ctx || !this.masterGain || !this.brownBuf || intensity <= 0.001) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const dur = 1.5 + Math.random() * 0.9;
+    const src = ctx.createBufferSource();
+    src.buffer = this.brownBuf;
+    const fl = ctx.createBiquadFilter();
+    fl.type = 'bandpass';
+    fl.Q.value = 1.1;
+    fl.frequency.setValueAtTime(420 + Math.random() * 140, t);
+    fl.frequency.exponentialRampToValueAtTime(140 + Math.random() * 50, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.05 * intensity, t + dur * 0.4);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(fl);
+    fl.connect(g);
+    g.connect(this.masterGain);
+    src.start(t);
+    src.stop(t + dur + 0.1);
   }
 
   update(
@@ -196,23 +236,53 @@ class AmbientAudioController {
     night: number,
     lightning: number
   ): void {
-    if (!this.ctx || !this.windBand || !this.waterBand || !this.hissBand) return;
+    if (!this.ctx || !this.windBand || !this.waterBand || !this.hissBand || !this.trafficBand) {
+      return;
+    }
     const t = this.ctx.currentTime;
-    this.windBand.g.gain.setTargetAtTime(0.01 + (0.05 * wind) / 3.5, t, 0.3);
+
+    const windGain = (0.012 + (0.055 * wind) / 3.5) * this.mixer.wind;
+    this.windBand.g.gain.setTargetAtTime(windGain, t, 0.25);
     this.windBand.fl.frequency.setTargetAtTime(
       300 + 260 * Math.sin(elapsed * 0.35) + wind * 120,
       t,
       0.3
     );
+
     this.waterBand.g.gain.setTargetAtTime(
       (kind === 's' ? 0.07 * (1 + 0.6 * Math.sin(elapsed * 0.8)) : 0) + lightning * 0.04,
       t,
       0.3
     );
     this.waterBand.fl.frequency.setTargetAtTime(400 + 300 * Math.sin(elapsed * 0.8), t, 0.3);
-    this.hissBand.g.gain.setTargetAtTime((kind === 'f' ? 0.05 : 0) + rain * 0.05, t, 0.3);
-    if (this.enabled && kind === 'b' && Math.random() < dt * (1 - night) * (1 - rain) * 1.2) {
-      this.chirp();
+
+    const hissLevel = (kind === 'f' ? 0.05 * (0.35 + 0.65 * this.mixer.wind) : 0) + rain * 0.05;
+    this.hissBand.g.gain.setTargetAtTime(hissLevel, t, 0.25);
+
+    const urbanFactor = kind === 'c' ? 1 : kind === 's' ? 0.72 : 0.42;
+    const swell = 0.65 + 0.35 * Math.sin(elapsed * 0.37) * Math.cos(elapsed * 0.19);
+    const trafficGain = this.mixer.traffic * urbanFactor * swell * 0.095;
+    this.trafficBand.g.gain.setTargetAtTime(trafficGain, t, 0.25);
+    this.trafficBand.fl.frequency.setTargetAtTime(
+      145 + 35 * Math.sin(elapsed * 0.27) + urbanFactor * 25,
+      t,
+      0.3
+    );
+
+    if (this.enabled && this.mixer.birds > 0.01) {
+      const birdSiteRate = kind === 'b' ? 1.35 : 0.45;
+      const prob = dt * (1 - night * 0.75) * (1 - rain * 0.8) * birdSiteRate * this.mixer.birds;
+      if (Math.random() < prob) {
+        this.chirp();
+      }
+    }
+
+    if (this.enabled && this.mixer.traffic > 0.04) {
+      this.trafficPassTimer -= dt;
+      if (this.trafficPassTimer <= 0) {
+        this.trafficPassby(this.mixer.traffic * urbanFactor);
+        this.trafficPassTimer = (3.2 + Math.random() * 4.5) / Math.max(0.35, urbanFactor);
+      }
     }
   }
 

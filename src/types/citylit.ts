@@ -2,9 +2,16 @@ export type QualitySetting = 'auto' | 'high' | 'balanced' | 'low';
 export type QualityIndex = 0 | 1 | 2;
 export type MotionSetting = 'auto' | 'reduce';
 
+export interface AmbientMixerSettings {
+  wind: number;
+  birds: number;
+  traffic: number;
+}
+
 export interface CitylitSettings {
   quality: QualitySetting;
   volume: number;
+  mixer: AmbientMixerSettings;
   haptics: boolean;
   motion: MotionSetting;
   tilt: boolean;

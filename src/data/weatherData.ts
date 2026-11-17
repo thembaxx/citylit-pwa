@@ -42,6 +42,13 @@ export const MONTHS = [
   'Dec',
 ] as const;
 
+export function getSeasonName(month: number): 'Summer' | 'Autumn' | 'Winter' | 'Spring' {
+  if (month === 12 || month <= 2) return 'Summer';
+  if (month <= 5) return 'Autumn';
+  if (month <= 8) return 'Winter';
+  return 'Spring';
+}
+
 export function pad2(value: number): string {
   return String(value).padStart(2, '0');
 }

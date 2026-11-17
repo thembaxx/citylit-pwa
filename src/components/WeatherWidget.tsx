@@ -1,5 +1,5 @@
 import { GlobeHemisphereEast, Moon, Sun, SunDim, SunHorizon } from '@phosphor-icons/react';
-import { MONTHS } from '../data/weatherData';
+import { getSeasonName, MONTHS } from '../data/weatherData';
 import type { ForecastSlot, WeatherDisplayState } from '../types/citylit';
 import { WeatherIcon } from './WeatherIcon';
 
@@ -127,7 +127,9 @@ export function WeatherWidget({
 
               <div>
                 <div className="flex items-center justify-between text-[11px] text-[#a9a69e] mb-1">
-                  <span>Season ({MONTHS[month - 1]})</span>
+                  <span>
+                    {getSeasonName(month)} · {MONTHS[month - 1]}
+                  </span>
                   <span className="text-[#e8b04a]">Best: {bestMonths}</span>
                 </div>
                 <input
