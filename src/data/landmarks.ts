@@ -7,6 +7,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A flat-topped sandstone massif about 3 km across, peaking near 1,086 m. Its “tablecloth” of cloud pours over the edge on the south-easter.',
     wikiTitle: 'Table Mountain',
     ambient: 'c',
+    biome: 'mountain',
     coords: [-33.96, 18.4],
     climatology: { high: 18, low: 10, base: 'cloud' },
     dots: [
@@ -20,6 +21,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Designed by Sir Herbert Baker and completed in 1913 on Meintjieskop: a curved colonnade between two wings, now the seat of government.',
     wikiTitle: 'Union Buildings',
     ambient: 'b',
+    biome: 'urban',
     coords: [-25.74, 28.21],
     climatology: { high: 29, low: 16, base: 'partly', pm: 'storm' },
     dots: [
@@ -38,6 +40,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Built for the 2010 FIFA World Cup. A 106 m arch spans the bowl, splitting into a Y at one end, and carries the SkyCar.',
     wikiTitle: 'Moses Mabhida Stadium',
     ambient: 's',
+    biome: 'urban',
     coords: [-29.83, 31.03],
     climatology: { high: 26, low: 19, base: 'partly', pm: 'rain' },
     dots: [
@@ -51,6 +54,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Opened in 2003, a 284 m cable-stayed span over the Braamfontein rail yards, linking Braamfontein and Newtown.',
     wikiTitle: 'Nelson Mandela Bridge',
     ambient: 'c',
+    biome: 'urban',
     coords: [-26.2, 28.04],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -64,6 +68,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Dug largely by hand between 1871 and 1914, about 463 m across and yielding roughly 2,700 kg of diamonds.',
     wikiTitle: 'Big Hole',
     ambient: 'c',
+    biome: 'desert',
     coords: [-28.74, 24.77],
     climatology: { high: 31, low: 16, base: 'sun', pm: 'partly' },
     dots: [
@@ -77,6 +82,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Inaugurated in 1949: a 40 m granite cube ringed by a stone laager of ox wagons. A shaft of noon sun falls on its cenotaph each 16 December.',
     wikiTitle: 'Voortrekker Monument',
     ambient: 'b',
+    biome: 'urban',
     coords: [-25.77, 28.18],
     climatology: { high: 29, low: 16, base: 'partly', pm: 'storm' },
     dots: [
@@ -95,6 +101,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'First lit in 1860 on a cliff 238 m above the sea. Cloud often hid its light, so a lower lighthouse replaced it in 1919.',
     wikiTitle: 'Cape Point',
     ambient: 's',
+    biome: 'coastal',
     coords: [-34.36, 18.5],
     climatology: { high: 21, low: 13, base: 'wind' },
     dots: [
@@ -113,6 +120,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A hillside quarter of brightly painted Cape Malay houses beneath Signal Hill, home to the Auwal Mosque, founded in 1794.',
     wikiTitle: 'Bo-Kaap',
     ambient: 'c',
+    biome: 'urban',
     coords: [-33.92, 18.42],
     climatology: { high: 24, low: 15, base: 'wind' },
     dots: [
@@ -126,6 +134,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Shaped like a calabash and clad in earthy mosaic, Africa’s largest stadium seats about 94,000 and hosted the 2010 World Cup final.',
     wikiTitle: 'FNB Stadium',
     ambient: 'c',
+    biome: 'urban',
     coords: [-26.23, 27.98],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -139,6 +148,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Three round, thatch-topped rock summits above Blyde River Canyon, named for their likeness to traditional African huts.',
     wikiTitle: 'Blyde River Canyon',
     ambient: 'b',
+    biome: 'mountain',
     coords: [-24.57, 30.8],
     climatology: { high: 26, low: 15, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -152,6 +162,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Called the upside-down tree, the baobab swells a bottle-shaped trunk to store water and can live for well over a thousand years.',
     wikiTitle: 'Adansonia digitata',
     ambient: 'b',
+    biome: 'savannah',
     coords: [-22.65, 30.4],
     climatology: { high: 34, low: 20, base: 'sun', pm: 'storm' },
     dots: [
@@ -165,6 +176,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A sea-carved arch in a rock island on the Wild Coast. The Xhosa call it esiKhaleni, the place of sound, for the waves booming through it.',
     wikiTitle: 'Hole in the Wall, Eastern Cape',
     ambient: 's',
+    biome: 'coastal',
     coords: [-32, 29.14],
     climatology: { high: 24, low: 17, base: 'partly', pm: 'rain' },
     dots: [
@@ -178,6 +190,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Built by the Dutch East India Company between 1666 and 1679, this five-pointed star fort is the oldest surviving colonial building in South Africa.',
     wikiTitle: 'Castle of Good Hope',
     ambient: 'c',
+    biome: 'urban',
     coords: [-33.93, 18.43],
     climatology: { high: 24, low: 14, base: 'wind' },
     dots: [
@@ -196,6 +209,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A basalt wall about 5 km long and up to 1,200 m high. Tugela Falls drops roughly 950 m in five leaps from its rim, among the tallest in the world.',
     wikiTitle: 'Amphitheatre (Drakensberg)',
     ambient: 'f',
+    biome: 'waterfall',
     coords: [-28.69, 28.89],
     climatology: { high: 22, low: 9, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -214,6 +228,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Opened in 1992, a resort palace themed on a lost African kingdom, with gilded towers, jungle gardens and a wave-pool valley around it.',
     wikiTitle: 'The Palace of the Lost City',
     ambient: 'b',
+    biome: 'urban',
     coords: [-25.34, 27.09],
     climatology: { high: 31, low: 18, base: 'sun', pm: 'storm' },
     dots: [
@@ -227,6 +242,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Sandstone cliffs that glow gold and orange at sunrise and sunset, in the foothills of the Maluti Mountains.',
     wikiTitle: 'Golden Gate Highlands National Park',
     ambient: 'b',
+    biome: 'mountain',
     coords: [-28.5, 28.62],
     climatology: { high: 25, low: 9, base: 'partly', pm: 'storm' },
     dots: [
@@ -240,6 +256,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'One of Africa’s largest game reserves, roughly 2 million hectares and home to the Big Five. Elephants gather at its waterholes.',
     wikiTitle: 'Kruger National Park',
     ambient: 'b',
+    biome: 'savannah',
     coords: [-24, 31.5],
     climatology: { high: 33, low: 20, base: 'sun', pm: 'storm' },
     dots: [
@@ -263,6 +280,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A 173 m circular apartment tower from 1975 in Berea, 54 floors around a hollow core, crowned by a rooftop sign that is a skyline icon.',
     wikiTitle: 'Ponte City Apartments',
     ambient: 'c',
+    biome: 'urban',
     coords: [-26.19, 28.05],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -276,6 +294,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A sheltered cove of granite boulders where African penguins began nesting in 1982 with just two breeding pairs and built a colony.',
     wikiTitle: 'Boulders Beach',
     ambient: 's',
+    biome: 'coastal',
     coords: [-34.2, 18.45],
     climatology: { high: 22, low: 13, base: 'wind' },
     dots: [
@@ -289,6 +308,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Lit in 1849, the second-oldest working lighthouse in South Africa stands near Africa’s southernmost tip, where two oceans meet.',
     wikiTitle: 'Cape Agulhas Lighthouse',
     ambient: 's',
+    biome: 'coastal',
     coords: [-34.83, 20],
     climatology: { high: 21, low: 14, base: 'wind' },
     dots: [
@@ -307,6 +327,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Two cooling towers of the former Orlando power station, decommissioned in 1998 and covered in murals. Today people bungee jump between them.',
     wikiTitle: 'Orlando Towers',
     ambient: 'c',
+    biome: 'urban',
     coords: [-26.24, 27.93],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -320,6 +341,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Where the Treur and Blyde rivers meet, swirling water has drilled round potholes into the rock, crossed today by footbridges.',
     wikiTitle: "Bourke's Luck Potholes",
     ambient: 'f',
+    biome: 'waterfall',
     coords: [-24.67, 30.81],
     climatology: { high: 26, low: 15, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -333,6 +355,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'The Orange River drops about 56 m into a granite gorge. The name is said to come from a Khoikhoi word for place of great noise.',
     wikiTitle: 'Augrabies Falls',
     ambient: 'f',
+    biome: 'waterfall',
     coords: [-28.59, 20.34],
     climatology: { high: 35, low: 19, base: 'sun', pm: 'partly' },
     dots: [
@@ -346,6 +369,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'The Southern African Large Telescope, with a segmented mirror about 10 m across, is the largest single optical telescope in the southern hemisphere.',
     wikiTitle: 'Southern African Large Telescope',
     ambient: 'c',
+    biome: 'desert',
     coords: [-32.38, 20.81],
     climatology: { high: 26, low: 9, base: 'sun' },
     dots: [
@@ -364,6 +388,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A concrete arch bridge 216 m above the Bloukrans gorge on the Garden Route, home to the world’s highest commercial bridge bungee jump.',
     wikiTitle: 'Bloukrans Bridge',
     ambient: 'f',
+    biome: 'waterfall',
     coords: [-33.97, 23.65],
     climatology: { high: 23, low: 13, base: 'partly', pm: 'rain' },
     dots: [
@@ -382,6 +407,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'The eroded remains of an extinct volcano about 1.2 billion years old, with rings of hills around a game reserve.',
     wikiTitle: 'Pilanesberg',
     ambient: 'b',
+    biome: 'savannah',
     coords: [-25.25, 27.1],
     climatology: { high: 31, low: 18, base: 'sun', pm: 'storm' },
     dots: [
@@ -400,6 +426,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Nelson Mandela spent 18 of his 27 years in prison here. The island is now a museum and a World Heritage Site, reached by ferry from Cape Town.',
     wikiTitle: 'Robben Island',
     ambient: 's',
+    biome: 'coastal',
     coords: [-33.81, 18.37],
     climatology: { high: 23, low: 14, base: 'wind' },
     dots: [
@@ -418,6 +445,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A 9 km road cut into sheer cliffs above the Atlantic between Hout Bay and Noordhoek, opened in 1922.',
     wikiTitle: "Chapman's Peak Drive",
     ambient: 's',
+    biome: 'coastal',
     coords: [-34.08, 18.36],
     climatology: { high: 23, low: 14, base: 'wind' },
     dots: [
@@ -431,6 +459,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Site of the battle of 22 January 1879, a Zulu victory over a British column. White cairns on the plain mark where soldiers fell.',
     wikiTitle: 'Isandlwana',
     ambient: 'b',
+    biome: 'mountain',
     coords: [-28.35, 30.65],
     climatology: { high: 29, low: 16, base: 'partly', pm: 'storm' },
     dots: [
@@ -444,6 +473,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Completed in 1971 on the Orange River, it holds more water than any other dam in South Africa.',
     wikiTitle: 'Gariep Dam',
     ambient: 'f',
+    biome: 'waterfall',
     coords: [-30.62, 25.51],
     climatology: { high: 31, low: 15, base: 'sun', pm: 'storm' },
     dots: [
@@ -457,6 +487,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A World Heritage Site of fossil caves, where Mrs Ples (about 2.1 million years old) and Little Foot (about 3.7 million) were found.',
     wikiTitle: 'Cradle of Humankind',
     ambient: 'b',
+    biome: 'mountain',
     coords: [-26.02, 27.79],
     climatology: { high: 27, low: 13, base: 'partly', pm: 'storm' },
     dots: [
@@ -470,6 +501,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'This sandstone hill was the centre of a 13th-century kingdom. Its royal graves held the golden rhino, and it is a World Heritage Site.',
     wikiTitle: 'Mapungubwe',
     ambient: 'b',
+    biome: 'savannah',
     coords: [-22.19, 29.39],
     climatology: { high: 34, low: 19, base: 'sun', pm: 'storm' },
     dots: [
@@ -483,6 +515,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Red dunes in Africa’s first transfrontier park, shared with Botswana. Gemsbok, springbok and black-maned lions live here.',
     wikiTitle: 'Kgalagadi Transfrontier Park',
     ambient: 'c',
+    biome: 'desert',
     coords: [-25.8, 20.4],
     climatology: { high: 35, low: 18, base: 'sun' },
     dots: [
@@ -496,6 +529,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A suspension bridge crosses the mouth of the Storms River in Tsitsikamma National Park, where forest meets the Indian Ocean.',
     wikiTitle: 'Tsitsikamma National Park',
     ambient: 's',
+    biome: 'coastal',
     coords: [-34.02, 23.9],
     climatology: { high: 22, low: 13, base: 'partly', pm: 'rain' },
     dots: [
@@ -509,6 +543,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'The oldest wine estate in South Africa, founded in 1685 by Governor Simon van der Stel, with a classic Cape Dutch homestead.',
     wikiTitle: 'Groot Constantia',
     ambient: 'b',
+    biome: 'savannah',
     coords: [-34.03, 18.42],
     climatology: { high: 24, low: 13, base: 'wind' },
     dots: [
@@ -522,6 +557,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Southern right whales come into Walker Bay to calve between about June and November, and can be watched from the cliff path in town.',
     wikiTitle: 'Hermanus',
     ambient: 's',
+    biome: 'coastal',
     coords: [-34.42, 19.24],
     climatology: { high: 22, low: 13, base: 'wind' },
     dots: [
@@ -535,6 +571,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'South Africa’s first World Heritage Site, declared in 1999: a coastal wetland where hippos and crocodiles share the estuary beside long forested dunes.',
     wikiTitle: 'iSimangaliso Wetland Park',
     ambient: 'b',
+    biome: 'wetland',
     coords: [-28.38, 32.41],
     climatology: { high: 29, low: 20, base: 'partly', pm: 'rain' },
     dots: [
@@ -548,6 +585,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A steep gravel road of hairpin bends that climbs the Drakensberg escarpment from KwaZulu-Natal to the Lesotho border at about 2,876 m.',
     wikiTitle: 'Sani Pass',
     ambient: 'c',
+    biome: 'mountain',
     coords: [-29.58, 29.29],
     climatology: { high: 18, low: 6, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -561,6 +599,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A rugged desert in the far northwest, a World Heritage cultural and botanical landscape where Nama herders still graze and quiver trees grow among the rocks.',
     wikiTitle: 'Richtersveld',
     ambient: 'c',
+    biome: 'desert',
     coords: [-28.3, 17.1],
     climatology: { high: 34, low: 15, base: 'sun' },
     dots: [
@@ -584,6 +623,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'The eroded centre of the largest verified meteorite impact structure on Earth, formed about 2 billion years ago and now a World Heritage Site.',
     wikiTitle: 'Vredefort Dome',
     ambient: 'b',
+    biome: 'mountain',
     coords: [-27, 27.5],
     climatology: { high: 28, low: 13, base: 'partly', pm: 'storm' },
     dots: [
@@ -597,6 +637,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A dam in the Magaliesberg completed in 1923, with an aerial cableway that carries visitors to a viewpoint high above the water.',
     wikiTitle: 'Hartbeespoort Dam',
     ambient: 'b',
+    biome: 'waterfall',
     coords: [-25.73, 27.9],
     climatology: { high: 29, low: 15, base: 'partly', pm: 'storm' },
     dots: [
@@ -610,6 +651,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'Two sandstone cliffs guard the narrow mouth of the Knysna Lagoon on the Garden Route, a passage that has wrecked many ships.',
     wikiTitle: 'Knysna Heads',
     ambient: 's',
+    biome: 'coastal',
     coords: [-34.08, 23.07],
     climatology: { high: 23, low: 13, base: 'partly', pm: 'rain' },
     dots: [
@@ -623,6 +665,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     f: 'A hilltop park in Gqeberha with a stone pyramid built in 1820 by Sir Rufane Donkin in memory of his wife, and a lighthouse beside it.',
     wikiTitle: 'Donkin Reserve',
     ambient: 's',
+    biome: 'coastal',
     coords: [-33.96, 25.62],
     climatology: { high: 22, low: 13, base: 'wind' },
     dots: [

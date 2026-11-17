@@ -1,4 +1,4 @@
-import type { AmbientKind, AmbientMixerSettings } from '../types/citylit';
+import type { AmbientKind, AmbientMixerSettings, LandmarkBiome } from '../types/citylit';
 
 interface FilterBand {
   fl: BiquadFilterNode;
@@ -186,22 +186,28 @@ class AmbientAudioController {
     }
   }
 
-  private chirp(): void {
+  private chirp(biome: LandmarkBiome): void {
     if (!this.ctx || !this.masterGain || this.mixer.birds <= 0.001) return;
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     const t = this.ctx.currentTime;
-    const f = 2200 + Math.random() * 1800;
-    const peak = 0.055 * this.mixer.birds;
+    const isCoastal = biome === 'coastal';
+    const f = isCoastal ? 1150 + Math.random() * 550 : 2200 + Math.random() * 1900;
+    const dur = isCoastal ? 0.32 : 0.16;
+    const peak = (isCoastal ? 0.045 : 0.055) * this.mixer.birds;
+    osc.type = isCoastal ? 'triangle' : 'sine';
     osc.frequency.setValueAtTime(f, t);
-    osc.frequency.exponentialRampToValueAtTime(f * (0.7 + Math.random() * 0.7), t + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(
+      f * (isCoastal ? 0.65 + Math.random() * 0.2 : 0.7 + Math.random() * 0.7),
+      t + dur * 0.85
+    );
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(peak, t + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    g.gain.linearRampToValueAtTime(peak, t + 0.025);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.connect(g);
     g.connect(this.masterGain);
     osc.start(t);
-    osc.stop(t + 0.2);
+    osc.stop(t + dur + 0.04);
   }
 
   private trafficPassby(intensity: number): void {
@@ -231,6 +237,7 @@ class AmbientAudioController {
     dt: number,
     elapsed: number,
     kind: AmbientKind,
+    biome: LandmarkBiome,
     wind: number,
     rain: number,
     night: number,
@@ -241,25 +248,44 @@ class AmbientAudioController {
     }
     const t = this.ctx.currentTime;
 
-    const windGain = (0.012 + (0.055 * wind) / 3.5) * this.mixer.wind;
+    const mountainBoost = biome === 'mountain' || biome === 'desert' ? 1.25 : 1.0;
+    const windGain = (0.012 + (0.055 * wind) / 3.5) * mountainBoost * this.mixer.wind;
     this.windBand.g.gain.setTargetAtTime(windGain, t, 0.25);
     this.windBand.fl.frequency.setTargetAtTime(
-      300 + 260 * Math.sin(elapsed * 0.35) + wind * 120,
+      (biome === 'mountain' ? 380 : 300) + 260 * Math.sin(elapsed * 0.35) + wind * 120,
       t,
       0.3
     );
 
-    this.waterBand.g.gain.setTargetAtTime(
-      (kind === 's' ? 0.07 * (1 + 0.6 * Math.sin(elapsed * 0.8)) : 0) + lightning * 0.04,
+    const isSurf = biome === 'coastal' || biome === 'wetland' || kind === 's';
+    const isCascade = biome === 'waterfall' || kind === 'f';
+    const surfGain = isSurf
+      ? (biome === 'wetland' ? 0.04 : 0.075) * (1 + 0.65 * Math.sin(elapsed * 0.72))
+      : 0;
+    const cascadeGain = isCascade ? 0.075 : 0;
+    this.waterBand.g.gain.setTargetAtTime(surfGain + cascadeGain + lightning * 0.04, t, 0.3);
+    this.waterBand.fl.frequency.setTargetAtTime(
+      isCascade ? 780 : 400 + 320 * Math.sin(elapsed * 0.72),
       t,
       0.3
     );
-    this.waterBand.fl.frequency.setTargetAtTime(400 + 300 * Math.sin(elapsed * 0.8), t, 0.3);
 
-    const hissLevel = (kind === 'f' ? 0.05 * (0.35 + 0.65 * this.mixer.wind) : 0) + rain * 0.05;
+    const sprayHiss = isCascade
+      ? 0.055
+      : isSurf
+        ? 0.025 * Math.max(0, Math.sin(elapsed * 0.72))
+        : 0;
+    const hissLevel = sprayHiss * (0.35 + 0.65 * this.mixer.wind) + rain * 0.055;
     this.hissBand.g.gain.setTargetAtTime(hissLevel, t, 0.25);
 
-    const urbanFactor = kind === 'c' ? 1 : kind === 's' ? 0.72 : 0.42;
+    const urbanFactor =
+      biome === 'urban'
+        ? 1
+        : biome === 'coastal'
+          ? 0.55
+          : biome === 'waterfall' || biome === 'mountain'
+            ? 0.32
+            : 0.24;
     const swell = 0.65 + 0.35 * Math.sin(elapsed * 0.37) * Math.cos(elapsed * 0.19);
     const trafficGain = this.mixer.traffic * urbanFactor * swell * 0.095;
     this.trafficBand.g.gain.setTargetAtTime(trafficGain, t, 0.25);
@@ -270,10 +296,17 @@ class AmbientAudioController {
     );
 
     if (this.enabled && this.mixer.birds > 0.01) {
-      const birdSiteRate = kind === 'b' ? 1.35 : 0.45;
+      const birdSiteRate =
+        biome === 'savannah' || biome === 'wetland'
+          ? 1.4
+          : biome === 'coastal'
+            ? 0.85
+            : kind === 'b'
+              ? 1.25
+              : 0.45;
       const prob = dt * (1 - night * 0.75) * (1 - rain * 0.8) * birdSiteRate * this.mixer.birds;
       if (Math.random() < prob) {
-        this.chirp();
+        this.chirp(biome);
       }
     }
 
@@ -281,7 +314,7 @@ class AmbientAudioController {
       this.trafficPassTimer -= dt;
       if (this.trafficPassTimer <= 0) {
         this.trafficPassby(this.mixer.traffic * urbanFactor);
-        this.trafficPassTimer = (3.2 + Math.random() * 4.5) / Math.max(0.35, urbanFactor);
+        this.trafficPassTimer = (3.2 + Math.random() * 4.5) / Math.max(0.3, urbanFactor);
       }
     }
   }

@@ -462,6 +462,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     WU.sun.value = day * (1 - current.cover * 0.65);
     WU.sky.value.copy(skyTmp);
     WU.wind.value = current.wind;
+    WU.rain.value = current.rain;
     WU.lit.value = Math.min(1, Math.max(0, (1 - day) * 1.4 + current.cover * 0.3));
   };
 

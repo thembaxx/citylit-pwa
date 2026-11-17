@@ -14,7 +14,12 @@ import type {
   WeatherConditionKey,
 } from '../types/citylit';
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
-import { glowMaterials, resetSceneDynamicLists, swayItems } from './builders/primitives';
+import {
+  glowMaterials,
+  resetSceneDynamicLists,
+  swayItems,
+  updateWetSurfaces,
+} from './builders/primitives';
 import { createGlobeScene, type GlobeController } from './globeScene';
 import { getSoftTexture, installDissolveShader, WU } from './shaders';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
@@ -894,6 +899,7 @@ export class CitylitEngine {
           this.callbacks.onThunder?.();
         },
       });
+      updateWetSurfaces(this.weather.current.rain);
 
       // Update ambient audio synthesizer
       const lm = LANDMARKS[this.activeIndex];
@@ -901,6 +907,7 @@ export class CitylitEngine {
         dt,
         this.elapsed,
         lm.ambient,
+        lm.biome,
         this.weather.current.wind,
         this.weather.current.rain,
         this.weather.current.night,

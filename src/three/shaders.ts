@@ -6,6 +6,7 @@ export const WU = {
   sky: { value: new THREE.Color('#3b6490') },
   wind: { value: 1 },
   lit: { value: 0 },
+  rain: { value: 0 },
   dy: { value: 100 },
 };
 
@@ -51,6 +52,14 @@ export function installDissolveShader(): void {
 }
 
 let softTextureCache: THREE.CanvasTexture | null = null;
+let stoneBumpCache: THREE.CanvasTexture | null = null;
+let plasterBumpCache: THREE.CanvasTexture | null = null;
+let woodBumpCache: THREE.CanvasTexture | null = null;
+
+function hash2d(x: number, y: number): number {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
 
 export function getSoftTexture(): THREE.CanvasTexture {
   if (softTextureCache) return softTextureCache;
@@ -70,11 +79,111 @@ export function getSoftTexture(): THREE.CanvasTexture {
   return softTextureCache;
 }
 
+export function getStoneBumpTexture(): THREE.CanvasTexture {
+  if (stoneBumpCache) return stoneBumpCache;
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    const img = ctx.createImageData(size, size);
+    const data = img.data;
+    for (let y = 0; y < size; y++) {
+      const strata =
+        Math.sin((y / size) * Math.PI * 10) * 18 + Math.sin((y / size) * Math.PI * 26 + 1.3) * 9;
+      for (let x = 0; x < size; x++) {
+        const grain = (hash2d(x, y) - 0.5) * 34;
+        const block = Math.sin((x / size) * Math.PI * 6 + Math.sin(y * 0.2)) * 8;
+        const v = Math.max(0, Math.min(255, Math.round(128 + strata + grain + block)));
+        const idx = (y * size + x) * 4;
+        data[idx] = v;
+        data[idx + 1] = v;
+        data[idx + 2] = v;
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 2);
+  stoneBumpCache = tex;
+  return tex;
+}
+
+export function getPlasterBumpTexture(): THREE.CanvasTexture {
+  if (plasterBumpCache) return plasterBumpCache;
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    const img = ctx.createImageData(size, size);
+    const data = img.data;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const fine = (hash2d(x * 1.3, y * 1.7) - 0.5) * 28;
+        const trowel = Math.sin(x * 0.22 + y * 0.16) * 8;
+        const v = Math.max(0, Math.min(255, Math.round(128 + fine + trowel)));
+        const idx = (y * size + x) * 4;
+        data[idx] = v;
+        data[idx + 1] = v;
+        data[idx + 2] = v;
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  plasterBumpCache = tex;
+  return tex;
+}
+
+export function getWoodBumpTexture(): THREE.CanvasTexture {
+  if (woodBumpCache) return woodBumpCache;
+  const size = 128;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d');
+  if (ctx) {
+    const img = ctx.createImageData(size, size);
+    const data = img.data;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const streak =
+          Math.sin(x * 0.65 + Math.sin(y * 0.08) * 2.4) * 18 +
+          (hash2d(x, Math.floor(y * 0.35)) - 0.5) * 22;
+        const v = Math.max(0, Math.min(255, Math.round(128 + streak)));
+        const idx = (y * size + x) * 4;
+        data[idx] = v;
+        data[idx + 1] = v;
+        data[idx + 2] = v;
+        data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  woodBumpCache = tex;
+  return tex;
+}
+
 export function waterize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
     shader.uniforms.uSI = WU.sun;
     shader.uniforms.uSky = WU.sky;
+    shader.uniforms.uRN = WU.rain;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vW;')
       .replace(
@@ -84,21 +193,43 @@ export function waterize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMat
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying vec3 vW;uniform float uWT,uSI;uniform vec3 uSky;'
+        '#include <common>\nvarying vec3 vW;uniform float uWT,uSI,uRN;uniform vec3 uSky;'
       )
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
-{vec2 q=vW.xz;float a=q.x*3.+uWT*1.3,b=q.y*2.4-uWT*1.1,c=(q.x+q.y)*5.+uWT*2.;vec3 pn=vec3(cos(a)*.15+cos(c)*.1,0.,cos(b)*.15+cos(c)*.1);normal=normalize(normal+(viewMatrix*vec4(pn,0.)).xyz*.7);}`
+{vec2 q=vW.xz;float a=q.x*3.+uWT*1.4,b=q.y*2.4-uWT*1.15,c=(q.x+q.y)*5.+uWT*2.1;float rAmt=1.+uRN*.5;vec3 pn=vec3((cos(a)*.15+cos(c)*.1)*rAmt,0.,(cos(b)*.15+cos(c)*.1)*rAmt);normal=normalize(normal+(viewMatrix*vec4(pn,0.)).xyz*.72);}`
       )
       .replace(
         '#include <opaque_fragment>',
-        `{float fr=pow(1.-max(dot(normalize(vViewPosition),normal),0.),3.);outgoingLight=mix(outgoingLight,uSky,fr*.5);float sp=pow(max(0.,sin(vW.x*9.+uWT*3.)*sin(vW.z*8.-uWT*2.5)),14.);outgoingLight+=vec3(1.,.95,.8)*sp*.7*uSI;}
+        `{float fr=pow(1.-max(dot(normalize(vViewPosition),normal),0.),2.8);outgoingLight=mix(outgoingLight,uSky,fr*.55);float sp=pow(max(0.,sin(vW.x*9.+uWT*3.)*sin(vW.z*8.-uWT*2.5)),14.);outgoingLight+=vec3(1.,.95,.82)*sp*.75*uSI;float foam=smoothstep(.88,1.,sin(length(vW.xz)*3.5-uWT*1.4)*.5+.5)*.12;outgoingLight+=vec3(.88,.96,1.)*foam;}
 #include <opaque_fragment>`
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'water';
+  mat.customProgramCacheKey = () => 'water_v2';
+  return mat;
+}
+
+export function cascadeize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWT = WU.t;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vWU;varying vec3 vWN;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvWU=uv;vWN=normal;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec2 vWU;varying vec3 vWN;uniform float uWT;'
+      )
+      .replace(
+        '#include <opaque_fragment>',
+        `{float streak=sin(vWU.x*38.)*.5+.5;float flow=sin(vWU.y*24.+uWT*9.+streak*3.)*.5+.5;float mist=smoothstep(0.,.25,vWU.y)*smoothstep(1.,.72,vWU.y);outgoingLight=mix(outgoingLight,vec3(.93,.98,1.),flow*.55+.22*streak);outgoingLight+=vec3(.12,.16,.2)*(1.-mist);}
+#include <opaque_fragment>`
+      );
+    applyDissolveToShader(shader);
+  };
+  mat.customProgramCacheKey = () => 'cascade_v1';
   return mat;
 }
 

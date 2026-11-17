@@ -40,6 +40,14 @@ export interface WeatherDisplayState {
 }
 
 export type AmbientKind = 'c' | 'b' | 's' | 'f';
+export type LandmarkBiome =
+  | 'coastal'
+  | 'waterfall'
+  | 'mountain'
+  | 'savannah'
+  | 'urban'
+  | 'desert'
+  | 'wetland';
 
 export type LandmarkDot = readonly [x: number, y: number, z: number, text: string];
 
@@ -49,6 +57,7 @@ export interface LandmarkMeta {
   f: string;
   wikiTitle: string;
   ambient: AmbientKind;
+  biome: LandmarkBiome;
   coords: readonly [lat: number, lon: number];
   climatology: {
     high: number;
