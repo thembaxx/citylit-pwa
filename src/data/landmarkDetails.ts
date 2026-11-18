@@ -344,7 +344,7 @@ export const LANDMARK_DETAILS: Record<string, LandmarkDetail> = {
     styleOrType: 'Twin-cable pedestrian suspension bridge',
     scale: '77 m span · 7 m above surging Indian Ocean channel',
     history:
-      'Located inside Tsitsikamma—Africa’s oldest marine protected area, proclaimed in 1964—the mouth of the Storms River marks the dramatic trailhead of the famous five-day Otter Trail along the Wild Coast of the Garden Route.',
+      'Located inside Tsitsikamma—the first marine national park proclaimed in Africa (1964)—the mouth of the Storms River marks the dramatic trailhead of the famous five-day Otter Trail along the Garden Route coast.',
     architecture:
       'Steep evergreen-forested cliffs funnel tea-coloured mountain water directly into crashing ocean swells, spanned lightly by steel suspension cables and slatted timber decking.',
   },
@@ -354,7 +354,7 @@ export const LANDMARK_DETAILS: Record<string, LandmarkDetail> = {
     styleOrType: 'Classical Cape Dutch homestead & cellar',
     scale: 'H-plan limewashed manor with sculpted gable pediment',
     history:
-      'Established in 1685 by Cape Governor Simon van der Stel, Groot Constantia is South Africa’s oldest wine-producing estate. Its dessert wine, Vin de Constance, was prized across 18th- and 19th-century Europe.',
+      'Established in 1685 by Cape Governor Simon van der Stel, Groot Constantia is South Africa’s oldest wine-producing estate. Its sweet Constantia dessert wine—the style revived today as Vin de Constance at neighbouring Klein Constantia—was prized across 18th- and 19th-century Europe.',
     architecture:
       'An exemplar of Cape Dutch symmetry: whitewashed thick brick walls, a sweeping curvilinear centre gable by Thibault, dark teak shutters, high thatch roofs, and Anton Anreith’s carved Dionysian wine-cellar pediment.',
   },
@@ -404,7 +404,7 @@ export const LANDMARK_DETAILS: Record<string, LandmarkDetail> = {
     styleOrType: 'Complex multi-ring meteorite impact dome',
     scale: '~300 km original crater · 70 km surviving central dome',
     history:
-      'Recognized as the oldest and largest verified meteorite impact structure on Earth, the Vredefort event vaporized rock across ancient southern Africa and preserved tilted Witwatersrand gold-bearing strata deep underground.',
+      'A UNESCO World Heritage Site, Vredefort is the largest verified meteorite impact structure on Earth. It is among the oldest known—only Yarrabubba in Western Australia has been dated older. The event vaporized rock across ancient southern Africa and preserved tilted Witwatersrand gold-bearing strata deep underground.',
     architecture:
       'Deep crustal granite rebounded upward at the centre after impact, surrounded by concentric upturned rings of quartzite ridges sliced dramatically by the Vaal River.',
   },
@@ -422,7 +422,7 @@ export const LANDMARK_DETAILS: Record<string, LandmarkDetail> = {
     era: 'Table Mountain sandstone coastal headlands',
     architectOrOrigin: 'Tidal breach into Knysna estuarine lagoon',
     styleOrType: 'Twin sandstone sea-entrance cliffs',
-    scale: 'Channel ~160 m wide · Cliffs rising ~100 m',
+    scale: 'Channel ~230 m wide · Cliffs rising ~100 m',
     history:
       'From the 1817 arrival of the brig Emu to the late-19th-century timber trade, mariners revered and feared the narrow, reef-lined passage through the Heads—requiring skilled pilot boats to guide vessels into safe lagoon waters.',
     architecture:
