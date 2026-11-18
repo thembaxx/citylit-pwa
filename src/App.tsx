@@ -1,6 +1,7 @@
 import { Sparkle } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ambientAudio } from './audio/ambientAudio';
+import { BootSplash } from './components/BootSplash';
 import { GalleryModal } from './components/GalleryModal';
 import { GlobeOverlay } from './components/GlobeOverlay';
 import { InfoDrawer } from './components/InfoDrawer';
@@ -756,16 +757,7 @@ export function App() {
       />
 
       {/* Boot Splash */}
-      {!booted && (
-        <div className="fixed inset-0 z-50 bg-[#0e0f13] grid place-items-center text-center">
-          <div>
-            <div className="font-serif-display italic text-[42px] text-[#f3efe6]">cıtylit</div>
-            <div className="text-[11px] tracking-[0.22em] uppercase text-[#e8b04a] mt-1">
-              Landmarks in 3D
-            </div>
-          </div>
-        </div>
-      )}
+      <BootSplash done={booted} reducedMotion={reducedMotion} />
     </div>
   );
 }

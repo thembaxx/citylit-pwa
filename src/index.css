@@ -98,6 +98,107 @@ body,
   animation: shimmerSlide 1.2s linear infinite;
 }
 
+/* Boot splash: a wireframe diorama sketches itself while the engine warms up. */
+.boot-splash__draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: bootDraw 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes bootDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.boot-splash__rise {
+  opacity: 0;
+  animation: bootRise 0.7s cubic-bezier(0.2, 0.9, 0.2, 1) 0.1s forwards;
+}
+
+@keyframes bootRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.boot-splash__pin {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bootPin 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) forwards;
+}
+
+@keyframes bootPin {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.5);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.boot-splash__scan {
+  top: 14%;
+  animation: bootScan 2.4s cubic-bezier(0.4, 0, 0.3, 1) 0.5s infinite;
+}
+
+@keyframes bootScan {
+  0% {
+    top: 14%;
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.9;
+  }
+  90%,
+  100% {
+    top: 86%;
+    opacity: 0;
+  }
+}
+
+.boot-splash__bar {
+  transform-origin: left center;
+  animation: bootBar 2.2s cubic-bezier(0.16, 0.84, 0.3, 1) forwards;
+}
+
+@keyframes bootBar {
+  from {
+    transform: scaleX(0.06);
+  }
+  to {
+    transform: scaleX(0.86);
+  }
+}
+
+.boot-splash[data-static='true'] .boot-splash__draw,
+.boot-splash[data-static='true'] .boot-splash__rise,
+.boot-splash[data-static='true'] .boot-splash__pin {
+  animation: none;
+  opacity: 1;
+  stroke-dashoffset: 0;
+}
+
+.boot-splash[data-static='true'] .boot-splash__scan {
+  display: none;
+}
+
+.boot-splash[data-static='true'] .boot-splash__bar {
+  animation: none;
+  transform: scaleX(0.4);
+}
+
 .no-scrollbar {
   scrollbar-width: none;
 }
