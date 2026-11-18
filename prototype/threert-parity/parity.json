@@ -1,0 +1,132 @@
+{
+  "question": "Can a citylit diorama bind to ThreeRT, and what does the engine receive?",
+  "verdict": "YES — the scene binds cleanly through ThreeRT’s own SceneBinding.",
+  "binding": {
+    "created": 15,
+    "updated": 17,
+    "removed": 0,
+    "counts": {
+      "objects": 15,
+      "materials": 11,
+      "geometries": 11,
+      "textures": 0
+    }
+  },
+  "engineCallCounts": {
+    "object": 15,
+    "transform": 15,
+    "geometry": 11,
+    "material": 11,
+    "volumeFunction": 1,
+    "environment": 1,
+    "settings": 1
+  },
+  "objectsByKind": {
+    "light": 1,
+    "group": 1,
+    "mesh": 11,
+    "volume": 1,
+    "camera": 1
+  },
+  "sunLight": {
+    "type": "directional",
+    "intensity": 90000,
+    "unit": "lux",
+    "angularDiameter": 0.5357,
+    "castShadow": true
+  },
+  "environment": {
+    "skyType": "atmosphere",
+    "dynamic": true,
+    "skyLightIntensity": 1
+  },
+  "emissiveMaterials": [
+    {
+      "name": "material_31",
+      "emissiveIntensity": 1.6,
+      "color": [
+        0.8069522576650873,
+        0.43415363616478553,
+        0.06847816983662762
+      ]
+    }
+  ],
+  "volumeObjects": [
+    "ridge_fog"
+  ],
+  "recordedEngineCalls": [
+    {
+      "method": "object",
+      "arg": 1
+    },
+    {
+      "method": "transform",
+      "arg": 1
+    },
+    {
+      "method": "object",
+      "arg": 2
+    },
+    {
+      "method": "transform",
+      "arg": 2
+    }
+  ],
+  "renderSettings": {
+    "preset": "cinematic",
+    "width": 1280,
+    "height": 720
+  },
+  "citylitPortMap": [
+    {
+      "citylit": "src/three/CitylitEngine.ts — PMREM RoomEnvironment IBL",
+      "threeRT": "SkyAtmosphere / HDRIEnvironment (physical sky or HDRI)",
+      "status": "replace"
+    },
+    {
+      "citylit": "keyLight/fillLight/hemiLight + shadow maps",
+      "threeRT": "sun (lux) + sky; shadows traced from every light",
+      "status": "delete"
+    },
+    {
+      "citylit": "glowMaterials emissiveIntensity animation",
+      "threeRT": "emissive surface IS a light source; animate emissiveIntensity",
+      "status": "keep + upgrade"
+    },
+    {
+      "citylit": "updateWetSurfaces() roughness/color tweak",
+      "threeRT": "engine environment.wetness / rain (real reflections)",
+      "status": "replace"
+    },
+    {
+      "citylit": "siteAtmosphere.ts additive shader rings",
+      "threeRT": "FogVolume / volumetric height fog",
+      "status": "replace"
+    },
+    {
+      "citylit": "shaders.ts dissolve shader (GLSL)",
+      "threeRT": "no GLSL: WGSL material functions, or keep dissolve in PWA UI",
+      "status": "rewrite"
+    },
+    {
+      "citylit": "globeScene.ts rim shader + canvas sprite labels",
+      "threeRT": "unlit material / sprite-equivalent; keep globe in PWA layer",
+      "status": "rewrite or keep in PWA"
+    },
+    {
+      "citylit": "UnrealBloomPass",
+      "threeRT": "renderer preset post (cinematic/preview), no manual bloom",
+      "status": "delete"
+    },
+    {
+      "citylit": "isSoftwareGl + auto quality scaling",
+      "threeRT": "preset + spp/denoise settings; software BVH fallback",
+      "status": "remap"
+    }
+  ],
+  "caveats": [
+    "No native renderer on this machine (Rust not installed), so this probe verifies scene binding, not pixels.",
+    "The web page beside this report approximates ThreeRT lighting in three.js — it is NOT path traced.",
+    "The real dioramas use helpers (warpTable, bump textures, instancing, vertex colours) not reproduced in this stand-in."
+  ]
+}

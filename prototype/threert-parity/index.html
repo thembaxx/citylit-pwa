@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>citylit × ThreeRT — lighting parity prototype</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>citylit <span>×</span> ThreeRT</h1>
+        <p>Table Mountain diorama — lighting parity prototype</p>
+      </div>
+      <span class="badge">THROWAWAY PROTOTYPE · not for production</span>
+    </header>
+
+    <section class="views">
+      <div class="panel">
+        <div class="panel-head">
+          <span class="dot today"></span>
+          <div><b>TODAY — WebGL PWA</b><small>PMREM IBL · hemi + key/fill · shadow maps · emissive tint</small></div>
+        </div>
+        <div id="view-today" class="viewport"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <span class="dot three"></span>
+          <div><b>ThreeRT-STYLE — physical</b><small>lux sun · sky light · emissive-as-light · traced shadows · volumetric fog</small></div>
+        </div>
+        <div id="view-three" class="viewport"></div>
+        <div class="approx">Approximated in three.js — this machine has no native renderer, so the right panel is NOT path traced.</div>
+      </div>
+    </section>
+
+    <section class="controls">
+      <div class="preset-row">
+        <span>Time of day</span>
+        <button data-preset="8">Dawn</button>
+        <button data-preset="28" class="active">Morning</button>
+        <button data-preset="62">Noon</button>
+        <button data-preset="14">Golden</button>
+        <button data-preset="4">Dusk</button>
+      </div>
+      <label>Sun altitude <output id="sunAlt-out">28°</output>
+        <input id="sunAlt" type="range" min="0" max="90" step="1" value="28" />
+      </label>
+      <label>Emissive ring <output id="emissive-out">0.35</output>
+        <input id="emissive" type="range" min="0" max="3" step="0.05" value="0.35" />
+      </label>
+      <label>Wetness / rain <output id="wetness-out">0.00</output>
+        <input id="wetness" type="range" min="0" max="1" step="0.05" value="0" />
+      </label>
+      <label>Cloud / fog <output id="cloud-out">0.50</output>
+        <input id="cloud" type="range" min="0" max="1" step="0.05" value="0.5" />
+      </label>
+      <label>Quality tier
+        <select id="quality">
+          <option value="high">high</option>
+          <option value="balanced">balanced</option>
+          <option value="low">low</option>
+        </select>
+      </label>
+    </section>
+
+    <section class="lower">
+      <div class="walkthrough">
+        <div class="tabs">
+          <button data-tab="ports" class="active">1 · What ports</button>
+          <button data-tab="breaks">2 · What breaks</button>
+          <button data-tab="verdict">3 · Verdict</button>
+        </div>
+        <div id="walk-ports" class="walk active">
+          <p>The <b>geometry and camera translate almost verbatim</b>. The proof is in the headless probe: a stand-in Table
+            Mountain bound to ThreeRT's own <code>SceneBinding</code> produced 15 objects, 11 materials, an atmosphere sky
+            and a 90,000 lux sun — with zero code changes to the scene-graph style.</p>
+          <table><thead><tr><th>citylit today</th><th>ThreeRT equivalent</th><th>status</th></tr></thead>
+            <tbody id="port-map"></tbody></table>
+        </div>
+        <div id="walk-breaks" class="walk">
+          <p>What does <b>not</b> survive a straight port: GLSL shaders (dissolve, atmosphere rings, globe rim), the
+            screen-space sprite markers/labels, <code>UnrealBloomPass</code>, and all shadow-map / PMREM setup. Those are
+            deleted or rewritten as WGSL material functions — or kept in the PWA layer.</p>
+          <ul id="caveats"></ul>
+        </div>
+        <div id="walk-verdict" class="walk">
+          <p><b>Worth pursuing as an asset-baking step first.</b> The scene API is compatible enough that one diorama can
+            target both renderers. The biggest payoff is physical time-of-day and rain lighting — the core of citylit's
+            pitch — but that only arrives with the native client. Keep the PWA as the WebGL fallback; don't replace it.</p>
+          <p class="small">This prototype verified scene binding only. The missing piece is a real path-traced still:
+            install Rust and use <code>threert-render render ... --spp 32</code>, then diff against
+            <code>captureGalleryShots()</code>.</p>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="report-facts" id="report-facts"></div>
+        <h3>Live state</h3>
+        <pre id="state"></pre>
+      </aside>
+    </section>
+
+    <script type="module" src="./app.ts"></script>
+  </body>
+</html>
