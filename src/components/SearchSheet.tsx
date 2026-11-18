@@ -1,5 +1,6 @@
 import {
   CheckCircle,
+  Clock,
   DownloadSimple,
   GearSix,
   Heart,
@@ -19,10 +20,47 @@ interface SearchSheetProps {
   favorites: Set<number>;
   onClose: () => void;
   onSelectLandmark: (index: number) => void;
+  onSelectTime: (hour: number) => void;
   onToggleFavorite: (index: number) => void;
   onOpenPassport: () => void;
   onOpenSettings: () => void;
   onInstalledToast: (msg: string) => void;
+}
+
+// "night at Kruger" should pick Kruger and roll the clock to night.
+const TIME_PHRASES: readonly { re: RegExp; hour: number; label: string }[] = [
+  { re: /\b(?:night|midnight|after dark)\b/i, hour: 22, label: 'Night' },
+  { re: /\b(?:sunrise|dawn|daybreak)\b/i, hour: 6, label: 'Sunrise' },
+  { re: /\b(?:sunset|dusk|golden hour)\b/i, hour: 18.2, label: 'Sunset' },
+  { re: /\b(?:noon|midday|mid-day)\b/i, hour: 12, label: 'Noon' },
+  { re: /\bmorning\b/i, hour: 9, label: 'Morning' },
+  { re: /\bafternoon\b/i, hour: 15, label: 'Afternoon' },
+];
+
+const SEARCH_FILLER = /\b(?:at|in|on|the|a|an|of|to|near|around|by|for|visit|see|view|show|me)\b/gi;
+
+function parseSearch(raw: string): {
+  place: string;
+  tokens: string[];
+  hour?: number;
+  label?: string;
+} {
+  let text = ` ${raw} `;
+  let hour: number | undefined;
+  let label: string | undefined;
+  for (const phrase of TIME_PHRASES) {
+    if (hour === undefined && phrase.re.test(text)) {
+      hour = phrase.hour;
+      label = phrase.label;
+      text = text.replace(phrase.re, ' ');
+    }
+  }
+  const words = text.replace(SEARCH_FILLER, ' ').replace(/\s+/g, ' ').trim();
+  const tokens = words
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.toLowerCase());
+  return { place: words, tokens, hour, label };
 }
 
 export function SearchSheet({
@@ -33,6 +71,7 @@ export function SearchSheet({
   favorites,
   onClose,
   onSelectLandmark,
+  onSelectTime,
   onToggleFavorite,
   onOpenPassport,
   onOpenSettings,
@@ -61,15 +100,22 @@ export function SearchSheet({
 
   const effectiveDragY = open ? dragY : 0;
 
-  const normalizedQuery = query.trim().toLowerCase();
+  const parsed = parseSearch(query);
   const filteredIndices = LANDMARKS.map((lm, i) => ({ lm, i })).filter(({ lm, i }) => {
     if (province === 'Saved' && !favorites.has(i)) return false;
     if (province !== 'All' && province !== 'Saved' && !lm.c.endsWith(province)) return false;
-    if (normalizedQuery && !(lm.k + ' ' + lm.c).toLowerCase().includes(normalizedQuery)) {
-      return false;
+    if (parsed.tokens.length) {
+      const hay = `${lm.k} ${lm.c}`.toLowerCase();
+      if (!parsed.tokens.every((token) => hay.includes(token))) return false;
     }
     return true;
   });
+
+  const pick = (i: number) => {
+    onSelectLandmark(i);
+    if (parsed.hour !== undefined) onSelectTime(parsed.hour);
+    onClose();
+  };
 
   const handleInstallClick = async () => {
     const ok = await install();
@@ -124,7 +170,7 @@ export function SearchSheet({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={`Search ${LANDMARKS.length} landmarks or provinces…`}
+            placeholder={`Search ${LANDMARKS.length} landmarks · try “sunset at Table Mountain”`}
             className="flex-1 min-w-0 bg-white/[0.06] border border-white/15 rounded-xl px-3.5 py-2 text-[15px] text-[#f3efe6] placeholder:text-[#a9a69e]/70 focus-visible:outline-2 focus-visible:outline-[#e8b04a]"
           />
           <button
@@ -154,6 +200,19 @@ export function SearchSheet({
             <X size={18} />
           </button>
         </div>
+
+        {parsed.label && (
+          <div
+            aria-live="polite"
+            className="mb-2.5 flex items-center gap-1.5 text-[12px] text-[#e8b04a]"
+          >
+            <Clock size={13} weight="fill" />
+            <span>
+              {parsed.label}
+              {parsed.place ? ` at ${parsed.place}` : ' · pick a place'}
+            </span>
+          </div>
+        )}
 
         {!isInstalled && !installDismissed && (isInstallable || isIOS) && (
           <div className="mb-2.5 px-3 py-2.5 rounded-2xl bg-[#e8b04a]/10 border border-[#e8b04a]/30 flex items-center justify-between gap-2.5">
@@ -227,16 +286,14 @@ export function SearchSheet({
                 <div
                   key={lm.k}
                   onClick={() => {
-                    onSelectLandmark(i);
-                    onClose();
+                    pick(i);
                   }}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      onSelectLandmark(i);
-                      onClose();
+                      pick(i);
                     }
                   }}
                   className={`group relative flex flex-col rounded-xl overflow-hidden bg-white/[0.04] border text-left cursor-pointer transition ${

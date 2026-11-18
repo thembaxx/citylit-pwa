@@ -693,6 +693,10 @@ export function App() {
         favorites={favorites}
         onClose={() => setSearchOpen(false)}
         onSelectLandmark={(i) => selectLandmark(i)}
+        onSelectTime={(h) => {
+          setTimeHour(h);
+          engineRef.current?.setSunAltitudeFromSlider(h);
+        }}
         onToggleFavorite={toggleFavorite}
         onOpenPassport={() => setPassportOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
