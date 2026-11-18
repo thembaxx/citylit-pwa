@@ -1,4 +1,44 @@
 @import 'tailwindcss';
+@import './transitions.css';
+
+/* Goeist — the rounded take on Geist (Sans / Serif / Mono variable fonts). */
+@font-face {
+  font-family: 'Goeist';
+  src: url('/fonts/Goeist-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goeist';
+  src: url('/fonts/Goeist-Italic-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goeist Serif';
+  src: url('/fonts/GoeistSerif-Variable.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Goeist Mono';
+  src: url('/fonts/GoeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: 'Goeist', system-ui, sans-serif;
+  --font-serif: 'Goeist Serif', Georgia, serif;
+  --font-mono: 'Goeist Mono', ui-monospace, monospace;
+}
 
 :root {
   color-scheme: dark;
@@ -19,10 +59,20 @@ body,
   background: var(--cl-bg);
   color: var(--cl-fg);
   overflow: hidden;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .font-serif-display {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-serif);
+  font-variation-settings: 'opsz' 32;
+}
+
+.tabular-nums,
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes cardUp {
@@ -33,7 +83,7 @@ body,
 }
 
 .animate-card-in {
-  animation: cardUp 0.5s cubic-bezier(0.2, 0.9, 0.2, 1);
+  animation: cardUp var(--duration-slow) var(--ease-smooth-out);
 }
 
 @keyframes titleCine {

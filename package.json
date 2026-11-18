@@ -21,6 +21,8 @@
     "@types/three": "^0.187.0",
     "@vitejs/plugin-react": "^6.3.0",
     "express": "^4.21.2",
+    "goeist": "^0.1.0",
+    "motion": "^14.14.0",
     "oxfmt": "^0.79.0",
     "oxlint": "^1.94.0",
     "react": "^19.3.1",

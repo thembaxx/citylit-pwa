@@ -12,13 +12,18 @@ import {
   ShareNetwork,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useMotionValue } from 'motion/react';
 import { LANDMARKS } from '../data/landmarks';
+import { animate, DURATION, EASE_SMOOTH_OUT, project, SPRING } from '../lib/motion';
+import { useDrag } from '../lib/useDrag';
 
 interface LandmarkCardProps {
   index: number;
   isFavorite: boolean;
   tourActive: boolean;
   visible: boolean;
+  thumbnail?: string;
+  reducedMotion?: boolean;
   onPrev: () => void;
   onNext: () => void;
   onToggleFavorite: () => void;
@@ -36,6 +41,8 @@ export function LandmarkCard({
   isFavorite,
   tourActive,
   visible,
+  thumbnail,
+  reducedMotion = false,
   onPrev,
   onNext,
   onToggleFavorite,
@@ -49,11 +56,11 @@ export function LandmarkCard({
 }: LandmarkCardProps) {
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
   const cardWrapRef = useRef<HTMLDivElement>(null);
-  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const holdTimer = useRef<number | null>(null);
+  const dragX = useMotionValue(0);
+  const dragOrigin = useRef(0);
 
   // Publish the card height so fixed overlays can stack above it instead of guessing.
-  // Observe the un-keyed wrapper: the card itself remounts on every landmark change.
   useEffect(() => {
     if (!visible) return;
     const el = cardWrapRef.current;
@@ -62,9 +69,7 @@ export function LandmarkCard({
       root.style.removeProperty('--cl-card-h');
       return;
     }
-    const sync = () => {
-      root.style.setProperty('--cl-card-h', `${el.offsetHeight}px`);
-    };
+    const sync = () => root.style.setProperty('--cl-card-h', `${el.offsetHeight}px`);
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
@@ -73,6 +78,22 @@ export function LandmarkCard({
       root.style.removeProperty('--cl-card-h');
     };
   }, [visible]);
+
+  // Drag the title strip to change landmark; velocity decides a flick.
+  const headerDrag = useDrag({
+    lockAxis: 'x',
+    onStart: () => {
+      dragX.stop();
+      dragOrigin.current = dragX.get();
+    },
+    onMove: (delta) => dragX.set(dragOrigin.current + delta.x * 0.7),
+    onEnd: (velocity) => {
+      const landing = dragX.get() + project(velocity.x * 0.5);
+      animate(dragX, 0, { ...SPRING.surface, velocity: velocity.x });
+      if (landing < -64) onNext();
+      else if (landing > 64) onPrev();
+    },
+  });
 
   if (!visible) return null;
 
@@ -86,45 +107,11 @@ export function LandmarkCard({
     }
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const t = e.touches[0];
-    swipeStart.current = { x: t.clientX, y: t.clientY };
-    clearHold();
-    holdTimer.current = window.setTimeout(() => {
-      onVibrate();
-      setRadialPos({
-        x: Math.min(window.innerWidth - 95, Math.max(95, t.clientX)),
-        y: Math.min(window.innerHeight - 95, Math.max(95, t.clientY)),
-      });
-    }, 450);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!swipeStart.current) return;
-    const t = e.touches[0];
-    if (Math.hypot(t.clientX - swipeStart.current.x, t.clientY - swipeStart.current.y) > 12) {
-      clearHold();
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    clearHold();
-    if (!swipeStart.current) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - swipeStart.current.x;
-    const dy = t.clientY - swipeStart.current.y;
-    swipeStart.current = null;
-    if (Math.abs(dx) > 48 && Math.abs(dy) < 50) {
-      if (dx < 0) onNext();
-      else onPrev();
-    }
-  };
-
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const openRadial = (x: number, y: number) => {
+    onVibrate();
     setRadialPos({
-      x: Math.min(window.innerWidth - 95, Math.max(95, e.clientX)),
-      y: Math.min(window.innerHeight - 95, Math.max(95, e.clientY)),
+      x: Math.min(window.innerWidth - 95, Math.max(95, x)),
+      y: Math.min(window.innerHeight - 95, Math.max(95, y)),
     });
   };
 
@@ -176,51 +163,84 @@ export function LandmarkCard({
         ref={cardWrapRef}
         className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
       >
-        <div
+        <motion.div
           key={index}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onContextMenu={handleContextMenu}
-          className="relative bg-[#121319]/92 border border-white/15 squircle-card p-4 landscape:p-3 [@media(max-height:700px)]:p-3 pointer-events-auto animate-card-in touch-pan-y shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
+          initial={{ opacity: 0, y: 10, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: reducedMotion ? 0 : DURATION.slow, ease: EASE_SMOOTH_OUT }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            openRadial(e.clientX, e.clientY);
+          }}
+          className="relative bg-[#121319]/92 border border-white/15 squircle-card p-4 landscape:p-3 [@media(max-height:700px)]:p-3 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
         >
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
+            <motion.div
+              {...headerDrag}
+              style={{ x: dragX }}
+              className="min-w-0 flex-1 cursor-grab touch-none active:cursor-grabbing"
+              onTouchStart={(e) => {
+                clearHold();
+                const t = e.touches[0];
+                holdTimer.current = window.setTimeout(() => openRadial(t.clientX, t.clientY), 450);
+              }}
+              onTouchEnd={clearHold}
+              onTouchMove={() => clearHold()}
+            >
               <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[11px] [@media(max-width:374px)]:text-[10px] [@media(max-width:374px)]:tracking-[0.08em]">
                 {lm.c}
               </small>
-              <h1 className="mt-0.5 mb-1.5 font-serif-display italic font-normal text-[27px] landscape:text-[21px] [@media(max-height:700px)]:text-[23px] leading-[1.1] text-[#f3efe6] pr-2">
+              <motion.h1
+                layoutId="landmark-title"
+                transition={reducedMotion ? { duration: 0 } : SPRING.morph}
+                className="mt-0.5 mb-1.5 font-serif-display italic text-[27px] landscape:text-[21px] [@media(max-height:700px)]:text-[23px] leading-[1.1] text-[#f3efe6] pr-2"
+              >
                 {lm.k}
-              </h1>
-            </div>
+              </motion.h1>
+            </motion.div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={onOpenPostcard}
-                aria-label="Create 3D postcard"
-                title="Save 3D postcard"
-                className={smallBtn}
-              >
-                <Camera size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={onOpenGallery}
-                aria-label="Landmark photo gallery"
-                title="Photos"
-                className={smallBtn}
-              >
-                <Images size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={onToggleFavorite}
-                aria-label={isFavorite ? 'Remove from favorites' : 'Save favorite'}
-                title="Save favorite"
-                className={`${smallBtn} ${isFavorite ? 'border-[#ff6b81] text-[#ff6b81]' : ''}`}
-              >
-                <Heart size={16} weight={isFavorite ? 'fill' : 'regular'} />
-              </button>
+              {thumbnail && (
+                <motion.img
+                  layoutId={`landmark-thumb-${index}`}
+                  src={thumbnail}
+                  alt=""
+                  transition={reducedMotion ? { duration: 0 } : SPRING.morph}
+                  className="w-12 h-12 rounded-xl object-cover border border-white/15 hidden sm:block"
+                />
+              )}
+              {[
+                {
+                  label: 'Create 3D postcard',
+                  icon: Camera,
+                  onClick: onOpenPostcard,
+                  active: false,
+                },
+                {
+                  label: 'Landmark photo gallery',
+                  icon: Images,
+                  onClick: onOpenGallery,
+                  active: false,
+                },
+                {
+                  label: isFavorite ? 'Remove from favorites' : 'Save favorite',
+                  icon: Heart,
+                  onClick: onToggleFavorite,
+                  active: isFavorite,
+                },
+              ].map(({ label, icon: Icon, onClick, active }) => (
+                <motion.button
+                  key={label}
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+                  transition={SPRING.snappy}
+                  onClick={onClick}
+                  aria-label={label}
+                  title={label}
+                  className={`${smallBtn} ${active ? 'border-[#ff6b81] text-[#ff6b81]' : ''}`}
+                >
+                  <Icon size={16} weight={active ? 'fill' : 'regular'} />
+                </motion.button>
+              ))}
             </div>
           </div>
 
@@ -229,76 +249,98 @@ export function LandmarkCard({
           </p>
 
           <div className="flex items-center gap-2.5 mt-3 landscape:mt-2">
-            <button
+            <motion.button
               type="button"
+              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
               onClick={onOpenInfo}
               aria-label="Landmark historical and architectural details"
               className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 bg-white/[0.06] border border-white/15 text-[12px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               <Info size={15} />
-              <span>Details</span>
-            </button>
-            <button
+              Details
+            </motion.button>
+            <motion.button
               type="button"
+              whileTap={reducedMotion ? undefined : { scale: 0.88 }}
               onClick={onPrev}
               aria-label="Previous landmark"
               className={smallBtn}
             >
               <ArrowLeft size={16} />
-            </button>
+            </motion.button>
             <div className="flex-1 h-[3px] rounded-full bg-white/15 overflow-hidden">
-              <div
-                className="h-full bg-[#e8b04a] transition-all duration-500"
-                style={{ width: `${progressPct}%` }}
+              <motion.div
+                className="h-full bg-[#e8b04a]"
+                initial={false}
+                animate={{ width: `${progressPct}%` }}
+                transition={{ duration: reducedMotion ? 0 : 0.5, ease: EASE_SMOOTH_OUT }}
               />
             </div>
-            <span className="text-[11px] tabular-nums text-[#a9a69e]">
+            <span className="text-[11px] font-mono tabular-nums text-[#a9a69e]">
               {index + 1}/{LANDMARKS.length}
             </span>
-            <button type="button" onClick={onNext} aria-label="Next landmark" className={smallBtn}>
-              <ArrowRight size={16} />
-            </button>
-            <button
+            <motion.button
               type="button"
+              whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+              onClick={onNext}
+              aria-label="Next landmark"
+              className={smallBtn}
+            >
+              <ArrowRight size={16} />
+            </motion.button>
+            <motion.button
+              type="button"
+              whileTap={reducedMotion ? undefined : { scale: 0.88 }}
               onClick={onToggleTour}
               aria-label={tourActive ? 'Pause auto tour' : 'Start auto tour'}
               title={tourActive ? 'Pause tour' : 'Auto tour'}
               className={`${smallBtn} ${tourActive ? 'border-[#e8b04a] text-[#e8b04a]' : ''}`}
             >
               {tourActive ? <Pause size={15} weight="fill" /> : <Play size={15} weight="fill" />}
-            </button>
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
       </div>
 
-      {radialPos && (
-        <div onClick={() => setRadialPos(null)} className="fixed inset-0 z-40 bg-black/50">
-          <div
-            className="fixed w-0 h-0"
-            style={{ left: `${radialPos.x}px`, top: `${radialPos.y}px` }}
+      <AnimatePresence>
+        {radialPos && (
+          <motion.div
+            key="radial-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={() => setRadialPos(null)}
+            className="fixed inset-0 z-40 bg-black/50"
           >
-            {radialActions.map((act) => {
-              const Icon = act.icon;
-              return (
-                <button
-                  key={act.label}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setRadialPos(null);
-                    act.onClick();
-                  }}
-                  title={act.label}
-                  aria-label={act.label}
-                  className={`absolute left-0 top-0 w-11 h-11 rounded-full grid place-items-center bg-[#181a22] border border-[#e8b04a]/60 text-[#f3efe6] hover:bg-[#e8b04a] hover:text-[#1a1405] shadow-xl transition cursor-pointer ${act.posClass}`}
-                >
-                  <Icon size={18} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+            <div className="fixed w-0 h-0" style={{ left: radialPos.x, top: radialPos.y }}>
+              {radialActions.map((act, idx) => {
+                const Icon = act.icon;
+                return (
+                  <motion.button
+                    key={act.label}
+                    type="button"
+                    initial={{ opacity: 0, scale: 0.3, x: 0, y: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.4 }}
+                    transition={{ ...SPRING.pop, delay: reducedMotion ? 0 : idx * 0.03 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRadialPos(null);
+                      act.onClick();
+                    }}
+                    title={act.label}
+                    aria-label={act.label}
+                    className={`absolute left-0 top-0 w-11 h-11 rounded-full grid place-items-center bg-[#181a22] border border-[#e8b04a]/60 text-[#f3efe6] hover:bg-[#e8b04a] hover:text-[#1a1405] shadow-xl cursor-pointer ${act.posClass}`}
+                  >
+                    <Icon size={18} />
+                  </motion.button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

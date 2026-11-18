@@ -1,5 +1,7 @@
 import { Sparkle } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
+import { toastVariants } from './lib/motion';
 import { ambientAudio } from './audio/ambientAudio';
 import { BootSplash } from './components/BootSplash';
 import { GalleryModal } from './components/GalleryModal';
@@ -515,251 +517,305 @@ export function App() {
   const bestMonths = useMemo(() => getBestMonths(index), [index]);
 
   return (
-    <div className="relative w-full h-full overflow-hidden select-none">
-      {/* Three.js WebGL Viewport */}
-      <div ref={canvasHostRef} className="fixed inset-0" />
+    <LayoutGroup>
+      <div className="relative w-full h-full overflow-hidden select-none">
+        {/* Three.js WebGL Viewport */}
+        <div ref={canvasHostRef} className="fixed inset-0" />
 
-      {/* Vignette */}
-      {!globeOpen && (
-        <div
-          aria-hidden="true"
-          className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]"
-        />
-      )}
-
-      {/* Top Navigation */}
-      <TopBar
-        soundOn={soundOn}
-        todOpen={todOpen}
-        fullscreen={fullscreen}
-        idleInFullscreen={idleInFullscreen}
-        globeOpen={globeOpen}
-        onToggleSound={() => setSoundOn(ambientAudio.toggle())}
-        onToggleTod={() => setTodOpen((v) => !v)}
-        onToggleFullscreen={() => setFullscreen((v) => !v)}
-        onOpenSearch={() => setSearchOpen(true)}
-      />
-
-      {/* Quick Time-of-Day Scrubber */}
-      {todOpen && !fullscreen && !globeOpen && (
-        <div className="fixed left-1/2 -translate-x-1/2 top-[calc(130px+env(safe-area-inset-top,0px))] z-20 w-[min(300px,calc(100vw-36px))] px-4 py-3 bg-[#121319]/92 border border-white/15 rounded-2xl shadow-xl">
-          <input
-            type="range"
-            min={0}
-            max={24}
-            step={0.1}
-            value={timeHour}
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              setTimeHour(val);
-              engineRef.current?.setSunAltitudeFromSlider(val);
-            }}
-            aria-label="Time of day hour"
-            className="w-full accent-[#e8b04a] cursor-pointer"
-          />
-          <div className="flex justify-between text-[11px] text-[#a9a69e] mt-1">
-            <span>Midnight</span>
-            <span>Dawn</span>
-            <span>Noon</span>
-            <span>Dusk</span>
-            <span>Night</span>
-          </div>
-        </div>
-      )}
-
-      {/* Weather & Globe Button */}
-      <WeatherWidget
-        weather={weatherState}
-        expanded={weatherExpanded}
-        month={month}
-        bestMonths={bestMonths}
-        forecast={forecast}
-        activeTimeHour={timeHour}
-        visible={!fullscreen}
-        globeOpen={globeOpen}
-        onToggleExpand={() => setWeatherExpanded((v) => !v)}
-        onSelectTimePreset={(h) => {
-          setTimeHour(h);
-          engineRef.current?.setSunAltitudeFromSlider(h);
-        }}
-        onChangeMonth={(m) => setMonth(m)}
-        onTriggerRainbow={() => engineRef.current?.toggleRainRainbow()}
-        onToggleGlobe={toggleGlobe}
-      />
-
-      {/* Bottom Landmark Card */}
-      <LandmarkCard
-        index={index}
-        isFavorite={favorites.has(index)}
-        tourActive={tourActive}
-        visible={!fullscreen && !globeOpen}
-        onPrev={() => selectLandmark(index - 1)}
-        onNext={() => selectLandmark(index + 1)}
-        onToggleFavorite={() => toggleFavorite(index)}
-        onToggleTour={() => setTourActive((v) => !v)}
-        onOpenInfo={() => setInfoOpen(true)}
-        onOpenGallery={() => setGalleryOpen(true)}
-        onOpenPostcard={handleOpenPostcard}
-        onOpenGlobe={toggleGlobe}
-        onShare={shareCurrentLandmark}
-        onVibrate={() => ambientAudio.vibrate(18)}
-      />
-
-      {/* Desktop Orbit Hint */}
-      {!fullscreen && !globeOpen && hintVisible && (
-        <div className="hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] text-[#a9a69e] pointer-events-none">
-          Drag to orbit · Scroll to zoom · Tap pins for facts
-        </div>
-      )}
-
-      {/* Globe Overlay HUD */}
-      <GlobeOverlay
-        open={globeOpen}
-        activeProvince={activeProvince}
-        onSelectProvince={(pv) => {
-          setActiveProvince(pv);
-          engineRef.current?.globe.flyToProvince(pv);
-        }}
-        onClose={toggleGlobe}
-      />
-
-      {/* Fact Callout */}
-      {factText && (
-        <div
-          role="status"
-          onClick={() => setFactText(null)}
-          className="fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#e8b04a]/45 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl cursor-pointer"
-        >
-          <Sparkle size={16} weight="fill" className="text-[#e8b04a] shrink-0 mt-0.5" />
-          <span>{factText}</span>
-        </div>
-      )}
-
-      {/* Toast Notification */}
-      {toastText && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+30px)] z-50 px-4 py-2 rounded-full bg-[#121319]/95 border border-white/15 text-[13px] text-[#f3efe6] shadow-lg">
-          {toastText}
-        </div>
-      )}
-
-      {/* Offline Status Pill */}
-      {!isOnline && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] z-50 px-3.5 py-1 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[11.5px] text-[#e8b04a]">
-          Offline mode · 3D models & cached photos ready
-        </div>
-      )}
-
-      {/* Cinematic Tour Letterbox & Title */}
-      {cineKey && (
-        <>
-          <div className="fixed inset-x-0 top-0 h-[6vh] bg-black z-30 pointer-events-none" />
-          <div className="fixed inset-x-0 bottom-0 h-[6vh] bg-black z-30 pointer-events-none" />
+        {/* Vignette */}
+        {!globeOpen && (
           <div
-            key={cineKey}
-            className="fixed inset-x-0 top-[40%] text-center z-30 pointer-events-none animate-title-cine"
-          >
-            <small className="block text-[#e8b04a] tracking-[0.2em] text-[12px] uppercase">
-              {LANDMARKS[index].c}
-            </small>
-            <b className="block font-serif-display italic font-normal text-[clamp(30px,8vw,54px)] leading-tight text-[#f3efe6] drop-shadow-[0_2px_24px_#000]">
-              {LANDMARKS[index].k}
-            </b>
-          </div>
-        </>
-      )}
+            aria-hidden="true"
+            className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]"
+          />
+        )}
 
-      {/* Passport Stamp Notification */}
-      {stampBanner && (
-        <div className="fixed inset-0 z-50 grid place-items-center pointer-events-none">
-          <div className="px-6 py-4 rounded-2xl border-2 border-[#e8b04a] bg-[#121319]/95 text-center animate-stamp shadow-2xl">
-            <div className="text-[11px] tracking-[0.22em] uppercase text-[#e8b04a]">
-              Passport Stamped
+        {/* Top Navigation */}
+        <TopBar
+          soundOn={soundOn}
+          todOpen={todOpen}
+          fullscreen={fullscreen}
+          idleInFullscreen={idleInFullscreen}
+          globeOpen={globeOpen}
+          reducedMotion={reducedMotion}
+          onToggleSound={() => setSoundOn(ambientAudio.toggle())}
+          onToggleTod={() => setTodOpen((v) => !v)}
+          onToggleFullscreen={() => setFullscreen((v) => !v)}
+          onOpenSearch={() => setSearchOpen(true)}
+        />
+
+        {/* Quick Time-of-Day Scrubber */}
+        {todOpen && !fullscreen && !globeOpen && (
+          <div className="fixed left-1/2 -translate-x-1/2 top-[calc(130px+env(safe-area-inset-top,0px))] z-20 w-[min(300px,calc(100vw-36px))] px-4 py-3 bg-[#121319]/92 border border-white/15 rounded-2xl shadow-xl">
+            <input
+              type="range"
+              min={0}
+              max={24}
+              step={0.1}
+              value={timeHour}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setTimeHour(val);
+                engineRef.current?.setSunAltitudeFromSlider(val);
+              }}
+              aria-label="Time of day hour"
+              className="w-full accent-[#e8b04a] cursor-pointer"
+            />
+            <div className="flex justify-between text-[11px] text-[#a9a69e] mt-1">
+              <span>Midnight</span>
+              <span>Dawn</span>
+              <span>Noon</span>
+              <span>Dusk</span>
+              <span>Night</span>
             </div>
-            <div className="font-serif-display italic text-[26px] text-[#f3efe6] mt-0.5">
-              {stampBanner}
-            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Confetti Canvas */}
-      <canvas ref={confettiCanvasRef} className="fixed inset-0 pointer-events-none z-50" />
+        {/* Weather & Globe Button */}
+        <WeatherWidget
+          weather={weatherState}
+          expanded={weatherExpanded}
+          month={month}
+          bestMonths={bestMonths}
+          forecast={forecast}
+          activeTimeHour={timeHour}
+          visible={!fullscreen}
+          globeOpen={globeOpen}
+          reducedMotion={reducedMotion}
+          onToggleExpand={() => setWeatherExpanded((v) => !v)}
+          onSelectTimePreset={(h) => {
+            setTimeHour(h);
+            engineRef.current?.setSunAltitudeFromSlider(h);
+          }}
+          onChangeMonth={(m) => setMonth(m)}
+          onTriggerRainbow={() => engineRef.current?.toggleRainRainbow()}
+          onToggleGlobe={toggleGlobe}
+        />
 
-      {/* Modals & Drawers */}
-      <SearchSheet
-        open={searchOpen}
-        activeIndex={index}
-        thumbnails={thumbnails}
-        visited={visited}
-        favorites={favorites}
-        reducedMotion={reducedMotion}
-        onClose={() => setSearchOpen(false)}
-        onSelectLandmark={(i) => selectLandmark(i)}
-        onSelectTime={(h) => {
-          setTimeHour(h);
-          engineRef.current?.setSunAltitudeFromSlider(h);
-        }}
-        onToggleFavorite={toggleFavorite}
-        onOpenPassport={() => setPassportOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onInstalledToast={showToast}
-      />
+        {/* Bottom Landmark Card */}
+        <LandmarkCard
+          index={index}
+          isFavorite={favorites.has(index)}
+          tourActive={tourActive}
+          visible={!fullscreen && !globeOpen}
+          thumbnail={thumbnails[index]}
+          reducedMotion={reducedMotion}
+          onPrev={() => selectLandmark(index - 1)}
+          onNext={() => selectLandmark(index + 1)}
+          onToggleFavorite={() => toggleFavorite(index)}
+          onToggleTour={() => setTourActive((v) => !v)}
+          onOpenInfo={() => setInfoOpen(true)}
+          onOpenGallery={() => setGalleryOpen(true)}
+          onOpenPostcard={handleOpenPostcard}
+          onOpenGlobe={toggleGlobe}
+          onShare={shareCurrentLandmark}
+          onVibrate={() => ambientAudio.vibrate(18)}
+        />
 
-      <InfoDrawer
-        open={infoOpen}
-        index={index}
-        thumbnail={thumbnails[index]}
-        bestMonths={bestMonths}
-        onClose={() => setInfoOpen(false)}
-        onOpenGallery={() => {
-          setInfoOpen(false);
-          setGalleryOpen(true);
-        }}
-      />
+        {/* Desktop Orbit Hint */}
+        {!fullscreen && !globeOpen && hintVisible && (
+          <div className="hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] text-[#a9a69e] pointer-events-none">
+            Drag to orbit · Scroll to zoom · Tap pins for facts
+          </div>
+        )}
 
-      <GalleryModal
-        open={galleryOpen}
-        index={index}
-        captureFallbackShots={captureFallbackShots}
-        onClose={() => setGalleryOpen(false)}
-        onShare={shareCurrentLandmark}
-      />
+        {/* Globe Overlay HUD */}
+        <GlobeOverlay
+          open={globeOpen}
+          activeProvince={activeProvince}
+          onSelectProvince={(pv) => {
+            setActiveProvince(pv);
+            engineRef.current?.globe.flyToProvince(pv);
+          }}
+          onClose={toggleGlobe}
+        />
 
-      <PassportModal
-        open={passportOpen}
-        visited={visited}
-        onClose={() => setPassportOpen(false)}
-        onResetPassport={() => {
-          setVisited(new Set());
-          try {
-            localStorage.removeItem('cl-vs');
-          } catch {
-            // Ignore storage errors
-          }
-          showToast('Passport stamps cleared');
-        }}
-      />
+        {/* Fact Callout */}
+        <AnimatePresence>
+          {factText && (
+            <motion.div
+              key="fact"
+              role="status"
+              variants={toastVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={reducedMotion ? { duration: 0 } : undefined}
+              onClick={() => setFactText(null)}
+              className="fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#e8b04a]/45 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl cursor-pointer"
+            >
+              <Sparkle size={16} weight="fill" className="text-[#e8b04a] shrink-0 mt-0.5" />
+              <span>{factText}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <SettingsModal
-        open={settingsOpen}
-        settings={settings}
-        onUpdate={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
-        onRequestTilt={() => engineRef.current?.requestTiltPermission() ?? Promise.resolve(false)}
-        onClose={() => setSettingsOpen(false)}
-      />
+        {/* Toast Notification */}
+        <AnimatePresence>
+          {toastText && (
+            <motion.div
+              key="toast"
+              variants={toastVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={reducedMotion ? { duration: 0 } : undefined}
+              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+30px)] z-50 px-4 py-2 rounded-full bg-[#121319]/95 border border-white/15 text-[13px] text-[#f3efe6] shadow-lg"
+            >
+              {toastText}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <PostcardModal
-        open={postcardOpen}
-        dataUrl={postcardUrl}
-        landmarkName={LANDMARKS[index].k}
-        onShare={handleSharePostcard}
-        onDownload={handleDownloadPostcard}
-        onClose={() => setPostcardOpen(false)}
-      />
+        {/* Offline Status Pill */}
+        {!isOnline && (
+          <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] z-50 px-3.5 py-1 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[11.5px] text-[#e8b04a]">
+            Offline mode · 3D models & cached photos ready
+          </div>
+        )}
 
-      {/* Boot Splash */}
-      <BootSplash done={booted} reducedMotion={reducedMotion} />
-    </div>
+        {/* Cinematic Tour Letterbox & Title */}
+        {cineKey && (
+          <>
+            <div className="fixed inset-x-0 top-0 h-[6vh] bg-black z-30 pointer-events-none" />
+            <div className="fixed inset-x-0 bottom-0 h-[6vh] bg-black z-30 pointer-events-none" />
+            <motion.div
+              key={cineKey}
+              initial={{ opacity: 0, y: 14, letterSpacing: '0.3em' }}
+              animate={{
+                opacity: [0, 1, 1, 0],
+                y: [14, 0, 0, -8],
+                letterSpacing: ['0.3em', '0.04em', '0.04em', '0.04em'],
+              }}
+              transition={{
+                duration: reducedMotion ? 0 : 2.2,
+                times: [0, 0.25, 0.7, 1],
+                ease: 'easeOut',
+              }}
+              className="fixed inset-x-0 top-[40%] text-center z-30 pointer-events-none"
+            >
+              <small className="block text-[#e8b04a] tracking-[0.2em] text-[12px] uppercase">
+                {LANDMARKS[index].c}
+              </small>
+              <b className="block font-serif-display italic font-normal text-[clamp(30px,8vw,54px)] leading-tight text-[#f3efe6] drop-shadow-[0_2px_24px_#000]">
+                {LANDMARKS[index].k}
+              </b>
+            </motion.div>
+          </>
+        )}
+
+        {/* Passport Stamp Notification */}
+        <AnimatePresence>
+          {stampBanner && (
+            <motion.div
+              key="stamp"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 grid place-items-center pointer-events-none"
+            >
+              <motion.div
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 2.4, rotate: -14 }}
+                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: -14 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 18, mass: 0.7 }}
+                className="px-6 py-4 rounded-2xl border-2 border-[#e8b04a] bg-[#121319]/95 text-center shadow-2xl"
+              >
+                <div className="text-[11px] tracking-[0.22em] uppercase text-[#e8b04a]">
+                  Passport Stamped
+                </div>
+                <div className="font-serif-display italic text-[26px] text-[#f3efe6] mt-0.5">
+                  {stampBanner}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Confetti Canvas */}
+        <canvas ref={confettiCanvasRef} className="fixed inset-0 pointer-events-none z-50" />
+
+        {/* Modals & Drawers */}
+        <SearchSheet
+          open={searchOpen}
+          activeIndex={index}
+          thumbnails={thumbnails}
+          visited={visited}
+          favorites={favorites}
+          reducedMotion={reducedMotion}
+          onClose={() => setSearchOpen(false)}
+          onSelectLandmark={(i) => selectLandmark(i)}
+          onSelectTime={(h) => {
+            setTimeHour(h);
+            engineRef.current?.setSunAltitudeFromSlider(h);
+          }}
+          onToggleFavorite={toggleFavorite}
+          onOpenPassport={() => setPassportOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onInstalledToast={showToast}
+        />
+
+        <InfoDrawer
+          open={infoOpen}
+          index={index}
+          thumbnail={thumbnails[index]}
+          bestMonths={bestMonths}
+          reducedMotion={reducedMotion}
+          onClose={() => setInfoOpen(false)}
+          onOpenGallery={() => {
+            setInfoOpen(false);
+            setGalleryOpen(true);
+          }}
+        />
+
+        <GalleryModal
+          open={galleryOpen}
+          index={index}
+          captureFallbackShots={captureFallbackShots}
+          reducedMotion={reducedMotion}
+          onClose={() => setGalleryOpen(false)}
+          onShare={shareCurrentLandmark}
+        />
+
+        <PassportModal
+          open={passportOpen}
+          visited={visited}
+          reducedMotion={reducedMotion}
+          onClose={() => setPassportOpen(false)}
+          onResetPassport={() => {
+            setVisited(new Set());
+            try {
+              localStorage.removeItem('cl-vs');
+            } catch {
+              // Ignore storage errors
+            }
+            showToast('Passport stamps cleared');
+          }}
+        />
+
+        <SettingsModal
+          open={settingsOpen}
+          settings={settings}
+          reducedMotion={reducedMotion}
+          onUpdate={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
+          onRequestTilt={() => engineRef.current?.requestTiltPermission() ?? Promise.resolve(false)}
+          onClose={() => setSettingsOpen(false)}
+        />
+
+        <PostcardModal
+          open={postcardOpen}
+          dataUrl={postcardUrl}
+          landmarkName={LANDMARKS[index].k}
+          reducedMotion={reducedMotion}
+          onShare={handleSharePostcard}
+          onDownload={handleDownloadPostcard}
+          onClose={() => setPostcardOpen(false)}
+        />
+
+        {/* Boot Splash */}
+        <BootSplash done={booted} reducedMotion={reducedMotion} />
+      </div>
+    </LayoutGroup>
   );
 }
 export default App;
