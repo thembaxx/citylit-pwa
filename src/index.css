@@ -202,8 +202,57 @@ body,
 .no-scrollbar {
   scrollbar-width: none;
 }
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+/* Province pills settle with a small squash when they take the filter. */
+@keyframes pillJelly {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.93, 1.07);
+  }
+  70% {
+    transform: scale(1.05, 0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.province-pill[aria-pressed='true'] {
+  animation: pillJelly 0.42s cubic-bezier(0.33, 1.4, 0.55, 1);
+}
+
+[data-motion='reduce'] .province-pill[aria-pressed='true'] {
+  animation: none;
+}
+
+/* Thin scrollbars keep long overlays from fighting the dark chrome. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* Weather island keeps clear of the landmark card, whatever height the card takes. */

@@ -18,6 +18,7 @@ interface SearchSheetProps {
   thumbnails: Record<number, string>;
   visited: Set<number>;
   favorites: Set<number>;
+  reducedMotion: boolean;
   onClose: () => void;
   onSelectLandmark: (index: number) => void;
   onSelectTime: (hour: number) => void;
@@ -69,6 +70,7 @@ export function SearchSheet({
   thumbnails,
   visited,
   favorites,
+  reducedMotion,
   onClose,
   onSelectLandmark,
   onSelectTime,
@@ -142,6 +144,7 @@ export function SearchSheet({
 
       <section
         aria-label="Browse all landmarks"
+        data-motion={reducedMotion ? 'reduce' : 'full'}
         className={`fixed inset-x-0 bottom-0 z-40 h-[80%] bg-[#121319] border-t border-x border-white/15 rounded-t-[28px] flex flex-col px-3.5 pt-2.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] transition-transform duration-400 ease-out ${
           open ? 'translate-y-0' : 'translate-y-[105%]'
         }`}
@@ -260,7 +263,8 @@ export function SearchSheet({
                 key={pv}
                 type="button"
                 onClick={() => setProvince(pv)}
-                className={`shrink-0 rounded-full px-3.5 py-1 text-[12.5px] border transition cursor-pointer ${
+                aria-pressed={active}
+                className={`province-pill shrink-0 rounded-full px-3.5 py-1 text-[12.5px] border transition-colors cursor-pointer ${
                   active
                     ? 'border-[#e8b04a] bg-[#e8b04a]/15 text-[#e8b04a]'
                     : 'border-white/15 bg-white/[0.04] text-[#f3efe6] hover:border-[#e8b04a]'

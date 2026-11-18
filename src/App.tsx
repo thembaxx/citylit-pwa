@@ -396,15 +396,15 @@ export function App() {
         e.preventDefault();
         setSearchOpen(true);
       } else if (e.key === 'Escape') {
-        if (searchOpen) setSearchOpen(false);
+        if (settingsOpen) setSettingsOpen(false);
+        else if (postcardOpen) setPostcardOpen(false);
+        else if (passportOpen) setPassportOpen(false);
+        else if (searchOpen) setSearchOpen(false);
         else if (infoOpen) setInfoOpen(false);
         else if (globeOpen) {
           engineRef.current?.closeGlobe();
           setGlobeOpen(false);
-        } else if (passportOpen) setPassportOpen(false);
-        else if (settingsOpen) setSettingsOpen(false);
-        else if (postcardOpen) setPostcardOpen(false);
-        else if (fullscreen) setFullscreen(false);
+        } else if (fullscreen) setFullscreen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -692,6 +692,7 @@ export function App() {
         thumbnails={thumbnails}
         visited={visited}
         favorites={favorites}
+        reducedMotion={reducedMotion}
         onClose={() => setSearchOpen(false)}
         onSelectLandmark={(i) => selectLandmark(i)}
         onSelectTime={(h) => {
