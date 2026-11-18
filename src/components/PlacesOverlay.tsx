@@ -12,7 +12,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
 import { DURATION, EASE_SMOOTH_OUT, SPRING } from '../lib/motion';
-import type { PlacesSelectionInfo } from '../three/placesScene';
+import type { PlacesSelectionInfo, PlacesWeatherMode } from '../three/placesScene';
 import { PLACE_SLICE_SPECS } from '../three/placesSliceBuilders';
 import type { WeatherDisplayState } from '../types/citylit';
 import { WeatherIcon } from './WeatherIcon';
@@ -23,6 +23,7 @@ interface PlacesOverlayProps {
   selectedPlace: PlacesSelectionInfo | null;
   visited: Set<number>;
   weather: WeatherDisplayState;
+  weatherMode: PlacesWeatherMode;
   activeTimeHour: number;
   soundOn: boolean;
   reducedMotion?: boolean;
@@ -33,6 +34,7 @@ interface PlacesOverlayProps {
   onSwitchToGlobe: () => void;
   onToggleSound: () => void;
   onSelectTimePreset: (hour: number) => void;
+  onSelectWeatherMode: (mode: PlacesWeatherMode) => void;
   onClose: () => void;
 }
 
@@ -43,12 +45,20 @@ const QUICK_TIMES = [
   { label: 'Night', hour: 22 },
 ] as const;
 
+const WEATHER_MODES: ReadonlyArray<{ id: PlacesWeatherMode; label: string }> = [
+  { id: 'auto', label: 'Auto' },
+  { id: 'rain', label: 'Rain' },
+  { id: 'snow', label: 'Snow' },
+  { id: 'fog', label: 'Mist' },
+];
+
 export function PlacesOverlay({
   open,
   activeProvince,
   selectedPlace,
   visited,
   weather,
+  weatherMode,
   activeTimeHour,
   soundOn,
   reducedMotion = false,
@@ -59,6 +69,7 @@ export function PlacesOverlay({
   onSwitchToGlobe,
   onToggleSound,
   onSelectTimePreset,
+  onSelectWeatherMode,
   onClose,
 }: PlacesOverlayProps) {
   if (!open) return null;
@@ -80,7 +91,7 @@ export function PlacesOverlay({
     <div className="fixed inset-0 z-20 pointer-events-none">
       {/* Top Header Row */}
       <div className="absolute left-3.5 sm:left-4 top-[calc(14px+env(safe-area-inset-top,0px))] right-3.5 sm:right-4 flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 drop-shadow-[0_1px_8px_rgba(0,0,0,0.85)]">
           <div className="font-serif-display italic text-[19px] sm:text-[22px] text-[#f3efe6] leading-tight whitespace-nowrap">
             South Africa
           </div>
@@ -173,6 +184,31 @@ export function PlacesOverlay({
             );
           })}
         </div>
+
+        <div
+          role="group"
+          aria-label="Atmosphere shader mode"
+          className="inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md"
+        >
+          {WEATHER_MODES.map((wm) => {
+            const active = weatherMode === wm.id;
+            return (
+              <button
+                key={wm.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onSelectWeatherMode(wm.id)}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] transition-colors cursor-pointer ${
+                  active
+                    ? 'bg-[#e8b04a] text-[#1a1405] font-semibold'
+                    : 'text-[#a9a69e] hover:text-[#f3efe6]'
+                }`}
+              >
+                {wm.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Selected Geological Slice Card */}
@@ -246,7 +282,7 @@ export function PlacesOverlay({
       </AnimatePresence>
 
       {/* Desktop Gesture Hint */}
-      <div className="hidden md:block fixed right-4 bottom-[calc(64px+env(safe-area-inset-bottom,0px))] text-[11.5px] text-[#a9a69e] pointer-events-none">
+      <div className="hidden md:block fixed right-4 bottom-[calc(64px+env(safe-area-inset-bottom,0px))] text-[11.5px] text-[#c8c4bc] drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)] pointer-events-none">
         Drag to orbit · Right-drag pan · Scroll zoom · Tap slice to focus · Double-tap to open
       </div>
 

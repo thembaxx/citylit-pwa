@@ -483,6 +483,7 @@ export class CitylitEngine {
     if (this.places.isOpen) {
       this.places.close();
       this.weather.rainLines.position.set(0, 0, 0);
+      this.weather.rainLines.visible = this.weather.current.rain > 0.03;
       this.atmosphere.root.position.set(0, 0, 0);
     }
     this.heroRoot.visible = false;
@@ -527,6 +528,7 @@ export class CitylitEngine {
     this.weather.setHidden(false);
     this.weather.groundShadow.visible = false;
     this.weather.clouds.visible = false;
+    this.weather.rainLines.visible = false;
     this.weather.stormCurtain.scale.setScalar(1.6);
     this.atmosphere.setHidden(true);
     ambientAudio.setSpatialActive(true);
@@ -546,6 +548,7 @@ export class CitylitEngine {
   closePlaces(): void {
     this.places.close();
     this.weather.rainLines.position.set(0, 0, 0);
+    this.weather.rainLines.visible = this.weather.current.rain > 0.03;
     this.weather.stormCurtain.position.set(0, 14, 0);
     this.weather.stormCurtain.scale.setScalar(1);
     this.weather.clouds.visible = true;
@@ -972,19 +975,25 @@ export class CitylitEngine {
         },
       });
       this.weather.clouds.visible = false;
-      this.weather.rainLines.position.set(
-        this.places.controls.target.x,
-        0,
-        this.places.controls.target.z
-      );
+      this.weather.rainLines.visible = false;
       this.weather.stormCurtain.position.set(
         this.places.controls.target.x,
         14,
         this.places.controls.target.z
       );
-      updateWetSurfaces(this.weather.current.rain);
+      updateWetSurfaces(
+        Math.max(this.weather.current.rain, this.places.getWeatherMode() === 'rain' ? 0.85 : 0)
+      );
 
-      this.places.update(dt, this.elapsed, this.motionScale, this.keyLight, this.scene.fog);
+      this.places.update(
+        dt,
+        this.elapsed,
+        this.motionScale,
+        this.keyLight,
+        this.scene.fog,
+        this.weather.current,
+        this.renderer.getPixelRatio()
+      );
 
       const sel = this.places.getSelectedInfo();
       const lm = LANDMARKS[sel.landmarkIndex];

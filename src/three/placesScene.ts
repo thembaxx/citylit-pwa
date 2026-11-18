@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
+  createPlacesShaderEnv,
+  createPlacesVolumetricFogLayer,
+  createPlacesWeatherParticles,
   createSliceCloudMaterial,
   createStrataTerrainMaterial,
-  createPlacesShaderEnv,
+  PLACES_VOLUMETRIC_FOG_GLSL,
 } from './placesShaders';
 import {
   buildPlaceSlice,
@@ -13,6 +16,8 @@ import {
   type PlaceSliceSpec,
 } from './placesSliceBuilders';
 import { WU } from './shaders';
+
+export type PlacesWeatherMode = 'auto' | 'rain' | 'snow' | 'fog';
 
 export interface PlacesSelectionInfo {
   sliceIndex: number;
@@ -38,12 +43,16 @@ export interface PlacesController {
   getSelectedInfo: () => PlacesSelectionInfo;
   zoomBy: (factor: number) => void;
   resetOverview: () => void;
+  setWeatherMode: (mode: PlacesWeatherMode) => void;
+  getWeatherMode: () => PlacesWeatherMode;
   update: (
     dt: number,
     elapsed: number,
     motionScale: number,
     keyLight: THREE.DirectionalLight,
-    fog: THREE.Fog | THREE.FogExp2 | null
+    fog: THREE.Fog | THREE.FogExp2 | null,
+    weatherState?: { rain: number; wind: number; cover: number; night: number },
+    pixelRatio?: number
   ) => void;
   setAspect: (aspect: number) => void;
   dispose: () => void;
@@ -80,8 +89,8 @@ export function createPlacesScene(
   group.visible = false;
 
   const env = createPlacesShaderEnv();
-  const terrainMat = createStrataTerrainMaterial();
-  const cloudMat = createSliceCloudMaterial();
+  const terrainMat = createStrataTerrainMaterial(env);
+  const cloudMat = createSliceCloudMaterial(env);
   const shared = createSliceSharedAssets(env, terrainMat, cloudMat);
 
   // Subtle floating cartographic brass compass ring & latitude/longitude lines underneath
@@ -129,7 +138,7 @@ export function createPlacesScene(
   });
   cartoGroup.add(new THREE.LineSegments(gridGeo, gridMat));
 
-  // Subtle atmospheric studio floor below the floating slice archipelago
+  // Atmospheric studio floor integrated with volumetric horizon haze
   const backdropGeo = new THREE.CircleGeometry(108, 64);
   backdropGeo.rotateX(-Math.PI / 2);
   const backdropMat = new THREE.ShaderMaterial({
@@ -138,13 +147,34 @@ export function createPlacesScene(
       uSky: WU.sky,
       uSun: WU.sun,
       uLit: WU.lit,
+      uVolSunDir: env.sunDir,
+      uVolSunColor: env.sunColor,
+      uVolFogColor: env.fogColor,
+      uVolFogDeepColor: env.volFogDeepColor,
+      uVolFogDensity: env.volFogDensity,
+      uVolFocusPos: env.focusPos,
+      uVolFocusClear: env.focusClear,
+      uVolCamDist: env.camDist,
+      uVolSun: WU.sun,
+      uVolTime: WU.t,
     },
-    vertexShader: `varying vec2 vPos; void main() { vPos = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    vertexShader: `
+varying vec2 vPos;
+varying vec3 vWorldPos;
+void main() {
+  vPos = position.xz;
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWorldPos = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`,
     fragmentShader: `
 uniform vec3 uSky;
 uniform float uSun;
 uniform float uLit;
 varying vec2 vPos;
+varying vec3 vWorldPos;
+${PLACES_VOLUMETRIC_FOG_GLSL}
+
 void main() {
   float d = clamp(length(vPos) / 72.0, 0.0, 1.0);
   vec3 dayCenter = mix(vec3(0.11, 0.15, 0.22), uSky * 0.42 + vec3(0.06, 0.08, 0.12), 0.55);
@@ -152,8 +182,9 @@ void main() {
   vec3 nightCenter = vec3(0.04, 0.05, 0.09);
   vec3 centerCol = mix(dayCenter, duskCenter, clamp((1.0 - uSun) * (1.0 - uLit), 0.0, 1.0));
   centerCol = mix(centerCol, nightCenter, clamp(uLit, 0.0, 1.0));
-  vec3 edgeCol = centerCol * 0.45;
+  vec3 edgeCol = centerCol * 0.48;
   vec3 col = mix(centerCol, edgeCol, pow(d, 0.85));
+  col = plApplyVolumetricFog(col, vWorldPos);
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -178,6 +209,13 @@ void main() {
     return built;
   });
 
+  // Multi-layer drifting volumetric haze + GPU localized/archipelago weather particles
+  const volumetricFogLayer = createPlacesVolumetricFogLayer(env);
+  group.add(volumetricFogLayer.mesh);
+
+  const weatherParticles = createPlacesWeatherParticles(PLACE_SLICE_SPECS, env);
+  group.add(weatherParticles.points);
+
   const hitBoxes = slices.map((s) => s.hitBox);
 
   let isOpen = false;
@@ -185,6 +223,7 @@ void main() {
   let selectedSliceIndex = 0;
   let hoveredSliceIndex: number | null = null;
   let visitedSet = new Set<number>();
+  let weatherMode: PlacesWeatherMode = 'auto';
 
   let flyGoalCam: THREE.Vector3 | null = null;
   let flyGoalTarget: THREE.Vector3 | null = null;
@@ -195,6 +234,12 @@ void main() {
   const cloudTintTmp = new THREE.Color('#ffffff');
   const cloudNightTmp = new THREE.Color('#28344d');
   const cloudWarmTmp = new THREE.Color('#ffd3a6');
+  const fogBaseTmp = new THREE.Color('#243044');
+  const fogDeepTmp = new THREE.Color('#131b2b');
+  const fogMistTintTmp = new THREE.Color('#42556d');
+  const fogSnowTintTmp = new THREE.Color('#4f647e');
+  const fogRainTintTmp = new THREE.Color('#2c3a4c');
+  const fogNightTintTmp = new THREE.Color('#0c1322');
 
   const onControlsStart = () => {
     flyGoalCam = null;
@@ -323,6 +368,12 @@ void main() {
     flyGoalCam = OVERVIEW_CAM.clone();
   };
 
+  const setWeatherMode = (mode: PlacesWeatherMode) => {
+    weatherMode = mode;
+  };
+
+  const getWeatherMode = () => weatherMode;
+
   const hoverAt = (ndcX: number, ndcY: number): number | null => {
     if (!isOpen) return null;
     pointerVec.set(ndcX, ndcY);
@@ -363,7 +414,15 @@ void main() {
     controls.update();
   };
 
-  const update: PlacesController['update'] = (dt, elapsed, motionScale, keyLight, fog) => {
+  const update: PlacesController['update'] = (
+    dt,
+    elapsed,
+    motionScale,
+    keyLight,
+    fog,
+    weatherState,
+    pixelRatio = 1
+  ) => {
     if (!isOpen) return;
 
     // Smooth camera fly interpolation
@@ -386,16 +445,79 @@ void main() {
     controls.target.y = Math.max(0.1, Math.min(2.4, controls.target.y));
     controls.update();
 
-    // Keep custom water & cloud GLSL shader uniforms locked to live CitylitEngine sky/season/weather
+    // Compute volumetric fog focus lens, depth haze, and weather particle intensities
+    const camDist = camera.position.distanceTo(controls.target);
+    env.camDist.value = camDist;
+    env.focusPos.value.copy(controls.target);
+    env.focusClear.value = THREE.MathUtils.clamp((16.0 - camDist) / 11.0, 0.08, 1.0);
+    env.pixelRatio.value = pixelRatio;
+
+    const liveRain = weatherState?.rain ?? WU.rain.value;
+    const liveWind = weatherState?.wind ?? WU.wind.value;
+    const liveCover = weatherState?.cover ?? 0.25;
+    const liveNight = weatherState?.night ?? 0;
+
+    let targetRain = liveRain;
+    let targetSnow = 0;
+    let targetWind = Math.max(0.45, liveWind);
+    let targetFogDensity = 0.0155 + liveRain * 0.011 + liveCover * 0.0055;
+    let targetAlpineSnow = 0.22 + liveCover * 0.26;
+
+    if (weatherMode === 'rain') {
+      targetRain = Math.max(liveRain, 0.92);
+      targetSnow = 0;
+      targetWind = Math.max(liveWind, 1.48);
+      targetFogDensity = 0.025;
+      targetAlpineSnow = 0.0;
+    } else if (weatherMode === 'snow') {
+      targetRain = 0;
+      targetSnow = 0.98;
+      targetWind = Math.max(liveWind, 1.15);
+      targetFogDensity = 0.022;
+      targetAlpineSnow = 1.0;
+    } else if (weatherMode === 'fog') {
+      targetRain = liveRain * 0.35;
+      targetSnow = 0;
+      targetWind = Math.max(0.45, liveWind * 0.85);
+      targetFogDensity = 0.036;
+      targetAlpineSnow = 0.18;
+    }
+
+    const weatherLerp = 1 - Math.exp(-dt * 5.0);
+    env.rainIntensity.value += (targetRain - env.rainIntensity.value) * weatherLerp;
+    env.snowIntensity.value += (targetSnow - env.snowIntensity.value) * weatherLerp;
+    env.windStrength.value += (targetWind - env.windStrength.value) * weatherLerp;
+    env.volFogDensity.value += (targetFogDensity - env.volFogDensity.value) * weatherLerp;
+    env.alpineAmbientSnow.value += (targetAlpineSnow - env.alpineAmbientSnow.value) * weatherLerp;
+
+    // Keep custom water, volumetric fog & cloud GLSL shader uniforms locked to live sky/weather
     env.sunDir.value.copy(keyLight.position).normalize();
     env.sunColor.value.copy(keyLight.color);
     if (fog instanceof THREE.FogExp2) {
-      env.fogColor.value.copy(fog.color);
+      fogBaseTmp.copy(fog.color);
       env.fogDensity.value = fog.density;
     } else if (fog instanceof THREE.Fog) {
-      env.fogColor.value.copy(fog.color);
-      env.fogDensity.value = 0.008;
+      fogBaseTmp.copy(fog.color);
+      env.fogDensity.value = 0.009;
+    } else {
+      fogBaseTmp.set('#243044');
+      env.fogDensity.value = 0.009;
     }
+
+    if (weatherMode === 'fog') {
+      fogBaseTmp.lerp(fogMistTintTmp, (1 - liveNight * 0.72) * 0.58);
+    } else if (weatherMode === 'snow') {
+      fogBaseTmp.lerp(fogSnowTintTmp, (1 - liveNight * 0.72) * 0.52);
+    } else if (weatherMode === 'rain') {
+      fogBaseTmp.lerp(fogRainTintTmp, (1 - liveNight * 0.65) * 0.45);
+    }
+
+    env.fogColor.value.copy(fogBaseTmp);
+    fogDeepTmp
+      .copy(fogBaseTmp)
+      .multiplyScalar(0.62)
+      .lerp(fogNightTintTmp, liveNight * 0.45);
+    env.volFogDeepColor.value.copy(fogDeepTmp);
 
     const litStrength = WU.lit.value;
     cloudTintTmp
@@ -403,14 +525,8 @@ void main() {
       .lerp(cloudWarmTmp, (1 - WU.sun.value) * 0.45)
       .lerp(cloudNightTmp, Math.max(0, litStrength - 0.15) * 0.72);
     cloudMat.color.copy(cloudTintTmp);
-    cloudMat.opacity = 0.78 + Math.min(0.18, WU.rain.value * 0.15);
-
-    shared.waterTopMats.forEach((mat) => {
-      mat.uniforms.uFogDensity.value = env.fogDensity.value;
-    });
-    shared.waterWallMats.forEach((mat) => {
-      mat.uniforms.uFogDensity.value = env.fogDensity.value;
-    });
+    cloudMat.opacity =
+      0.78 + Math.min(0.18, Math.max(WU.rain.value, env.rainIntensity.value) * 0.15);
 
     // Update each slice's elevation, golden/emerald rim highlight & micro-animations
     const animTime = elapsed * motionScale;
@@ -453,6 +569,8 @@ void main() {
     controls.removeEventListener('start', onControlsStart);
     controls.dispose();
     slices.forEach((s) => s.dispose());
+    volumetricFogLayer.dispose();
+    weatherParticles.dispose();
     shared.dispose();
     terrainMat.dispose();
     cloudMat.dispose();
@@ -483,6 +601,8 @@ void main() {
     getSelectedInfo,
     zoomBy,
     resetOverview,
+    setWeatherMode,
+    getWeatherMode,
     update,
     setAspect,
     dispose,

@@ -28,7 +28,7 @@ import {
 import { WEATHER_CONDITIONS } from './data/weatherData';
 import { useOnlineStatus, usePWARegistration } from './hooks/usePWAInstall';
 import { CitylitEngine } from './three/CitylitEngine';
-import type { PlacesSelectionInfo } from './three/placesScene';
+import type { PlacesSelectionInfo, PlacesWeatherMode } from './three/placesScene';
 import type {
   CitylitSettings,
   ForecastSlot,
@@ -146,6 +146,7 @@ export function App() {
   const [placesOpen, setPlacesOpen] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlacesSelectionInfo | null>(null);
   const [activeProvince, setActiveProvince] = useState('All');
+  const [placesWeatherMode, setPlacesWeatherMode] = useState<PlacesWeatherMode>('auto');
 
   const [postcardUrl, setPostcardUrl] = useState('');
   const [postcardOpen, setPostcardOpen] = useState(false);
@@ -769,6 +770,7 @@ export function App() {
           selectedPlace={selectedPlace}
           visited={visited}
           weather={weatherState}
+          weatherMode={placesWeatherMode}
           activeTimeHour={timeHour}
           soundOn={soundOn}
           reducedMotion={reducedMotion}
@@ -801,6 +803,10 @@ export function App() {
             setTimeHour(h);
             setTimeScrubbed(true);
             engineRef.current?.setSunAltitudeFromSlider(h);
+          }}
+          onSelectWeatherMode={(mode) => {
+            setPlacesWeatherMode(mode);
+            engineRef.current?.places.setWeatherMode(mode);
           }}
           onClose={closePlaces}
         />

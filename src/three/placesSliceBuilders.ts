@@ -6,6 +6,7 @@ import {
   createCutawayWaterWallMaterial,
   createSliceMistMaterial,
   getOrlandoMuralTexture,
+  patchPlacesVolumetricFog,
   type CutawayWaterOptions,
   type PlacesShaderEnvironment,
 } from './placesShaders';
@@ -4444,6 +4445,13 @@ export function buildPlaceSlice(
   ringMesh.position.y = -0.02;
   ringMesh.visible = false;
   root.add(ringMesh);
+
+  for (let i = 0; i < localMaterials.length; i++) {
+    const mat = localMaterials[i];
+    if (mat instanceof THREE.MeshStandardMaterial) {
+      patchPlacesVolumetricFog(mat, shared.env);
+    }
+  }
 
   // Invisible bounding hit-box for fast, crisp raycast picking across all 24 islands
   const hitGeo = new THREE.BoxGeometry(3.15, 2.55, 3.15);

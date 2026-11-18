@@ -1,38 +1,200 @@
 import * as THREE from 'three';
 import { WU } from './shaders';
 
+export interface PlacesSliceEmitterSpec {
+  landmarkName: string;
+  gridPos: readonly [number, number];
+}
+
 export interface PlacesShaderEnvironment {
   sunDir: { value: THREE.Vector3 };
   sunColor: { value: THREE.Color };
   fogColor: { value: THREE.Color };
   fogDensity: { value: number };
+  volFogDeepColor: { value: THREE.Color };
+  volFogDensity: { value: number };
+  focusPos: { value: THREE.Vector3 };
+  focusClear: { value: number };
+  camDist: { value: number };
+  rainIntensity: { value: number };
+  snowIntensity: { value: number };
+  alpineAmbientSnow: { value: number };
+  windStrength: { value: number };
+  pixelRatio: { value: number };
 }
 
 export function createPlacesShaderEnv(): PlacesShaderEnvironment {
   return {
     sunDir: { value: new THREE.Vector3(0.45, 0.78, 0.42).normalize() },
     sunColor: { value: new THREE.Color('#fff2d6') },
-    fogColor: { value: new THREE.Color('#161b26') },
-    fogDensity: { value: 0.0065 },
+    fogColor: { value: new THREE.Color('#243044') },
+    fogDensity: { value: 0.0095 },
+    volFogDeepColor: { value: new THREE.Color('#131b2b') },
+    volFogDensity: { value: 0.0155 },
+    focusPos: { value: new THREE.Vector3(1.2, 0.4, 1.5) },
+    focusClear: { value: 0.15 },
+    camDist: { value: 44.0 },
+    rainIntensity: { value: 0.0 },
+    snowIntensity: { value: 0.0 },
+    alpineAmbientSnow: { value: 0.35 },
+    windStrength: { value: 0.65 },
+    pixelRatio: { value: 1.0 },
   };
+}
+
+/**
+ * Analytical depth- and height-stratified volumetric fog shader snippet with Mie
+ * directional sun in-scattering, ray wisp modulation, and focus-zone clarity.
+ * Operates in linear HDR space right before tonemapping/colorspace conversion.
+ */
+export const PLACES_VOLUMETRIC_FOG_GLSL = /* glsl */ `
+uniform vec3 uVolSunDir;
+uniform vec3 uVolSunColor;
+uniform vec3 uVolFogColor;
+uniform vec3 uVolFogDeepColor;
+uniform float uVolFogDensity;
+uniform vec3 uVolFocusPos;
+uniform float uVolFocusClear;
+uniform float uVolCamDist;
+uniform float uVolSun;
+uniform float uVolTime;
+
+vec3 plApplyVolumetricFog(vec3 sceneRgb, vec3 worldPos) {
+  vec3 rayVec = worldPos - cameraPosition;
+  float dist = length(rayVec);
+  vec3 viewDir = rayVec / max(dist, 0.0001);
+
+  // Adaptive near clear distance keeps both zoomed-in close-ups and front overview islands crisp
+  float nearClear = max(3.6, uVolCamDist * 0.60);
+  float effDist = max(0.0, dist - nearClear);
+
+  // Analytical exponential height-fog ray integral above archipelago datum (y = -0.35)
+  float y0 = -0.35;
+  float falloff = 0.25;
+  float camH = cameraPosition.y - y0;
+  float fragH = worldPos.y - y0;
+  float dH = (fragH - camH) * falloff;
+  float heightIntegral;
+  if (abs(dH) > 0.001) {
+    heightIntegral =
+      (exp(-clamp(camH * falloff, -2.0, 8.0)) - exp(-clamp(fragH * falloff, -2.0, 8.0))) / dH;
+  } else {
+    heightIntegral = exp(-clamp(camH * falloff, -2.0, 8.0));
+  }
+  heightIntegral = clamp(heightIntegral, 0.16, 2.3);
+
+  // Gentle depth separation ramp so distant archipelago ridges settle into volumetric perspective
+  float farRamp = smoothstep(nearClear * 0.85, nearClear + 28.0, dist);
+  float rayWisp = 0.88 + 0.12 * sin(worldPos.x * 0.24 + uVolTime * 0.20)
+                       * cos(worldPos.z * 0.22 - uVolTime * 0.16);
+  float opticalDepth =
+    effDist * uVolFogDensity * (0.58 + 0.95 * heightIntegral) * rayWisp
+    + farRamp * uVolFogDensity * 9.5;
+
+  // Preserve razor-sharp silhouette clarity on the actively focused diorama when zoomed in
+  float focusDist = length(worldPos.xz - uVolFocusPos.xz);
+  float focusLens = mix(1.0, smoothstep(1.55, 5.4, focusDist), clamp(uVolFocusClear, 0.0, 1.0) * 0.90);
+
+  float fogAmount = clamp((1.0 - exp(-opticalDepth)) * focusLens, 0.0, 0.92);
+
+  // Altitude-stratified haze color + forward-scattered Mie solar glow
+  float altMix = smoothstep(-0.3, 2.8, worldPos.y);
+  vec3 hazeCol = mix(uVolFogDeepColor, uVolFogColor, altMix);
+  float sunCos = max(dot(viewDir, normalize(uVolSunDir)), 0.0);
+  float mie = pow(sunCos, 5.0) * 0.36 + pow(sunCos, 16.0) * 0.28;
+  vec3 scattered = hazeCol + uVolSunColor * mie * (0.30 + 0.70 * uVolSun);
+
+  return mix(sceneRgb, scattered, fogAmount);
+}
+`;
+
+function bindVolumetricFogUniforms(
+  uniforms: Record<string, THREE.IUniform>,
+  env: PlacesShaderEnvironment
+): void {
+  uniforms.uVolSunDir = env.sunDir;
+  uniforms.uVolSunColor = env.sunColor;
+  uniforms.uVolFogColor = env.fogColor;
+  uniforms.uVolFogDeepColor = env.volFogDeepColor;
+  uniforms.uVolFogDensity = env.volFogDensity;
+  uniforms.uVolFocusPos = env.focusPos;
+  uniforms.uVolFocusClear = env.focusClear;
+  uniforms.uVolCamDist = env.camDist;
+  uniforms.uVolSun = WU.sun;
+  uniforms.uVolTime = WU.t;
+}
+
+/**
+ * Patches any Places MeshStandardMaterial (including InstancedMesh materials) with
+ * linear-space depth-based volumetric fog while bypassing CitylitEngine's hero dissolve hook.
+ */
+export function patchPlacesVolumetricFog<T extends THREE.Material>(
+  mat: T,
+  env: PlacesShaderEnvironment
+): T {
+  const matWithFog = mat as T & { fog?: boolean };
+  if ('fog' in matWithFog) {
+    matWithFog.fog = false;
+  }
+  const prevKey = mat.customProgramCacheKey?.() ?? 'std';
+  mat.customProgramCacheKey = () => `${prevKey}_places_vfog_v1`;
+  mat.onBeforeCompile = (shader) => {
+    bindVolumetricFogUniforms(shader.uniforms, env);
+
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vVolFogWPos;`
+      )
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+vec4 plFogWp = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+  plFogWp = instanceMatrix * plFogWp;
+#endif
+plFogWp = modelMatrix * plFogWp;
+vVolFogWPos = plFogWp.xyz;`
+      );
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vVolFogWPos;
+${PLACES_VOLUMETRIC_FOG_GLSL}`
+      )
+      .replace(
+        '#include <tonemapping_fragment>',
+        `gl_FragColor.rgb = plApplyVolumetricFog(gl_FragColor.rgb, vVolFogWPos);
+#include <tonemapping_fragment>`
+      );
+  };
+  return mat;
 }
 
 /**
  * High-detail geological slice terrain & striated cutaway wall material.
  * Uses vertex attribute `aTopY` so exposed cutaway sidewalls know exact depth below
  * the grass/sand rim: renders a dark topsoil/root overhang band, pebble pockets,
- * warped sedimentary rock strata, vertical cleavage fissures, and wet-weather sheen.
+ * warped sedimentary rock strata, vertical cleavage fissures, wet-weather sheen,
+ * and depth-based volumetric haze.
  */
-export function createStrataTerrainMaterial(): THREE.MeshStandardMaterial {
+export function createStrataTerrainMaterial(
+  env: PlacesShaderEnvironment
+): THREE.MeshStandardMaterial {
   const mat = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.87,
     metalness: 0.04,
+    fog: false,
   });
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uRN = WU.rain;
     shader.uniforms.uWT = WU.t;
+    bindVolumetricFogUniforms(shader.uniforms, env);
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -41,7 +203,8 @@ export function createStrataTerrainMaterial(): THREE.MeshStandardMaterial {
 attribute float aTopY;
 varying vec3 vPlacePos;
 varying vec3 vPlaceNorm;
-varying float vTopY;`
+varying float vTopY;
+varying vec3 vVolFogWPos;`
       )
       .replace(
         '#include <begin_vertex>',
@@ -49,6 +212,11 @@ varying float vTopY;`
 vPlacePos = position;
 vPlaceNorm = normal;
 vTopY = aTopY;`
+      )
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+vVolFogWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
       );
 
     shader.fragmentShader = shader.fragmentShader
@@ -58,6 +226,7 @@ vTopY = aTopY;`
 varying vec3 vPlacePos;
 varying vec3 vPlaceNorm;
 varying float vTopY;
+varying vec3 vVolFogWPos;
 uniform float uRN;
 uniform float uWT;
 
@@ -83,7 +252,8 @@ float plFbm(vec2 p) {
     a *= 0.5;
   }
   return s;
-}`
+}
+${PLACES_VOLUMETRIC_FOG_GLSL}`
       )
       .replace(
         '#include <color_fragment>',
@@ -154,10 +324,15 @@ float plFbm(vec2 p) {
     roughnessFactor = mix(roughnessFactor, 0.20, uRN * (0.45 + 0.55 * puddle));
   }
 }`
+      )
+      .replace(
+        '#include <tonemapping_fragment>',
+        `gl_FragColor.rgb = plApplyVolumetricFog(gl_FragColor.rgb, vVolFogWPos);
+#include <tonemapping_fragment>`
       );
   };
 
-  mat.customProgramCacheKey = () => 'places_strata_v2';
+  mat.customProgramCacheKey = () => 'places_strata_vfog_v3';
   return mat;
 }
 
@@ -172,7 +347,7 @@ export interface CutawayWaterOptions {
 /**
  * Animated cutaway water surface shader with Beer-Lambert depth absorption,
  * Fresnel sky reflection, sunlit wave glints, underwater caustics, rain ripples,
- * and layered breaking surf foam.
+ * layered breaking surf foam, and volumetric archipelago fog.
  */
 export function createCutawayWaterTopMaterial(
   env: PlacesShaderEnvironment,
@@ -190,13 +365,21 @@ export function createCutawayWaterTopMaterial(
       uWind: WU.wind,
       uSunDir: env.sunDir,
       uSunColor: env.sunColor,
-      uFogColor: env.fogColor,
-      uFogDensity: { value: env.fogDensity.value },
       uShallow: { value: new THREE.Color(opts.shallowColor) },
       uDeep: { value: new THREE.Color(opts.deepColor) },
       uFoamStrength: { value: opts.foamStrength ?? 1.0 },
       uTurbulence: { value: opts.turbulence ?? 1.0 },
       uClarity: { value: opts.clarity ?? 0.78 },
+      uVolSunDir: env.sunDir,
+      uVolSunColor: env.sunColor,
+      uVolFogColor: env.fogColor,
+      uVolFogDeepColor: env.volFogDeepColor,
+      uVolFogDensity: env.volFogDensity,
+      uVolFocusPos: env.focusPos,
+      uVolFocusClear: env.focusClear,
+      uVolCamDist: env.camDist,
+      uVolSun: WU.sun,
+      uVolTime: WU.t,
     },
     vertexShader: `
 attribute float aDepth;
@@ -231,8 +414,6 @@ uniform float uClarity;
 uniform vec3 uSky;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
-uniform vec3 uFogColor;
-uniform float uFogDensity;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 
@@ -261,6 +442,7 @@ float wtHeight(vec2 p, float t) {
   h += uRain * 0.22 * sin(p.x * 24.0 + t * 12.0) * cos(p.y * 22.0 - t * 10.0);
   return h;
 }
+${PLACES_VOLUMETRIC_FOG_GLSL}
 
 void main() {
   if (vDepth < -0.004) discard;
@@ -308,9 +490,7 @@ void main() {
   float alpha = mix(0.42, 0.90, smoothstep(0.0, 0.54, depth) * (1.12 - uClarity * 0.35));
   alpha = clamp(max(alpha, foam * 0.94), 0.30, 0.96);
 
-  float dist = length(cameraPosition - vWorldPos);
-  float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
-  col = mix(col, uFogColor, clamp(fogFactor, 0.0, 1.0));
+  col = plApplyVolumetricFog(col, vWorldPos);
 
   gl_FragColor = vec4(col, alpha);
   #include <tonemapping_fragment>
@@ -334,11 +514,19 @@ export function createCutawayWaterWallMaterial(
       uTime: WU.t,
       uSun: WU.sun,
       uSky: WU.sky,
-      uFogColor: env.fogColor,
-      uFogDensity: { value: env.fogDensity.value },
       uShallow: { value: new THREE.Color(opts.shallowColor) },
       uDeep: { value: new THREE.Color(opts.deepColor) },
       uClarity: { value: opts.clarity ?? 0.78 },
+      uVolSunDir: env.sunDir,
+      uVolSunColor: env.sunColor,
+      uVolFogColor: env.fogColor,
+      uVolFogDeepColor: env.volFogDeepColor,
+      uVolFogDensity: env.volFogDensity,
+      uVolFocusPos: env.focusPos,
+      uVolFocusClear: env.focusClear,
+      uVolCamDist: env.camDist,
+      uVolSun: WU.sun,
+      uVolTime: WU.t,
     },
     vertexShader: `
 varying vec2 vUv;
@@ -353,14 +541,13 @@ void main() {
 uniform float uTime;
 uniform float uSun;
 uniform vec3 uSky;
-uniform vec3 uFogColor;
-uniform float uFogDensity;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 uniform float uClarity;
 
 varying vec2 vUv;
 varying vec3 vWorldPos;
+${PLACES_VOLUMETRIC_FOG_GLSL}
 
 void main() {
   float depthMix = 1.0 - vUv.y;
@@ -375,9 +562,7 @@ void main() {
   float alpha = mix(0.52, 0.78, depthMix) * (1.10 - uClarity * 0.28);
   alpha = clamp(max(alpha, meniscus * 0.82), 0.36, 0.85);
 
-  float dist = length(cameraPosition - vWorldPos);
-  float fogFactor = 1.0 - exp(-uFogDensity * uFogDensity * dist * dist);
-  col = mix(col, uFogColor, clamp(fogFactor, 0.0, 1.0));
+  col = plApplyVolumetricFog(col, vWorldPos);
 
   gl_FragColor = vec4(col, alpha);
   #include <tonemapping_fragment>
@@ -405,14 +590,26 @@ export function createSliceMistMaterial(
       uSun: WU.sun,
       uLit: WU.lit,
       uTint: { value: new THREE.Color(tintHex) },
-      uFogColor: env.fogColor,
       uOpacity: { value: opacity },
+      uVolSunDir: env.sunDir,
+      uVolSunColor: env.sunColor,
+      uVolFogColor: env.fogColor,
+      uVolFogDeepColor: env.volFogDeepColor,
+      uVolFogDensity: env.volFogDensity,
+      uVolFocusPos: env.focusPos,
+      uVolFocusClear: env.focusClear,
+      uVolCamDist: env.camDist,
+      uVolSun: WU.sun,
+      uVolTime: WU.t,
     },
     vertexShader: `
 varying vec2 vUv;
+varying vec3 vWorldPos;
 void main() {
   vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWorldPos = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
 }`,
     fragmentShader: `
 uniform float uTime;
@@ -420,9 +617,9 @@ uniform float uWind;
 uniform float uSun;
 uniform float uLit;
 uniform vec3 uTint;
-uniform vec3 uFogColor;
 uniform float uOpacity;
 varying vec2 vUv;
+varying vec3 vWorldPos;
 
 float mHash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -447,6 +644,7 @@ float mFbm(vec2 p) {
   }
   return s;
 }
+${PLACES_VOLUMETRIC_FOG_GLSL}
 
 void main() {
   vec2 c = vUv - 0.5;
@@ -459,6 +657,7 @@ void main() {
   if (alpha < 0.01) discard;
   vec3 nightCol = mix(uTint, vec3(0.22, 0.28, 0.42), clamp(uLit, 0.0, 1.0) * 0.72);
   vec3 warmCol = mix(nightCol, vec3(1.0, 0.84, 0.68), (1.0 - uSun) * (1.0 - uLit) * 0.42);
+  warmCol = plApplyVolumetricFog(warmCol, vWorldPos);
   gl_FragColor = vec4(warmCol, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -547,12 +746,496 @@ export function getOrlandoMuralTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-export function createSliceCloudMaterial(): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: '#f6f9ff',
-    roughness: 0.96,
-    metalness: 0.0,
+export function createSliceCloudMaterial(env: PlacesShaderEnvironment): THREE.MeshStandardMaterial {
+  return patchPlacesVolumetricFog(
+    new THREE.MeshStandardMaterial({
+      color: '#f6f9ff',
+      roughness: 0.96,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.88,
+    }),
+    env
+  );
+}
+
+/**
+ * Single-draw-call multi-altitude volumetric archipelago haze strata + distant horizon ring.
+ * Adds tangible drifting valley mist between slices and sunlit forward Mie scattering.
+ */
+export function createPlacesVolumetricFogLayer(env: PlacesShaderEnvironment): {
+  mesh: THREE.Mesh;
+  dispose: () => void;
+} {
+  const layers = [
+    { y: 0.08, size: 92, layerIdx: 0.0 },
+    { y: 0.48, size: 88, layerIdx: 0.5 },
+    { y: 0.96, size: 84, layerIdx: 1.0 },
+  ];
+
+  const positions: number[] = [];
+  const layerWeights: number[] = [];
+  const indices: number[] = [];
+
+  for (let i = 0; i < layers.length; i++) {
+    const l = layers[i];
+    const h = l.size * 0.5;
+    const base = positions.length / 3;
+    positions.push(-h, l.y, -h, h, l.y, -h, h, l.y, h, -h, l.y, h);
+    layerWeights.push(l.layerIdx, l.layerIdx, l.layerIdx, l.layerIdx);
+    indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+  }
+
+  // Horizon volumetric cylinder rim surrounding the archipelago edge
+  const rimSegs = 40;
+  const rimR = 46;
+  const rimBot = -0.35;
+  const rimTop = 10.5;
+  const rimBase = positions.length / 3;
+  for (let i = 0; i <= rimSegs; i++) {
+    const a = (i / rimSegs) * Math.PI * 2;
+    const x = Math.cos(a) * rimR;
+    const z = Math.sin(a) * rimR;
+    positions.push(x, rimBot, z, x, rimTop, z);
+    layerWeights.push(1.2, 2.2);
+    if (i < rimSegs) {
+      const b = rimBase + i * 2;
+      indices.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('aLayer', new THREE.Float32BufferAttribute(layerWeights, 1));
+  geo.setIndex(indices);
+
+  const mat = new THREE.ShaderMaterial({
     transparent: true,
-    opacity: 0.88,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    uniforms: {
+      uTime: WU.t,
+      uWind: env.windStrength,
+      uSun: WU.sun,
+      uSunDir: env.sunDir,
+      uSunColor: env.sunColor,
+      uFogColor: env.fogColor,
+      uFogDeepColor: env.volFogDeepColor,
+      uFogDensity: env.volFogDensity,
+      uFocusPos: env.focusPos,
+      uFocusClear: env.focusClear,
+      uCamDist: env.camDist,
+    },
+    vertexShader: `
+attribute float aLayer;
+varying vec3 vWorldPos;
+varying float vLayer;
+void main() {
+  vLayer = aLayer;
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWorldPos = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}`,
+    fragmentShader: `
+uniform float uTime;
+uniform float uWind;
+uniform float uSun;
+uniform vec3 uSunDir;
+uniform vec3 uSunColor;
+uniform vec3 uFogColor;
+uniform vec3 uFogDeepColor;
+uniform float uFogDensity;
+uniform vec3 uFocusPos;
+uniform float uFocusClear;
+uniform float uCamDist;
+
+varying vec3 vWorldPos;
+varying float vLayer;
+
+float vfHash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+float vfNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(vfHash(i), vfHash(i + vec2(1.0, 0.0)), f.x),
+    mix(vfHash(i + vec2(0.0, 1.0)), vfHash(i + vec2(1.0, 1.0)), f.x),
+    f.y
+  );
+}
+float vfFbm(vec2 p) {
+  float s = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 3; i++) {
+    s += a * vfNoise(p);
+    p = p * 2.03 + vec2(9.2, 6.7);
+    a *= 0.5;
+  }
+  return s;
+}
+
+void main() {
+  vec3 rayVec = vWorldPos - cameraPosition;
+  float dist = length(rayVec);
+  vec3 viewDir = rayVec / max(dist, 0.0001);
+
+  float densityNorm = clamp((uFogDensity - 0.008) / 0.030, 0.12, 1.6);
+  vec2 drift = vec2(uTime * (0.12 + 0.08 * uWind), -uTime * 0.055) + vec2(vLayer * 7.3, vLayer * 4.1);
+  float wisp = vfFbm(vWorldPos.xz * 0.095 + drift);
+  float bank = smoothstep(0.28, 0.80, wisp);
+
+  float radial = length(vWorldPos.xz);
+  float distFade = smoothstep(max(4.5, uCamDist * 0.52), max(22.0, uCamDist * 0.52 + 24.0), dist);
+  float archEdgeFade = 1.0 - smoothstep(32.0, 46.5, radial);
+
+  float alpha = 0.0;
+  if (vLayer <= 1.05) {
+    // Horizontal drifting valley mist strata between islands
+    float focusR = length(vWorldPos.xz - uFocusPos.xz);
+    float focusHole = mix(0.88, smoothstep(2.0, 6.2, focusR), uFocusClear * 0.92);
+    float layerAtten = mix(1.0, 0.54, clamp(vLayer, 0.0, 1.0));
+    alpha = bank * (0.06 + 0.13 * distFade) * densityNorm * archEdgeFade * focusHole * layerAtten;
+  } else {
+    // Soft horizon rim glow & distance atmosphere curtain
+    float vertFade = 1.0 - smoothstep(1.15, 2.2, vLayer);
+    float rimNoise = 0.65 + 0.35 * vfNoise(vec2(atan(vWorldPos.z, vWorldPos.x) * 3.5 + uTime * 0.06, vLayer * 2.0));
+    alpha = vertFade * rimNoise * (0.10 + 0.12 * densityNorm);
+  }
+
+  if (alpha < 0.005) discard;
+
+  float alt = clamp((vWorldPos.y + 0.3) / 3.0, 0.0, 1.0);
+  vec3 baseCol = mix(uFogDeepColor, uFogColor, alt);
+  float sunCos = max(dot(viewDir, normalize(uSunDir)), 0.0);
+  float mie = pow(sunCos, 5.0) * 0.42 + pow(sunCos, 16.0) * 0.32;
+  vec3 col = baseCol + uSunColor * mie * (0.35 + 0.65 * uSun);
+
+  gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.58));
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`,
   });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 5;
+  mesh.frustumCulled = false;
+
+  return {
+    mesh,
+    dispose: () => {
+      geo.dispose();
+      mat.dispose();
+    },
+  };
+}
+
+/**
+ * Single-draw-call GPU weather particle system for the Places archipelago:
+ * 1) Localized alpine snowfall with gust swirl over Sani Pass, Drakensberg & Golden Gate.
+ * 2) Localized coastal/waterfall rain & mist droplets over wild-coast & gorge slices.
+ * 3) Focus-following archipelago rain/snow storm dome driven by live weather or preview mode.
+ */
+export function createPlacesWeatherParticles(
+  specs: readonly PlacesSliceEmitterSpec[],
+  env: PlacesShaderEnvironment
+): {
+  points: THREE.Points;
+  dispose: () => void;
+} {
+  const snowSlices = new Set(['Sani Pass', 'Drakensberg Amphitheatre', 'Golden Gate Highlands']);
+  const wetSlices = new Set([
+    'Cape Point Lighthouse',
+    'Storms River Mouth',
+    'Hole in the Wall',
+    'Knysna Heads',
+    'Augrabies Falls',
+    'Table Mountain',
+  ]);
+
+  const SNOW_PER_SLICE = 160;
+  const RAIN_PER_SLICE = 90;
+  const GLOBAL_COUNT = 820;
+
+  let localCount = 0;
+  for (const s of specs) {
+    if (snowSlices.has(s.landmarkName)) localCount += SNOW_PER_SLICE;
+    if (wetSlices.has(s.landmarkName)) localCount += RAIN_PER_SLICE;
+  }
+
+  const totalCount = localCount + GLOBAL_COUNT;
+  const positions = new Float32Array(totalCount * 3);
+  const origins = new Float32Array(totalCount * 3);
+  const isGlobalArr = new Float32Array(totalCount);
+  const typeArr = new Float32Array(totalCount);
+  const seedArr = new Float32Array(totalCount);
+
+  // Deterministic pseudo-random generator for clean, reproducible particle layouts
+  let rng = 1337421;
+  const nextRand = () => {
+    rng = (rng * 1664525 + 1013904223) >>> 0;
+    return rng / 4294967296;
+  };
+
+  let idx = 0;
+  const pushParticle = (
+    lx: number,
+    ly: number,
+    lz: number,
+    ox: number,
+    oy: number,
+    oz: number,
+    isGlobal: number,
+    pType: number
+  ) => {
+    const i3 = idx * 3;
+    positions[i3] = lx;
+    positions[i3 + 1] = ly;
+    positions[i3 + 2] = lz;
+    origins[i3] = ox;
+    origins[i3 + 1] = oy;
+    origins[i3 + 2] = oz;
+    isGlobalArr[idx] = isGlobal;
+    typeArr[idx] = pType;
+    seedArr[idx] = nextRand();
+    idx++;
+  };
+
+  for (const s of specs) {
+    const [gx, gz] = s.gridPos;
+    if (snowSlices.has(s.landmarkName)) {
+      for (let i = 0; i < SNOW_PER_SLICE; i++) {
+        pushParticle(
+          (nextRand() - 0.5) * 3.4,
+          nextRand() * 3.6,
+          (nextRand() - 0.5) * 3.4,
+          gx,
+          0.15,
+          gz,
+          0.0,
+          0.0 // Snow
+        );
+      }
+    }
+    if (wetSlices.has(s.landmarkName)) {
+      for (let i = 0; i < RAIN_PER_SLICE; i++) {
+        pushParticle(
+          (nextRand() - 0.5) * 3.4,
+          nextRand() * 3.8,
+          (nextRand() - 0.5) * 3.4,
+          gx,
+          0.05,
+          gz,
+          0.0,
+          1.0 // Rain/Spray
+        );
+      }
+    }
+  }
+
+  for (let i = 0; i < GLOBAL_COUNT; i++) {
+    pushParticle(
+      (nextRand() - 0.5) * 20.0,
+      nextRand() * 8.5,
+      (nextRand() - 0.5) * 20.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      1.0
+    );
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('aOrigin', new THREE.BufferAttribute(origins, 3));
+  geo.setAttribute('aIsGlobal', new THREE.BufferAttribute(isGlobalArr, 1));
+  geo.setAttribute('aType', new THREE.BufferAttribute(typeArr, 1));
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seedArr, 1));
+
+  const mat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      uTime: WU.t,
+      uWind: env.windStrength,
+      uRainIntensity: env.rainIntensity,
+      uSnowIntensity: env.snowIntensity,
+      uAlpineAmbientSnow: env.alpineAmbientSnow,
+      uPixelRatio: env.pixelRatio,
+      uSun: WU.sun,
+      uSky: WU.sky,
+      uVolSunDir: env.sunDir,
+      uVolSunColor: env.sunColor,
+      uVolFogColor: env.fogColor,
+      uVolFogDeepColor: env.volFogDeepColor,
+      uVolFogDensity: env.volFogDensity,
+      uVolFocusPos: env.focusPos,
+      uVolFocusClear: env.focusClear,
+      uVolCamDist: env.camDist,
+      uVolSun: WU.sun,
+      uVolTime: WU.t,
+    },
+    vertexShader: `
+attribute vec3 aOrigin;
+attribute float aIsGlobal;
+attribute float aType;
+attribute float aSeed;
+
+uniform float uTime;
+uniform float uWind;
+uniform float uRainIntensity;
+uniform float uSnowIntensity;
+uniform float uAlpineAmbientSnow;
+uniform float uPixelRatio;
+uniform vec3 uVolFocusPos;
+
+varying float vIsSnow;
+varying float vAlpha;
+varying float vSeed;
+varying float vStreakAngle;
+varying vec3 vWorldPos;
+
+void main() {
+  vSeed = aSeed;
+  float globalSnowDominates = step(uRainIntensity + 0.02, uSnowIntensity);
+  float isSnow = aIsGlobal > 0.5 ? globalSnowDominates : (1.0 - step(0.5, aType));
+  vIsSnow = isSnow;
+
+  // Determine emitter visibility intensity
+  float intensity = 0.0;
+  if (aIsGlobal > 0.5) {
+    intensity = max(uRainIntensity, uSnowIntensity);
+  } else if (isSnow > 0.5) {
+    intensity = max(uSnowIntensity, uAlpineAmbientSnow);
+  } else {
+    intensity = clamp(0.18 + uRainIntensity * 0.92, 0.0, 1.0);
+  }
+
+  // Cull inactive particles cleanly outside clip space
+  if (intensity < 0.02 || aSeed > intensity * 1.15) {
+    vAlpha = 0.0;
+    vStreakAngle = 0.0;
+    vWorldPos = vec3(0.0);
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    return;
+  }
+
+  vec3 anchor = aIsGlobal > 0.5 ? vec3(uVolFocusPos.x, 0.0, uVolFocusPos.z) : aOrigin;
+  float boxW = aIsGlobal > 0.5 ? 20.0 : 3.4;
+  float boxH = aIsGlobal > 0.5 ? 8.5 : 3.7;
+  float halfW = boxW * 0.5;
+
+  // Coherent travelling wind-gust wave field across archipelago coordinates
+  float gustWave = sin(anchor.x * 0.24 + anchor.z * 0.16 - uTime * (1.25 + uWind * 0.85) + aSeed * 1.6);
+  float gustWave2 = cos(anchor.x * 0.15 - anchor.z * 0.26 + uTime * 0.92);
+  float gust = (0.58 + 0.42 * gustWave) * (0.72 + 0.28 * gustWave2) * (0.38 + uWind * 0.92);
+
+  vec3 localPos = position;
+  vec3 velWorld;
+
+  if (isSnow > 0.5) {
+    float fallSpd = 0.48 + 0.44 * aSeed;
+    localPos.y = mod(localPos.y - uTime * fallSpd, boxH);
+    float swirlX = sin(uTime * 1.45 + aSeed * 21.0 + localPos.y * 1.55) * 0.20;
+    float swirlZ = cos(uTime * 1.15 + aSeed * 15.0 + localPos.y * 1.25) * 0.18;
+    float driftX = uTime * (0.28 + gust * 0.58) + swirlX;
+    float driftZ = uTime * (0.12 + gust * 0.26) + swirlZ;
+    localPos.x = mod(localPos.x + driftX + halfW, boxW) - halfW;
+    localPos.z = mod(localPos.z + driftZ + halfW, boxW) - halfW;
+    velWorld = vec3(0.45 + gust * 0.65, -fallSpd, 0.20 + gust * 0.3);
+  } else {
+    float fallSpd = 6.4 + 3.6 * aSeed;
+    localPos.y = mod(localPos.y - uTime * fallSpd, boxH);
+    float driftX = uTime * (0.85 + gust * 2.15);
+    float driftZ = uTime * (0.34 + gust * 0.85);
+    localPos.x = mod(localPos.x + driftX + halfW, boxW) - halfW;
+    localPos.z = mod(localPos.z + driftZ + halfW, boxW) - halfW;
+    velWorld = vec3(1.15 + gust * 2.25, -fallSpd, 0.45 + gust * 0.9);
+  }
+
+  vec3 wp = anchor + localPos;
+  vWorldPos = wp;
+
+  // Soft vertical & radial entry/exit fade so localized slice weather hugs mountains organically
+  float fadeBot = smoothstep(0.0, 0.42, localPos.y);
+  float fadeTop = 1.0 - smoothstep(boxH - 0.65, boxH, localPos.y);
+  float radialFade = aIsGlobal > 0.5 ? 1.0 : (1.0 - smoothstep(0.95, halfW * 1.02, length(localPos.xz)));
+  float densFade = smoothstep(0.02, 0.28, intensity);
+  float localScale = aIsGlobal > 0.5 ? 1.0 : 0.78;
+  vAlpha = fadeBot * fadeTop * radialFade * densFade * (isSnow > 0.5 ? (aIsGlobal > 0.5 ? 0.88 : 0.66) : 0.64);
+
+  // Project wind-slanted velocity into camera view-plane for crisp rain streak alignment
+  vec3 viewVel = (viewMatrix * vec4(velWorld, 0.0)).xyz;
+  vStreakAngle = atan(-viewVel.x, -viewVel.y);
+
+  vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
+  float viewDist = max(3.5, -mvPosition.z);
+  float basePx = (isSnow > 0.5 ? mix(5.0, 10.5, aSeed) : mix(10.5, 18.5, aSeed)) * localScale;
+  float maxPx = isSnow > 0.5 ? 16.0 : 26.0;
+  gl_PointSize = clamp(basePx * uPixelRatio * (22.0 / viewDist), 2.0, maxPx);
+  gl_Position = projectionMatrix * mvPosition;
+}`,
+    fragmentShader: `
+uniform float uSun;
+uniform vec3 uSky;
+
+varying float vIsSnow;
+varying float vAlpha;
+varying float vSeed;
+varying float vStreakAngle;
+varying vec3 vWorldPos;
+
+${PLACES_VOLUMETRIC_FOG_GLSL}
+
+void main() {
+  if (vAlpha < 0.01) discard;
+  vec2 uv = gl_PointCoord - 0.5;
+  float mask = 0.0;
+  vec3 baseCol;
+
+  if (vIsSnow > 0.5) {
+    // 6-petal crystalline snowflake + glowing soft core
+    float r = length(uv) * 2.0;
+    if (r > 1.0) discard;
+    float ang = atan(uv.y, uv.x) + vSeed * 6.28;
+    float crystal = 0.65 + 0.35 * cos(ang * 6.0);
+    float core = 1.0 - smoothstep(0.18, 0.85 * crystal, r);
+    float halo = (1.0 - smoothstep(0.0, 1.0, r)) * 0.45;
+    mask = clamp(core + halo, 0.0, 1.0);
+    baseCol = mix(vec3(0.84, 0.91, 1.0), vec3(1.0, 0.99, 0.97), uSun);
+  } else {
+    // Rotate sprite UV along projected wind-gust velocity vector
+    float ca = cos(vStreakAngle);
+    float sa = sin(vStreakAngle);
+    vec2 ruv = vec2(ca * uv.x - sa * uv.y, sa * uv.x + ca * uv.y);
+    float width = smoothstep(0.15, 0.025, abs(ruv.x));
+    float lengthFade = (1.0 - smoothstep(0.06, 0.48, abs(ruv.y))) * smoothstep(-0.48, 0.35, ruv.y);
+    mask = width * lengthFade;
+    if (mask < 0.02) discard;
+    baseCol = mix(vec3(0.55, 0.72, 0.90), mix(uSky * 1.15, vec3(0.88, 0.95, 1.0), 0.55), 0.6 + 0.4 * uSun);
+  }
+
+  vec3 litCol = plApplyVolumetricFog(baseCol, vWorldPos);
+  float alpha = mask * vAlpha;
+  if (alpha < 0.015) discard;
+  gl_FragColor = vec4(litCol, alpha);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}`,
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  points.renderOrder = 6;
+
+  return {
+    points,
+    dispose: () => {
+      geo.dispose();
+      mat.dispose();
+    },
+  };
 }
