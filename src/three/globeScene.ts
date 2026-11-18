@@ -259,6 +259,7 @@ export function createGlobeScene(
     sprite.position.copy(latLonToVec3(lat, lon, GLOBE_RADIUS + 0.09));
     sprite.scale.set((scale * textWidth) / 512, scale / 4, 1);
     sprite.userData.base = { x: (scale * textWidth) / 512, y: scale / 4 };
+    sprite.userData.label = text;
     labelSprites.push(sprite);
     group.add(sprite);
     return sprite;
@@ -267,9 +268,14 @@ export function createGlobeScene(
   // Sprites are sized in world units, so short (landscape) viewports shrink them.
   // Grow them back towards a constant on-screen size when the viewport is short.
   const fitLabels = () => {
+    const short = window.innerHeight < 640;
     const k = Math.min(1.95, Math.max(1, 840 / Math.max(320, window.innerHeight)));
     labelSprites.forEach((s) => {
       const base = s.userData.base as { x: number; y: number };
+      const name = s.userData.label as string;
+      // The enclave labels sit inside South Africa and collide with the
+      // province labels once the map gets small, so drop them on short screens.
+      s.visible = !(short && (name === 'Lesotho' || name === 'Eswatini'));
       s.scale.set(base.x * k, base.y * k, 1);
     });
   };

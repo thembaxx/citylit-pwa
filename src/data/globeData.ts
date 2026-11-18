@@ -135,7 +135,7 @@ export const GLOBE_NEIGHBOR_LABELS: readonly (readonly [string, number, number])
   ['Namibia', 17, -21.5],
   ['Botswana', 23.2, -21.5],
   ['Zimbabwe', 29.8, -19.2],
-  ['Mozambique', 33.4, -19.4],
+  ['Mozambique', 34.1, -17.2],
   ['Angola', 17.5, -13],
   ['Zambia', 26.5, -14],
   ['Eswatini', 31.6, -26.6],
