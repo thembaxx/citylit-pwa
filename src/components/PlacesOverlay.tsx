@@ -11,11 +11,12 @@ import {
 } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
+import { getMonthCondition } from '../data/weatherData';
 import { DURATION, EASE_SMOOTH_OUT, SPRING } from '../lib/motion';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from '../three/placesScene';
 import { PLACE_SLICE_SPECS } from '../three/placesSliceBuilders';
 import type { WeatherDisplayState } from '../types/citylit';
-import { WeatherIcon } from './WeatherIcon';
+import { WeatherIcon, type WeatherIconCondition } from './WeatherIcon';
 
 interface PlacesOverlayProps {
   open: boolean;
@@ -52,6 +53,23 @@ const WEATHER_MODES: ReadonlyArray<{ id: PlacesWeatherMode; label: string }> = [
   { id: 'fog', label: 'Mist' },
 ];
 
+/**
+ * The condition the selected slice's info card should mirror. When the user
+ * forces an atmosphere mode (rain / snow / mist) it wins, so the glyph always
+ * matches what is actually falling in the diorama; otherwise it reflects the
+ * landmark's typical condition for the current month and time of day.
+ */
+function placeCardCondition(
+  weatherMode: PlacesWeatherMode,
+  index: number,
+  hour: number
+): WeatherIconCondition {
+  if (weatherMode === 'rain') return 'rain';
+  if (weatherMode === 'snow') return 'snow';
+  if (weatherMode === 'fog') return 'fog';
+  return getMonthCondition(index, Math.min(12, Math.max(1, new Date().getMonth() + 1)), hour).k;
+}
+
 export function PlacesOverlay({
   open,
   activeProvince,
@@ -86,6 +104,9 @@ export function PlacesOverlay({
     : 0;
   const activeLandmark = selectedPlace ? LANDMARKS[selectedPlace.landmarkIndex] : null;
   const isVisited = selectedPlace ? visited.has(selectedPlace.landmarkIndex) : false;
+  const cardCondition = selectedPlace
+    ? placeCardCondition(weatherMode, selectedPlace.landmarkIndex, activeTimeHour)
+    : weather.condition;
 
   return (
     <div className="fixed inset-0 z-20 pointer-events-none">
@@ -223,8 +244,16 @@ export function PlacesOverlay({
             className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3 shadow-2xl pointer-events-auto"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10.5px] uppercase tracking-[0.12em] text-[#e8b04a] truncate">
-                {activeLandmark.c}
+              <span className="inline-flex items-center gap-1.5 min-w-0 text-[10.5px] uppercase tracking-[0.12em] text-[#e8b04a] truncate">
+                <span className="shrink-0 inline-flex items-center justify-center" aria-hidden="true">
+                  <WeatherIcon
+                    condition={cardCondition}
+                    night={weather.night}
+                    size={15}
+                    animated={!reducedMotion}
+                  />
+                </span>
+                <span className="truncate">{activeLandmark.c}</span>
               </span>
               {isVisited && (
                 <span className="inline-flex items-center gap-1 text-[10.5px] text-[#7dffb0] shrink-0">
