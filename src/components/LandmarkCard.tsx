@@ -22,7 +22,6 @@ interface LandmarkCardProps {
   isFavorite: boolean;
   tourActive: boolean;
   visible: boolean;
-  thumbnail?: string;
   reducedMotion?: boolean;
   onPrev: () => void;
   onNext: () => void;
@@ -41,7 +40,6 @@ export function LandmarkCard({
   isFavorite,
   tourActive,
   visible,
-  thumbnail,
   reducedMotion = false,
   onPrev,
   onNext,
@@ -199,15 +197,6 @@ export function LandmarkCard({
               </motion.h1>
             </motion.div>
             <div className="flex items-center gap-1.5 shrink-0">
-              {thumbnail && (
-                <motion.img
-                  layoutId={`landmark-thumb-${index}`}
-                  src={thumbnail}
-                  alt=""
-                  transition={reducedMotion ? { duration: 0 } : SPRING.morph}
-                  className="w-12 h-12 rounded-xl object-cover border border-white/15 hidden sm:block"
-                />
-              )}
               {[
                 {
                   label: 'Create 3D postcard',

@@ -729,7 +729,6 @@ export function App() {
           isFavorite={favorites.has(index)}
           tourActive={tourActive}
           visible={!fullscreen && !globeOpen && !placesOpen}
-          thumbnail={thumbnails[index]}
           reducedMotion={reducedMotion}
           onPrev={() => selectLandmark(index - 1)}
           onNext={() => selectLandmark(index + 1)}
@@ -935,7 +934,6 @@ export function App() {
         <InfoDrawer
           open={infoOpen}
           index={index}
-          thumbnail={thumbnails[index]}
           bestMonths={bestMonths}
           reducedMotion={reducedMotion}
           onClose={() => setInfoOpen(false)}

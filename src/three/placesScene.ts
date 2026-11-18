@@ -49,15 +49,15 @@ export interface PlacesController {
   dispose: () => void;
 }
 
-const OVERVIEW_TARGET = new THREE.Vector3(0.4, 0.4, 1.2);
-const OVERVIEW_CAM = new THREE.Vector3(14.5, 17.5, 21.5);
+const OVERVIEW_TARGET = new THREE.Vector3(1.2, 0.4, 1.5);
+const OVERVIEW_CAM = new THREE.Vector3(21.5, 25.0, 31.5);
 
 export function createPlacesScene(
   rendererDom: HTMLElement,
   initialAspect: number,
   isSoftwareGl: boolean
 ): PlacesController {
-  const camera = new THREE.PerspectiveCamera(40, initialAspect, 0.2, 180);
+  const camera = new THREE.PerspectiveCamera(40, initialAspect, 0.2, 240);
   camera.position.copy(OVERVIEW_CAM);
 
   const controls = new OrbitControls(camera, rendererDom);
@@ -65,11 +65,11 @@ export function createPlacesScene(
   controls.dampingFactor = 0.065;
   controls.enablePan = true;
   controls.screenSpacePanning = false;
-  controls.panSpeed = 0.85;
+  controls.panSpeed = 0.9;
   controls.rotateSpeed = 0.68;
-  controls.zoomSpeed = 0.95;
-  controls.minDistance = 4.2;
-  controls.maxDistance = 38;
+  controls.zoomSpeed = 0.98;
+  controls.minDistance = 3.8;
+  controls.maxDistance = 56;
   controls.minPolarAngle = 0.28;
   controls.maxPolarAngle = 1.18;
   controls.target.copy(OVERVIEW_TARGET);
@@ -86,26 +86,37 @@ export function createPlacesScene(
 
   // Subtle floating cartographic brass compass ring & latitude/longitude lines underneath
   const cartoGroup = new THREE.Group();
-  cartoGroup.position.y = -0.18;
+  cartoGroup.position.set(1.2, -0.22, 1.4);
   group.add(cartoGroup);
 
-  const ringGeo = new THREE.RingGeometry(15.6, 15.72, 96);
+  const ringGeo = new THREE.RingGeometry(22.4, 22.58, 112);
   ringGeo.rotateX(-Math.PI / 2);
   const ringMat = new THREE.MeshBasicMaterial({
     color: '#e8b04a',
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.24,
     side: THREE.DoubleSide,
     depthWrite: false,
   });
   cartoGroup.add(new THREE.Mesh(ringGeo, ringMat));
 
+  const innerRingGeo = new THREE.RingGeometry(14.8, 14.9, 96);
+  innerRingGeo.rotateX(-Math.PI / 2);
+  const innerRingMat = new THREE.MeshBasicMaterial({
+    color: '#88a4cc',
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  cartoGroup.add(new THREE.Mesh(innerRingGeo, innerRingMat));
+
   const gridVerts: number[] = [];
-  for (let gx = -16; gx <= 16; gx += 4) {
-    gridVerts.push(gx, 0, -12, gx, 0, 12);
+  for (let gx = -24; gx <= 24; gx += 4) {
+    gridVerts.push(gx, 0, -18, gx, 0, 18);
   }
-  for (let gz = -12; gz <= 12; gz += 4) {
-    gridVerts.push(-16, 0, gz, 16, 0, gz);
+  for (let gz = -18; gz <= 18; gz += 4) {
+    gridVerts.push(-24, 0, gz, 24, 0, gz);
   }
   const gridGeo = new THREE.BufferGeometry().setAttribute(
     'position',
@@ -114,12 +125,12 @@ export function createPlacesScene(
   const gridMat = new THREE.LineBasicMaterial({
     color: '#88a4cc',
     transparent: true,
-    opacity: 0.14,
+    opacity: 0.12,
   });
   cartoGroup.add(new THREE.LineSegments(gridGeo, gridMat));
 
-  // Subtle atmospheric studio table/sea gradient below the floating slice archipelago
-  const backdropGeo = new THREE.CircleGeometry(72, 64);
+  // Subtle atmospheric studio floor below the floating slice archipelago
+  const backdropGeo = new THREE.CircleGeometry(108, 64);
   backdropGeo.rotateX(-Math.PI / 2);
   const backdropMat = new THREE.ShaderMaterial({
     depthWrite: false,
@@ -135,7 +146,7 @@ uniform float uSun;
 uniform float uLit;
 varying vec2 vPos;
 void main() {
-  float d = clamp(length(vPos) / 48.0, 0.0, 1.0);
+  float d = clamp(length(vPos) / 72.0, 0.0, 1.0);
   vec3 dayCenter = mix(vec3(0.11, 0.15, 0.22), uSky * 0.42 + vec3(0.06, 0.08, 0.12), 0.55);
   vec3 duskCenter = vec3(0.14, 0.10, 0.16);
   vec3 nightCenter = vec3(0.04, 0.05, 0.09);
@@ -149,7 +160,7 @@ void main() {
 }`,
   });
   const backdropMesh = new THREE.Mesh(backdropGeo, backdropMat);
-  backdropMesh.position.y = -0.34;
+  backdropMesh.position.y = -0.38;
   group.add(backdropMesh);
 
   // Build all 24 sculpted isometric geological slice islands
@@ -215,9 +226,9 @@ void main() {
     cz /= matching.length;
 
     const span = Math.max(maxX - minX, maxZ - minZ);
-    const dist = closeUp ? 5.6 : Math.max(9.5, Math.min(25, span * 1.1 + 7.5));
-    flyTargetTmp.set(cx, 0.55, cz);
-    flyCamTmp.set(cx + dist * 0.56, dist * 0.68, cz + dist * 0.8);
+    const dist = closeUp ? 5.15 : Math.max(11.0, Math.min(34, span * 1.05 + 8.5));
+    flyTargetTmp.set(cx, 0.62, cz);
+    flyCamTmp.set(cx + dist * 0.56, dist * 0.66, cz + dist * 0.82);
     flyGoalTarget = flyTargetTmp.clone();
     flyGoalCam = flyCamTmp.clone();
   };
@@ -369,10 +380,10 @@ void main() {
       }
     }
 
-    // Clamp manual pan within archipelago bounds
-    controls.target.x = Math.max(-15.5, Math.min(15.5, controls.target.x));
-    controls.target.z = Math.max(-12.5, Math.min(13.5, controls.target.z));
-    controls.target.y = Math.max(0.1, Math.min(2.2, controls.target.y));
+    // Clamp manual pan within wider archipelago bounds
+    controls.target.x = Math.max(-22.0, Math.min(22.0, controls.target.x));
+    controls.target.z = Math.max(-16.5, Math.min(17.5, controls.target.z));
+    controls.target.y = Math.max(0.1, Math.min(2.4, controls.target.y));
     controls.update();
 
     // Keep custom water & cloud GLSL shader uniforms locked to live CitylitEngine sky/season/weather
@@ -447,17 +458,12 @@ void main() {
     cloudMat.dispose();
     ringGeo.dispose();
     ringMat.dispose();
+    innerRingGeo.dispose();
+    innerRingMat.dispose();
     gridGeo.dispose();
     gridMat.dispose();
     backdropGeo.dispose();
     backdropMat.dispose();
-    shared.foliageGeo.dispose();
-    shared.trunkGeo.dispose();
-    shared.rockGeo.dispose();
-    shared.boxGeo.dispose();
-    shared.coneGeo.dispose();
-    shared.sphereGeo.dispose();
-    shared.cylinderGeo.dispose();
   };
 
   const controller: PlacesController = {

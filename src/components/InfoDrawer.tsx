@@ -19,7 +19,6 @@ import { UnfoldAccordion } from './ui/UnfoldAccordion';
 interface InfoDrawerProps {
   open: boolean;
   index: number;
-  thumbnail?: string;
   bestMonths: string;
   reducedMotion?: boolean;
   onClose: () => void;
@@ -35,7 +34,6 @@ function formatCoords([lat, lon]: readonly [number, number]): string {
 export function InfoDrawer({
   open,
   index,
-  thumbnail,
   bestMonths,
   reducedMotion = false,
   onClose,
@@ -117,20 +115,7 @@ export function InfoDrawer({
         className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4 overscroll-contain"
       >
         <motion.div variants={reducedMotion ? undefined : revealItem}>
-          {thumbnail && (
-            <motion.div
-              layoutId={`landmark-thumb-${index}`}
-              transition={reducedMotion ? { duration: 0 } : SPRING.morph}
-              className="w-full aspect-[16/9] rounded-xl overflow-hidden bg-[#181a24] border border-white/10"
-            >
-              <img
-                src={thumbnail}
-                alt={`${lm.k} 3D elevation preview`}
-                className="w-full h-full object-cover"
-              />
-            </motion.div>
-          )}
-          <div className="mt-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2">
             <motion.button
               type="button"
               whileTap={reducedMotion ? undefined : { scale: 0.96 }}
