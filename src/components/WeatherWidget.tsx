@@ -44,15 +44,13 @@ export function WeatherWidget({
   if (!visible || globeOpen) return null;
 
   return (
-    <div
-      className={`fixed left-1/2 -translate-x-1/2 top-[calc(70px+env(safe-area-inset-top,0px))] z-10 flex items-center gap-2 max-w-[calc(100vw-20px)] ${
-        expanded ? 'items-start' : ''
-      }`}
-    >
+    <div className={`weather-island ${expanded ? 'weather-island--expanded' : ''}`}>
       {!globeOpen && (
         <div
-          className={`bg-[#121319]/92 border border-white/15 squircle-card px-3 py-1.5 shadow-lg transition-all duration-300 ${
-            expanded ? 'w-[min(350px,calc(100vw-72px))] py-3 px-4' : 'max-w-[calc(100vw-78px)]'
+          className={`weather-panel bg-[#121319]/92 border border-white/15 squircle-card px-3 py-1.5 shadow-lg transition-all duration-300 ${
+            expanded
+              ? 'w-[min(350px,calc(100vw-72px))] py-3 px-4 overflow-y-auto overscroll-contain no-scrollbar'
+              : 'max-w-[calc(100vw-78px)]'
           }`}
         >
           <button
@@ -85,7 +83,7 @@ export function WeatherWidget({
 
           {expanded && (
             <div className="mt-3 pt-2.5 border-t border-white/10 space-y-2.5">
-              <div className="grid grid-cols-5 gap-1 text-center">
+              <div className="weather-forecast grid grid-cols-5 gap-1 text-center">
                 {forecast.map((slot) => (
                   <div
                     key={slot.label}

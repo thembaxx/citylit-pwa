@@ -76,7 +76,7 @@ export function createGlobeScene(
   // Base ocean sphere
   const sphere = new THREE.Mesh(
     new THREE.SphereGeometry(GLOBE_RADIUS, 48, 36),
-    new THREE.MeshBasicMaterial({ color: '#070a10' })
+    new THREE.MeshBasicMaterial({ color: '#0b1018' })
   );
   group.add(sphere);
 
@@ -158,13 +158,13 @@ export function createGlobeScene(
     group.add(points);
   };
 
-  addPolyDots(AFRICA_POLY, 0.85, '#3b5882', 0.075, 0.55);
-  NEIGHBOR_POLYS.forEach((poly) => addPolyDots(poly, 0.45, '#52739e', 0.055, 0.65));
+  addPolyDots(AFRICA_POLY, 0.85, '#4a6c9c', 0.075, 0.62);
+  NEIGHBOR_POLYS.forEach((poly) => addPolyDots(poly, 0.45, '#5f83b2', 0.055, 0.7));
   ENCLAVE_POLYS.forEach((poly) =>
     addPolyDots(poly, 0.16, '#0d1422', 0.05, 0.98, GLOBE_RADIUS + 0.021)
   );
   GLOBE_PROVINCES.forEach((pv) =>
-    addPolyDots(pv.poly, 0.18, pv.color, 0.052, 0.92, GLOBE_RADIUS + 0.02, ENCLAVE_POLYS, true)
+    addPolyDots(pv.poly, 0.18, pv.color, 0.052, 1, GLOBE_RADIUS + 0.02, ENCLAVE_POLYS, true)
   );
 
   const addPolyBorder = (
@@ -218,6 +218,7 @@ export function createGlobeScene(
   ENCLAVE_POLYS.forEach((poly) => addPolyBorder(poly, '#d99a3e', 0.85, GLOBE_RADIUS + 0.028));
 
   // Canvas sprite text labels
+  const labelSprites: THREE.Sprite[] = [];
   const addLabel = (
     text: string,
     lat: number,
@@ -227,42 +228,62 @@ export function createGlobeScene(
     fontSize: number
   ) => {
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
+    const font = `600 ${fontSize}px system-ui, sans-serif`;
+    const probe = document.createElement('canvas').getContext('2d');
+    let textWidth = 512;
+    if (probe) {
+      probe.font = font;
+      textWidth = Math.ceil(probe.measureText(text).width) + 24;
+    }
+    canvas.width = textWidth;
     canvas.height = 128;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+      ctx.font = font;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.strokeStyle = 'rgba(7,10,16,.9)';
-      ctx.lineWidth = 6;
-      ctx.strokeText(text, 256, 64);
+      ctx.strokeStyle = 'rgba(7,10,16,.92)';
+      ctx.lineWidth = 7;
+      ctx.strokeText(text, textWidth / 2, 64);
       ctx.fillStyle = color;
-      ctx.fillText(text, 256, 64);
+      ctx.fillText(text, textWidth / 2, 64);
     }
     const sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: new THREE.CanvasTexture(canvas),
         transparent: true,
         depthWrite: false,
-        opacity: 0.9,
+        opacity: 0.95,
       })
     );
     sprite.position.copy(latLonToVec3(lat, lon, GLOBE_RADIUS + 0.09));
-    sprite.scale.set(scale, scale / 4, 1);
+    sprite.scale.set((scale * textWidth) / 512, scale / 4, 1);
+    sprite.userData.base = { x: (scale * textWidth) / 512, y: scale / 4 };
+    labelSprites.push(sprite);
     group.add(sprite);
     return sprite;
   };
 
+  // Sprites are sized in world units, so short (landscape) viewports shrink them.
+  // Grow them back towards a constant on-screen size when the viewport is short.
+  const fitLabels = () => {
+    const k = Math.min(1.95, Math.max(1, 840 / Math.max(320, window.innerHeight)));
+    labelSprites.forEach((s) => {
+      const base = s.userData.base as { x: number; y: number };
+      s.scale.set(base.x * k, base.y * k, 1);
+    });
+  };
+
   GLOBE_PROVINCES.forEach((pv) =>
-    addLabel(pv.name.toUpperCase(), pv.lat, pv.lon, '#ffe8ba', 1.35, 30)
+    addLabel(pv.name.toUpperCase(), pv.lat, pv.lon, '#ffe8ba', 0.5, 26)
   );
   GLOBE_NEIGHBOR_LABELS.forEach(([name, lon, lat]) =>
-    addLabel(name, lat, lon, name.includes('Ocean') ? '#7da6d8' : '#b7cbe8', 1.5, 32)
+    addLabel(name, lat, lon, name.includes('Ocean') ? '#7da6d8' : '#b7cbe8', 0.78, 32)
   );
+  fitLabels();
 
   // Pulsing landmark pins
-  const pinGeo = new THREE.SphereGeometry(0.036, 10, 8);
+  const pinGeo = new THREE.SphereGeometry(0.018, 10, 8);
   const pins: THREE.Mesh[] = LANDMARKS.map((lm, i) => {
     const pin = new THREE.Mesh(pinGeo, new THREE.MeshBasicMaterial({ color: '#ffcf6a' }));
     const pos = latLonToVec3(lm.coords[0], lm.coords[1], GLOBE_RADIUS + 0.05);
@@ -301,7 +322,7 @@ export function createGlobeScene(
     group.visible = true;
     controls.enabled = true;
     refreshPinColors(visited);
-    flyTo(-28.5, 24.5, 9.8);
+    flyTo(-28.9, 24.8, 9.7);
   };
 
   const close = () => {
@@ -350,6 +371,7 @@ export function createGlobeScene(
   const setAspect = (aspect: number) => {
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
+    fitLabels();
   };
 
   const dispose = () => {

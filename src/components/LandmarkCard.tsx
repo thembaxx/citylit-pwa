@@ -11,7 +11,7 @@ import {
   Play,
   ShareNetwork,
 } from '@phosphor-icons/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LANDMARKS } from '../data/landmarks';
 
 interface LandmarkCardProps {
@@ -48,8 +48,31 @@ export function LandmarkCard({
   onVibrate,
 }: LandmarkCardProps) {
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
+  const cardWrapRef = useRef<HTMLDivElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const holdTimer = useRef<number | null>(null);
+
+  // Publish the card height so fixed overlays can stack above it instead of guessing.
+  // Observe the un-keyed wrapper: the card itself remounts on every landmark change.
+  useEffect(() => {
+    if (!visible) return;
+    const el = cardWrapRef.current;
+    const root = document.documentElement;
+    if (!el) {
+      root.style.removeProperty('--cl-card-h');
+      return;
+    }
+    const sync = () => {
+      root.style.setProperty('--cl-card-h', `${el.offsetHeight}px`);
+    };
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      root.style.removeProperty('--cl-card-h');
+    };
+  }, [visible]);
 
   if (!visible) return null;
 
@@ -149,21 +172,24 @@ export function LandmarkCard({
 
   return (
     <>
-      <div className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none">
+      <div
+        ref={cardWrapRef}
+        className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
+      >
         <div
           key={index}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onContextMenu={handleContextMenu}
-          className="relative bg-[#121319]/92 border border-white/15 squircle-card p-4 pointer-events-auto animate-card-in touch-pan-y shadow-2xl"
+          className="relative bg-[#121319]/92 border border-white/15 squircle-card p-4 landscape:p-3 [@media(max-height:700px)]:p-3 pointer-events-auto animate-card-in touch-pan-y shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[11px]">
+              <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[11px] [@media(max-width:374px)]:text-[10px] [@media(max-width:374px)]:tracking-[0.08em]">
                 {lm.c}
               </small>
-              <h1 className="mt-0.5 mb-1.5 font-serif-display italic font-normal text-[27px] leading-[1.1] text-[#f3efe6] pr-2">
+              <h1 className="mt-0.5 mb-1.5 font-serif-display italic font-normal text-[27px] landscape:text-[21px] [@media(max-height:700px)]:text-[23px] leading-[1.1] text-[#f3efe6] pr-2">
                 {lm.k}
               </h1>
             </div>
@@ -198,9 +224,11 @@ export function LandmarkCard({
             </div>
           </div>
 
-          <p className="text-[13.5px] leading-relaxed text-[#a9a69e] m-0">{lm.f}</p>
+          <p className="text-[13.5px] landscape:text-[12.5px] leading-relaxed text-[#a9a69e] m-0 landscape:line-clamp-2 [@media(max-height:700px)]:line-clamp-2">
+            {lm.f}
+          </p>
 
-          <div className="flex items-center gap-2.5 mt-3">
+          <div className="flex items-center gap-2.5 mt-3 landscape:mt-2">
             <button
               type="button"
               onClick={onOpenInfo}

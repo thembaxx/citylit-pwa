@@ -110,7 +110,7 @@ function GalleryDialog({
     <div
       role="dialog"
       aria-label={`${lm.k} photo gallery`}
-      className="fixed inset-0 z-50 bg-[#08090d]/95 flex flex-col justify-between p-4 pt-[calc(14px+env(safe-area-inset-top,0px))] pb-[calc(18px+env(safe-area-inset-bottom,0px))]"
+      className="fixed inset-0 z-50 bg-[#08090d]/98 backdrop-blur-sm flex flex-col justify-between p-4 pt-[calc(14px+env(safe-area-inset-top,0px))] pb-[calc(18px+env(safe-area-inset-bottom,0px))]"
     >
       <div className="flex items-start justify-between gap-3">
         <div>

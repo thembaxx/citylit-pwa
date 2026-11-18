@@ -105,6 +105,48 @@ body,
   display: none;
 }
 
+/* Weather island keeps clear of the landmark card, whatever height the card takes. */
+.weather-island {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(70px + env(safe-area-inset-top, 0px));
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100vw - 20px);
+}
+
+.weather-island--expanded {
+  align-items: flex-start;
+}
+
+.weather-panel {
+  max-height: calc(100dvh - var(--cl-card-h, 218px) - 96px);
+}
+
+/* Wide landscape: the card sits bottom-left, so the island can use the full column height. */
+@media (min-width: 700px) and (orientation: landscape) {
+  .weather-island {
+    left: auto;
+    right: 0.75rem;
+    transform: none;
+    max-width: calc(100vw - 24px);
+  }
+
+  .weather-panel {
+    max-height: calc(100dvh - 86px);
+  }
+}
+
+/* Phone landscape or very short viewports: drop the redundant forecast row. */
+@media (max-height: 620px) {
+  .weather-forecast {
+    display: none;
+  }
+}
+
 .squircle-card {
   border-radius: 22px;
 }

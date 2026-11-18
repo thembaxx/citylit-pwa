@@ -124,7 +124,7 @@ export function SearchSheet({
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search 43 landmarks or provinces…"
+            placeholder={`Search ${LANDMARKS.length} landmarks or provinces…`}
             className="flex-1 min-w-0 bg-white/[0.06] border border-white/15 rounded-xl px-3.5 py-2 text-[15px] text-[#f3efe6] placeholder:text-[#a9a69e]/70 focus-visible:outline-2 focus-visible:outline-[#e8b04a]"
           />
           <button

@@ -98,7 +98,7 @@ const BIOME_EFFECTS: Record<LandmarkBiome, Partial<EffectWeights>> = {
  * biome default: Table Mountain's tablecloth, Kgalagadi's heat shimmer.
  */
 const SITE_OVERRIDES: Record<string, Partial<EffectWeights>> = {
-  'Table Mountain': { ridgeFog: 0.95, tableCloth: 1 },
+  'Table Mountain': { ridgeFog: 0.6, tableCloth: 1 },
   'Sani Pass': { ridgeFog: 1 },
   'Drakensberg Amphitheatre': { ridgeFog: 0.7, sprayMist: 0.55 },
   'Three Rondavels': { ridgeFog: 0.9 },

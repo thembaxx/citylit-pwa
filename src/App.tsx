@@ -627,7 +627,7 @@ export function App() {
         <div
           role="status"
           onClick={() => setFactText(null)}
-          className="fixed left-3.5 bottom-[calc(210px+env(safe-area-inset-bottom,0px))] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#e8b04a]/45 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl cursor-pointer"
+          className="fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#e8b04a]/45 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl cursor-pointer"
         >
           <Sparkle size={16} weight="fill" className="text-[#e8b04a] shrink-0 mt-0.5" />
           <span>{factText}</span>
@@ -636,7 +636,7 @@ export function App() {
 
       {/* Toast Notification */}
       {toastText && (
-        <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(150px+env(safe-area-inset-bottom,0px))] z-50 px-4 py-2 rounded-full bg-[#121319]/95 border border-white/15 text-[13px] text-[#f3efe6] shadow-lg">
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+30px)] z-50 px-4 py-2 rounded-full bg-[#121319]/95 border border-white/15 text-[13px] text-[#f3efe6] shadow-lg">
           {toastText}
         </div>
       )}

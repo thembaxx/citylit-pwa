@@ -85,7 +85,7 @@ export function PassportModal({ open, visited, onClose, onResetPassport }: Passp
             </div>
             <div className="text-[12px] text-[#a9a69e]">
               {totalVisited === totalCount
-                ? 'All 9 provinces completed!'
+                ? `All ${provinces.length} provinces completed!`
                 : 'Spend 3 seconds at a landmark to stamp your passport.'}
             </div>
           </div>
