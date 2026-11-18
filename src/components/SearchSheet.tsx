@@ -318,61 +318,60 @@ export function SearchSheet({
                   animate={reducedMotion ? { opacity: 1 } : 'animate'}
                   exit={reducedMotion ? { opacity: 0 } : 'exit'}
                   transition={SPRING.snappy}
-                  onClick={() => pick(i)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      pick(i);
-                    }
-                  }}
-                  className={`group relative flex cursor-pointer flex-col rounded-xl overflow-hidden bg-white/[0.04] border text-left ${
+                  className={`group relative flex flex-col rounded-xl overflow-hidden bg-white/[0.04] border text-left ${
                     isSelected ? 'border-[#e8b04a]' : 'border-white/10 hover:border-[#e8b04a]/70'
                   }`}
                 >
-                  <div className="relative w-full shrink-0 aspect-[3/2] bg-[#141721] overflow-hidden">
-                    {thumbnails[i] ? (
-                      <img
-                        src={thumbnails[i]}
-                        alt={lm.k}
-                        loading="lazy"
-                        className="w-full h-full object-cover block"
-                      />
-                    ) : (
-                      <div className="w-full h-full shimmer-bg" />
-                    )}
-                    {isVisited && (
-                      <motion.span
-                        initial={{ scale: 0.4, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={SPRING.pop}
-                        title="Stamped in Passport"
-                        className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[#121319]/85 grid place-items-center text-emerald-400"
+                  <button
+                    type="button"
+                    onClick={() => pick(i)}
+                    aria-label={`Visit ${lm.k}`}
+                    className="absolute inset-0 z-10 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:outline-[#e8b04a]"
+                  />
+                  <div className="pointer-events-none relative">
+                    <div className="relative w-full shrink-0 aspect-[3/2] bg-[#141721] overflow-hidden">
+                      {thumbnails[i] ? (
+                        <img
+                          src={thumbnails[i]}
+                          alt={lm.k}
+                          loading="lazy"
+                          className="w-full h-full object-cover block"
+                        />
+                      ) : (
+                        <div className="w-full h-full shimmer-bg" />
+                      )}
+                      {isVisited && (
+                        <motion.span
+                          initial={{ scale: 0.4, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          transition={SPRING.pop}
+                          title="Stamped in Passport"
+                          className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[#121319]/85 grid place-items-center text-emerald-400"
+                        >
+                          <CheckCircle size={15} weight="fill" />
+                        </motion.span>
+                      )}
+                      <motion.button
+                        type="button"
+                        whileTap={reducedMotion ? undefined : { scale: 0.82 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleFavorite(i);
+                        }}
+                        aria-label={isFav ? 'Unsave landmark' : 'Save landmark'}
+                        className={`pointer-events-auto absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full bg-[#121319]/85 grid place-items-center cursor-pointer ${
+                          isFav ? 'text-[#ff6b81]' : 'text-[#a9a69e] hover:text-[#f3efe6]'
+                        }`}
                       >
-                        <CheckCircle size={15} weight="fill" />
-                      </motion.span>
-                    )}
-                    <motion.button
-                      type="button"
-                      whileTap={reducedMotion ? undefined : { scale: 0.82 }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onToggleFavorite(i);
-                      }}
-                      aria-label={isFav ? 'Unsave landmark' : 'Save landmark'}
-                      className={`absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-[#121319]/85 grid place-items-center cursor-pointer ${
-                        isFav ? 'text-[#ff6b81]' : 'text-[#a9a69e] hover:text-[#f3efe6]'
-                      }`}
-                    >
-                      <Heart size={14} weight={isFav ? 'fill' : 'regular'} />
-                    </motion.button>
-                  </div>
-                  <div className="p-2.5">
-                    <div className="text-[13px] font-medium text-[#f3efe6] leading-snug line-clamp-1">
-                      {lm.k}
+                        <Heart size={14} weight={isFav ? 'fill' : 'regular'} />
+                      </motion.button>
                     </div>
-                    <div className="text-[11px] text-[#a9a69e] mt-0.5 line-clamp-1">{lm.c}</div>
+                    <div className="p-2.5">
+                      <div className="text-[13px] font-medium text-[#f3efe6] leading-snug line-clamp-1">
+                        {lm.k}
+                      </div>
+                      <div className="text-[11px] text-[#a9a69e] mt-0.5 line-clamp-1">{lm.c}</div>
+                    </div>
                   </div>
                 </motion.div>
               );
