@@ -1520,4 +1520,3 @@ for (const key of Object.keys(RAW_BUILDERS)) {
   const build = RAW_BUILDERS[key];
   LANDMARK_BUILDERS[key] = () => applyDioramaUpgrade(key, build());
 }
-

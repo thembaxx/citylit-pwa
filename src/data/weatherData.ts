@@ -207,7 +207,10 @@ export function conditionFromCode(
 }
 
 /** A label that can be more specific than the coarse display condition. */
-export function liveConditionLabel(sample: LiveWeatherSample, condition: WeatherConditionKey): string {
+export function liveConditionLabel(
+  sample: LiveWeatherSample,
+  condition: WeatherConditionKey
+): string {
   if (sample.code >= 95) return 'Thunderstorms';
   if (sample.code >= 71 && sample.code <= 77) return 'Snow';
   if (sample.code >= 85 && sample.code <= 86) return 'Snow showers';

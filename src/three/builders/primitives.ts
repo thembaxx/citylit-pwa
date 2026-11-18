@@ -1024,7 +1024,14 @@ export function colonialHouse(
   add(grp, CB(w + 0.1, 0.07, d + 0.1, 0.02), trimMat, 0, y0 + h + 0.03, 0);
 
   // Pitched roof with a ridge cap and a small chimney stack.
-  add(grp, gableRoofGeo(w * 0.96, d * 0.96, h * 0.42, 0.06), MRoof(roof, 0.82), 0, y0 + h + 0.06, 0);
+  add(
+    grp,
+    gableRoofGeo(w * 0.96, d * 0.96, h * 0.42, 0.06),
+    MRoof(roof, 0.82),
+    0,
+    y0 + h + 0.06,
+    0
+  );
   add(grp, CB(0.07, 0.06, d + 0.16, 0.02), MRoof(roof, 0.74), 0, y0 + h + h * 0.42 + 0.04, 0);
   const chimY = y0 + h + h * 0.22;
   add(grp, CB(0.16, 0.34, 0.16, 0.02), MStone('#8d7660', 0.9), w * 0.28, chimY, -d * 0.2);
@@ -1032,7 +1039,14 @@ export function colonialHouse(
 
   if (capeDutch) {
     add(grp, capeDutchGableGeo(w * 0.5, h * 0.62, 0.05), trimMat, 0, y0 + h, fz + 0.005);
-    add(grp, capeDutchGableGeo(w * 0.42, h * 0.53, 0.07), MPlaster(wall, 0.76), 0, y0 + h + 0.01, fz + 0.04);
+    add(
+      grp,
+      capeDutchGableGeo(w * 0.42, h * 0.53, 0.07),
+      MPlaster(wall, 0.76),
+      0,
+      y0 + h + 0.01,
+      fz + 0.04
+    );
     add(
       grp,
       new THREE.SphereGeometry(0.035, 8, 6),
@@ -1049,7 +1063,14 @@ export function colonialHouse(
   for (const py of [h * 0.14, h * 0.34]) {
     add(grp, CB(w * 0.12, h * 0.15, 0.01, 0.004), panelMat, 0, y0 + py, fz + 0.04);
   }
-  add(grp, new THREE.SphereGeometry(0.012, 6, 5), M('#c9a227', 0.3, 0.8), w * 0.06, y0 + h * 0.24, fz + 0.05);
+  add(
+    grp,
+    new THREE.SphereGeometry(0.012, 6, 5),
+    M('#c9a227', 0.3, 0.8),
+    w * 0.06,
+    y0 + h * 0.24,
+    fz + 0.05
+  );
 
   // Glowing sash windows with mullions, sills and louvred shutters.
   for (const sx of [-w * 0.28, w * 0.28]) {
@@ -1062,7 +1083,14 @@ export function colonialHouse(
       const shx = sx + side * w * 0.125;
       add(grp, CB(0.055, h * 0.28, 0.02, 0.004), shutterMat, shx, y0 + h * 0.52, fz + 0.012);
       for (let s = 0; s < 4; s++) {
-        add(grp, CB(0.042, 0.012, 0.012, 0.002), slatMat, shx, y0 + h * 0.42 + s * h * 0.066, fz + 0.026);
+        add(
+          grp,
+          CB(0.042, 0.012, 0.012, 0.002),
+          slatMat,
+          shx,
+          y0 + h * 0.42 + s * h * 0.066,
+          fz + 0.026
+        );
       }
     }
   }

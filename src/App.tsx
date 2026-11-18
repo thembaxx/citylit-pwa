@@ -9,6 +9,7 @@ import { GlobeOverlay } from './components/GlobeOverlay';
 import { InfoDrawer } from './components/InfoDrawer';
 import { LandmarkCard } from './components/LandmarkCard';
 import { PassportModal } from './components/PassportModal';
+import { PlacesOverlay } from './components/PlacesOverlay';
 import { PostcardModal } from './components/PostcardModal';
 import { SearchSheet } from './components/SearchSheet';
 import { SettingsModal } from './components/SettingsModal';
@@ -27,6 +28,7 @@ import {
 import { WEATHER_CONDITIONS } from './data/weatherData';
 import { useOnlineStatus, usePWARegistration } from './hooks/usePWAInstall';
 import { CitylitEngine } from './three/CitylitEngine';
+import type { PlacesSelectionInfo } from './three/placesScene';
 import type {
   CitylitSettings,
   ForecastSlot,
@@ -141,6 +143,8 @@ export function App() {
   const [passportOpen, setPassportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [globeOpen, setGlobeOpen] = useState(false);
+  const [placesOpen, setPlacesOpen] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<PlacesSelectionInfo | null>(null);
   const [activeProvince, setActiveProvince] = useState('All');
 
   const [postcardUrl, setPostcardUrl] = useState('');
@@ -250,6 +254,14 @@ export function App() {
       onSelectLandmarkFromGlobe: (pickedIndex) => {
         engine.closeGlobe();
         setGlobeOpen(false);
+        selectLandmark(pickedIndex, { cinematic: true });
+      },
+      onSelectPlaceSlice: (info) => {
+        setSelectedPlace(info);
+      },
+      onOpenLandmarkFromPlaces: (pickedIndex) => {
+        engine.closePlaces();
+        setPlacesOpen(false);
         selectLandmark(pickedIndex, { cinematic: true });
       },
     });
@@ -432,10 +444,39 @@ export function App() {
     };
   }, [fullscreen]);
 
+  // Sync visited set to Places 3D highlights when passport stamps update
+  useEffect(() => {
+    engineRef.current?.places.refreshVisited(visited);
+  }, [visited]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || galleryOpen) return;
+      if (placesOpen) {
+        if (e.key === 'ArrowRight') {
+          const next = engineRef.current?.places.stepSlice(1, activeProvince);
+          if (next) {
+            engineRef.current?.focusPlaceSiteAudio(next.landmarkIndex);
+            setSelectedPlace(next);
+          }
+          return;
+        }
+        if (e.key === 'ArrowLeft') {
+          const prev = engineRef.current?.places.stepSlice(-1, activeProvince);
+          if (prev) {
+            engineRef.current?.focusPlaceSiteAudio(prev.landmarkIndex);
+            setSelectedPlace(prev);
+          }
+          return;
+        }
+        if (e.key === 'Enter' && selectedPlace) {
+          engineRef.current?.closePlaces();
+          setPlacesOpen(false);
+          selectLandmark(selectedPlace.landmarkIndex, { cinematic: true });
+          return;
+        }
+      }
       if (e.key === 'ArrowRight') selectLandmark(index + 1);
       else if (e.key === 'ArrowLeft') selectLandmark(index - 1);
       else if (e.key === '/') {
@@ -447,7 +488,10 @@ export function App() {
         else if (passportOpen) setPassportOpen(false);
         else if (searchOpen) setSearchOpen(false);
         else if (infoOpen) setInfoOpen(false);
-        else if (globeOpen) {
+        else if (placesOpen) {
+          engineRef.current?.closePlaces();
+          setPlacesOpen(false);
+        } else if (globeOpen) {
           engineRef.current?.closeGlobe();
           setGlobeOpen(false);
         } else if (fullscreen) setFullscreen(false);
@@ -461,6 +505,9 @@ export function App() {
     infoOpen,
     searchOpen,
     globeOpen,
+    placesOpen,
+    activeProvince,
+    selectedPlace,
     passportOpen,
     settingsOpen,
     postcardOpen,
@@ -552,10 +599,32 @@ export function App() {
       setSearchOpen(false);
       setInfoOpen(false);
       setWeatherExpanded(false);
+      setPlacesOpen(false);
       engineRef.current.openGlobe(visited);
+      if (activeProvince !== 'All') {
+        engineRef.current.globe.flyToProvince(activeProvince);
+      }
       setGlobeOpen(true);
     }
-  }, [globeOpen, visited]);
+  }, [globeOpen, visited, activeProvince]);
+
+  const openPlaces = useCallback(() => {
+    if (!engineRef.current) return;
+    setSearchOpen(false);
+    setInfoOpen(false);
+    setWeatherExpanded(false);
+    setTodOpen(false);
+    setGlobeOpen(false);
+    const info = engineRef.current.openPlaces(visited, activeProvince, index);
+    setSelectedPlace(info);
+    setPlacesOpen(true);
+  }, [visited, activeProvince, index]);
+
+  const closePlaces = useCallback(() => {
+    if (!engineRef.current) return;
+    engineRef.current.closePlaces();
+    setPlacesOpen(false);
+  }, []);
 
   const forecast = useMemo(
     () => liveForecast ?? getForecastSlots(index, month),
@@ -570,7 +639,7 @@ export function App() {
         <div ref={canvasHostRef} className="fixed inset-0" />
 
         {/* Vignette */}
-        {!globeOpen && (
+        {!globeOpen && !placesOpen && (
           <div
             aria-hidden="true"
             className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]"
@@ -583,7 +652,7 @@ export function App() {
           todOpen={todOpen}
           fullscreen={fullscreen}
           idleInFullscreen={idleInFullscreen}
-          globeOpen={globeOpen}
+          globeOpen={globeOpen || placesOpen}
           reducedMotion={reducedMotion}
           onToggleSound={() => setSoundOn(ambientAudio.toggle())}
           onToggleTod={() => setTodOpen((v) => !v)}
@@ -592,7 +661,7 @@ export function App() {
         />
 
         {/* Quick Time-of-Day Scrubber */}
-        {todOpen && !fullscreen && !globeOpen && (
+        {todOpen && !fullscreen && !globeOpen && !placesOpen && (
           <div className="fixed left-1/2 -translate-x-1/2 top-[calc(130px+env(safe-area-inset-top,0px))] z-20 w-[min(300px,calc(100vw-36px))] px-4 py-3 bg-[#121319]/92 border border-white/15 rounded-2xl shadow-xl">
             <input
               type="range"
@@ -641,7 +710,7 @@ export function App() {
           forecast={forecast}
           activeTimeHour={timeHour}
           visible={!fullscreen}
-          globeOpen={globeOpen}
+          globeOpen={globeOpen || placesOpen}
           reducedMotion={reducedMotion}
           onToggleExpand={() => setWeatherExpanded((v) => !v)}
           onSelectTimePreset={(h) => {
@@ -659,7 +728,7 @@ export function App() {
           index={index}
           isFavorite={favorites.has(index)}
           tourActive={tourActive}
-          visible={!fullscreen && !globeOpen}
+          visible={!fullscreen && !globeOpen && !placesOpen}
           thumbnail={thumbnails[index]}
           reducedMotion={reducedMotion}
           onPrev={() => selectLandmark(index - 1)}
@@ -675,7 +744,7 @@ export function App() {
         />
 
         {/* Desktop Orbit Hint */}
-        {!fullscreen && !globeOpen && hintVisible && (
+        {!fullscreen && !globeOpen && !placesOpen && hintVisible && (
           <div className="hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] text-[#a9a69e] pointer-events-none">
             Drag to orbit · Scroll to zoom · Tap pins for facts
           </div>
@@ -685,11 +754,56 @@ export function App() {
         <GlobeOverlay
           open={globeOpen}
           activeProvince={activeProvince}
+          reducedMotion={reducedMotion}
           onSelectProvince={(pv) => {
             setActiveProvince(pv);
             engineRef.current?.globe.flyToProvince(pv);
           }}
+          onOpenPlaces={openPlaces}
           onClose={toggleGlobe}
+        />
+
+        {/* Places 3D Geological Diorama Archipelago HUD */}
+        <PlacesOverlay
+          open={placesOpen}
+          activeProvince={activeProvince}
+          selectedPlace={selectedPlace}
+          visited={visited}
+          weather={weatherState}
+          activeTimeHour={timeHour}
+          soundOn={soundOn}
+          reducedMotion={reducedMotion}
+          onSelectProvince={(pv) => {
+            setActiveProvince(pv);
+            if (!engineRef.current) return;
+            engineRef.current.places.flyToProvince(pv);
+            const nextInfo = engineRef.current.places.getSelectedInfo();
+            engineRef.current.focusPlaceSiteAudio(nextInfo.landmarkIndex);
+            setSelectedPlace(nextInfo);
+          }}
+          onStepSlice={(dir) => {
+            if (!engineRef.current) return;
+            const nextInfo = engineRef.current.places.stepSlice(dir, activeProvince);
+            engineRef.current.focusPlaceSiteAudio(nextInfo.landmarkIndex);
+            setSelectedPlace(nextInfo);
+          }}
+          onOpenLandmark={(pickedIndex) => {
+            engineRef.current?.closePlaces();
+            setPlacesOpen(false);
+            selectLandmark(pickedIndex, { cinematic: true });
+          }}
+          onResetView={() => {
+            setActiveProvince('All');
+            engineRef.current?.places.resetOverview();
+          }}
+          onSwitchToGlobe={toggleGlobe}
+          onToggleSound={() => setSoundOn(ambientAudio.toggle())}
+          onSelectTimePreset={(h) => {
+            setTimeHour(h);
+            setTimeScrubbed(true);
+            engineRef.current?.setSunAltitudeFromSlider(h);
+          }}
+          onClose={closePlaces}
         />
 
         {/* Fact Callout */}

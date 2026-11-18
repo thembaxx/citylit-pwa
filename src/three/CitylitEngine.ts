@@ -23,12 +23,15 @@ import {
   updateWetSurfaces,
 } from './builders/primitives';
 import { createGlobeScene, type GlobeController } from './globeScene';
+import { createPlacesScene, type PlacesController, type PlacesSelectionInfo } from './placesScene';
 import { getSoftTexture, installDissolveShader, WU } from './shaders';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
 
 export interface EngineCallbacks {
   onSelectLandmarkFromGlobe?: (index: number) => void;
+  onSelectPlaceSlice?: (info: PlacesSelectionInfo) => void;
+  onOpenLandmarkFromPlaces?: (index: number) => void;
   onFactDot?: (text: string) => void;
   onFirstInteract?: () => void;
   onThunder?: () => void;
@@ -47,6 +50,7 @@ export class CitylitEngine {
   readonly isSoftwareGl: boolean;
   readonly weather: WeatherSceneController;
   readonly globe: GlobeController;
+  readonly places: PlacesController;
   readonly atmosphere: AtmosphereSceneController;
 
   private readonly pmrem: THREE.PMREMGenerator;
@@ -98,6 +102,8 @@ export class CitylitEngine {
   private camTargetPos = new THREE.Vector3();
   private camGoalT = 1;
   private tapDown = { x: 0, y: 0, t: 0 };
+  private lastPlaceTap = { sliceIndex: -1, t: 0 };
+  private lastHoverCheck = 0;
   private pinchDist = 0;
 
   private callbacks: EngineCallbacks;
@@ -258,6 +264,12 @@ export class CitylitEngine {
       this.isSoftwareGl
     );
     this.scene.add(this.globe.group);
+    this.places = createPlacesScene(
+      canvas,
+      window.innerWidth / window.innerHeight,
+      this.isSoftwareGl
+    );
+    this.scene.add(this.places.group);
 
     this.bindEvents(canvas);
     this.lastTick = performance.now();
@@ -413,7 +425,8 @@ export class CitylitEngine {
   setMotionPreferences(reduced: boolean): void {
     this.motionScale = reduced ? 0 : 1;
     this.autoRotateSpeed = reduced || this.isSoftwareGl ? 0 : 0.3;
-    this.controls.autoRotate = !reduced && !this.isSoftwareGl && !this.globe.isOpen;
+    this.controls.autoRotate =
+      !reduced && !this.isSoftwareGl && !this.globe.isOpen && !this.places.isOpen;
     this.controls.autoRotateSpeed = this.autoRotateSpeed;
   }
 
@@ -467,6 +480,11 @@ export class CitylitEngine {
   }
 
   openGlobe(visited: Set<number>): void {
+    if (this.places.isOpen) {
+      this.places.close();
+      this.weather.rainLines.position.set(0, 0, 0);
+      this.atmosphere.root.position.set(0, 0, 0);
+    }
     this.heroRoot.visible = false;
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
@@ -476,6 +494,7 @@ export class CitylitEngine {
     ambientAudio.setSpatialActive(false);
     this.controls.enabled = false;
     this.controls.autoRotate = false;
+    this.renderer.domElement.style.cursor = 'grab';
     this.globe.open(visited);
     ambientAudio.playSfx('open');
   }
@@ -490,6 +509,68 @@ export class CitylitEngine {
     ambientAudio.setSpatialActive(true);
     this.controls.enabled = true;
     this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
+    this.renderer.domElement.style.cursor = 'default';
+  }
+
+  openPlaces(
+    visited: Set<number>,
+    province = 'All',
+    activeLandmarkIndex?: number
+  ): PlacesSelectionInfo {
+    if (this.globe.isOpen) {
+      this.globe.close();
+    }
+    this.heroRoot.visible = false;
+    this.plinthGroup.visible = false;
+    this.markerGroup.visible = false;
+    this.dustPoints.visible = false;
+    this.weather.setHidden(false);
+    this.weather.groundShadow.visible = false;
+    this.weather.clouds.visible = false;
+    this.weather.stormCurtain.scale.setScalar(1.6);
+    this.atmosphere.setHidden(true);
+    ambientAudio.setSpatialActive(true);
+    this.controls.enabled = false;
+    this.controls.autoRotate = false;
+    this.places.open(visited, province, activeLandmarkIndex ?? this.activeIndex);
+    const info = this.places.getSelectedInfo();
+    const lm = LANDMARKS[info.landmarkIndex];
+    ambientAudio.setSiteProfile(
+      (this.currentGroup?.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
+    );
+    this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
+    ambientAudio.playSfx('open');
+    return info;
+  }
+
+  closePlaces(): void {
+    this.places.close();
+    this.weather.rainLines.position.set(0, 0, 0);
+    this.weather.stormCurtain.position.set(0, 14, 0);
+    this.weather.stormCurtain.scale.setScalar(1);
+    this.weather.clouds.visible = true;
+    this.weather.groundShadow.visible = true;
+    this.atmosphere.root.position.set(0, 0, 0);
+    this.heroRoot.visible = true;
+    this.plinthGroup.visible = true;
+    this.markerGroup.visible = true;
+    this.weather.setHidden(false);
+    this.atmosphere.setHidden(false);
+    const lm = LANDMARKS[this.activeIndex];
+    this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
+    ambientAudio.setSiteProfile(
+      (this.currentGroup?.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
+    );
+    ambientAudio.setSpatialActive(true);
+    this.controls.enabled = true;
+    this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
+    this.renderer.domElement.style.cursor = 'default';
+  }
+
+  focusPlaceSiteAudio(landmarkIndex: number): void {
+    const lm = LANDMARKS[landmarkIndex];
+    if (!lm) return;
+    this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
   }
 
   flyCameraPreset(pos: [number, number, number]): void {
@@ -643,10 +724,20 @@ export class CitylitEngine {
   private renderCurrentPass(): void {
     if (this.globe.isOpen) {
       this.renderer.render(this.globe.group, this.globe.camera);
-    } else if (!this.isSoftwareGl && this.qualityIndex === 0 && this.bloomPass.enabled) {
-      this.composer.render();
+    } else if (this.places.isOpen) {
+      this.renderPass.camera = this.places.camera;
+      if (!this.isSoftwareGl && this.qualityIndex === 0 && this.bloomPass.enabled) {
+        this.composer.render();
+      } else {
+        this.renderer.render(this.scene, this.places.camera);
+      }
     } else {
-      this.renderer.render(this.scene, this.camera);
+      this.renderPass.camera = this.camera;
+      if (!this.isSoftwareGl && this.qualityIndex === 0 && this.bloomPass.enabled) {
+        this.composer.render();
+      } else {
+        this.renderer.render(this.scene, this.camera);
+      }
     }
   }
 
@@ -657,6 +748,7 @@ export class CitylitEngine {
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
       this.globe.setAspect(w / h);
+      this.places.setAspect(w / h);
       this.renderer.setSize(w, h);
       this.composer.setSize(w, h);
     };
@@ -666,6 +758,17 @@ export class CitylitEngine {
       this.camGoal = null;
       this.tapDown = { x: e.clientX, y: e.clientY, t: performance.now() };
       this.callbacks.onFirstInteract?.();
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!this.places.isOpen) return;
+      const now = performance.now();
+      if (now - this.lastHoverCheck < 45) return;
+      this.lastHoverCheck = now;
+      const ndcX = (e.clientX / window.innerWidth) * 2 - 1;
+      const ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
+      const hovered = this.places.hoverAt(ndcX, ndcY);
+      canvas.style.cursor = hovered !== null ? 'pointer' : 'grab';
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -680,6 +783,25 @@ export class CitylitEngine {
           if (picked !== null) {
             ambientAudio.vibrate(10);
             this.callbacks.onSelectLandmarkFromGlobe?.(picked);
+          }
+          return;
+        }
+        if (this.places.isOpen) {
+          const picked = this.places.pickAt(ndcX, ndcY);
+          if (picked) {
+            const now = performance.now();
+            const isDoubleTap =
+              this.lastPlaceTap.sliceIndex === picked.sliceIndex && now - this.lastPlaceTap.t < 480;
+            this.lastPlaceTap = { sliceIndex: picked.sliceIndex, t: now };
+            if (isDoubleTap) {
+              ambientAudio.vibrate(12);
+              this.callbacks.onOpenLandmarkFromPlaces?.(picked.landmarkIndex);
+            } else {
+              ambientAudio.playSfx('ping');
+              ambientAudio.vibrate(10);
+              this.focusPlaceSiteAudio(picked.landmarkIndex);
+              this.callbacks.onSelectPlaceSlice?.(picked);
+            }
           }
           return;
         }
@@ -741,6 +863,7 @@ export class CitylitEngine {
 
     window.addEventListener('resize', onResize);
     canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('wheel', onWheel, { passive: false });
     canvas.addEventListener('touchstart', onTouchStart, { passive: true });
@@ -752,6 +875,7 @@ export class CitylitEngine {
     this.unbindListeners = () => {
       window.removeEventListener('resize', onResize);
       canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointermove', onPointerMove);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('touchstart', onTouchStart);
@@ -833,6 +957,67 @@ export class CitylitEngine {
     if (this.globe.isOpen) {
       this.globe.update(dt, this.elapsed, this.motionScale);
       this.renderer.render(this.globe.group, this.globe.camera);
+    } else if (this.places.isOpen) {
+      this.weather.update(dt, this.elapsed, {
+        qualityIndex: this.qualityIndex,
+        motionScale: this.motionScale,
+        keyLight: this.keyLight,
+        fillLight: this.fillLight,
+        hemiLight: this.hemiLight,
+        scene: this.scene,
+        renderer: this.renderer,
+        onThunder: () => {
+          ambientAudio.playSfx('thunder');
+          this.callbacks.onThunder?.();
+        },
+      });
+      this.weather.clouds.visible = false;
+      this.weather.rainLines.position.set(
+        this.places.controls.target.x,
+        0,
+        this.places.controls.target.z
+      );
+      this.weather.stormCurtain.position.set(
+        this.places.controls.target.x,
+        14,
+        this.places.controls.target.z
+      );
+      updateWetSurfaces(this.weather.current.rain);
+
+      this.places.update(dt, this.elapsed, this.motionScale, this.keyLight, this.scene.fog);
+
+      const sel = this.places.getSelectedInfo();
+      const lm = LANDMARKS[sel.landmarkIndex];
+      this.places.camera.updateMatrixWorld();
+      audioRight.setFromMatrixColumn(this.places.camera.matrixWorld, 0).normalize();
+      audioForward.setFromMatrixColumn(this.places.camera.matrixWorld, 2).normalize().negate();
+      ambientAudio.setCameraYaw(
+        Math.atan2(
+          this.places.camera.position.x - this.places.controls.target.x,
+          this.places.camera.position.z - this.places.controls.target.z
+        )
+      );
+      ambientAudio.updateSpatialListener({
+        position: [
+          this.places.camera.position.x,
+          this.places.camera.position.y,
+          this.places.camera.position.z,
+        ],
+        right: [audioRight.x, audioRight.y, audioRight.z],
+        forward: [audioForward.x, audioForward.y, audioForward.z],
+      });
+      ambientAudio.update(
+        dt,
+        this.elapsed,
+        lm.ambient,
+        lm.biome,
+        this.weather.current.wind,
+        this.weather.current.rain,
+        this.weather.current.night,
+        this.weather.current.storm
+      );
+
+      this.renderCurrentPass();
     } else {
       // Camera fly preset interpolation
       if (this.camGoal) {
@@ -985,6 +1170,7 @@ export class CitylitEngine {
     this.unbindListeners();
     this.controls.dispose();
     this.globe.dispose();
+    this.places.dispose();
     this.atmosphere.dispose();
     this.pmrem.dispose();
     this.envTex.dispose();
