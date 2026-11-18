@@ -736,18 +736,18 @@ export function hole(): THREE.Group {
   const s = new THREE.Color('#c8a26c');
   const a = new THREE.Color('#c07d47');
   const b = new THREE.Color('#3f342d');
-  tint(geo, (k, _x, yy, z) =>
-    yy < -3.1
-      ? k.copy(b)
-      : yy > -0.01
-        ? k.copy(s)
-        : yy < -3
-          ? k.copy(b)
-          : k
-              .copy(a)
-              .lerp(b, -yy / 2.9)
-              .multiplyScalar(0.8 + 0.2 * Math.sin(yy * 40 + Math.atan2(z, _x) * 3))
-  );
+  tint(geo, (k, _x, yy, z) => {
+    if (yy < -3.1 || yy < -3) return k.copy(b);
+    if (yy > -0.01) return k.copy(s);
+    const ang = Math.atan2(z, _x);
+    const band = Math.floor(-yy * 5);
+    const strata = 0.84 + 0.18 * (0.5 + 0.5 * Math.sin(band * 1.9 + 0.6));
+    const groove = Math.pow(Math.max(0, Math.cos(ang * 18)), 8);
+    return k
+      .copy(a)
+      .lerp(b, -yy / 2.9)
+      .multiplyScalar(strata * (1 - groove * 0.24));
+  });
   const vm = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.94,
@@ -1154,8 +1154,32 @@ export function bokaap(): THREE.Group {
 export function soccer(): THREE.Group {
   const g = new THREE.Group();
   const gl = G('#ffb35a', 1.6);
+  // Offset terracotta-tile mosaic, drawn to canvas so the pattern stays crisp
+  // instead of smearing through interpolated vertex colours.
+  const mosaic = document.createElement('canvas');
+  mosaic.width = 256;
+  mosaic.height = 256;
+  const mx = mosaic.getContext('2d')!;
+  mx.fillStyle = '#6b3b20';
+  mx.fillRect(0, 0, 256, 256);
+  const cols = 16;
+  const rows = 12;
+  const cw = 256 / cols;
+  const ch = 256 / rows;
+  const tiles = ['#e8c074', '#d9a05a', '#c67537', '#a85c2c', '#d98f45'];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const tx = col * cw + (row % 2 ? cw / 2 : 0);
+      mx.fillStyle = tiles[Math.floor(R(row * 31 + col * 7 + 5) * tiles.length)];
+      mx.fillRect(tx + 1, row * ch + 1, cw - 2, ch - 2);
+    }
+  }
+  const mosaicTex = new THREE.CanvasTexture(mosaic);
+  mosaicTex.wrapS = THREE.RepeatWrapping;
+  mosaicTex.wrapT = THREE.RepeatWrapping;
+  mosaicTex.colorSpace = THREE.SRGBColorSpace;
   const pm = new THREE.MeshStandardMaterial({
-    vertexColors: true,
+    map: mosaicTex,
     roughness: 0.62,
     metalness: 0.06,
     side: THREE.DoubleSide,
@@ -1171,17 +1195,7 @@ export function soccer(): THREE.Group {
     const y = (i * 3.8) / 24;
     pts.push(new THREE.Vector2(r(y) - 0.4, y));
   }
-  const A = new THREE.Color('#c67537');
-  const Bc = new THREE.Color('#6b3b20');
-  const Cc = new THREE.Color('#e8c074');
-  add(
-    g,
-    tint(new THREE.LatheGeometry(pts, 108), (c, x, y, z) => {
-      const q = Math.sin(Math.atan2(z, x) * 30) * Math.sin(y * 11);
-      c.copy(q > 0.5 ? Cc : q < -0.5 ? Bc : A);
-    }),
-    pm
-  );
+  add(g, new THREE.LatheGeometry(pts, 108), pm);
   // Radial exterior steel spine ribs (10 African continent alignment spokes)
   const ribT: InstanceTransform[] = [];
   for (let i = 0; i < 10; i++) {

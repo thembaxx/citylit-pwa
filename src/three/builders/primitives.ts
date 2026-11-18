@@ -350,6 +350,43 @@ export function add<T extends THREE.BufferGeometry, U extends THREE.Material>(
   return mesh;
 }
 
+/**
+ * Collapse a group's plain-coloured child meshes into one mesh per material.
+ * Lets builders add fine architectural detail without paying a draw call per part.
+ */
+export function mergeByMaterial(g: THREE.Group): THREE.Group {
+  g.updateMatrixWorld(true);
+  const buckets = new Map<THREE.Material, THREE.Mesh[]>();
+  for (const child of [...g.children]) {
+    if (!(child instanceof THREE.Mesh) || child instanceof THREE.InstancedMesh) continue;
+    const mat = child.material as THREE.Material & { vertexColors?: boolean };
+    if (mat.vertexColors) continue;
+    const list = buckets.get(mat) ?? [];
+    list.push(child);
+    buckets.set(mat, list);
+  }
+  buckets.forEach((meshes, mat) => {
+    if (meshes.length < 2) return;
+    const geos: THREE.BufferGeometry[] = [];
+    for (const m of meshes) {
+      const src = m.geometry;
+      const geo = src.index ? src.toNonIndexed() : src.clone();
+      geo.deleteAttribute('uv1');
+      geo.deleteAttribute('uv2');
+      m.updateMatrix();
+      geo.applyMatrix4(m.matrix);
+      geos.push(geo);
+    }
+    const merged = mergeGeometries(geos, false);
+    geos.forEach((geo) => geo.dispose());
+    if (!merged) return; // keep the originals if the attribute sets disagree
+    meshes.forEach((m) => m.removeFromParent());
+    merged.computeBoundingSphere();
+    g.add(new THREE.Mesh(merged, mat));
+  });
+  return g;
+}
+
 export const B = (w: number, h: number, d: number): THREE.BoxGeometry =>
   new THREE.BoxGeometry(w, h, d);
 
@@ -532,23 +569,32 @@ export function rock(
     const Z = p.getZ(i);
     const a = Math.atan2(Z, X);
     const bedding = Math.sin(Y * 14 + a * 0.4) * 0.028;
+    const ledge = Math.pow(Math.max(0, Math.sin(Y * 8.5 + a * 0.5)), 8) * 0.05;
+    const fissure = Math.pow(Math.max(0, Math.cos(a * 7 + Y * 1.2)), 16) * 0.03;
     const f =
       1 +
       k *
         (Math.sin(a * 3 + x) * 0.5 +
           Math.sin(a * 5 + Y * 2.2) * 0.3 +
           Math.sin(a * 8 - Y * 3.1 + z) * 0.2) +
-      bedding;
+      bedding +
+      ledge -
+      fissure;
     p.setXYZ(i, X * f, Y, Z * f);
   }
   const a = new THREE.Color(c1);
   const b = new THREE.Color(c2);
   const aoDark = a.clone().multiplyScalar(0.68);
-  tint(gm, (c, _X, Y) => {
-    const hNorm = Math.min(1, Math.max(0, Y / h + 0.5 + 0.07 * Math.sin(Y * 26)));
-    c.copy(a).lerp(b, hNorm);
+  tint(gm, (c, X, Y, Z) => {
+    const hNorm = Math.min(1, Math.max(0, Y / h + 0.5 + 0.03 * Math.sin(Y * 26)));
+    const band = Math.floor(hNorm * 8);
+    const bandShade = 0.86 + 0.17 * (0.5 + 0.5 * Math.sin(band * 2.4 + 1.1));
+    c.copy(a).lerp(b, hNorm).multiplyScalar(bandShade);
+    const ang = Math.atan2(Z, X);
+    const crevice = Math.pow(Math.max(0, Math.cos(ang * 7 + Y * 1.2)), 16);
+    c.multiplyScalar(1 - crevice * 0.32);
     const ao = Math.min(1, Math.max(0, (Y + h * 0.5) / Math.max(0.2, h * 0.28)));
-    c.lerp(aoDark, (1 - ao) * 0.48);
+    c.lerp(aoDark, (1 - ao) * 0.5);
   });
   return add(
     g,
@@ -799,6 +845,16 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
       r: [0, rs(i + 5) * 2, 0],
     });
   }
+  // Fine outer leaflets break up the silhouette and add canopy depth.
+  for (let i = 0; i < 4; i++) {
+    const ang = rs(i + 40) * 6.2832;
+    parts.push({
+      g: crownGeo(0.12 + rs(i + 44) * 0.06, i + variant * 5 + k * 9),
+      c: cs[(i + 1) % 3],
+      p: [Math.cos(ang) * 0.34, baseY + 0.16 + rs(i + 48) * 0.3, Math.sin(ang) * 0.34],
+      s: [1, 0.8, 1],
+    });
+  }
   return mergeTreeParts(parts);
 }
 
@@ -885,11 +941,22 @@ export function rondavel(
   rd.position.set(x, y, z);
   rd.scale.setScalar(sc);
   add(rd, C(0.42, 0.46, 0.06, 20), MStone('#685d50', 0.94), 0, 0.03, 0);
-  add(rd, C(0.36, 0.37, 0.44, 20), MPlaster(wallCol, 0.82), 0, 0.26, 0);
-  add(rd, C(0.375, 0.375, 0.07, 20), MPlaster('#a34a36', 0.86), 0, 0.08, 0);
-  add(rd, new THREE.ConeGeometry(0.46, 0.36, 20), MWood(roofCol, 0.94), 0, 0.64, 0);
+  add(rd, C(0.36, 0.37, 0.44, 24), MPlaster(wallCol, 0.82), 0, 0.26, 0);
+  add(rd, C(0.375, 0.375, 0.07, 24), MPlaster('#a34a36', 0.86), 0, 0.08, 0);
+  // Layered thatch courses give the cone a fibrous, banded silhouette.
+  const thatch = MWood(roofCol, 0.94);
+  for (let i = 0; i < 5; i++) {
+    const r = 0.47 - i * 0.088;
+    add(rd, C(r, r, 0.04, 24, 1, true), thatch, 0, 0.5 + i * 0.072, 0);
+  }
+  add(rd, new THREE.ConeGeometry(0.46, 0.36, 24), thatch, 0, 0.64, 0);
   add(rd, C(0.03, 0.04, 0.08, 8), MWood('#4e3824', 0.9), 0, 0.84, 0);
-  add(rd, CB(0.11, 0.26, 0.04, 0.01), MWood('#4d321c', 0.8), 0, 0.17, 0.36);
+  // Recessed doorway and a small shuttered window.
+  add(rd, CB(0.14, 0.29, 0.03, 0.008), MPlaster('#efe6d4', 0.8), 0, 0.17, 0.365);
+  add(rd, CB(0.11, 0.26, 0.04, 0.01), MWood('#4d321c', 0.8), 0, 0.17, 0.385);
+  const win = add(rd, CB(0.09, 0.09, 0.02, 0.005), M('#d7c9a8', 0.5), 0.24, 0.33, 0.26);
+  win.rotation.y = -0.62;
+  mergeByMaterial(rd);
   g.add(rd);
   return rd;
 }
@@ -926,64 +993,80 @@ export function colonialHouse(
   const grp = new THREE.Group();
   grp.position.set(x, y, z);
   grp.rotation.y = ry;
+  const y0 = 0.12;
+  const fz = d / 2 + 0.02;
 
-  // Raised stoep plinth
-  add(grp, CB(w + 0.14, 0.1, d + 0.22, 0.02), MStone('#6a645c', 0.9), 0, 0.05, 0.08);
-  // Stucco body
-  add(grp, CB(w, h, d, 0.03), MPlaster(wall, 0.76), 0, 0.1 + h / 2, 0);
-  // Moulded parapet cornice
-  add(grp, CB(w + 0.06, 0.06, d + 0.06, 0.02), MPlaster(trim, 0.72), 0, 0.1 + h + 0.02, 0);
-
-  // Pitched roof or parapet + Cape Dutch gable
-  add(
-    grp,
-    gableRoofGeo(w * 0.96, d * 0.96, h * 0.42, 0.05),
-    MPlaster(roof, 0.82),
-    0,
-    0.1 + h + 0.04,
-    0
-  );
-  if (capeDutch) {
-    add(
-      grp,
-      capeDutchGableGeo(w * 0.44, h * 0.56, 0.09),
-      MPlaster(trim, 0.74),
-      0,
-      0.1 + h,
-      d / 2 + 0.02
-    );
-  }
-
-  // Front door + transom & flanking shuttered glowing windows
-  add(
-    grp,
-    CB(w * 0.18, h * 0.46, 0.04, 0.01),
-    MWood('#3e281a', 0.75),
-    0,
-    0.1 + h * 0.23,
-    d / 2 + 0.01
-  );
+  const trimMat = MPlaster(trim, 0.76);
+  const stoneMat = MStone('#a89c88', 0.88);
+  const frameWood = MWood('#5a4632', 0.8);
   const winMat = G('#ffe1a0', 0.85);
   const shutterMat = MWood('#274c3c', 0.72);
-  for (const sx of [-w * 0.28, w * 0.28]) {
-    add(grp, CB(w * 0.16, h * 0.28, 0.03, 0.01), winMat, sx, 0.1 + h * 0.52, d / 2 + 0.01);
+  const slatMat = MWood('#1e3d30', 0.82);
+  const doorMat = MWood('#3e281a', 0.75);
+  const panelMat = MWood('#543521', 0.74);
+
+  // Raised stoep with a front step, then the stucco body and corner pilasters.
+  add(grp, CB(w + 0.22, 0.1, 0.36, 0.02), stoneMat, 0, 0.05, fz + 0.14);
+  add(grp, CB(w + 0.14, 0.1, d + 0.22, 0.02), stoneMat, 0, 0.1, 0.08);
+  add(grp, CB(w, h, d, 0.03), MPlaster(wall, 0.76), 0, y0 + h / 2, 0);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      add(
+        grp,
+        CB(0.09, h, 0.09, 0.012),
+        trimMat,
+        sx * (w / 2 - 0.045),
+        y0 + h / 2,
+        sz * (d / 2 - 0.045)
+      );
+    }
+  }
+  add(grp, CB(w + 0.1, 0.07, d + 0.1, 0.02), trimMat, 0, y0 + h + 0.03, 0);
+
+  // Pitched roof with a ridge cap and a small chimney stack.
+  add(grp, gableRoofGeo(w * 0.96, d * 0.96, h * 0.42, 0.06), MRoof(roof, 0.82), 0, y0 + h + 0.06, 0);
+  add(grp, CB(0.07, 0.06, d + 0.16, 0.02), MRoof(roof, 0.74), 0, y0 + h + h * 0.42 + 0.04, 0);
+  const chimY = y0 + h + h * 0.22;
+  add(grp, CB(0.16, 0.34, 0.16, 0.02), MStone('#8d7660', 0.9), w * 0.28, chimY, -d * 0.2);
+  add(grp, CB(0.21, 0.05, 0.21, 0.01), stoneMat, w * 0.28, chimY + 0.19, -d * 0.2);
+
+  if (capeDutch) {
+    add(grp, capeDutchGableGeo(w * 0.5, h * 0.62, 0.05), trimMat, 0, y0 + h, fz + 0.005);
+    add(grp, capeDutchGableGeo(w * 0.42, h * 0.53, 0.07), MPlaster(wall, 0.76), 0, y0 + h + 0.01, fz + 0.04);
     add(
       grp,
-      CB(0.05, h * 0.28, 0.03, 0.005),
-      shutterMat,
-      sx - w * 0.105,
-      0.1 + h * 0.52,
-      d / 2 + 0.015
-    );
-    add(
-      grp,
-      CB(0.05, h * 0.28, 0.03, 0.005),
-      shutterMat,
-      sx + w * 0.105,
-      0.1 + h * 0.52,
-      d / 2 + 0.015
+      new THREE.SphereGeometry(0.035, 8, 6),
+      M('#b8985a', 0.4, 0.6),
+      0,
+      y0 + h + h * 0.62 + 0.03,
+      fz + 0.06
     );
   }
+
+  // Panelled front door with a frame and brass knob.
+  add(grp, CB(w * 0.22, h * 0.52, 0.03, 0.008), trimMat, 0, y0 + h * 0.26, fz - 0.005);
+  add(grp, CB(w * 0.18, h * 0.48, 0.04, 0.008), doorMat, 0, y0 + h * 0.24, fz + 0.015);
+  for (const py of [h * 0.14, h * 0.34]) {
+    add(grp, CB(w * 0.12, h * 0.15, 0.01, 0.004), panelMat, 0, y0 + py, fz + 0.04);
+  }
+  add(grp, new THREE.SphereGeometry(0.012, 6, 5), M('#c9a227', 0.3, 0.8), w * 0.06, y0 + h * 0.24, fz + 0.05);
+
+  // Glowing sash windows with mullions, sills and louvred shutters.
+  for (const sx of [-w * 0.28, w * 0.28]) {
+    add(grp, CB(w * 0.2, h * 0.34, 0.03, 0.006), trimMat, sx, y0 + h * 0.52, fz - 0.005);
+    add(grp, CB(w * 0.16, h * 0.28, 0.02, 0.004), winMat, sx, y0 + h * 0.52, fz + 0.015);
+    add(grp, CB(0.012, h * 0.28, 0.015, 0.003), frameWood, sx, y0 + h * 0.52, fz + 0.03);
+    add(grp, CB(w * 0.16, 0.012, 0.015, 0.003), frameWood, sx, y0 + h * 0.52, fz + 0.03);
+    add(grp, CB(w * 0.22, 0.035, 0.07, 0.008), stoneMat, sx, y0 + h * 0.34, fz + 0.025);
+    for (const side of [-1, 1]) {
+      const shx = sx + side * w * 0.125;
+      add(grp, CB(0.055, h * 0.28, 0.02, 0.004), shutterMat, shx, y0 + h * 0.52, fz + 0.012);
+      for (let s = 0; s < 4; s++) {
+        add(grp, CB(0.042, 0.012, 0.012, 0.002), slatMat, shx, y0 + h * 0.42 + s * h * 0.066, fz + 0.026);
+      }
+    }
+  }
+  mergeByMaterial(grp);
   g.add(grp);
   return grp;
 }

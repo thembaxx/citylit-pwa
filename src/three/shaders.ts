@@ -30,10 +30,22 @@ vWD=(modelMatrix*vec4(transformed,1.)).xyz;
 #endif`
     );
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nvarying vec3 vWD;uniform float uDY;')
+    .replace(
+      '#include <common>',
+      `#include <common>
+varying vec3 vWD;uniform float uDY;
+float dtHash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}`
+    )
     .replace(
       '#include <alphatest_fragment>',
       `#include <alphatest_fragment>
+{
+vec3 dCell=floor(vWD*26.0);
+float grain=dtHash(dCell);
+diffuseColor.rgb*=0.955+0.09*grain;
+float ao=smoothstep(-0.15,1.1,vWD.y);
+diffuseColor.rgb*=0.9+0.1*ao;
+}
 if(uDY<90.&&vWD.y>uDY&&dot(vWD.xz,vWD.xz)<110.&&vWD.y<14.)discard;diffuseColor.rgb+=vec3(1.,.75,.35)*smoothstep(uDY-.3,uDY,vWD.y)*step(vWD.y,uDY)*(uDY<90.?2.:0.);`
     );
 }
@@ -86,7 +98,7 @@ export function getSoftTexture(): THREE.CanvasTexture {
 
 export function getStoneBumpTexture(): THREE.CanvasTexture {
   if (stoneBumpCache) return stoneBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -100,7 +112,8 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
       for (let x = 0; x < size; x++) {
         const grain = (hash2d(x, y) - 0.5) * 34;
         const block = Math.sin((x / size) * Math.PI * 6 + Math.sin(y * 0.2)) * 8;
-        const v = Math.max(0, Math.min(255, Math.round(128 + strata + grain + block)));
+        const crack = Math.abs(Math.sin(x * 0.07 + Math.sin(y * 0.04) * 3)) > 0.991 ? -38 : 0;
+        const v = Math.max(0, Math.min(255, Math.round(128 + strata + grain + block + crack)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
         data[idx + 1] = v;
@@ -120,7 +133,7 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
 
 export function getPlasterBumpTexture(): THREE.CanvasTexture {
   if (plasterBumpCache) return plasterBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -156,7 +169,7 @@ let brushedRoughCache: THREE.CanvasTexture | null = null;
 
 export function getRoofBumpTexture(): THREE.CanvasTexture {
   if (roofBumpCache) return roofBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -191,7 +204,7 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
 
 export function getCanvasBumpTexture(): THREE.CanvasTexture {
   if (canvasBumpCache) return canvasBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -223,7 +236,7 @@ export function getCanvasBumpTexture(): THREE.CanvasTexture {
 
 export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
   if (brushedRoughCache) return brushedRoughCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -255,7 +268,7 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
 
 export function getWoodBumpTexture(): THREE.CanvasTexture {
   if (woodBumpCache) return woodBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -306,21 +319,44 @@ vW=(modelMatrix*vec4(transformed,1.)).xyz;
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nvarying vec3 vW;uniform float uWT,uSI,uRN;uniform vec3 uSky;'
+        `#include <common>
+varying vec3 vW;uniform float uWT,uSI,uRN;uniform vec3 uSky;
+float wHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float wNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wHash(i),wHash(i+vec2(1.,0.)),f.x),mix(wHash(i+vec2(0.,1.)),wHash(i+vec2(1.,1.)),f.x),f.y);}
+float wFbm(vec2 p){float a=.5,s=0.;for(int i=0;i<3;i++){s+=a*wNoise(p);p=p*2.07+vec2(13.,7.);a*=.5;}return s;}
+float wHeight(vec2 p,float t){
+float h=sin(p.x*1.9+t*1.25)*.5+sin(p.y*1.45-t*.95)*.42+sin((p.x+p.y)*2.6+t*1.7)*.2;
+h+=(wFbm(p*2.1+vec2(t*.22,-t*.16))-.5)*.42;
+h+=uRN*.16*sin((p.x*11.+p.y*9.)+t*9.)*sin((p.x*5.-p.y*13.)-t*7.);
+return h;
+}`
       )
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
-{vec2 q=vW.xz;float a=q.x*3.+uWT*1.4,b=q.y*2.4-uWT*1.15,c=(q.x+q.y)*5.+uWT*2.1;float rAmt=1.+uRN*.5;vec3 pn=vec3((cos(a)*.15+cos(c)*.1)*rAmt,0.,(cos(b)*.15+cos(c)*.1)*rAmt);normal=normalize(normal+(viewMatrix*vec4(pn,0.)).xyz*.72);}`
+{
+vec2 q=vW.xz;float t=uWT;float e=.075;
+float h=wHeight(q,t),hx=wHeight(q+vec2(e,0.),t),hy=wHeight(q+vec2(0.,e),t);
+vec3 dev=vec3(-(hx-h)/e,0.,-(hy-h)/e)*.07;
+normal=normalize(normal+(viewMatrix*vec4(dev,0.)).xyz);
+}`
       )
       .replace(
         '#include <opaque_fragment>',
-        `{float fr=pow(1.-max(dot(normalize(vViewPosition),normal),0.),2.8);outgoingLight=mix(outgoingLight,uSky,fr*.55);float sp=pow(max(0.,sin(vW.x*9.+uWT*3.)*sin(vW.z*8.-uWT*2.5)),14.);outgoingLight+=vec3(1.,.95,.82)*sp*.75*uSI;float foam=smoothstep(.88,1.,sin(length(vW.xz)*3.5-uWT*1.4)*.5+.5)*.12;outgoingLight+=vec3(.88,.96,1.)*foam;}
+        `{
+vec2 q=vW.xz;float t=uWT;float h=wHeight(q,t);
+float fr=pow(1.-max(dot(normalize(vViewPosition),normal),0.),3.2);
+outgoingLight=mix(outgoingLight,uSky*1.1,fr*.6);
+float crest=smoothstep(.62,.98,h*.5+.5);
+outgoingLight+=vec3(.82,.94,1.)*crest*.16;
+float glint=pow(wNoise(q*7.+vec2(t*1.4,-t*1.1)),18.);
+outgoingLight+=vec3(1.,.96,.84)*glint*.85*uSI;
+}
 #include <opaque_fragment>`
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'water_v2';
+  mat.customProgramCacheKey = () => 'water_v3';
   return mat;
 }
 
