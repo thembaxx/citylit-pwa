@@ -102,6 +102,11 @@ export function WeatherWidget({
                   {weather.label}
                 </motion.span>
               </AnimatePresence>
+              {weather.live && (
+                <span className="shrink-0 px-1 py-px rounded text-[8px] font-semibold tracking-wider bg-[#e8b04a]/15 text-[#e8b04a]">
+                  LIVE
+                </span>
+              )}
             </div>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
@@ -147,6 +152,27 @@ export function WeatherWidget({
                     </motion.div>
                   ))}
                 </div>
+
+                {weather.live && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      ['Feels like', `${Math.round(weather.live.feelsLike)}°C`],
+                      ['Humidity', `${Math.round(weather.live.humidity)}%`],
+                      ['Wind', `${Math.round(weather.live.windSpeed)} km/h`],
+                      ['Cloud cover', `${Math.round(weather.live.cloudCover)}%`],
+                      ['Precipitation', `${weather.live.precipitation.toFixed(1)} mm/h`],
+                      ['Observed', weather.live.observedAt.slice(11, 16)],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between px-2 py-1 rounded-lg bg-white/[0.03]"
+                      >
+                        <span className="text-[10px] text-[#a9a69e]">{label}</span>
+                        <span className="text-[11px] font-medium text-[#f3efe6]">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <PillNavigation
                   layoutId="weather-time-preset"
@@ -195,6 +221,12 @@ export function WeatherWidget({
                     <span>Oct</span>
                     <span>Dec</span>
                   </div>
+                </div>
+
+                <div className="text-[10px] text-[#7f7d77]">
+                  {weather.live
+                    ? 'Live observation · Open-Meteo'
+                    : 'Typical conditions · climate model'}
                 </div>
               </div>
             </motion.div>

@@ -1,4 +1,9 @@
-import type { ForecastSlot, WeatherConditionKey, WeatherConditionSpec } from '../types/citylit';
+import type {
+  ForecastSlot,
+  LiveWeatherSample,
+  WeatherConditionKey,
+  WeatherConditionSpec,
+} from '../types/citylit';
 import { LANDMARKS } from './landmarks';
 
 export const WEATHER_CONDITIONS: Record<WeatherConditionKey, WeatherConditionSpec> = {
@@ -168,28 +173,19 @@ export function getForecastSlots(index: number, month: number): ForecastSlot[] {
   });
 }
 
-export interface LiveWeatherResult {
-  k: WeatherConditionKey;
-  temp: number;
-  night: boolean;
-}
+// ---------------------------------------------------------------------------
+// Live observations → continuous 3D weather parameters
+// ---------------------------------------------------------------------------
 
-export async function fetchLiveWeather(index: number): Promise<LiveWeatherResult> {
-  const [lat, lon] = LANDMARKS[index].coords;
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,is_day&timezone=Africa%2FJohannesburg`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(3500) });
-  if (!res.ok) throw new Error('Weather fetch failed');
-  const data = (await res.json()) as {
-    current: {
-      temperature_2m: number;
-      weather_code: number;
-      wind_speed_10m: number;
-      is_day: number;
-    };
-  };
-  const c = data.current;
-  const code = c.weather_code;
-  let k: WeatherConditionKey =
+const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
+
+/** Map a WMO weather code to the closest display condition. */
+export function conditionFromCode(
+  code: number,
+  windSpeed = 0,
+  precipitation = 0
+): WeatherConditionKey {
+  let key: WeatherConditionKey =
     code >= 95
       ? 'storm'
       : code >= 80
@@ -205,12 +201,141 @@ export async function fetchLiveWeather(index: number): Promise<LiveWeatherResult
                 : code > 0
                   ? 'partly'
                   : 'sun';
-  if ((k === 'sun' || k === 'partly') && c.wind_speed_10m > 30) {
-    k = 'wind';
-  }
+  if (precipitation > 0.1 && key === 'cloud') key = 'rain';
+  if ((key === 'sun' || key === 'partly' || key === 'cloud') && windSpeed > 30) key = 'wind';
+  return key;
+}
+
+/** A label that can be more specific than the coarse display condition. */
+export function liveConditionLabel(sample: LiveWeatherSample, condition: WeatherConditionKey): string {
+  if (sample.code >= 95) return 'Thunderstorms';
+  if (sample.code >= 71 && sample.code <= 77) return 'Snow';
+  if (sample.code >= 85 && sample.code <= 86) return 'Snow showers';
+  if (sample.code >= 45 && sample.code <= 48) return 'Mist';
+  return WEATHER_CONDITIONS[condition].label;
+}
+
+export interface LiveWeatherVisual {
+  /** Cloud amount, 0–1. Drives cloud opacity and sky overcast tint. */
+  cover: number;
+  /** Rain amount, 0–1. Drives the rain-particle count and opacity. */
+  rain: number;
+  /** Fog amount, 0–1. Drives scene fog density and local fog/mist layers. */
+  fog: number;
+  /** Wind multiplier, ~0.5 (calm) to ~3.5 (strong). Drives clouds, sway and audio. */
+  wind: number;
+  /** Storm amount, 0–1. Drives the storm curtain and lightning. */
+  storm: number;
+}
+
+/**
+ * Translate real measurements into the 0–1 parameters the Three.js weather
+ * scene already interpolates. Keeping this continuous is what lets a light
+ * drizzle look different from a downpour, or 40% cloud differ from 90%.
+ */
+export function liveWeatherVisual(sample: LiveWeatherSample): LiveWeatherVisual {
+  const cloud = clamp01(sample.cloudCover / 100);
+  const wet = clamp01(sample.precipitation / 6);
+  const humid = clamp01((sample.humidity - 78) / 20);
+  const windFast = clamp01(sample.windSpeed / 30);
+  const gust = clamp01((sample.windGusts - sample.windSpeed) / 25);
+  const storm = sample.code >= 95 ? 1 : 0;
+
+  const rain = Math.max(wet, storm * 0.95);
+  const cover = Math.max(cloud, rain * 0.9, storm);
+  // Moist air makes mist, but rain washes it out and wind disperses it.
+  const fog =
+    sample.code === 45 || sample.code === 48
+      ? 1
+      : clamp01(humid * (0.35 + cloud * 0.45) * (1 - rain * 0.6) * (1 - windFast * 0.45));
+  const wind = 0.55 + windFast * 2.6 + gust * 0.45 + storm * 0.6;
+
+  return { cover, rain, fog, wind, storm };
+}
+
+interface HourlyWeather {
+  time: string[];
+  temperature_2m: number[];
+  weather_code: number[];
+  is_day: number[];
+}
+
+function buildLiveForecast(hourly: HourlyWeather | undefined, observedAt: string): ForecastSlot[] {
+  if (!hourly || !Array.isArray(hourly.time) || hourly.time.length === 0) return [];
+  const hourPrefix = observedAt.slice(0, 13);
+  let start = hourly.time.findIndex((t) => t.slice(0, 13) >= hourPrefix);
+  if (start < 0) start = 0;
+
+  return [0, 3, 6, 9, 12].map((delta, i) => {
+    const at = Math.min(start + delta, hourly.time.length - 1);
+    const time = hourly.time[at] ?? '';
+    return {
+      label: i === 0 ? 'Now' : `${time.slice(11, 13)}:00`,
+      condition: conditionFromCode(hourly.weather_code[at] ?? 0),
+      night: hourly.is_day[at] === 0,
+      temp: Math.round(hourly.temperature_2m[at] ?? 0),
+    };
+  });
+}
+
+export interface LiveWeatherResult {
+  sample: LiveWeatherSample;
+  condition: WeatherConditionKey;
+  label: string;
+  temp: number;
+  night: boolean;
+  forecast: ForecastSlot[];
+}
+
+/** Fetch the current observation (and a short hourly forecast) for a landmark. */
+export async function fetchLiveWeather(index: number): Promise<LiveWeatherResult> {
+  const [lat, lon] = LANDMARKS[index].coords;
+  const current =
+    'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m,wind_gusts_10m';
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=${current}&hourly=temperature_2m,weather_code,is_day&forecast_days=2` +
+    `&timezone=Africa%2FJohannesburg`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error('Weather fetch failed');
+
+  const data = (await res.json()) as {
+    current: {
+      time: string;
+      temperature_2m: number;
+      relative_humidity_2m: number;
+      apparent_temperature: number;
+      is_day: number;
+      precipitation: number;
+      weather_code: number;
+      cloud_cover: number;
+      wind_speed_10m: number;
+      wind_direction_10m: number;
+      wind_gusts_10m: number;
+    };
+    hourly?: HourlyWeather;
+  };
+  const c = data.current;
+  const sample: LiveWeatherSample = {
+    code: c.weather_code,
+    temp: c.temperature_2m,
+    feelsLike: c.apparent_temperature,
+    humidity: c.relative_humidity_2m,
+    cloudCover: c.cloud_cover,
+    precipitation: c.precipitation,
+    windSpeed: c.wind_speed_10m,
+    windGusts: c.wind_gusts_10m,
+    windDirection: c.wind_direction_10m,
+    isDay: Boolean(c.is_day),
+    observedAt: c.time,
+  };
+  const condition = conditionFromCode(sample.code, sample.windSpeed, sample.precipitation);
   return {
-    k,
-    temp: Math.round(c.temperature_2m),
-    night: !c.is_day,
+    sample,
+    condition,
+    label: liveConditionLabel(sample, condition),
+    temp: Math.round(sample.temp),
+    night: !sample.isDay,
+    forecast: buildLiveForecast(data.hourly, sample.observedAt),
   };
 }

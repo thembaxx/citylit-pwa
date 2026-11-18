@@ -29,6 +29,29 @@ export interface WeatherConditionSpec {
   label: string;
 }
 
+/** A continuous, real-world observation used to drive the 3D weather scene. */
+export interface LiveWeatherSample {
+  /** WMO weather code reported by the provider. */
+  code: number;
+  temp: number;
+  feelsLike: number;
+  /** Relative humidity, 0–100. */
+  humidity: number;
+  /** Cloud cover, 0–100. */
+  cloudCover: number;
+  /** Precipitation rate in mm/h. */
+  precipitation: number;
+  /** 10 m wind speed in km/h. */
+  windSpeed: number;
+  /** 10 m wind gust speed in km/h. */
+  windGusts: number;
+  /** 10 m wind direction in degrees. */
+  windDirection: number;
+  isDay: boolean;
+  /** Local-time timestamp of the observation, as reported by the provider. */
+  observedAt: string;
+}
+
 export interface WeatherDisplayState {
   condition: WeatherConditionKey;
   temp: number;
@@ -37,6 +60,8 @@ export interface WeatherDisplayState {
   timeText: string;
   city: string;
   source: string;
+  /** Present only when the state came from a real observation. */
+  live?: LiveWeatherSample;
 }
 
 export type AmbientKind = 'c' | 'b' | 's' | 'f';

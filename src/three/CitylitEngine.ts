@@ -9,6 +9,7 @@ import { ambientAudio } from '../audio/ambientAudio';
 import { LANDMARKS } from '../data/landmarks';
 import type {
   AmbientSiteProfile,
+  LiveWeatherSample,
   MediaItem,
   QualityIndex,
   QualitySetting,
@@ -119,7 +120,7 @@ export class CitylitEngine {
     this.renderer.toneMappingExposure = 1.08;
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
     }
 
     const canvas = this.renderer.domElement;
@@ -441,6 +442,11 @@ export class CitylitEngine {
 
   setWeather(condition: WeatherConditionKey, night: boolean, timeOfDay?: number): void {
     this.weather.applyCondition(condition, night, timeOfDay);
+  }
+
+  /** Apply a real observation: cloud, rain, fog, wind and storm flow into the scene. */
+  setLiveWeather(sample: LiveWeatherSample, timeOfDay: number): void {
+    this.weather.applyLiveSample(sample, timeOfDay);
   }
 
   setSeasonMonth(month: number, immediate = false): void {

@@ -22,11 +22,18 @@ import {
   getMonthCondition,
   getSASTParts,
   pad2,
+  type LiveWeatherResult,
 } from './data/weatherData';
 import { WEATHER_CONDITIONS } from './data/weatherData';
 import { useOnlineStatus, usePWARegistration } from './hooks/usePWAInstall';
 import { CitylitEngine } from './three/CitylitEngine';
-import type { CitylitSettings, WeatherConditionKey, WeatherDisplayState } from './types/citylit';
+import type {
+  CitylitSettings,
+  ForecastSlot,
+  LiveWeatherSample,
+  WeatherConditionKey,
+  WeatherDisplayState,
+} from './types/citylit';
 
 function readInitialLandmarkIndex(): number {
   const hash = window.location.hash.slice(1).toLowerCase();
@@ -103,7 +110,13 @@ export function App() {
     const { h, m } = getSASTParts();
     return h + m / 60;
   });
+  /** True once the user has taken manual control of the time-of-day slider. */
+  const [timeScrubbed, setTimeScrubbed] = useState(false);
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+  /** Real hourly forecast, used instead of the climate estimate when available. */
+  const [liveForecast, setLiveForecast] = useState<ForecastSlot[] | null>(null);
+  /** Most recent real observation, reused while a refresh is in flight. */
+  const lastLiveRef = useRef<{ index: number; result: LiveWeatherResult } | null>(null);
   const [weatherExpanded, setWeatherExpanded] = useState(false);
   const [weatherState, setWeatherState] = useState<WeatherDisplayState>(() => {
     const lm = LANDMARKS[readInitialLandmarkIndex()];
@@ -293,31 +306,64 @@ export function App() {
     const cond = getMonthCondition(index, month, timeHour);
     const night = timeHour < 6 || timeHour >= 19;
 
-    const applyState = (k: WeatherConditionKey, temp: number, isNight: boolean, source: string) => {
+    const applyState = (
+      k: WeatherConditionKey,
+      temp: number,
+      isNight: boolean,
+      source: string,
+      sample?: LiveWeatherSample,
+      label?: string,
+      nextForecast?: ForecastSlot[]
+    ) => {
+      const live = source === 'Live' ? sample : undefined;
       setWeatherState({
         condition: k,
         temp,
         night: isNight,
-        label: WEATHER_CONDITIONS[k].label,
+        label: label ?? WEATHER_CONDITIONS[k].label,
         timeText: `${pad2(Math.floor(timeHour))}:${pad2(Math.floor((timeHour % 1) * 60))} SAST`,
         city,
         source,
+        live,
       });
-      engineRef.current?.setWeather(k, isNight, timeHour);
+      setLiveForecast(live && nextForecast?.length ? nextForecast : null);
+      if (live) {
+        engineRef.current?.setLiveWeather(live, timeHour);
+      } else {
+        engineRef.current?.setWeather(k, isNight, timeHour);
+      }
+    };
+
+    const applyLive = (result: LiveWeatherResult) => {
+      lastLiveRef.current = { index, result };
+      applyState(
+        result.condition,
+        result.temp,
+        result.night,
+        'Live',
+        result.sample,
+        result.label,
+        result.forecast
+      );
     };
 
     engineRef.current?.setSeasonMonth(month);
-    applyState(cond.k, cond.temp, night, 'Climate');
+    const cached = lastLiveRef.current;
+    if (isNow && isOnline && cached?.index === index) {
+      // Keep the scene on real conditions while the next observation loads.
+      applyLive(cached.result);
+    } else {
+      applyState(cond.k, cond.temp, night, 'Climate');
+    }
 
     if (isNow && isOnline) {
       let cancelled = false;
       fetchLiveWeather(index)
         .then((live) => {
-          if (cancelled) return;
-          applyState(live.k, live.temp, live.night, 'Live');
+          if (!cancelled) applyLive(live);
         })
         .catch(() => {
-          // Keep climatology estimate when offline or API unreachable
+          // Keep the last observation, or the climatology estimate, on failure
         });
       return () => {
         cancelled = true;
@@ -326,17 +372,15 @@ export function App() {
     return undefined;
   }, [index, month, timeHour, isOnline]);
 
-  // Keep SAST clock ticking when user isn't scrubbing custom time
+  // Keep the scene on SAST real time until the user takes manual control
   useEffect(() => {
+    if (timeScrubbed) return undefined;
     const timer = window.setInterval(() => {
       const { h, m } = getSASTParts();
-      setWeatherState((prev) => ({
-        ...prev,
-        timeText: `${pad2(h)}:${pad2(m)} SAST`,
-      }));
-    }, 30000);
+      setTimeHour(h + m / 60);
+    }, 60000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [timeScrubbed]);
 
   // Stamp Explorer Passport after lingering 3 seconds on a landmark
   useEffect(() => {
@@ -513,7 +557,10 @@ export function App() {
     }
   }, [globeOpen, visited]);
 
-  const forecast = useMemo(() => getForecastSlots(index, month), [index, month]);
+  const forecast = useMemo(
+    () => liveForecast ?? getForecastSlots(index, month),
+    [liveForecast, index, month]
+  );
   const bestMonths = useMemo(() => getBestMonths(index), [index]);
 
   return (
@@ -556,6 +603,7 @@ export function App() {
               onChange={(e) => {
                 const val = Number(e.target.value);
                 setTimeHour(val);
+                setTimeScrubbed(true);
                 engineRef.current?.setSunAltitudeFromSlider(val);
               }}
               aria-label="Time of day hour"
@@ -568,6 +616,19 @@ export function App() {
               <span>Dusk</span>
               <span>Night</span>
             </div>
+            {timeScrubbed && (
+              <button
+                type="button"
+                onClick={() => {
+                  const { h, m } = getSASTParts();
+                  setTimeHour(h + m / 60);
+                  setTimeScrubbed(false);
+                }}
+                className="mt-2 w-full py-1 rounded-lg border border-[#e8b04a]/45 bg-[#e8b04a]/10 text-[11px] text-[#e8b04a] cursor-pointer"
+              >
+                Return to live time
+              </button>
+            )}
           </div>
         )}
 
@@ -585,6 +646,7 @@ export function App() {
           onToggleExpand={() => setWeatherExpanded((v) => !v)}
           onSelectTimePreset={(h) => {
             setTimeHour(h);
+            setTimeScrubbed(true);
             engineRef.current?.setSunAltitudeFromSlider(h);
           }}
           onChangeMonth={(m) => setMonth(m)}
@@ -747,6 +809,7 @@ export function App() {
           onSelectLandmark={(i) => selectLandmark(i)}
           onSelectTime={(h) => {
             setTimeHour(h);
+            setTimeScrubbed(true);
             engineRef.current?.setSunAltitudeFromSlider(h);
           }}
           onToggleFavorite={toggleFavorite}

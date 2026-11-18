@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { WEATHER_CONDITIONS } from '../data/weatherData';
-import type { WeatherConditionKey } from '../types/citylit';
+import { liveWeatherVisual, WEATHER_CONDITIONS } from '../data/weatherData';
+import type { LiveWeatherSample, WeatherConditionKey } from '../types/citylit';
 import { getSoftTexture, SKY_NOISE_GLSL, WU } from './shaders';
 
 export interface WeatherTargetState {
@@ -26,6 +26,8 @@ export interface WeatherSceneController {
   current: WeatherTargetState;
   target: WeatherTargetState;
   applyCondition: (key: WeatherConditionKey, night: boolean, timeOfDay?: number) => void;
+  /** Drive the scene from a real observation using continuous values. */
+  applyLiveSample: (sample: LiveWeatherSample, timeOfDay: number) => void;
   setSeasonMonth: (month: number, immediate?: boolean) => void;
   triggerRainbow: (duration?: number) => void;
   setHidden: (hidden: boolean) => void;
@@ -243,6 +245,11 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const botNightTmp = new THREE.Color('#060810');
   const dayTopTmp = new THREE.Color();
 
+  // Endpoints for sky tinting from a real cloud-cover reading.
+  const liveClearSky = new THREE.Color('#3b6490');
+  const liveOvercastSky = new THREE.Color('#4d5560');
+  const liveStormSky = new THREE.Color('#232733');
+
   // Southern Hemisphere seasonal lighting palette helpers (zero-GC pre-allocated)
   const initialSeason = monthToSeasonWeights(new Date().getMonth() + 1);
   const seasonCurrent: SeasonWeights = { ...initialSeason };
@@ -283,6 +290,21 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     } else {
       target.timeOfDay = night ? 22 : 13;
     }
+  };
+
+  const applyLiveSample = (sample: LiveWeatherSample, timeOfDay: number) => {
+    const visual = liveWeatherVisual(sample);
+    target.sky
+      .copy(liveClearSky)
+      .lerp(liveOvercastSky, visual.cover)
+      .lerp(liveStormSky, visual.storm * 0.7);
+    target.cover = visual.cover;
+    target.rain = visual.rain;
+    target.fog = visual.fog;
+    target.wind = visual.wind;
+    target.storm = visual.storm;
+    target.night = sample.isDay ? 0 : 1;
+    target.timeOfDay = timeOfDay;
   };
 
   const setSeasonMonth = (month: number, immediate = false) => {
@@ -478,6 +500,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     current,
     target,
     applyCondition,
+    applyLiveSample,
     setSeasonMonth,
     triggerRainbow,
     setHidden,
