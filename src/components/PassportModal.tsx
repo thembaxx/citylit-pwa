@@ -26,7 +26,7 @@ function ProvinceRing({ ratio, label, sub, reducedMotion, index }: ProvinceRingP
   return (
     <motion.div
       variants={reducedMotion ? undefined : revealItem}
-      className="flex flex-col items-center text-center p-2.5 rounded-xl bg-white/[0.04] border border-white/10"
+      className="flex flex-col items-center text-center p-3 rounded-xl bg-white/[0.04] border border-white/10"
     >
       <svg viewBox="0 0 60 60" className="w-14 h-14 -rotate-90">
         <circle cx="30" cy="30" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="5" />
@@ -48,8 +48,8 @@ function ProvinceRing({ ratio, label, sub, reducedMotion, index }: ProvinceRingP
           }
         />
       </svg>
-      <div className="text-[12px] font-medium text-[#f3efe6] mt-1.5 leading-tight">{label}</div>
-      <div className="text-[11px] font-mono tabular-nums text-[#a9a69e] mt-0.5">{sub}</div>
+      <div className="text-[12px] font-medium text-[#f3efe6] mt-2 leading-tight">{label}</div>
+      <div className="text-[11px] font-mono tabular-nums text-[#a9a69e] mt-1">{sub}</div>
     </motion.div>
   );
 }
@@ -72,7 +72,7 @@ export function PassportModal({
       reducedMotion={reducedMotion}
       title="Explorer Passport"
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <small className="text-[#e8b04a] tracking-[0.12em] uppercase text-[11px]">
@@ -93,12 +93,12 @@ export function PassportModal({
           </motion.button>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-[#e8b04a]/10 border border-[#e8b04a]/30">
+        <div className="flex items-start justify-between gap-3 px-4 py-3.5 rounded-2xl bg-[#e8b04a]/10 border border-[#e8b04a]/30">
           <div>
             <div className="text-[20px] font-semibold text-[#f3efe6] font-mono tabular-nums">
               {totalVisited} / {totalCount} Stamped
             </div>
-            <div className="text-[12px] text-[#a9a69e]">
+            <div className="text-[12px] text-[#a9a69e] mt-1 leading-relaxed">
               {totalVisited === totalCount
                 ? `All ${provinces.length} provinces completed!`
                 : 'Spend 3 seconds at a landmark to stamp your passport.'}
@@ -119,7 +119,7 @@ export function PassportModal({
           variants={reducedMotion ? undefined : revealVariants}
           initial={reducedMotion ? false : 'initial'}
           animate="animate"
-          className="grid grid-cols-3 gap-2.5"
+          className="grid grid-cols-3 gap-3"
         >
           {provinces.map((pv, i) => {
             const list = LANDMARKS.map((lm, j) => ({ lm, j })).filter((x) => x.lm.c.endsWith(pv));
@@ -137,7 +137,7 @@ export function PassportModal({
           })}
         </motion.div>
 
-        <div className="flex justify-end pt-1">
+        <div className="flex justify-end pt-3.5 border-t border-white/10">
           <button
             type="button"
             onClick={onResetPassport}

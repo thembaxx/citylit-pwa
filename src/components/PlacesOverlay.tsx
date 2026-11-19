@@ -241,7 +241,7 @@ export function PlacesOverlay({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.985 }}
             transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
-            className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3 shadow-2xl pointer-events-auto"
+            className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3.5 shadow-2xl pointer-events-auto"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 min-w-0 text-[10.5px] uppercase tracking-[0.12em] text-[#e8b04a] truncate">
@@ -266,14 +266,14 @@ export function PlacesOverlay({
               )}
             </div>
 
-            <div className="font-serif-display italic text-[22px] leading-tight text-[#f3efe6] mt-0.5">
+            <div className="font-serif-display italic text-[22px] leading-tight text-[#f3efe6] mt-1">
               {activeLandmark.k}
             </div>
-            <div className="text-[12px] text-[#a9a69e] mt-0.5 truncate">
+            <div className="text-[12px] text-[#a9a69e] mt-1 truncate">
               {selectedPlace.subtitle}
             </div>
 
-            <div className="flex items-center justify-between gap-2 mt-2.5 pt-2 border-t border-white/10">
+            <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/10">
               <div className="flex items-center gap-1.5">
                 <motion.button
                   type="button"

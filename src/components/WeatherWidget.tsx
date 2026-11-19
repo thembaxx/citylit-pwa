@@ -65,8 +65,8 @@ export function WeatherWidget({
         transition={reducedMotion ? { duration: 0 } : SPRING.surface}
         className={`weather-panel bg-[#121319]/92 border border-white/15 squircle-card shadow-lg ${
           expanded
-            ? 'w-[min(350px,calc(100vw-72px))] py-3 px-4 overflow-y-auto overscroll-contain no-scrollbar'
-            : 'max-w-[calc(100vw-78px)] px-3 py-1.5'
+            ? 'w-[min(350px,calc(100vw-72px))] py-3.5 px-4 overflow-y-auto overscroll-contain no-scrollbar'
+            : 'max-w-[calc(100vw-78px)] px-3.5 py-2'
         }`}
       >
         <motion.button
@@ -77,7 +77,7 @@ export function WeatherWidget({
             onTriggerRainbow();
           }}
           aria-expanded={expanded}
-          className="flex items-center gap-2.5 w-full text-left cursor-pointer"
+          className="flex items-center gap-3 w-full text-left cursor-pointer"
         >
           <motion.span layout={!reducedMotion} className="shrink-0">
             <WeatherIcon condition={weather.condition} night={weather.night} size={28} />
@@ -133,13 +133,13 @@ export function WeatherWidget({
               transition={{ duration: reducedMotion ? 0 : 0.4, ease: EASE_SMOOTH_OUT }}
               className="overflow-hidden"
             >
-              <div className="mt-3 pt-2.5 border-t border-white/10 space-y-2.5">
+              <div className="mt-3.5 pt-3 border-t border-white/10 space-y-3">
                 <div className="weather-forecast grid grid-cols-5 gap-1 text-center">
                   {forecast.map((slot) => (
                     <motion.div
                       key={slot.label}
                       whileHover={reducedMotion ? undefined : { y: -2 }}
-                      className="flex flex-col items-center py-1 rounded-lg bg-white/[0.03]"
+                      className="flex flex-col items-center py-1.5 rounded-lg bg-white/[0.03]"
                     >
                       <span className="text-[10px] text-[#a9a69e]">{slot.label}</span>
                       <WeatherIcon
@@ -165,7 +165,7 @@ export function WeatherWidget({
                     ].map(([label, value]) => (
                       <div
                         key={label}
-                        className="flex items-center justify-between px-2 py-1 rounded-lg bg-white/[0.03]"
+                        className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/[0.03]"
                       >
                         <span className="text-[10px] text-[#a9a69e]">{label}</span>
                         <span className="text-[11px] font-medium text-[#f3efe6]">{value}</span>
@@ -178,6 +178,7 @@ export function WeatherWidget({
                   layoutId="weather-time-preset"
                   reducedMotion={reducedMotion}
                   className="w-full justify-between"
+                  compact
                   value={(activePreset ?? 'noon') as PresetKey}
                   onChange={(key) =>
                     onSelectTimePreset(TIME_PRESETS.find((p) => p.value === key)!.hour)
@@ -198,7 +199,7 @@ export function WeatherWidget({
                 />
 
                 <div>
-                  <div className="flex items-center justify-between text-[11px] text-[#a9a69e] mb-1">
+                  <div className="flex items-center justify-between text-[11px] text-[#a9a69e] mb-1.5">
                     <span>
                       {getSeasonName(month)} · {MONTHS[month - 1]}
                     </span>
@@ -214,7 +215,7 @@ export function WeatherWidget({
                     aria-label="Select month"
                     className="w-full accent-[#e8b04a] cursor-pointer"
                   />
-                  <div className="flex justify-between text-[10px] font-mono text-[#a9a69e]/75 mt-0.5">
+                  <div className="flex justify-between text-[10px] font-mono text-[#a9a69e]/75 mt-1">
                     <span>Jan</span>
                     <span>Apr</span>
                     <span>Jul</span>

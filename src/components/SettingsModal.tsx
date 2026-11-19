@@ -82,7 +82,7 @@ export function SettingsModal({
 
   return (
     <SettleModal open={open} onClose={onClose} reducedMotion={reducedMotion} title="Settings">
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-6">
         <h2 className="font-serif-display italic text-[24px] text-[#f3efe6] m-0">Settings</h2>
         <motion.button
           type="button"
@@ -95,9 +95,9 @@ export function SettingsModal({
         </motion.button>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[14px] text-[#f3efe6]">Scene backdrop</span>
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Scene backdrop</span>
           <PillNavigation<ThemeSetting>
             layoutId="settings-theme"
             reducedMotion={reducedMotion}
@@ -108,8 +108,8 @@ export function SettingsModal({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[14px] text-[#f3efe6]">Graphics quality</span>
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Graphics quality</span>
           <PillNavigation<QualitySetting>
             layoutId="settings-quality"
             reducedMotion={reducedMotion}
@@ -120,8 +120,8 @@ export function SettingsModal({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[14px] text-[#f3efe6] inline-flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <span className="text-[14px] text-[#f3efe6] inline-flex items-center gap-2 whitespace-nowrap">
             <SpeakerHigh size={15} className="text-[#e8b04a]" />
             <span>Master volume</span>
           </span>
@@ -144,7 +144,7 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className="pt-3.5 border-t border-white/10 space-y-3">
+        <div className="pt-4.5 border-t border-white/10 space-y-3.5">
           <div className="flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.14em] uppercase text-[#e8b04a]">
               <SlidersHorizontal size={14} />
@@ -164,7 +164,7 @@ export function SettingsModal({
             )}
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {MIXER_CHANNELS.map(({ key, label, icon: Icon }) => {
               const value = mixer[key];
               const muted = value === 0;
@@ -203,9 +203,9 @@ export function SettingsModal({
           </div>
         </div>
 
-        <div className="pt-3.5 border-t border-white/10 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[14px] text-[#f3efe6]">Haptic feedback</span>
+        <div className="pt-4.5 border-t border-white/10 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Haptic feedback</span>
             <LiquidToggle
               label="Haptic feedback"
               value={settings.haptics}
@@ -214,8 +214,8 @@ export function SettingsModal({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[14px] text-[#f3efe6]">Motion</span>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Motion</span>
             <PillNavigation<MotionSetting>
               layoutId="settings-motion"
               reducedMotion={reducedMotion}
@@ -226,8 +226,8 @@ export function SettingsModal({
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-[14px] text-[#f3efe6]">Gyroscope tilt</span>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Gyroscope tilt</span>
             <LiquidToggle
               label="Gyroscope tilt"
               value={settings.tilt}

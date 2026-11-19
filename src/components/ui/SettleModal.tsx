@@ -55,7 +55,7 @@ export function SettleModal({
             initial={reducedMotion ? { opacity: 0 } : 'initial'}
             animate={reducedMotion ? { opacity: 1 } : 'animate'}
             exit={reducedMotion ? { opacity: 0 } : 'exit'}
-            className={`relative w-full max-w-md max-h-[calc(100dvh-32px)] overflow-y-auto bg-[#14161e] border border-white/15 rounded-3xl p-5 shadow-2xl no-scrollbar ${className}`}
+            className={`relative w-full max-w-md max-h-[calc(100dvh-32px)] overflow-y-auto bg-[#14161e] border border-white/15 rounded-3xl px-5 py-6 shadow-2xl no-scrollbar ${className}`}
           >
             <motion.div
               initial={reducedMotion ? false : inner.initial}

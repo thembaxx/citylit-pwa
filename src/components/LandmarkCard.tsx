@@ -170,7 +170,7 @@ export function LandmarkCard({
             e.preventDefault();
             openRadial(e.clientX, e.clientY);
           }}
-          className="relative bg-[#121319]/92 border border-white/15 squircle-card p-4 landscape:p-3 [@media(max-height:700px)]:p-3 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
+          className="relative bg-[#121319]/92 border border-white/15 squircle-card px-4 py-[18px] landscape:px-3.5 landscape:py-3.5 [@media(max-height:700px)]:px-3.5 [@media(max-height:700px)]:py-3.5 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
         >
           <div className="flex items-start justify-between gap-3">
             <motion.div
@@ -191,7 +191,7 @@ export function LandmarkCard({
               <motion.h1
                 layoutId="landmark-title"
                 transition={reducedMotion ? { duration: 0 } : SPRING.morph}
-                className="mt-0.5 mb-1.5 font-serif-display italic text-[27px] landscape:text-[21px] [@media(max-height:700px)]:text-[23px] leading-[1.1] text-[#f3efe6] pr-2"
+                className="mt-1 mb-2.5 font-serif-display italic text-[27px] landscape:text-[21px] landscape:mb-2 [@media(max-height:700px)]:text-[23px] [@media(max-height:700px)]:mb-2 leading-[1.15] text-[#f3efe6] pr-2"
               >
                 {lm.k}
               </motion.h1>
@@ -237,7 +237,7 @@ export function LandmarkCard({
             {lm.f}
           </p>
 
-          <div className="flex items-center gap-2.5 mt-3 landscape:mt-2">
+          <div className="flex items-center gap-2.5 mt-3.5 landscape:mt-2.5 [@media(max-height:700px)]:mt-2.5">
             <motion.button
               type="button"
               whileTap={reducedMotion ? undefined : { scale: 0.96 }}

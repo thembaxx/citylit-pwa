@@ -72,7 +72,7 @@ export function InfoDrawer({
       label={`${lm.k} historical and architectural info`}
       className="pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]"
     >
-      <header className="px-5 pt-4 pb-3.5 border-b border-white/12 flex items-start justify-between gap-3 shrink-0">
+      <header className="px-5 pt-5 pb-4 border-b border-white/12 flex items-start justify-between gap-3 shrink-0">
         <div className="min-w-0">
           <small className="block text-[#e8b04a] tracking-[0.14em] uppercase text-[11px]">
             {lm.c} · Info
@@ -80,11 +80,11 @@ export function InfoDrawer({
           <motion.h2
             layoutId="landmark-title"
             transition={reducedMotion ? { duration: 0 } : SPRING.morph}
-            className="font-serif-display italic text-[28px] leading-[1.1] text-[#f3efe6] mt-0.5 mb-0"
+            className="font-serif-display italic text-[28px] leading-[1.15] text-[#f3efe6] mt-1 mb-0"
           >
             {lm.k}
           </motion.h2>
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[#a9a69e]">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12px] text-[#a9a69e]">
             <span className="inline-flex items-center gap-1 tabular-nums">
               <MapPin size={13} className="text-[#e8b04a]" />
               {formatCoords(lm.coords)}
@@ -112,7 +112,7 @@ export function InfoDrawer({
         variants={reducedMotion ? undefined : revealVariants}
         initial={reducedMotion ? false : 'initial'}
         animate="animate"
-        className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4 overscroll-contain"
+        className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-5 overscroll-contain"
       >
         <motion.div variants={reducedMotion ? undefined : revealItem}>
           <div className="flex items-center justify-between gap-2">
@@ -160,19 +160,19 @@ export function InfoDrawer({
                     </span>
                   ),
                   content: (
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       <dl className="m-0 divide-y divide-white/10 text-[13px]">
-                        <div className="py-2 flex justify-between gap-4">
+                        <div className="py-2.5 flex justify-between gap-4">
                           <dt className="text-[#a9a69e] shrink-0">Style / Form</dt>
                           <dd className="m-0 text-right text-[#f3efe6]">{detail.styleOrType}</dd>
                         </div>
-                        <div className="py-2 flex justify-between gap-4">
+                        <div className="py-2.5 flex justify-between gap-4">
                           <dt className="text-[#a9a69e] shrink-0">Origin / Architect</dt>
                           <dd className="m-0 text-right text-[#f3efe6]">
                             {detail.architectOrOrigin}
                           </dd>
                         </div>
-                        <div className="py-2 flex justify-between gap-4">
+                        <div className="py-2.5 flex justify-between gap-4">
                           <dt className="text-[#a9a69e] shrink-0">Scale</dt>
                           <dd className="m-0 text-right text-[#f3efe6] tabular-nums">
                             {detail.scale}
@@ -201,7 +201,7 @@ export function InfoDrawer({
                         content: (
                           <ul className="m-0 p-0 list-none divide-y divide-white/10">
                             {lm.dots.map((dot, idx) => (
-                              <li key={`${lm.k}-dot-${idx}`} className="py-2 text-[#f3efe6]/85">
+                              <li key={`${lm.k}-dot-${idx}`} className="py-2.5 text-[#f3efe6]/85">
                                 {dot[3]}
                               </li>
                             ))}

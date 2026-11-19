@@ -161,7 +161,7 @@ function GalleryDialog({
           <h2 className="font-serif-display italic text-[26px] leading-tight text-[#f3efe6] m-0">
             {lm.k}
           </h2>
-          <p className="text-[12.5px] text-[#a9a69e] mt-1">
+          <p className="text-[12.5px] text-[#a9a69e] mt-1.5">
             {loading
               ? 'Loading photos from Wikimedia Commons…'
               : usingFallback
@@ -239,7 +239,7 @@ function GalleryDialog({
       </motion.div>
 
       {!loading && activeItem && (
-        <div className="max-w-xl mx-auto w-full text-center space-y-2.5">
+        <div className="max-w-xl mx-auto w-full text-center space-y-3">
           <div className="flex items-center justify-center gap-3">
             <motion.button
               type="button"

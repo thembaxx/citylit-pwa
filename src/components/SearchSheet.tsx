@@ -144,7 +144,7 @@ export function SearchSheet({
       label="Browse all landmarks"
       className="px-3.5 pt-1 pb-[calc(14px+env(safe-area-inset-bottom,0px))]"
     >
-      <div className="flex items-center gap-2 mb-2.5">
+      <div className="flex items-center gap-2 mb-3">
         <div className="relative flex-1 min-w-0">
           <input
             ref={inputRef}
@@ -199,7 +199,7 @@ export function SearchSheet({
             exit={{ opacity: 0, y: -4, filter: 'blur(2px)' }}
             transition={swapTransition}
             aria-live="polite"
-            className="mb-2.5 flex items-center gap-1.5 text-[12px] text-[#e8b04a]"
+            className="mb-3 flex items-center gap-1.5 text-[12px] text-[#e8b04a]"
           >
             <Clock size={13} weight="fill" />
             <span>
@@ -218,10 +218,10 @@ export function SearchSheet({
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="mb-2.5 px-3 py-2.5 rounded-2xl bg-[#e8b04a]/10 border border-[#e8b04a]/30 flex items-center justify-between gap-2.5">
-              <div className="min-w-0">
+            <div className="mb-3 px-3.5 py-3 rounded-2xl bg-[#e8b04a]/10 border border-[#e8b04a]/30 flex items-center justify-between gap-2.5">
+              <div className="min-w-0 space-y-1">
                 <div className="text-[13px] font-medium text-[#f3efe6]">Install Citylit</div>
-                <div className="text-[11.5px] text-[#a9a69e] flex items-center gap-1 flex-wrap">
+                <div className="text-[11.5px] leading-relaxed text-[#a9a69e] flex items-center gap-1 flex-wrap">
                   {isInstallable ? (
                     'Add to your home screen for offline 3D landmarks.'
                   ) : (
@@ -258,7 +258,7 @@ export function SearchSheet({
         )}
       </AnimatePresence>
 
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 shrink-0">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2.5 shrink-0">
         {['All', 'Saved', ...PROVINCES.filter((p) => p !== 'All')].map((pv) => {
           const active = province === pv;
           return (
@@ -291,7 +291,7 @@ export function SearchSheet({
         })}
       </div>
 
-      <div className="text-[12px] text-[#a9a69e] pb-2 shrink-0">
+      <div className="text-[12px] text-[#a9a69e] pb-2.5 shrink-0">
         {filteredIndices.length} of {LANDMARKS.length} landmarks · {visited.size} stamped
       </div>
 
@@ -300,7 +300,7 @@ export function SearchSheet({
           variants={reducedMotion ? undefined : revealVariants}
           initial={reducedMotion ? false : 'initial'}
           animate="animate"
-          className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2.5 pb-2"
+          className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 pb-3"
         >
           <AnimatePresence mode="popLayout">
             {filteredIndices.map(({ lm, i }) => {
@@ -366,11 +366,11 @@ export function SearchSheet({
                         <Heart size={14} weight={isFav ? 'fill' : 'regular'} />
                       </motion.button>
                     </div>
-                    <div className="p-2.5">
+                    <div className="p-3">
                       <div className="text-[13px] font-medium text-[#f3efe6] leading-snug line-clamp-1">
                         {lm.k}
                       </div>
-                      <div className="text-[11px] text-[#a9a69e] mt-0.5 line-clamp-1">{lm.c}</div>
+                      <div className="text-[11px] text-[#a9a69e] mt-1 line-clamp-1">{lm.c}</div>
                     </div>
                   </div>
                 </motion.div>
