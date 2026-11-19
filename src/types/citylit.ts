@@ -1,6 +1,7 @@
 export type QualitySetting = 'auto' | 'high' | 'balanced' | 'low';
 export type QualityIndex = 0 | 1 | 2;
 export type MotionSetting = 'auto' | 'reduce';
+export type ThemeSetting = 'dark' | 'daylight';
 
 export interface AmbientMixerSettings {
   wind: number;
@@ -15,6 +16,7 @@ export interface CitylitSettings {
   haptics: boolean;
   motion: MotionSetting;
   tilt: boolean;
+  theme: ThemeSetting;
 }
 
 export type WeatherConditionKey = 'sun' | 'partly' | 'cloud' | 'rain' | 'storm' | 'fog' | 'wind';

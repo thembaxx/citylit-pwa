@@ -11,6 +11,7 @@ import {
   add,
   C,
   CB,
+  finalizeContactShadows,
   finalizeTreeBatch,
   G,
   grassTufts,
@@ -21,6 +22,7 @@ import {
   MWood,
   R,
   scatterRocks,
+  stampContactShadowsFromMeshes,
   stream,
   tree,
   type InstanceTransform,
@@ -1141,6 +1143,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   addTreeRing(group, profile, angle);
   const updates = addAnchor(group, profile, angle);
   finalizeTreeBatch(group);
+  stampContactShadowsFromMeshes(group);
+  finalizeContactShadows(group);
 
   const fx = addWeatherFx(group, profile);
   for (let i = 0; i < fx.length; i++) updates.push(fx[i]);

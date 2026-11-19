@@ -76,6 +76,7 @@ function readSettings(): CitylitSettings {
         haptics: parsed.haptics ?? true,
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
+        theme: parsed.theme === 'daylight' ? 'daylight' : 'dark',
       };
     }
   } catch {
@@ -88,6 +89,7 @@ function readSettings(): CitylitSettings {
     haptics: true,
     motion: 'auto',
     tilt: false,
+    theme: 'dark',
   };
 }
 
@@ -269,6 +271,7 @@ export function App() {
     engineRef.current = engine;
 
     const initialIdx = readInitialLandmarkIndex();
+    engine.setTheme(readSettings().theme);
     engine.setSeasonMonth(new Date().getMonth() + 1, true);
     engine.showLandmarkImmediate(initialIdx);
 
@@ -301,6 +304,7 @@ export function App() {
       reducedMotion,
     });
     engineRef.current?.applyQuality(settings.quality);
+    engineRef.current?.setTheme(settings.theme);
     engineRef.current?.setMotionPreferences(reducedMotion);
     engineRef.current?.setTiltEnabled(settings.tilt);
     try {
@@ -643,7 +647,11 @@ export function App() {
         {!globeOpen && !placesOpen && (
           <div
             aria-hidden="true"
-            className="fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]"
+            className={`fixed inset-0 pointer-events-none transition-opacity duration-500 ${
+              settings.theme === 'daylight'
+                ? 'bg-[radial-gradient(ellipse_at_center,transparent_64%,rgba(16,32,48,0.16))]'
+                : 'bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]'
+            }`}
           />
         )}
 
@@ -654,6 +662,7 @@ export function App() {
           fullscreen={fullscreen}
           idleInFullscreen={idleInFullscreen}
           globeOpen={globeOpen || placesOpen}
+          theme={settings.theme}
           reducedMotion={reducedMotion}
           onToggleSound={() => setSoundOn(ambientAudio.toggle())}
           onToggleTod={() => setTodOpen((v) => !v)}
@@ -745,7 +754,11 @@ export function App() {
 
         {/* Desktop Orbit Hint */}
         {!fullscreen && !globeOpen && !placesOpen && hintVisible && (
-          <div className="hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] text-[#a9a69e] pointer-events-none">
+          <div
+            className={`hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] pointer-events-none ${
+              settings.theme === 'daylight' ? 'text-[#1c2330]/75' : 'text-[#a9a69e]'
+            }`}
+          >
             Drag to orbit · Scroll to zoom · Tap pins for facts
           </div>
         )}

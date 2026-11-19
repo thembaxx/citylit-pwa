@@ -74,9 +74,7 @@ export function WeatherIcon({
     case 'rain':
       return <CloudRain {...props} className={`text-sky-300 ${className}${animClass}`} />;
     case 'storm':
-      return (
-        <CloudLightning {...props} className={`text-indigo-300 ${className}${animClass}`} />
-      );
+      return <CloudLightning {...props} className={`text-indigo-300 ${className}${animClass}`} />;
     case 'fog':
       return <CloudFog {...props} className={`text-zinc-300 ${className}${animClass}`} />;
     case 'wind':

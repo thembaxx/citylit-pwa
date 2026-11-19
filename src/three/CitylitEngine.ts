@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { N8AOPass } from 'n8ao';
 import { ambientAudio } from '../audio/ambientAudio';
 import { LANDMARKS } from '../data/landmarks';
 import type {
@@ -13,17 +16,20 @@ import type {
   MediaItem,
   QualityIndex,
   QualitySetting,
+  ThemeSetting,
   WeatherConditionKey,
 } from '../types/citylit';
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
 import {
   glowMaterials,
   resetSceneDynamicLists,
+  setContactShadowFade,
   swayItems,
   updateWetSurfaces,
 } from './builders/primitives';
 import { createGlobeScene, type GlobeController } from './globeScene';
 import { createPlacesScene, type PlacesController, type PlacesSelectionInfo } from './placesScene';
+import { createMiniaturePass, type MiniaturePass, type MiniatureTuning } from './postfx';
 import { getSoftTexture, installDissolveShader, WU } from './shaders';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
@@ -53,17 +59,29 @@ export class CitylitEngine {
   readonly places: PlacesController;
   readonly atmosphere: AtmosphereSceneController;
 
+  readonly miniatureTuning: MiniatureTuning = {
+    focusY: 0.49,
+    focusRange: 0.2,
+    blur: 1.7,
+    vignette: 0.2,
+  };
+
   private readonly pmrem: THREE.PMREMGenerator;
-  private readonly envTex: THREE.Texture;
+  private envTex: THREE.Texture;
   private readonly composer: EffectComposer;
   private readonly renderPass: RenderPass;
+  private readonly n8aoPass: N8AOPass;
   private readonly bloomPass: UnrealBloomPass;
+  private readonly miniaturePass: MiniaturePass;
+  private readonly smaaPass: SMAAPass;
   private readonly outputPass: OutputPass;
 
   private readonly keyLight: THREE.DirectionalLight;
   private readonly fillLight: THREE.DirectionalLight;
   private readonly hemiLight: THREE.HemisphereLight;
   private readonly plinthGroup: THREE.Group;
+  private readonly plinthTopMat: THREE.MeshStandardMaterial;
+  private readonly plinthBaseMat: THREE.MeshStandardMaterial;
   private readonly ringMat: THREE.MeshStandardMaterial;
   private readonly heroRoot: THREE.Group;
   private readonly markerGroup: THREE.Group;
@@ -87,9 +105,12 @@ export class CitylitEngine {
 
   private qualitySetting: QualitySetting = 'auto';
   private qualityIndex: QualityIndex = 0;
+  private theme: ThemeSetting = 'dark';
   private motionScale = 1;
   private autoRotateSpeed = 0.3;
   private contextLost = false;
+  private usingSkyHdr = false;
+  private shadowFrameCounter = 0;
   private autoScaleTimer = 0;
   private autoScaleSamples = 0;
   private autoScaleAcc = 0;
@@ -103,6 +124,7 @@ export class CitylitEngine {
   private camGoalT = 1;
   private tapDown = { x: 0, y: 0, t: 0 };
   private lastPlaceTap = { sliceIndex: -1, t: 0 };
+  private lastPlaceSliceIndex = -1;
   private lastHoverCheck = 0;
   private pinchDist = 0;
 
@@ -123,10 +145,11 @@ export class CitylitEngine {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isSoftwareGl ? 1 : 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.0;
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.autoUpdate = false;
     }
 
     const canvas = this.renderer.domElement;
@@ -153,16 +176,64 @@ export class CitylitEngine {
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.envTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.scene.environment = this.envTex;
-    this.scene.environmentIntensity = 0.45;
+    this.scene.environmentIntensity = 0.48;
 
-    this.hemiLight = new THREE.HemisphereLight('#d9e7ff', '#1b1610', 1);
+    new HDRLoader().load(
+      '/assets/env/sky.hdr',
+      (hdrTex) => {
+        if (this.disposed) {
+          hdrTex.dispose();
+          return;
+        }
+        // Physical sky HDRIs contain extreme >60k-nit sun spikes that clip diffuse PBR albedo under PMREM.
+        // Compress luminance > 2.0 with a smooth log knee so specular reflections stay crisp while diffuse fill stays natural.
+        const raw = hdrTex.image?.data as Uint16Array | Float32Array | undefined;
+        if (raw) {
+          const isFloat32 = raw instanceof Float32Array;
+          for (let i = 0; i < raw.length; i += 4) {
+            const r = isFloat32 ? raw[i] : THREE.DataUtils.fromHalfFloat(raw[i]);
+            const g = isFloat32 ? raw[i + 1] : THREE.DataUtils.fromHalfFloat(raw[i + 1]);
+            const b = isFloat32 ? raw[i + 2] : THREE.DataUtils.fromHalfFloat(raw[i + 2]);
+            const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            if (lum > 2.0) {
+              const s = (2.0 + Math.log1p(lum - 2.0) * 0.8) / lum;
+              if (isFloat32) {
+                raw[i] = r * s;
+                raw[i + 1] = g * s;
+                raw[i + 2] = b * s;
+              } else {
+                raw[i] = THREE.DataUtils.toHalfFloat(r * s);
+                raw[i + 1] = THREE.DataUtils.toHalfFloat(g * s);
+                raw[i + 2] = THREE.DataUtils.toHalfFloat(b * s);
+              }
+            }
+          }
+          hdrTex.needsUpdate = true;
+        }
+        const prevEnv = this.envTex;
+        const pmremOut = this.pmrem.fromEquirectangular(hdrTex);
+        hdrTex.dispose();
+        this.envTex = pmremOut.texture;
+        this.usingSkyHdr = true;
+        this.scene.environment = this.envTex;
+        if (prevEnv && prevEnv !== this.envTex) {
+          prevEnv.dispose();
+        }
+      },
+      undefined,
+      () => {
+        // Keep RoomEnvironment fallback when offline or unavailable
+      }
+    );
+
+    this.hemiLight = new THREE.HemisphereLight('#d9e7ff', '#2a2016', 0.38);
     this.scene.add(this.hemiLight);
 
-    this.keyLight = new THREE.DirectionalLight('#fff5dd', 3.4);
+    this.keyLight = new THREE.DirectionalLight('#fff5dd', 2.8);
     this.keyLight.position.set(12, 18, 10);
     if (!this.isSoftwareGl) {
       this.keyLight.castShadow = true;
-      this.keyLight.shadow.mapSize.set(2048, 2048);
+      this.keyLight.shadow.mapSize.set(4096, 4096);
       this.keyLight.shadow.camera.near = 2;
       this.keyLight.shadow.camera.far = 45;
       this.keyLight.shadow.camera.left = -10;
@@ -170,45 +241,67 @@ export class CitylitEngine {
       this.keyLight.shadow.camera.top = 10;
       this.keyLight.shadow.camera.bottom = -10;
       this.keyLight.shadow.bias = -0.0005;
+      this.keyLight.shadow.normalBias = 0.03;
     }
     this.scene.add(this.keyLight);
 
-    this.fillLight = new THREE.DirectionalLight('#4a72b0', 0.8);
+    this.fillLight = new THREE.DirectionalLight('#4a72b0', 0.58);
     this.fillLight.position.set(-12, 8, -10);
     this.scene.add(this.fillLight);
 
-    // Post-processing pipeline
-    this.composer = new EffectComposer(this.renderer);
+    // Post-processing pipeline (MSAA render target + N8AO + Bloom + Tilt-Shift + SMAA + Output)
+    const composerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
+      type: THREE.HalfFloatType,
+      samples: this.isSoftwareGl ? 0 : 4,
+    });
+    this.composer = new EffectComposer(this.renderer, composerTarget);
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
+    this.composer.setSize(window.innerWidth, window.innerHeight);
+
     this.renderPass = new RenderPass(this.scene, this.camera);
+    this.n8aoPass = new N8AOPass(this.scene, this.camera, window.innerWidth, window.innerHeight);
+    this.n8aoPass.configuration.gammaCorrection = false;
+    this.n8aoPass.configuration.halfRes = true;
+    this.n8aoPass.configuration.aoRadius = 0.45;
+    this.n8aoPass.configuration.distanceFalloff = 1.0;
+    this.n8aoPass.configuration.intensity = 2.5;
+    this.n8aoPass.configuration.color.set('#000000');
+    this.n8aoPass.setQualityMode('Performance');
+
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.24,
       0.45,
       0.9
     );
+    this.miniaturePass = createMiniaturePass(this.miniatureTuning);
+    this.smaaPass = new SMAAPass();
     this.outputPass = new OutputPass();
+
     this.composer.addPass(this.renderPass);
+    this.composer.addPass(this.n8aoPass);
     this.composer.addPass(this.bloomPass);
+    this.composer.addPass(this.miniaturePass);
+    this.composer.addPass(this.smaaPass);
     this.composer.addPass(this.outputPass);
-    if (this.isSoftwareGl) {
-      this.bloomPass.enabled = false;
-    }
 
     // Plinth & glowing ring
     this.plinthGroup = new THREE.Group();
     this.scene.add(this.plinthGroup);
 
+    this.plinthTopMat = new THREE.MeshStandardMaterial({ color: '#1a1c24', roughness: 0.88 });
     const plinthTop = new THREE.Mesh(
       new THREE.CylinderGeometry(8.5, 9, 0.5, 72),
-      new THREE.MeshStandardMaterial({ color: '#1a1c24', roughness: 0.88 })
+      this.plinthTopMat
     );
     plinthTop.position.y = -0.25;
     plinthTop.receiveShadow = true;
     this.plinthGroup.add(plinthTop);
 
+    this.plinthBaseMat = new THREE.MeshStandardMaterial({ color: '#111218', roughness: 0.9 });
     const plinthBase = new THREE.Mesh(
       new THREE.CylinderGeometry(9.2, 9.6, 0.2, 72),
-      new THREE.MeshStandardMaterial({ color: '#111218', roughness: 0.9 })
+      this.plinthBaseMat
     );
     plinthBase.position.y = -0.6;
     this.plinthGroup.add(plinthBase);
@@ -271,6 +364,7 @@ export class CitylitEngine {
     );
     this.scene.add(this.places.group);
 
+    this.setQualityIndex(this.isSoftwareGl ? 2 : 0);
     this.bindEvents(canvas);
     this.lastTick = performance.now();
     this.scheduleNextFrame();
@@ -328,12 +422,14 @@ export class CitylitEngine {
         new THREE.SpriteMaterial({
           map: this.markerTexture!,
           depthTest: false,
+          depthWrite: false,
           transparent: true,
         })
       );
       sprite.position.set(x, y, z);
       sprite.scale.setScalar(0.6);
       sprite.userData.factText = text;
+      sprite.userData.cannotReceiveAO = true;
       sprite.renderOrder = 2;
       this.markerGroup.add(sprite);
       this.markerSprites.push(sprite);
@@ -345,7 +441,7 @@ export class CitylitEngine {
     const builder = LANDMARK_BUILDERS[meta.k];
     const group = builder ? builder() : new THREE.Group();
     group.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
+      if (obj instanceof THREE.Mesh && !obj.userData.noShadow) {
         obj.castShadow = !this.isSoftwareGl;
         obj.receiveShadow = !this.isSoftwareGl;
       }
@@ -364,6 +460,7 @@ export class CitylitEngine {
     }
     resetSceneDynamicLists(this.ringMat);
     this.currentGroup = this.buildLandmarkGroup(index);
+    setContactShadowFade(this.currentGroup, 1);
     ambientAudio.setSiteProfile(
       (this.currentGroup.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
     );
@@ -376,6 +473,9 @@ export class CitylitEngine {
     this.dissolvePhase = 0;
     WU.dy.value = 100;
     this.dustPoints.visible = false;
+    if (!this.isSoftwareGl) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
   }
 
   transitionToLandmark(index: number): void {
@@ -416,10 +516,52 @@ export class CitylitEngine {
 
   private setQualityIndex(idx: QualityIndex): void {
     this.qualityIndex = idx;
-    const pr = [Math.min(devicePixelRatio || 1, 2), Math.min(devicePixelRatio || 1, 1.4), 1][idx];
-    this.renderer.setPixelRatio(this.isSoftwareGl ? 1 : pr);
-    this.bloomPass.enabled = !this.isSoftwareGl && idx === 0;
-    this.renderer.shadowMap.enabled = !this.isSoftwareGl && idx < 2;
+    const rawPr = [Math.min(devicePixelRatio || 1, 2), Math.min(devicePixelRatio || 1, 1.4), 1][
+      idx
+    ];
+    const pr = this.isSoftwareGl ? 1 : rawPr;
+    this.renderer.setPixelRatio(pr);
+    this.composer.setPixelRatio(pr);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
+
+    const highFx = !this.isSoftwareGl && idx === 0;
+    this.n8aoPass.enabled = highFx;
+    this.renderPass.enabled = !highFx;
+    this.bloomPass.enabled = highFx;
+    this.miniaturePass.enabled = highFx;
+    this.smaaPass.enabled = highFx;
+
+    const shadowsOn = !this.isSoftwareGl && idx < 2;
+    this.renderer.shadowMap.enabled = shadowsOn;
+    if (shadowsOn) {
+      const targetSize = idx === 0 ? 4096 : 2048;
+      if (this.keyLight.shadow.mapSize.x !== targetSize) {
+        this.keyLight.shadow.mapSize.set(targetSize, targetSize);
+        this.keyLight.shadow.map?.dispose();
+        this.keyLight.shadow.map = null;
+      }
+      this.renderer.shadowMap.needsUpdate = true;
+    }
+  }
+
+  setTheme(theme: ThemeSetting): void {
+    this.theme = theme;
+    this.weather.setTheme(theme);
+    if (theme === 'daylight') {
+      this.plinthTopMat.color.set('#b8ad99');
+      this.plinthBaseMat.color.set('#968b76');
+      this.ringMat.color.set('#b8842f');
+      this.ringMat.emissive.set('#b8842f');
+      this.ringMat.emissiveIntensity = 0.14;
+      this.bloomPass.threshold = 1.0;
+    } else {
+      this.plinthTopMat.color.set('#1a1c24');
+      this.plinthBaseMat.color.set('#111218');
+      this.ringMat.color.set('#e8b04a');
+      this.ringMat.emissive.set('#e8b04a');
+      this.ringMat.emissiveIntensity = 0.35;
+      this.bloomPass.threshold = 0.9;
+    }
   }
 
   setMotionPreferences(reduced: boolean): void {
@@ -484,6 +626,8 @@ export class CitylitEngine {
       this.places.close();
       this.weather.rainLines.position.set(0, 0, 0);
       this.weather.rainLines.visible = this.weather.current.rain > 0.03;
+      this.weather.stormCurtain.visible = true;
+      this.weather.stormCurtain.scale.setScalar(1);
       this.atmosphere.root.position.set(0, 0, 0);
     }
     this.heroRoot.visible = false;
@@ -511,6 +655,9 @@ export class CitylitEngine {
     this.controls.enabled = true;
     this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
     this.renderer.domElement.style.cursor = 'default';
+    if (!this.isSoftwareGl) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
   }
 
   openPlaces(
@@ -529,19 +676,23 @@ export class CitylitEngine {
     this.weather.groundShadow.visible = false;
     this.weather.clouds.visible = false;
     this.weather.rainLines.visible = false;
-    this.weather.stormCurtain.scale.setScalar(1.6);
+    this.weather.stormCurtain.visible = false;
     this.atmosphere.setHidden(true);
     ambientAudio.setSpatialActive(true);
     this.controls.enabled = false;
     this.controls.autoRotate = false;
     this.places.open(visited, province, activeLandmarkIndex ?? this.activeIndex);
     const info = this.places.getSelectedInfo();
+    this.lastPlaceSliceIndex = info.sliceIndex;
     const lm = LANDMARKS[info.landmarkIndex];
     ambientAudio.setSiteProfile(
       (this.currentGroup?.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
     );
     this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
     ambientAudio.playSfx('open');
+    if (!this.isSoftwareGl) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
     return info;
   }
 
@@ -551,6 +702,7 @@ export class CitylitEngine {
     this.weather.rainLines.visible = this.weather.current.rain > 0.03;
     this.weather.stormCurtain.position.set(0, 14, 0);
     this.weather.stormCurtain.scale.setScalar(1);
+    this.weather.stormCurtain.visible = true;
     this.weather.clouds.visible = true;
     this.weather.groundShadow.visible = true;
     this.atmosphere.root.position.set(0, 0, 0);
@@ -568,6 +720,9 @@ export class CitylitEngine {
     this.controls.enabled = true;
     this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
     this.renderer.domElement.style.cursor = 'default';
+    if (!this.isSoftwareGl) {
+      this.renderer.shadowMap.needsUpdate = true;
+    }
   }
 
   focusPlaceSiteAudio(landmarkIndex: number): void {
@@ -596,7 +751,7 @@ export class CitylitEngine {
 
     const prevBg = (this.scene.background as THREE.Color).clone();
     const prevFog = this.scene.fog;
-    const prevPixelRatio = this.renderer.getPixelRatio();
+    const prevQualityIndex = this.qualityIndex;
     const prevShowPlinth = this.plinthGroup.visible;
     const prevShowMarkers = this.markerGroup.visible;
     const prevShowHero = this.heroRoot.visible;
@@ -609,10 +764,19 @@ export class CitylitEngine {
     this.plinthGroup.visible = true;
     this.markerGroup.visible = false;
     this.heroRoot.visible = true;
-    (this.scene.background as THREE.Color).set('#141721');
+    (this.scene.background as THREE.Color).set(this.theme === 'daylight' ? '#a8d8ec' : '#141721');
 
+    if (!this.isSoftwareGl && prevQualityIndex !== 0) {
+      this.setQualityIndex(0);
+    }
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(210, 140, false);
+    if (!this.isSoftwareGl) {
+      this.composer.setPixelRatio(1);
+      this.composer.setSize(210, 140);
+      this.renderPass.camera = thumbCam;
+      this.n8aoPass.camera = thumbCam;
+    }
 
     const savedGroup = this.currentGroup;
     if (savedGroup) this.heroRoot.remove(savedGroup);
@@ -620,14 +784,21 @@ export class CitylitEngine {
     LANDMARKS.forEach((_, idx) => {
       const grp = this.buildLandmarkGroup(idx);
       this.heroRoot.add(grp);
-      this.renderer.render(this.scene, thumbCam);
+      if (this.isSoftwareGl) {
+        this.renderer.render(this.scene, thumbCam);
+      } else {
+        this.renderer.shadowMap.needsUpdate = true;
+        this.composer.render();
+      }
       out[idx] = this.renderer.domElement.toDataURL('image/webp', 0.72);
       this.heroRoot.remove(grp);
     });
 
     if (savedGroup) this.heroRoot.add(savedGroup);
 
-    this.renderer.setPixelRatio(prevPixelRatio);
+    this.renderPass.camera = this.camera;
+    this.n8aoPass.camera = this.camera;
+    this.setQualityIndex(prevQualityIndex);
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
     this.scene.fog = prevFog;
     (this.scene.background as THREE.Color).copy(prevBg);
@@ -651,11 +822,16 @@ export class CitylitEngine {
     const savedPos = this.camera.position.clone();
     const savedTarget = this.controls.target.clone();
     const savedMarkers = this.markerGroup.visible;
+    const prevQualityIndex = this.qualityIndex;
     this.markerGroup.visible = false;
+    if (!this.isSoftwareGl && prevQualityIndex !== 0) {
+      this.setQualityIndex(0);
+    }
 
     const results: MediaItem[] = shots.map((sh) => {
       this.camera.position.set(sh.pos[0], sh.pos[1], sh.pos[2]);
       this.camera.lookAt(0, 1.5, 0);
+      if (!this.isSoftwareGl) this.renderer.shadowMap.needsUpdate = true;
       this.renderCurrentPass();
       const url = this.renderer.domElement.toDataURL('image/jpeg', 0.86);
       return {
@@ -670,6 +846,9 @@ export class CitylitEngine {
       };
     });
 
+    if (prevQualityIndex !== this.qualityIndex) {
+      this.setQualityIndex(prevQualityIndex);
+    }
     this.markerGroup.visible = savedMarkers;
     this.camera.position.copy(savedPos);
     this.controls.target.copy(savedTarget);
@@ -679,8 +858,16 @@ export class CitylitEngine {
   capturePostcard(index: number, weatherText: string): string {
     const lm = LANDMARKS[index];
     const wasMarkersVisible = this.markerGroup.visible;
+    const prevQualityIndex = this.qualityIndex;
     this.markerGroup.visible = false;
+    if (!this.isSoftwareGl && prevQualityIndex !== 0) {
+      this.setQualityIndex(0);
+    }
+    if (!this.isSoftwareGl) this.renderer.shadowMap.needsUpdate = true;
     this.renderCurrentPass();
+    if (prevQualityIndex !== this.qualityIndex) {
+      this.setQualityIndex(prevQualityIndex);
+    }
     this.markerGroup.visible = wasMarkersVisible;
 
     const srcCanvas = this.renderer.domElement;
@@ -690,7 +877,7 @@ export class CitylitEngine {
     const ctx = out.getContext('2d');
     if (!ctx) return '';
 
-    ctx.fillStyle = '#0e0f13';
+    ctx.fillStyle = this.theme === 'daylight' ? '#a8d8ec' : '#0e0f13';
     ctx.fillRect(0, 0, 1080, 1350);
 
     const aspect = srcCanvas.width / srcCanvas.height;
@@ -706,10 +893,11 @@ export class CitylitEngine {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 820, 1080, 530);
 
-    ctx.fillStyle = '#e8b04a';
+    ctx.fillStyle = this.theme === 'daylight' ? '#1c2330' : '#e8b04a';
     ctx.font = 'italic 600 28px Georgia, serif';
     ctx.fillText('cıtylit', 68, 86);
 
+    ctx.fillStyle = '#e8b04a';
     ctx.font = '600 22px system-ui, sans-serif';
     ctx.fillText(lm.c.toUpperCase(), 68, 1140);
 
@@ -729,14 +917,16 @@ export class CitylitEngine {
       this.renderer.render(this.globe.group, this.globe.camera);
     } else if (this.places.isOpen) {
       this.renderPass.camera = this.places.camera;
-      if (!this.isSoftwareGl && this.qualityIndex === 0 && this.bloomPass.enabled) {
+      this.n8aoPass.camera = this.places.camera;
+      if (!this.isSoftwareGl && this.qualityIndex === 0) {
         this.composer.render();
       } else {
         this.renderer.render(this.scene, this.places.camera);
       }
     } else {
       this.renderPass.camera = this.camera;
-      if (!this.isSoftwareGl && this.qualityIndex === 0 && this.bloomPass.enabled) {
+      this.n8aoPass.camera = this.camera;
+      if (!this.isSoftwareGl && this.qualityIndex === 0) {
         this.composer.render();
       } else {
         this.renderer.render(this.scene, this.camera);
@@ -937,8 +1127,8 @@ export class CitylitEngine {
   private readonly frame = (now: number): void => {
     if (this.disposed || this.contextLost) return;
 
-    const dt = Math.min(0.05, (now - this.lastTick) / 1000);
-    this.lastTick = now;
+    const dt = Math.max(0, Math.min(0.05, (now - this.lastTick) / 1000));
+    this.lastTick = Math.max(this.lastTick, now);
     this.elapsed += dt;
 
     // Auto quality monitor when qualitySetting === 'auto'
@@ -975,12 +1165,16 @@ export class CitylitEngine {
         },
       });
       this.weather.clouds.visible = false;
+      this.weather.groundShadow.visible = false;
       this.weather.rainLines.visible = false;
-      this.weather.stormCurtain.position.set(
-        this.places.controls.target.x,
-        14,
-        this.places.controls.target.z
-      );
+      this.weather.stormCurtain.visible = false;
+      const envCeiling = this.usingSkyHdr ? 0.1 : 0.48;
+      const envFloor = this.usingSkyHdr ? 0.03 : 0.16;
+      this.scene.environmentIntensity =
+        envFloor +
+        (envCeiling - envFloor) *
+          (1 - this.weather.current.night) *
+          (1 - this.weather.current.cover * 0.35);
       updateWetSurfaces(
         Math.max(this.weather.current.rain, this.places.getWeatherMode() === 'rain' ? 0.85 : 0)
       );
@@ -996,6 +1190,10 @@ export class CitylitEngine {
       );
 
       const sel = this.places.getSelectedInfo();
+      const sliceChanged = sel.sliceIndex !== this.lastPlaceSliceIndex;
+      if (sliceChanged) {
+        this.lastPlaceSliceIndex = sel.sliceIndex;
+      }
       const lm = LANDMARKS[sel.landmarkIndex];
       this.places.camera.updateMatrixWorld();
       audioRight.setFromMatrixColumn(this.places.camera.matrixWorld, 0).normalize();
@@ -1026,6 +1224,13 @@ export class CitylitEngine {
         this.weather.current.storm
       );
 
+      if (
+        !this.isSoftwareGl &&
+        this.qualityIndex < 2 &&
+        (sliceChanged || (this.shadowFrameCounter++ & 1) === 0)
+      ) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
       this.renderCurrentPass();
     } else {
       // Camera fly preset interpolation
@@ -1041,6 +1246,7 @@ export class CitylitEngine {
         this.dissolveT += dt * 2.2;
         const cutY = Math.max(-0.5, 9 * (1 - this.dissolveT));
         WU.dy.value = cutY;
+        setContactShadowFade(this.currentGroup, Math.max(0, 1 - Math.min(1, this.dissolveT)));
         this.dustPoints.visible = true;
         const dm = this.dustPoints.material as THREE.PointsMaterial;
         dm.opacity = Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
@@ -1058,15 +1264,18 @@ export class CitylitEngine {
             this.dissolvePhase = 2;
             this.dissolveT = 0;
             WU.dy.value = -0.5;
+            setContactShadowFade(this.currentGroup, 0);
           }
         }
       } else if (this.dissolvePhase === 2) {
         this.dissolveT += dt * 2.1;
-        const cutY = -0.5 + 9.5 * Math.min(1, this.dissolveT);
+        const progress = Math.min(1, this.dissolveT);
+        const cutY = -0.5 + 9.5 * progress;
         WU.dy.value = cutY;
+        setContactShadowFade(this.currentGroup, progress);
         this.dustPoints.visible = true;
         const dm = this.dustPoints.material as THREE.PointsMaterial;
-        dm.opacity = Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.85;
+        dm.opacity = Math.sin(progress * Math.PI) * 0.85;
         for (let i = 0; i < 160; i++) {
           this.dustPositions[i * 3] = Math.cos(i * 2.1 + this.elapsed * 3) * (1 + (i % 7) * 0.9);
           this.dustPositions[i * 3 + 1] = cutY + ((i % 9) - 4) * 0.16;
@@ -1077,6 +1286,7 @@ export class CitylitEngine {
         if (this.dissolveT >= 1) {
           this.dissolvePhase = 0;
           WU.dy.value = 100;
+          setContactShadowFade(this.currentGroup, 1);
           this.dustPoints.visible = false;
         }
       }
@@ -1120,6 +1330,13 @@ export class CitylitEngine {
           this.callbacks.onThunder?.();
         },
       });
+      const envCeiling = this.usingSkyHdr ? 0.1 : 0.48;
+      const envFloor = this.usingSkyHdr ? 0.03 : 0.16;
+      this.scene.environmentIntensity =
+        envFloor +
+        (envCeiling - envFloor) *
+          (1 - this.weather.current.night) *
+          (1 - this.weather.current.cover * 0.35);
       updateWetSurfaces(this.weather.current.rain);
 
       // Localized atmosphere shell: ridge fog, heat shimmer, sea and spray mist
@@ -1166,6 +1383,9 @@ export class CitylitEngine {
         this.weather.current.storm
       );
 
+      if (!this.isSoftwareGl && this.qualityIndex < 2 && (this.shadowFrameCounter++ & 1) === 0) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
       this.renderCurrentPass();
     }
 
@@ -1183,6 +1403,10 @@ export class CitylitEngine {
     this.atmosphere.dispose();
     this.pmrem.dispose();
     this.envTex.dispose();
+    this.n8aoPass.dispose();
+    this.bloomPass.dispose();
+    this.miniaturePass.dispose();
+    this.smaaPass.dispose();
     this.composer.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentNode === this.container) {

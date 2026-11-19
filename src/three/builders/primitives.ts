@@ -898,6 +898,7 @@ export function finalizeTreeBatch(g: THREE.Object3D): void {
       const warm = 0.9 + spec.tint * 0.14;
       color.setRGB(warm, warm, warm * (0.94 + spec.tint * 0.06));
       im.setColorAt(i, color);
+      stampContactShadow(g, spec.x, spec.z, 0.3 * spec.s, 0.24, spec.y + 0.012);
     }
     im.instanceMatrix.needsUpdate = true;
     if (im.instanceColor) im.instanceColor.needsUpdate = true;
@@ -1469,4 +1470,171 @@ export function sea(g: THREE.Object3D, c = '#1c6e91', shallow = '#2da8b8'): THRE
   });
   waterize(mat);
   return add(g, geo, mat, 0, 0.05, 0);
+}
+
+interface ContactShadowSpec {
+  x: number;
+  y: number;
+  z: number;
+  r: number;
+  op: number;
+}
+
+const contactShadowBatches = new WeakMap<THREE.Object3D, ContactShadowSpec[]>();
+const contactShadowMaterials = new WeakMap<THREE.Object3D, THREE.MeshBasicMaterial>();
+const contactShadowMeshes = new WeakMap<THREE.Object3D, THREE.Mesh>();
+const csTmpBox = new THREE.Box3();
+const csTmpSize = new THREE.Vector3();
+const csTmpCenter = new THREE.Vector3();
+
+function createContactShadowMaterial(): THREE.MeshBasicMaterial {
+  const mat = new THREE.MeshBasicMaterial({
+    map: getSoftTexture(),
+    color: '#060912',
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+    vertexColors: true,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  mat.userData.noDissolve = true;
+  mat.customProgramCacheKey = () => 'contact_shadow_v1';
+  return mat;
+}
+
+export function stampContactShadow(
+  g: THREE.Object3D,
+  x: number,
+  z: number,
+  radius: number,
+  opacity = 0.24,
+  y = 0.014
+): void {
+  if (radius <= 0.02 || opacity <= 0.005) return;
+  let list = contactShadowBatches.get(g);
+  if (!list) {
+    list = [];
+    contactShadowBatches.set(g, list);
+  }
+  list.push({ x, y, z, r: radius, op: Math.min(0.6, opacity) });
+}
+
+export function stampContactShadowsFromMeshes(g: THREE.Object3D): void {
+  g.updateWorldMatrix(true, true);
+  g.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh) || obj instanceof THREE.InstancedMesh) return;
+    if (obj.userData.noShadow || obj.userData.cannotReceiveAO) return;
+    const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+    if (!mat || mat.transparent || mat.depthWrite === false) return;
+
+    csTmpBox.setFromObject(obj);
+    if (csTmpBox.isEmpty()) return;
+    csTmpBox.getSize(csTmpSize);
+    csTmpBox.getCenter(csTmpCenter);
+
+    const span = Math.max(csTmpSize.x, csTmpSize.z);
+    if (span < 0.16 || span > 3.8 || csTmpSize.y < 0.08) return;
+    if (csTmpBox.min.y < -0.08 || csTmpBox.min.y > 0.48) return;
+
+    const r = Math.min(2.2, Math.max(0.18, span * 0.62));
+    stampContactShadow(
+      g,
+      csTmpCenter.x,
+      csTmpCenter.z,
+      r,
+      0.22,
+      Math.max(0.014, csTmpBox.min.y + 0.012)
+    );
+  });
+}
+
+export function finalizeContactShadows(g: THREE.Object3D): void {
+  const specs = contactShadowBatches.get(g);
+  if (!specs || !specs.length) return;
+  contactShadowBatches.delete(g);
+
+  const count = specs.length;
+  const positions = new Float32Array(count * 4 * 3);
+  const uvs = new Float32Array(count * 4 * 2);
+  const colors = new Float32Array(count * 4 * 4);
+  const indices = new Uint16Array(count * 6);
+
+  for (let i = 0; i < count; i++) {
+    const s = specs[i];
+    const vBase = i * 4;
+    const pBase = vBase * 3;
+    const uBase = vBase * 2;
+    const cBase = vBase * 4;
+    const iBase = i * 6;
+
+    positions[pBase] = s.x - s.r;
+    positions[pBase + 1] = s.y;
+    positions[pBase + 2] = s.z - s.r;
+
+    positions[pBase + 3] = s.x + s.r;
+    positions[pBase + 4] = s.y;
+    positions[pBase + 5] = s.z - s.r;
+
+    positions[pBase + 6] = s.x + s.r;
+    positions[pBase + 7] = s.y;
+    positions[pBase + 8] = s.z + s.r;
+
+    positions[pBase + 9] = s.x - s.r;
+    positions[pBase + 10] = s.y;
+    positions[pBase + 11] = s.z + s.r;
+
+    uvs[uBase] = 0;
+    uvs[uBase + 1] = 0;
+    uvs[uBase + 2] = 1;
+    uvs[uBase + 3] = 0;
+    uvs[uBase + 4] = 1;
+    uvs[uBase + 5] = 1;
+    uvs[uBase + 6] = 0;
+    uvs[uBase + 7] = 1;
+
+    for (let k = 0; k < 4; k++) {
+      colors[cBase + k * 4] = 1;
+      colors[cBase + k * 4 + 1] = 1;
+      colors[cBase + k * 4 + 2] = 1;
+      colors[cBase + k * 4 + 3] = s.op;
+    }
+
+    indices[iBase] = vBase;
+    indices[iBase + 1] = vBase + 2;
+    indices[iBase + 2] = vBase + 1;
+    indices[iBase + 3] = vBase;
+    indices[iBase + 4] = vBase + 3;
+    indices[iBase + 5] = vBase + 2;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 4));
+  geo.setIndex(new THREE.BufferAttribute(indices, 1));
+  geo.computeBoundingSphere();
+
+  const mat = createContactShadowMaterial();
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.renderOrder = 1;
+  mesh.userData.noShadow = true;
+  mesh.userData.cannotReceiveAO = true;
+  g.add(mesh);
+
+  contactShadowMaterials.set(g, mat);
+  contactShadowMeshes.set(g, mesh);
+}
+
+export function setContactShadowFade(g: THREE.Object3D | null, alpha: number): void {
+  if (!g) return;
+  const mat = contactShadowMaterials.get(g);
+  const mesh = contactShadowMeshes.get(g);
+  if (!mat || !mesh) return;
+  const clamped = Math.max(0, Math.min(1, alpha));
+  mat.opacity = clamped;
+  mesh.visible = clamped > 0.01;
 }

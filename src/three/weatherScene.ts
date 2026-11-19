@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { liveWeatherVisual, WEATHER_CONDITIONS } from '../data/weatherData';
-import type { LiveWeatherSample, WeatherConditionKey } from '../types/citylit';
+import type { LiveWeatherSample, ThemeSetting, WeatherConditionKey } from '../types/citylit';
 import { getSoftTexture, SKY_NOISE_GLSL, WU } from './shaders';
 
 export interface WeatherTargetState {
@@ -22,13 +22,14 @@ export interface WeatherSceneController {
   moonDisc: THREE.Mesh;
   rainLines: THREE.LineSegments;
   stormCurtain: THREE.Mesh;
-  groundShadow: THREE.Mesh;
+  groundShadow: THREE.InstancedMesh;
   current: WeatherTargetState;
   target: WeatherTargetState;
   applyCondition: (key: WeatherConditionKey, night: boolean, timeOfDay?: number) => void;
   /** Drive the scene from a real observation using continuous values. */
   applyLiveSample: (sample: LiveWeatherSample, timeOfDay: number) => void;
   setSeasonMonth: (month: number, immediate?: boolean) => void;
+  setTheme: (theme: ThemeSetting) => void;
   triggerRainbow: (duration?: number) => void;
   setHidden: (hidden: boolean) => void;
   update: (
@@ -90,17 +91,27 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   skyDome.frustumCulled = false;
   root.add(skyDome);
 
-  const gshMat = new THREE.ShaderMaterial({
+  const cloudShadowCount = 14;
+  const cloudShadowGeo = new THREE.PlaneGeometry(1, 1);
+  cloudShadowGeo.rotateX(-Math.PI / 2);
+  const cloudShadowMat = new THREE.MeshBasicMaterial({
+    map: getSoftTexture(),
+    color: '#050811',
     transparent: true,
+    opacity: 0.12,
     depthWrite: false,
-    uniforms: { t: { value: 0 }, op: { value: 0 } },
-    vertexShader:
-      'varying vec2 v;void main(){v=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `varying vec2 v;uniform float t,op;${SKY_NOISE_GLSL}void main(){float d=length(v);if(d>9.)discard;float s=smoothstep(.35,.75,fbm(v*.18+vec2(t*.04,t*.02)));gl_FragColor=vec4(0.,0.,0.,s*op*(1.-smoothstep(6.,9.,d)));}`,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
   });
-  const groundShadow = new THREE.Mesh(new THREE.PlaneGeometry(18, 18), gshMat);
-  groundShadow.rotation.x = -Math.PI / 2;
-  groundShadow.position.y = 0.04;
+  cloudShadowMat.userData.noDissolve = true;
+  const groundShadow = new THREE.InstancedMesh(cloudShadowGeo, cloudShadowMat, cloudShadowCount);
+  groundShadow.castShadow = false;
+  groundShadow.receiveShadow = false;
+  groundShadow.renderOrder = 1;
+  groundShadow.frustumCulled = false;
+  groundShadow.userData.noShadow = true;
+  groundShadow.userData.cannotReceiveAO = true;
   root.add(groundShadow);
 
   const stMat = new THREE.ShaderMaterial({
@@ -227,6 +238,17 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   let lightningFlash = 0;
   let thunderTimer = 3;
   let rainbowTimer = 0;
+  let activeTheme: ThemeSetting = 'dark';
+
+  const csPos = new THREE.Vector3();
+  const csQuat = new THREE.Quaternion();
+  const csScale = new THREE.Vector3();
+  const csMatrix = new THREE.Matrix4();
+  const daylightBgCol = new THREE.Color('#a8d8ec');
+  const daylightSkyTopCol = new THREE.Color('#77bde0');
+  const daylightSkyBotCol = new THREE.Color('#cfeaf6');
+  const daylightStormBgCol = new THREE.Color('#7d98ad');
+  const daylightNightBgCol = new THREE.Color('#131b2c');
 
   const skyTmp = new THREE.Color();
   const skyDarkTmp = new THREE.Color();
@@ -319,6 +341,10 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     }
   };
 
+  const setTheme = (theme: ThemeSetting) => {
+    activeTheme = theme;
+  };
+
   const triggerRainbow = (duration = 12) => {
     rainbowTimer = duration;
   };
@@ -332,8 +358,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     elapsed,
     { qualityIndex, motionScale, keyLight, fillLight, hemiLight, scene: s, renderer, onThunder }
   ) => {
-    const k = Math.min(1, dt * 1.5);
-    const sk = 1 - Math.exp(-dt * 0.45);
+    const safeDt = Math.max(0, dt);
+    const k = Math.max(0, Math.min(1, safeDt * 1.5));
+    const sk = 1 - Math.exp(-safeDt * 0.45);
     current.sky.lerp(target.sky, k);
     current.cover += (target.cover - current.cover) * k;
     current.rain += (target.rain - current.rain) * k;
@@ -362,14 +389,14 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     moonDisc.visible = day < 0.7;
 
     if (current.storm > 0.4) {
-      thunderTimer -= dt;
+      thunderTimer -= safeDt;
       if (thunderTimer < 0) {
         lightningFlash = 1.6;
         thunderTimer = 2.5 + Math.random() * 5;
         onThunder?.();
       }
     }
-    lightningFlash = Math.max(0, lightningFlash - dt * 6);
+    lightningFlash = Math.max(0, lightningFlash - safeDt * 6);
 
     seasonSkyTmp
       .copy(winterSkyTint)
@@ -379,10 +406,15 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .copy(current.sky)
       .lerp(seasonSkyTmp, 0.38)
       .lerp(duskSkyTmp, hor * (0.58 + 0.14 * seasonCurrent.warmth));
+    if (activeTheme === 'daylight') {
+      dayTopTmp.lerp(daylightSkyTopCol, 0.72 * (1 - current.storm * 0.5));
+    }
     skyTmp.copy(dayTopTmp).lerp(nightSkyTmp, 1 - day);
     skyMat.uniforms.top.value.copy(skyTmp);
 
-    botTmp.copy(botDayTmp).lerp(botNightTmp, 1 - day);
+    botTmp
+      .copy(activeTheme === 'daylight' ? daylightSkyBotCol : botDayTmp)
+      .lerp(botNightTmp, 1 - day);
     skyMat.uniforms.bot.value.copy(botTmp);
     skyMat.uniforms.t.value = elapsed * motionScale;
     skyMat.uniforms.cv.value = current.cover;
@@ -397,18 +429,35 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     skyMat.uniforms.glow.value.copy(sunGlowTmp);
     skyMat.uniforms.hor.value = hor * (1 - current.cover * 0.5);
 
-    rainbowTimer = Math.max(0, rainbowTimer - dt);
+    rainbowTimer = Math.max(0, rainbowTimer - safeDt);
     skyMat.uniforms.rb.value = Math.min(1, rainbowTimer / 2) * day;
 
-    skyDarkTmp.copy(skyTmp).multiplyScalar(0.5);
-    (s.background as THREE.Color).copy(skyDarkTmp);
+    if (activeTheme === 'daylight') {
+      skyDarkTmp
+        .copy(daylightBgCol)
+        .lerp(daylightStormBgCol, Math.min(1, current.cover * 0.35 + current.storm * 0.55))
+        .lerp(daylightNightBgCol, 1 - day);
+      (s.background as THREE.Color).copy(skyDarkTmp);
+    } else {
+      skyDarkTmp.copy(skyTmp).multiplyScalar(0.5);
+      (s.background as THREE.Color).copy(skyDarkTmp);
+    }
 
     fogDayTmp.copy(winterFogDay).lerp(summerFogDay, seasonCurrent.warmth);
+    if (activeTheme === 'daylight') {
+      fogDayTmp.lerp(daylightBgCol, 0.72);
+    }
     fogTmp.copy(fogDayTmp).lerp(fogNightTmp, 1 - day);
-    const fogDensity = 0.008 + current.fog * 0.032;
+    const fogDensity =
+      activeTheme === 'daylight' ? 0.0018 + current.fog * 0.0085 : 0.008 + current.fog * 0.032;
     if (s.fog instanceof THREE.FogExp2) {
       s.fog.density += (fogDensity - s.fog.density) * k;
-      s.fog.color.copy(fogTmp).lerp(sunGlowTmp, hor * (0.18 + 0.14 * seasonCurrent.warmth));
+      s.fog.color
+        .copy(fogTmp)
+        .lerp(
+          sunGlowTmp,
+          hor * (activeTheme === 'daylight' ? 0.08 : 0.18 + 0.14 * seasonCurrent.warmth)
+        );
     }
 
     starMat.opacity = Math.max(0, 1 - day - 0.15) * (1 - current.cover * 0.85) * 0.9;
@@ -420,11 +469,27 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .lerp(fogNightTmp, 1 - day);
     cloudMat.opacity = current.cover * 0.85;
     clouds.visible = current.cover > 0.06;
-    clouds.children.forEach((c) => {
-      c.userData.a += dt * (c.userData.s as number) * current.wind * motionScale;
-      c.position.x = Math.cos(c.userData.a as number) * (c.userData.r as number);
-      c.position.z = Math.sin(c.userData.a as number) * (c.userData.r as number);
-    });
+    const showShadows = current.cover > 0.06 && day > 0.12;
+    groundShadow.visible = showShadows;
+    cloudShadowMat.opacity = Math.min(0.18, current.cover * 0.16 * day);
+    for (let i = 0; i < clouds.children.length; i++) {
+      const c = clouds.children[i];
+      c.userData.a += safeDt * (c.userData.s as number) * current.wind * motionScale;
+      const cx = Math.cos(c.userData.a as number) * (c.userData.r as number);
+      const cz = Math.sin(c.userData.a as number) * (c.userData.r as number);
+      c.position.x = cx;
+      c.position.z = cz;
+      if (showShadows && i < cloudShadowCount) {
+        const sc = 3.8 + (i % 3) * 1.15;
+        csPos.set(cx * 0.34 - sx * 0.02, 0.045, cz * 0.34 - sz * 0.02);
+        csScale.set(sc * 1.15, 1, sc * 0.85);
+        csMatrix.compose(csPos, csQuat, csScale);
+        groundShadow.setMatrixAt(i, csMatrix);
+      }
+    }
+    if (showShadows) {
+      groundShadow.instanceMatrix.needsUpdate = true;
+    }
 
     dayColTmp
       .copy(winterKeyCol)
@@ -436,23 +501,24 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       keyLight.position.set(sx * 0.45, Math.max(3, sy * 0.45), sz * 0.55);
       keyLight.color.copy(sunColTmp);
       keyLight.intensity =
-        (3.4 * seasonalIntensityScale * day * (1 - current.cover * 0.6) + lightningFlash * 4) *
+        (2.75 * seasonalIntensityScale * day * (1 - current.cover * 0.55) + lightningFlash * 4) *
         (0.55 + 0.45 * (1 - hor));
     } else {
       keyLight.position.set(-10, 14, -8);
       keyLight.color.set('#b8d0ff');
-      keyLight.intensity = 1.6 + lightningFlash * 4;
+      keyLight.intensity = 1.45 + lightningFlash * 4;
     }
 
     seasonFillTmp.copy(winterFillCol).lerp(summerFillCol, seasonCurrent.warmth);
     fillLight.color.copy(seasonFillTmp);
-    fillLight.intensity = (0.75 + 0.1 * seasonCurrent.warmth) * day + 0.55 * (1 - day) + hor * 0.35;
+    fillLight.intensity =
+      (0.55 + 0.08 * seasonCurrent.warmth) * day + 0.45 * (1 - day) + hor * 0.28;
 
     seasonHemiSkyTmp.copy(winterHemiSky).lerp(summerHemiSky, seasonCurrent.warmth);
     seasonHemiGroundTmp.copy(winterHemiGround).lerp(summerHemiGround, seasonCurrent.warmth);
     hemiLight.color.copy(seasonHemiSkyTmp);
     hemiLight.groundColor.copy(seasonHemiGroundTmp);
-    hemiLight.intensity = (0.9 + 0.18 * seasonCurrent.warmth) * day + 0.6 * (1 - day);
+    hemiLight.intensity = (0.36 + 0.08 * seasonCurrent.warmth) * day + 0.34 * (1 - day);
 
     const rainCount = Math.floor((qualityIndex > 1 ? 150 : RN) * current.rain);
     rainGeo.setDrawRange(0, rainCount * 2);
@@ -461,8 +527,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     if (rainLines.visible) {
       for (let i = 0; i < rainCount; i++) {
         const j = i * 6;
-        rainPos[j] += dt * current.wind * 1.4;
-        rainPos[j + 1] -= dt * 19;
+        rainPos[j] += safeDt * current.wind * 1.4;
+        rainPos[j + 1] -= safeDt * 19;
         if (rainPos[j + 1] < 0) {
           rainPos[j + 1] = 18;
           rainPos[j] = (Math.random() - 0.5) * 28;
@@ -473,8 +539,6 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       rainGeo.attributes.position.needsUpdate = true;
     }
 
-    gshMat.uniforms.t.value = elapsed * motionScale;
-    gshMat.uniforms.op.value = current.cover * 0.14 * day;
     stMat.uniforms.t.value = elapsed * motionScale;
     stMat.uniforms.st.value = current.storm;
     stMat.uniforms.fl.value = lightningFlash;
@@ -502,6 +566,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     applyCondition,
     applyLiveSample,
     setSeasonMonth,
+    setTheme,
     triggerRainbow,
     setHidden,
     update,

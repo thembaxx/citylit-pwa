@@ -930,7 +930,14 @@ function addRoadRibbon(
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.92, side: THREE.DoubleSide });
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.92,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
   geosToDispose.push(geo);
   matsToDispose.push(mat);
   const mesh = new THREE.Mesh(geo, mat);
@@ -1102,7 +1109,8 @@ export function buildPlaceSlice(
   seed: number
 ): BuiltPlaceSlice {
   const root = new THREE.Group();
-  root.position.set(spec.gridPos[0], 0, spec.gridPos[1]);
+  root.position.set(0, 0, 0);
+  root.visible = false;
 
   const localGeometries: THREE.BufferGeometry[] = [];
   const localMaterials: THREE.Material[] = [];
@@ -4437,12 +4445,14 @@ export function buildPlaceSlice(
       emissiveIntensity: 0.4,
       transparent: true,
       opacity: 0.0,
+      depthWrite: false,
       side: THREE.DoubleSide,
       roughness: 0.35,
     })
   );
   const ringMesh = new THREE.Mesh(ringFrameGeo, ringMat);
   ringMesh.position.y = -0.02;
+  ringMesh.renderOrder = 1;
   ringMesh.visible = false;
   root.add(ringMesh);
 

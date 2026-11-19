@@ -13,6 +13,7 @@ import type {
   CitylitSettings,
   MotionSetting,
   QualitySetting,
+  ThemeSetting,
 } from '../types/citylit';
 import { AnimatedNumber } from './ui/AnimatedNumber';
 import { LiquidToggle } from './ui/LiquidToggle';
@@ -44,6 +45,11 @@ const QUALITY_OPTIONS = [
 const MOTION_OPTIONS = [
   { value: 'auto' as const, label: 'System' },
   { value: 'reduce' as const, label: 'Reduce' },
+];
+
+const THEME_OPTIONS = [
+  { value: 'dark' as const, label: 'Dark' },
+  { value: 'daylight' as const, label: 'Daylight' },
 ];
 
 const MIXER_CHANNELS: Array<{
@@ -90,6 +96,18 @@ export function SettingsModal({
       </div>
 
       <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[14px] text-[#f3efe6]">Scene backdrop</span>
+          <PillNavigation<ThemeSetting>
+            layoutId="settings-theme"
+            reducedMotion={reducedMotion}
+            value={settings.theme ?? 'dark'}
+            onChange={(theme) => onUpdate({ theme })}
+            options={THEME_OPTIONS}
+            compact
+          />
+        </div>
+
         <div className="flex items-center justify-between gap-3">
           <span className="text-[14px] text-[#f3efe6]">Graphics quality</span>
           <PillNavigation<QualitySetting>

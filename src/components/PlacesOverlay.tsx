@@ -145,8 +145,8 @@ export function PlacesOverlay({
             whileTap={reducedMotion ? undefined : { scale: 0.92 }}
             transition={SPRING.snappy}
             onClick={onResetView}
-            aria-label="Reset archipelago overview"
-            title="Reset overview"
+            aria-label="Reset camera view"
+            title="Reset camera view"
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full grid place-items-center bg-[#121319]/92 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
           >
             <Compass size={17} />
@@ -245,7 +245,10 @@ export function PlacesOverlay({
           >
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 min-w-0 text-[10.5px] uppercase tracking-[0.12em] text-[#e8b04a] truncate">
-                <span className="shrink-0 inline-flex items-center justify-center" aria-hidden="true">
+                <span
+                  className="shrink-0 inline-flex items-center justify-center"
+                  aria-hidden="true"
+                >
                   <WeatherIcon
                     condition={cardCondition}
                     night={weather.night}
@@ -312,7 +315,7 @@ export function PlacesOverlay({
 
       {/* Desktop Gesture Hint */}
       <div className="hidden md:block fixed right-4 bottom-[calc(64px+env(safe-area-inset-bottom,0px))] text-[11.5px] text-[#c8c4bc] drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)] pointer-events-none">
-        Drag to orbit · Right-drag pan · Scroll zoom · Tap slice to focus · Double-tap to open
+        Drag to orbit · Scroll to zoom · Double-tap slice to open · ← / → switch places
       </div>
 
       {/* Province Filter Pills */}

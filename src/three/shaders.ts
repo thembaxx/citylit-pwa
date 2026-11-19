@@ -58,6 +58,7 @@ export function installDissolveShader(): void {
 
   THREE.Material.prototype.onBeforeCompile = function (shader) {
     if (
+      this.userData?.noDissolve ||
       (this as THREE.Material & { isSpriteMaterial?: boolean }).isSpriteMaterial ||
       (this as THREE.Material & { isPointsMaterial?: boolean }).isPointsMaterial ||
       (this as THREE.Material & { isLineBasicMaterial?: boolean }).isLineBasicMaterial

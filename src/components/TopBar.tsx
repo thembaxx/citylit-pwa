@@ -9,6 +9,7 @@ import {
 import type { ComponentType } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { SPRING, swapTransition } from '../lib/motion';
+import type { ThemeSetting } from '../types/citylit';
 
 interface TopBarProps {
   soundOn: boolean;
@@ -16,6 +17,7 @@ interface TopBarProps {
   fullscreen: boolean;
   idleInFullscreen: boolean;
   globeOpen: boolean;
+  theme?: ThemeSetting;
   reducedMotion?: boolean;
   onToggleSound: () => void;
   onToggleTod: () => void;
@@ -82,6 +84,7 @@ export function TopBar({
   fullscreen,
   idleInFullscreen,
   globeOpen,
+  theme = 'dark',
   reducedMotion = false,
   onToggleSound,
   onToggleTod,
@@ -99,7 +102,11 @@ export function TopBar({
           transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[calc(14px+env(safe-area-inset-top,0px))] pointer-events-none"
         >
-          <div className="font-serif-display italic text-[22px] tracking-[0.01em] text-[#f3efe6] select-none">
+          <div
+            className={`font-serif-display italic text-[22px] tracking-[0.01em] select-none transition-colors duration-300 ${
+              theme === 'daylight' ? 'text-[#16202e]' : 'text-[#f3efe6]'
+            }`}
+          >
             cıtylit
           </div>
           <div className="flex items-center gap-2 pointer-events-auto">
