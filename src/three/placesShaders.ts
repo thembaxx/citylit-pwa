@@ -1,5 +1,23 @@
 import * as THREE from 'three';
 import { WU } from './shaders';
+import { CLOUD_FRAGMENT, CLOUD_VERTEX } from './shaders/cloud.glsl';
+import {
+  STRATA_COLOR_FRAGMENT,
+  STRATA_FRAG_COMMON,
+  STRATA_ROUGHNESS_FRAGMENT,
+  STRATA_VERT_BEGIN,
+  STRATA_VERT_COMMON,
+  STRATA_VERT_WORLD,
+} from './shaders/strata.glsl';
+import { PLACES_VOLUMETRIC_FOG_GLSL } from './shaders/volumetricFog.glsl';
+import {
+  WATER_TOP_FRAGMENT,
+  WATER_TOP_VERTEX,
+  WATER_WALL_FRAGMENT,
+  WATER_WALL_VERTEX,
+} from './shaders/water.glsl';
+
+export { PLACES_VOLUMETRIC_FOG_GLSL };
 
 export interface PlacesSliceEmitterSpec {
   landmarkName: string;
@@ -43,72 +61,6 @@ export function createPlacesShaderEnv(): PlacesShaderEnvironment {
     activeSliceIndex: { value: 0 },
   };
 }
-
-/**
- * Analytical depth- and height-stratified volumetric fog shader snippet with Mie
- * directional sun in-scattering, ray wisp modulation, and focus-zone clarity.
- * Operates in linear HDR space right before tonemapping/colorspace conversion.
- */
-export const PLACES_VOLUMETRIC_FOG_GLSL = /* glsl */ `
-uniform vec3 uVolSunDir;
-uniform vec3 uVolSunColor;
-uniform vec3 uVolFogColor;
-uniform vec3 uVolFogDeepColor;
-uniform float uVolFogDensity;
-uniform vec3 uVolFocusPos;
-uniform float uVolFocusClear;
-uniform float uVolCamDist;
-uniform float uVolSun;
-uniform float uVolTime;
-
-vec3 plApplyVolumetricFog(vec3 sceneRgb, vec3 worldPos) {
-  vec3 rayVec = worldPos - cameraPosition;
-  float dist = length(rayVec);
-  vec3 viewDir = rayVec / max(dist, 0.0001);
-
-  // Adaptive near clear distance keeps the hero geological slice sharp at close range
-  float nearClear = max(4.2, uVolCamDist * 0.74);
-  float effDist = max(0.0, dist - nearClear);
-
-  // Analytical exponential height-fog ray integral above slice datum (y = -0.35)
-  float y0 = -0.35;
-  float falloff = 0.25;
-  float camH = cameraPosition.y - y0;
-  float fragH = worldPos.y - y0;
-  float dH = (fragH - camH) * falloff;
-  float heightIntegral;
-  if (abs(dH) > 0.001) {
-    heightIntegral =
-      (exp(-clamp(camH * falloff, -2.0, 8.0)) - exp(-clamp(fragH * falloff, -2.0, 8.0))) / dH;
-  } else {
-    heightIntegral = exp(-clamp(camH * falloff, -2.0, 8.0));
-  }
-  heightIntegral = clamp(heightIntegral, 0.16, 2.2);
-
-  // Gentle depth separation ramp across distant ridges & mist plumes
-  float farRamp = smoothstep(nearClear * 0.92, nearClear + 22.0, dist);
-  float rayWisp = 0.88 + 0.12 * sin(worldPos.x * 0.42 + uVolTime * 0.20)
-                       * cos(worldPos.z * 0.38 - uVolTime * 0.16);
-  float opticalDepth =
-    effDist * uVolFogDensity * (0.52 + 0.85 * heightIntegral) * rayWisp
-    + farRamp * uVolFogDensity * 6.5;
-
-  // Preserve silhouette clarity across the centered slice
-  float focusDist = length(worldPos.xz - uVolFocusPos.xz);
-  float focusLens = mix(1.0, smoothstep(1.35, 4.2, focusDist), clamp(uVolFocusClear, 0.0, 1.0) * 0.88);
-
-  float fogAmount = clamp((1.0 - exp(-opticalDepth)) * focusLens, 0.0, 0.86);
-
-  // Altitude-stratified haze color + forward-scattered Mie solar glow
-  float altMix = smoothstep(-0.3, 2.8, worldPos.y);
-  vec3 hazeCol = mix(uVolFogDeepColor, uVolFogColor, altMix);
-  float sunCos = max(dot(viewDir, normalize(uVolSunDir)), 0.0);
-  float mie = pow(sunCos, 5.0) * 0.36 + pow(sunCos, 16.0) * 0.28;
-  vec3 scattered = hazeCol + uVolSunColor * mie * (0.30 + 0.70 * uVolSun);
-
-  return mix(sceneRgb, scattered, fogAmount);
-}
-`;
 
 function bindVolumetricFogUniforms(
   uniforms: Record<string, THREE.IUniform>,
@@ -199,134 +151,17 @@ export function createStrataTerrainMaterial(
     bindVolumetricFogUniforms(shader.uniforms, env);
 
     shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        `#include <common>
-attribute float aTopY;
-varying vec3 vPlacePos;
-varying vec3 vPlaceNorm;
-varying float vTopY;
-varying vec3 vVolFogWPos;`
-      )
-      .replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-vPlacePos = position;
-vPlaceNorm = normal;
-vTopY = aTopY;`
-      )
-      .replace(
-        '#include <project_vertex>',
-        `#include <project_vertex>
-vVolFogWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`
-      );
+      .replace('#include <common>', `#include <common>\n${STRATA_VERT_COMMON}`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\n${STRATA_VERT_BEGIN}`)
+      .replace('#include <project_vertex>', `#include <project_vertex>\n${STRATA_VERT_WORLD}`);
 
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        `#include <common>
-varying vec3 vPlacePos;
-varying vec3 vPlaceNorm;
-varying float vTopY;
-varying vec3 vVolFogWPos;
-uniform float uRN;
-uniform float uWT;
-
-float plHash2(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-float plNoise2(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  float a = plHash2(i);
-  float b = plHash2(i + vec2(1.0, 0.0));
-  float c = plHash2(i + vec2(0.0, 1.0));
-  float d = plHash2(i + vec2(1.0, 1.0));
-  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-}
-float plFbm(vec2 p) {
-  float s = 0.0;
-  float a = 0.5;
-  for (int i = 0; i < 4; i++) {
-    s += a * plNoise2(p);
-    p = p * 2.04 + vec2(11.3, 7.1);
-    a *= 0.5;
-  }
-  return s;
-}
-${PLACES_VOLUMETRIC_FOG_GLSL}`
+        `#include <common>\n${STRATA_FRAG_COMMON}\n${PLACES_VOLUMETRIC_FOG_GLSL}`
       )
-      .replace(
-        '#include <color_fragment>',
-        `#include <color_fragment>
-{
-  float absX = abs(vPlacePos.x);
-  float absZ = abs(vPlacePos.z);
-  float isCutWall = step(0.45, 1.0 - abs(vPlaceNorm.y)) * step(1.42, max(absX, absZ));
-  float horizCoord = (absX > absZ ? vPlacePos.z : vPlacePos.x);
-
-  if (isCutWall > 0.5) {
-    float depthBelow = max(0.0, vTopY - vPlacePos.y);
-    float warp = plFbm(vec2(horizCoord * 1.65, vPlacePos.y * 2.1)) * 0.24;
-    float yLayer = vPlacePos.y + warp;
-
-    // Coarse strata bands + fine laminated sedimentary lines + mineral seams
-    float coarse = sin(yLayer * 12.5) * 0.5 + 0.5;
-    float fine = sin(yLayer * 38.0 + horizCoord * 1.4) * 0.5 + 0.5;
-    float quartzSeam = smoothstep(0.88, 0.99, sin(yLayer * 20.0 + 1.2 + plNoise2(vec2(horizCoord * 3.0, yLayer)) * 0.6));
-    float rustSeam = smoothstep(0.82, 0.96, sin(yLayer * 9.5 + 3.8));
-    float crack = smoothstep(0.88, 0.99, plNoise2(vec2(horizCoord * 6.8 + yLayer * 1.5, yLayer * 2.8)));
-    float pebbles = smoothstep(0.68, 0.92, plNoise2(vec2(horizCoord * 18.0, vPlacePos.y * 22.0)));
-
-    vec3 warmOchre = diffuseColor.rgb * vec3(1.18, 0.99, 0.82);
-    vec3 darkShale = diffuseColor.rgb * vec3(0.43, 0.41, 0.40);
-    vec3 paleQuartz = diffuseColor.rgb * vec3(1.30, 1.24, 1.12);
-    vec3 ironRust = diffuseColor.rgb * vec3(1.24, 0.78, 0.52);
-
-    vec3 strataCol = mix(darkShale, warmOchre, smoothstep(0.18, 0.84, coarse));
-    strataCol = mix(strataCol, ironRust, rustSeam * 0.32);
-    strataCol = mix(strataCol, paleQuartz, quartzSeam * 0.48);
-    strataCol *= 0.83 + 0.28 * fine;
-    strataCol = mix(strataCol, strataCol * 0.72, pebbles * 0.35);
-    strataCol *= 1.0 - crack * 0.38;
-
-    // Rich dark topsoil & hanging root shadow rim directly below the top cut edge
-    float humusBand = 1.0 - smoothstep(0.015, 0.11, depthBelow);
-    vec3 darkHumus = diffuseColor.rgb * vec3(0.38, 0.33, 0.25);
-    strataCol = mix(strataCol, darkHumus, humusBand * 0.82);
-
-    // Subtle bottom contact AO
-    float baseAO = smoothstep(-0.04, 0.58, vPlacePos.y);
-    strataCol *= 0.68 + 0.32 * baseAO;
-    diffuseColor.rgb = strataCol;
-  } else {
-    // Multi-frequency top-surface micro-relief (grass tufts, pebbles, rock striations)
-    float broad = plFbm(vPlacePos.xz * 3.8);
-    float fine = plNoise2(vPlacePos.xz * 18.5);
-    float micro = plNoise2(vPlacePos.xz * 42.0);
-    float slopeHint = clamp(1.0 - vPlaceNorm.y, 0.0, 1.0);
-    diffuseColor.rgb *= 0.89 + 0.19 * broad + (fine - 0.5) * 0.09 + (micro - 0.5) * 0.04;
-    // Slight rocky striation darkening on steep exposed cliffs
-    diffuseColor.rgb *= 1.0 - slopeHint * 0.14 * (1.0 - fine);
-    // Rain slightly deepens terrain & enhances wet shoreline richness
-    diffuseColor.rgb *= 1.0 - uRN * 0.15;
-  }
-}`
-      )
-      .replace(
-        '#include <roughnessmap_fragment>',
-        `#include <roughnessmap_fragment>
-{
-  float absX = abs(vPlacePos.x);
-  float absZ = abs(vPlacePos.z);
-  float isCutWall = step(0.45, 1.0 - abs(vPlaceNorm.y)) * step(1.42, max(absX, absZ));
-  if (isCutWall < 0.5) {
-    float puddle = smoothstep(0.46, 0.72, plNoise2(vPlacePos.xz * 3.2)) * smoothstep(0.85, 0.98, vPlaceNorm.y);
-    roughnessFactor = mix(roughnessFactor, 0.20, uRN * (0.45 + 0.55 * puddle));
-  }
-}`
-      )
+      .replace('#include <color_fragment>', STRATA_COLOR_FRAGMENT)
+      .replace('#include <roughnessmap_fragment>', STRATA_ROUGHNESS_FRAGMENT)
       .replace(
         '#include <tonemapping_fragment>',
         `gl_FragColor.rgb = plApplyVolumetricFog(gl_FragColor.rgb, vVolFogWPos);
@@ -334,7 +169,7 @@ ${PLACES_VOLUMETRIC_FOG_GLSL}`
       );
   };
 
-  mat.customProgramCacheKey = () => 'places_strata_vfog_v3';
+  mat.customProgramCacheKey = () => 'places_strata_world_v4';
   return mat;
 }
 
@@ -386,121 +221,8 @@ export function createCutawayWaterTopMaterial(
       uVolSun: WU.sun,
       uVolTime: WU.t,
     },
-    vertexShader: `
-attribute float aDepth;
-uniform float uTime;
-uniform float uTurbulence;
-uniform float uWind;
-varying float vDepth;
-varying vec3 vWorldPos;
-varying vec3 vLocalPos;
-
-void main() {
-  vDepth = aDepth;
-  vec3 pos = position;
-  float edgeMask = smoothstep(0.018, 0.22, max(0.0, aDepth));
-  float chop = 0.85 + 0.35 * uWind;
-  float wave = sin(pos.x * 5.6 + uTime * 2.2) * 0.010
-             + cos(pos.z * 6.4 - uTime * 1.85) * 0.009
-             + sin((pos.x - pos.z) * 9.2 + uTime * 3.1) * 0.0045;
-  pos.y += wave * uTurbulence * chop * edgeMask;
-  vLocalPos = pos;
-  vec4 wp = modelMatrix * vec4(pos, 1.0);
-  vWorldPos = wp.xyz;
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}`,
-    fragmentShader: `
-uniform float uTime;
-uniform float uSun;
-uniform float uRain;
-uniform float uFoamStrength;
-uniform float uTurbulence;
-uniform float uClarity;
-uniform vec3 uSky;
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform vec3 uShallow;
-uniform vec3 uDeep;
-
-varying float vDepth;
-varying vec3 vWorldPos;
-varying vec3 vLocalPos;
-
-float wtHash(vec2 p) {
-  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-}
-float wtNoise(vec2 p) {
-  vec2 i = floor(p);
-  vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(wtHash(i), wtHash(i + vec2(1.0, 0.0)), f.x),
-    mix(wtHash(i + vec2(0.0, 1.0)), wtHash(i + vec2(1.0, 1.0)), f.x),
-    f.y
-  );
-}
-float wtHeight(vec2 p, float t) {
-  float h = sin(p.x * 5.6 + t * 2.15) * 0.34
-          + cos(p.y * 6.6 - t * 1.85) * 0.30
-          + (wtNoise(p * 4.8 + vec2(t * 0.48, -t * 0.35)) - 0.5) * 0.44
-          + (wtNoise(p * 11.2 - vec2(t * 0.62, t * 0.42)) - 0.5) * 0.20;
-  h += uRain * 0.22 * sin(p.x * 24.0 + t * 12.0) * cos(p.y * 22.0 - t * 10.0);
-  return h;
-}
-${PLACES_VOLUMETRIC_FOG_GLSL}
-
-void main() {
-  if (vDepth < -0.004) discard;
-  float depth = max(0.0, vDepth);
-
-  vec2 q = vWorldPos.xz;
-  float eps = 0.028;
-  float h = wtHeight(q, uTime);
-  float hx = wtHeight(q + vec2(eps, 0.0), uTime);
-  float hz = wtHeight(q + vec2(0.0, eps), uTime);
-  vec3 N = normalize(vec3((h - hx) * 0.54 * uTurbulence, 1.0, (h - hz) * 0.54 * uTurbulence));
-  vec3 V = normalize(cameraPosition - vWorldPos);
-  vec3 L = normalize(uSunDir);
-
-  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.4);
-  vec3 waterBody = mix(uShallow, uDeep, smoothstep(0.025, 0.52, depth));
-
-  float nDotL = max(dot(N, L), 0.0);
-  vec3 H = normalize(L + V);
-  float spec = pow(max(dot(N, H), 0.0), 125.0) * (0.4 + 1.0 * uSun);
-
-  vec3 col = waterBody * (0.50 + 0.62 * nDotL * (0.45 + 0.55 * uSun)) + waterBody * uSky * 0.24;
-  col = mix(col, uSky * 1.08, fresnel * 0.55);
-  col += uSunColor * spec * 1.55;
-
-  // Dual-layer sunlit underwater caustics in clear turquoise shallows
-  float c1 = wtNoise(q * 11.5 + vec2(uTime * 0.36, -uTime * 0.28));
-  float c2 = wtNoise(q * 14.0 - vec2(uTime * 0.25, uTime * 0.34));
-  float caustic = pow(c1 * c2 * 2.1, 2.2);
-  col += uShallow * caustic * 0.28 * (1.0 - smoothstep(0.04, 0.54, depth)) * (0.42 + 0.58 * uSun);
-
-  // Crisp rolling breaking surf lines + lacy coastal shore froth
-  float surfPhase = fract(depth * 7.2 - uTime * 0.48 + wtNoise(q * 4.2) * 0.26);
-  float surfRing = smoothstep(0.83, 0.96, surfPhase) * (1.0 - smoothstep(0.015, 0.26, depth));
-  float shoreLip = (1.0 - smoothstep(0.0, 0.072, depth)) * (0.52 + 0.48 * wtNoise(q * 16.0 + uTime * 0.72));
-  float lacyFoam = smoothstep(0.56, 0.78, h) * smoothstep(0.65, 0.92, wtNoise(q * 14.5 - uTime * 0.55)) * 0.36 * uTurbulence;
-  float rainRipples = uRain * smoothstep(0.75, 0.95, sin(q.x * 32.0 + uTime * 14.0) * cos(q.y * 30.0 - uTime * 12.0)) * 0.22;
-  float foam = clamp((surfRing * 0.78 + shoreLip * 0.95 + lacyFoam + rainRipples) * uFoamStrength, 0.0, 1.0);
-  col = mix(col, mix(vec3(0.92, 0.97, 1.0), uSunColor, 0.12), foam);
-
-  // Luminous crystal meniscus highlight along cutaway block perimeter
-  float rim = smoothstep(1.44, 1.50, max(abs(vLocalPos.x), abs(vLocalPos.z)));
-  col += mix(uShallow, vec3(0.72, 0.96, 1.0), 0.45) * rim * 0.30;
-
-  float alpha = mix(0.42, 0.90, smoothstep(0.0, 0.54, depth) * (1.12 - uClarity * 0.35));
-  alpha = clamp(max(alpha, foam * 0.94), 0.30, 0.96);
-
-  col = plApplyVolumetricFog(col, vWorldPos);
-
-  gl_FragColor = vec4(col, alpha);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`,
+    vertexShader: WATER_TOP_VERTEX,
+    fragmentShader: WATER_TOP_FRAGMENT,
   });
 }
 
@@ -536,46 +258,8 @@ export function createCutawayWaterWallMaterial(
       uVolSun: WU.sun,
       uVolTime: WU.t,
     },
-    vertexShader: `
-varying vec2 vUv;
-varying vec3 vWorldPos;
-void main() {
-  vUv = uv;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vWorldPos = wp.xyz;
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}`,
-    fragmentShader: `
-uniform float uTime;
-uniform float uSun;
-uniform vec3 uSky;
-uniform vec3 uShallow;
-uniform vec3 uDeep;
-uniform float uClarity;
-
-varying vec2 vUv;
-varying vec3 vWorldPos;
-${PLACES_VOLUMETRIC_FOG_GLSL}
-
-void main() {
-  float depthMix = 1.0 - vUv.y;
-  vec3 col = mix(uShallow * 1.08, uDeep * 0.68, pow(depthMix, 0.72));
-  float caustic = sin(vWorldPos.x * 10.0 + vWorldPos.z * 9.5 + uTime * 2.2) * 0.5 + 0.5;
-  caustic *= sin(vUv.y * 18.0 - uTime * 1.5) * 0.5 + 0.5;
-  col += uShallow * caustic * 0.26 * (0.4 + 0.6 * uSun) * vUv.y;
-
-  float meniscus = smoothstep(0.91, 1.0, vUv.y);
-  col = mix(col, mix(uSky, vec3(0.88, 0.98, 1.0), 0.7), meniscus * 0.72);
-
-  float alpha = mix(0.52, 0.78, depthMix) * (1.10 - uClarity * 0.28);
-  alpha = clamp(max(alpha, meniscus * 0.82), 0.36, 0.85);
-
-  col = plApplyVolumetricFog(col, vWorldPos);
-
-  gl_FragColor = vec4(col, alpha);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`,
+    vertexShader: WATER_WALL_VERTEX,
+    fragmentShader: WATER_WALL_FRAGMENT,
   });
 }
 
@@ -754,16 +438,37 @@ export function getOrlandoMuralTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-export function createSliceCloudMaterial(env: PlacesShaderEnvironment): THREE.MeshStandardMaterial {
-  return patchPlacesVolumetricFog(
-    new THREE.MeshStandardMaterial({
-      color: '#f6f9ff',
-      roughness: 0.96,
-      metalness: 0.0,
-      transparent: false,
-    }),
-    env
-  );
+/**
+ * Soft volumetric cloud material for instanced puffs. Drift/bob happen in the
+ * vertex shader from aPhase + uTime so a whole cluster stays one draw call.
+ */
+export function createSliceCloudMaterial(env: PlacesShaderEnvironment): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    uniforms: {
+      uTime: WU.t,
+      uSun: WU.sun,
+      uLit: WU.lit,
+      uSky: WU.sky,
+      uTint: { value: new THREE.Color('#f6f9ff') },
+      uSunDir: env.sunDir,
+      uSunColor: env.sunColor,
+      uVolSunDir: env.sunDir,
+      uVolSunColor: env.sunColor,
+      uVolFogColor: env.fogColor,
+      uVolFogDeepColor: env.volFogDeepColor,
+      uVolFogDensity: env.volFogDensity,
+      uVolFocusPos: env.focusPos,
+      uVolFocusClear: env.focusClear,
+      uVolCamDist: env.camDist,
+      uVolSun: WU.sun,
+      uVolTime: WU.t,
+    },
+    vertexShader: CLOUD_VERTEX,
+    fragmentShader: CLOUD_FRAGMENT,
+  });
 }
 
 /**

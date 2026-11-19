@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LANDMARKS } from '../data/landmarks';
+import { createCloudPuffMesh, createSliceCloudLayer } from './placesClouds';
 import { WU } from './shaders';
 import {
   createCutawayWaterTopMaterial,
@@ -37,7 +38,7 @@ export interface BuiltPlaceSlice {
 export interface SliceSharedAssets {
   env: PlacesShaderEnvironment;
   terrainMat: THREE.MeshStandardMaterial;
-  cloudMat: THREE.MeshStandardMaterial;
+  cloudMat: THREE.ShaderMaterial;
   foliageGeo: THREE.BufferGeometry;
   trunkGeo: THREE.BufferGeometry;
   rockGeo: THREE.BufferGeometry;
@@ -88,7 +89,7 @@ function createSculptedRockGeo(): THREE.BufferGeometry {
 export function createSliceSharedAssets(
   env: PlacesShaderEnvironment,
   terrainMat: THREE.MeshStandardMaterial,
-  cloudMat: THREE.MeshStandardMaterial
+  cloudMat: THREE.ShaderMaterial
 ): SliceSharedAssets {
   const waterTopMats = new Map<string, THREE.ShaderMaterial>();
   const waterWallMatMap = new Map<string, THREE.ShaderMaterial>();
@@ -730,40 +731,6 @@ function addInstancedFlowers(
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.computeBoundingSphere();
   parent.add(mesh);
-}
-
-function buildHoverClouds(shared: SliceSharedAssets, seed: number, maxTopY: number): THREE.Group {
-  const cloudGroup = new THREE.Group();
-  const clusterCount = 3;
-  for (let c = 0; c < clusterCount; c++) {
-    const cluster = new THREE.Group();
-    const angle = seed * 2.1 + c * 2.05;
-    const rad = 0.5 + (c % 2) * 0.44;
-    cluster.position.set(
-      Math.cos(angle) * rad,
-      maxTopY + 0.56 + c * 0.16,
-      Math.sin(angle) * rad * 0.85
-    );
-    cluster.userData.baseX = cluster.position.x;
-    cluster.userData.baseY = cluster.position.y;
-    cluster.userData.phase = seed * 1.7 + c * 2.3;
-
-    const puffs = 4 + (c % 2);
-    for (let p = 0; p < puffs; p++) {
-      const puff = new THREE.Mesh(shared.sphereGeo, shared.cloudMat);
-      const centerWeight = p === 1 || p === 2 ? 1.15 : 0.82;
-      const s = 0.115 * centerWeight;
-      puff.scale.set(s * 1.45, s * 0.78, s * 1.12);
-      puff.position.set(
-        (p - (puffs - 1) * 0.5) * 0.115,
-        p === 1 ? 0.042 : p === 2 ? 0.025 : 0,
-        (p % 2 === 0 ? 1 : -1) * 0.036
-      );
-      cluster.add(puff);
-    }
-    cloudGroup.add(cluster);
-  }
-  return cloudGroup;
 }
 
 /**
@@ -4074,17 +4041,26 @@ export function buildPlaceSlice(
       gondolaB.scale.set(0.034, 0.04, 0.034);
       root.add(gondolaA, gondolaB);
 
-      // Iconic Table Mountain sculpted volumetric "Tablecloth" cloud blanket spilling over plateau!
-      const tableclothGroup = new THREE.Group();
-      for (let p = 0; p < 7; p++) {
-        const puff = new THREE.Mesh(shared.sphereGeo, shared.cloudMat);
-        const px = -0.58 + p * 0.19;
-        const pz = 0.08 + Math.sin(p * 1.4) * 0.16 + (p % 2) * 0.18;
-        puff.scale.set(0.24, 0.085, 0.22);
-        puff.position.set(px, 2.04 - (pz > 0.25 ? 0.08 : 0), pz);
-        tableclothGroup.add(puff);
+      // Iconic Table Mountain "tablecloth" cloud blanket spilling over the plateau.
+      // Instanced soft puffs share the volumetric cloud shader for a cohesive read.
+      const tableclothPuffs = [];
+      for (let p = 0; p < 11; p++) {
+        const px = -0.62 + p * 0.125;
+        const pz = 0.05 + Math.sin(p * 1.35) * 0.13 + (p % 2) * 0.12;
+        const spill = Math.max(0, Math.abs(px) - 0.32);
+        tableclothPuffs.push({
+          x: px,
+          y: 2.05 - spill * 0.22 + Math.sin(p * 2.1) * 0.014,
+          z: pz,
+          sx: 0.175 + (p % 3) * 0.018,
+          sy: 0.085 + (p % 2) * 0.012,
+          sz: 0.16 + (p % 4) * 0.012,
+          phase: 2.6 + p * 0.43,
+        });
       }
-      root.add(tableclothGroup);
+      const tablecloth = createCloudPuffMesh(shared, tableclothPuffs);
+      localGeometries.push(tablecloth.geometry);
+      root.add(tablecloth);
 
       const clothPlume = addLocalMistPlume(
         0.02,
@@ -4135,7 +4111,6 @@ export function buildPlaceSlice(
           p0y + (p1y - p0y) * uB - 0.03,
           p0z + (p1z - p0z) * uB
         );
-        tableclothGroup.position.z = Math.sin(t * 0.35) * 0.06;
         clothPlume.position.z = 0.22 + Math.sin(t * 0.35) * 0.08;
       });
     });
@@ -4429,8 +4404,9 @@ export function buildPlaceSlice(
     dec(terrainCfg.heightAt);
   }
 
-  // Hovering stylized volumetric cloud cluster above the slice
-  const cloudGroup = buildHoverClouds(shared, seed, maxTopY);
+  // Hovering instanced stylised cloud clusters above the slice (GPU drift/bob)
+  const cloudLayer = createSliceCloudLayer(shared, seed, maxTopY, terrainCfg.heightAt);
+  const cloudGroup = cloudLayer.group;
   root.add(cloudGroup);
 
   // Brass/gold hollow square focus rim sitting flush beneath the cutaway block
@@ -4474,13 +4450,6 @@ export function buildPlaceSlice(
   root.add(hitBox);
 
   const tick = (elapsed: number, litStrength: number) => {
-    const wind = Math.max(0.4, WU.wind.value);
-    for (let i = 0; i < cloudGroup.children.length; i++) {
-      const c = cloudGroup.children[i];
-      const phase = c.userData.phase as number;
-      c.position.x = (c.userData.baseX as number) + Math.sin(elapsed * 0.28 * wind + phase) * 0.14;
-      c.position.y = (c.userData.baseY as number) + Math.cos(elapsed * 0.45 + phase) * 0.04;
-    }
     for (let i = 0; i < glowMats.length; i++) {
       glowMats[i].emissiveIntensity = 0.28 + litStrength * 1.5;
     }
@@ -4501,6 +4470,7 @@ export function buildPlaceSlice(
     dispose: () => {
       localGeometries.forEach((g) => g.dispose());
       localMaterials.forEach((m) => m.dispose());
+      cloudLayer.dispose();
     },
   };
 }

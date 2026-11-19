@@ -31,6 +31,7 @@ import { createGlobeScene, type GlobeController } from './globeScene';
 import { createPlacesScene, type PlacesController, type PlacesSelectionInfo } from './placesScene';
 import { createMiniaturePass, type MiniaturePass, type MiniatureTuning } from './postfx';
 import { getSoftTexture, installDissolveShader, WU } from './shaders';
+import { configureDioramaShadow, createRimLight, updateRimLight } from './lightingRig';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
 
@@ -64,6 +65,7 @@ export class CitylitEngine {
     focusRange: 0.2,
     blur: 1.7,
     vignette: 0.2,
+    aperture: 1.0,
   };
 
   private readonly pmrem: THREE.PMREMGenerator;
@@ -78,6 +80,7 @@ export class CitylitEngine {
 
   private readonly keyLight: THREE.DirectionalLight;
   private readonly fillLight: THREE.DirectionalLight;
+  private readonly rimLight: THREE.DirectionalLight;
   private readonly hemiLight: THREE.HemisphereLight;
   private readonly plinthGroup: THREE.Group;
   private readonly plinthTopMat: THREE.MeshStandardMaterial;
@@ -145,7 +148,7 @@ export class CitylitEngine {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isSoftwareGl ? 1 : 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 1.08;
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -233,15 +236,7 @@ export class CitylitEngine {
     this.keyLight.position.set(12, 18, 10);
     if (!this.isSoftwareGl) {
       this.keyLight.castShadow = true;
-      this.keyLight.shadow.mapSize.set(4096, 4096);
-      this.keyLight.shadow.camera.near = 2;
-      this.keyLight.shadow.camera.far = 45;
-      this.keyLight.shadow.camera.left = -10;
-      this.keyLight.shadow.camera.right = 10;
-      this.keyLight.shadow.camera.top = 10;
-      this.keyLight.shadow.camera.bottom = -10;
-      this.keyLight.shadow.bias = -0.0005;
-      this.keyLight.shadow.normalBias = 0.03;
+      configureDioramaShadow(this.keyLight);
     }
     this.scene.add(this.keyLight);
 
@@ -249,10 +244,15 @@ export class CitylitEngine {
     this.fillLight.position.set(-12, 8, -10);
     this.scene.add(this.fillLight);
 
-    // Post-processing pipeline (MSAA render target + N8AO + Bloom + Tilt-Shift + SMAA + Output)
+    this.rimLight = createRimLight();
+    this.scene.add(this.rimLight);
+    this.scene.add(this.rimLight.target);
+
+    // Post-processing pipeline (depth-aware DoF + N8AO + Bloom + Tilt-Shift + SMAA + Output)
     const composerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
       type: THREE.HalfFloatType,
-      samples: this.isSoftwareGl ? 0 : 4,
+      samples: 0,
+      depthTexture: new THREE.DepthTexture(window.innerWidth, window.innerHeight),
     });
     this.composer = new EffectComposer(this.renderer, composerTarget);
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
@@ -262,16 +262,16 @@ export class CitylitEngine {
     this.n8aoPass = new N8AOPass(this.scene, this.camera, window.innerWidth, window.innerHeight);
     this.n8aoPass.configuration.gammaCorrection = false;
     this.n8aoPass.configuration.halfRes = true;
-    this.n8aoPass.configuration.aoRadius = 0.45;
-    this.n8aoPass.configuration.distanceFalloff = 1.0;
-    this.n8aoPass.configuration.intensity = 2.5;
+    this.n8aoPass.configuration.aoRadius = 0.58;
+    this.n8aoPass.configuration.distanceFalloff = 1.05;
+    this.n8aoPass.configuration.intensity = 2.4;
     this.n8aoPass.configuration.color.set('#000000');
     this.n8aoPass.setQualityMode('Performance');
 
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(window.innerWidth, window.innerHeight),
-      0.24,
-      0.45,
+      0.26,
+      0.5,
       0.9
     );
     this.miniaturePass = createMiniaturePass(this.miniatureTuning);
@@ -525,11 +525,13 @@ export class CitylitEngine {
     this.composer.setSize(window.innerWidth, window.innerHeight);
 
     const highFx = !this.isSoftwareGl && idx === 0;
+    const midFx = !this.isSoftwareGl && idx === 1;
+    const postFx = highFx || midFx;
     this.n8aoPass.enabled = highFx;
-    this.renderPass.enabled = !highFx;
-    this.bloomPass.enabled = highFx;
-    this.miniaturePass.enabled = highFx;
-    this.smaaPass.enabled = highFx;
+    this.renderPass.enabled = midFx;
+    this.bloomPass.enabled = postFx;
+    this.miniaturePass.enabled = postFx;
+    this.smaaPass.enabled = postFx;
 
     const shadowsOn = !this.isSoftwareGl && idx < 2;
     this.renderer.shadowMap.enabled = shadowsOn;
@@ -776,6 +778,7 @@ export class CitylitEngine {
       this.composer.setSize(210, 140);
       this.renderPass.camera = thumbCam;
       this.n8aoPass.camera = thumbCam;
+      this.syncMiniatureDepth(thumbCam, new THREE.Vector3(0, 1.4, 0));
     }
 
     const savedGroup = this.currentGroup;
@@ -912,13 +915,27 @@ export class CitylitEngine {
     return out.toDataURL('image/png');
   }
 
+  private syncMiniatureDepth(
+    camera: THREE.PerspectiveCamera,
+    target: THREE.Vector3
+  ): void {
+    this.miniaturePass.setFocus(camera.position.distanceTo(target));
+    const depth = this.n8aoPass.enabled
+      ? this.n8aoPass.beautyRenderTarget.depthTexture
+      : this.composer.readBuffer.depthTexture;
+    this.miniaturePass.setDepth(depth ?? null, camera.near, camera.far);
+  }
+
   private renderCurrentPass(): void {
+    const useComposer = !this.isSoftwareGl && this.qualityIndex < 2;
+
     if (this.globe.isOpen) {
       this.renderer.render(this.globe.group, this.globe.camera);
     } else if (this.places.isOpen) {
       this.renderPass.camera = this.places.camera;
       this.n8aoPass.camera = this.places.camera;
-      if (!this.isSoftwareGl && this.qualityIndex === 0) {
+      if (useComposer) {
+        this.syncMiniatureDepth(this.places.camera, this.places.controls.target);
         this.composer.render();
       } else {
         this.renderer.render(this.scene, this.places.camera);
@@ -926,7 +943,8 @@ export class CitylitEngine {
     } else {
       this.renderPass.camera = this.camera;
       this.n8aoPass.camera = this.camera;
-      if (!this.isSoftwareGl && this.qualityIndex === 0) {
+      if (useComposer) {
+        this.syncMiniatureDepth(this.camera, this.controls.target);
         this.composer.render();
       } else {
         this.renderer.render(this.scene, this.camera);
@@ -1164,12 +1182,13 @@ export class CitylitEngine {
           this.callbacks.onThunder?.();
         },
       });
+      updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
       this.weather.clouds.visible = false;
       this.weather.groundShadow.visible = false;
       this.weather.rainLines.visible = false;
       this.weather.stormCurtain.visible = false;
-      const envCeiling = this.usingSkyHdr ? 0.1 : 0.48;
-      const envFloor = this.usingSkyHdr ? 0.03 : 0.16;
+      const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
+      const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
       this.scene.environmentIntensity =
         envFloor +
         (envCeiling - envFloor) *
@@ -1330,8 +1349,9 @@ export class CitylitEngine {
           this.callbacks.onThunder?.();
         },
       });
-      const envCeiling = this.usingSkyHdr ? 0.1 : 0.48;
-      const envFloor = this.usingSkyHdr ? 0.03 : 0.16;
+      updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
+      const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
+      const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
       this.scene.environmentIntensity =
         envFloor +
         (envCeiling - envFloor) *

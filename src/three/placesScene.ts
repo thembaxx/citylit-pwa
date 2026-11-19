@@ -181,7 +181,6 @@ export function createPlacesScene(
   let flyGoalTarget: THREE.Vector3 | null = null;
   const raycaster = new THREE.Raycaster();
   const pointerVec = new THREE.Vector2();
-  const cloudTintTmp = new THREE.Color('#ffffff');
   const cloudNightTmp = new THREE.Color('#28344d');
   const cloudWarmTmp = new THREE.Color('#ffd3a6');
   const fogBaseTmp = new THREE.Color('#243044');
@@ -462,11 +461,11 @@ export function createPlacesScene(
     env.volFogDeepColor.value.copy(fogDeepTmp);
 
     const litStrength = WU.lit.value;
-    cloudTintTmp
+    const cloudTint = cloudMat.uniforms.uTint.value as THREE.Color;
+    cloudTint
       .set('#f8fbff')
       .lerp(cloudWarmTmp, (1 - WU.sun.value) * 0.45)
       .lerp(cloudNightTmp, Math.max(0, litStrength - 0.15) * 0.72);
-    cloudMat.color.copy(cloudTintTmp);
 
     // Update only the single active visible slice
     const s = slices[selectedSliceIndex];
