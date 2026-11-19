@@ -298,6 +298,10 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const seasonHemiSkyTmp = new THREE.Color();
   const seasonHemiGroundTmp = new THREE.Color();
 
+  // Wind direction from the live observation, in degrees (the direction it comes FROM).
+  const windDirTmp = new THREE.Vector2(1, 0);
+  let windDirectionDeg = 0;
+
   const applyCondition = (key: WeatherConditionKey, night: boolean, timeOfDay?: number) => {
     const cond = WEATHER_CONDITIONS[key] ?? WEATHER_CONDITIONS.sun;
     target.sky.set(cond.sky);
@@ -327,6 +331,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     target.storm = visual.storm;
     target.night = sample.isDay ? 0 : 1;
     target.timeOfDay = timeOfDay;
+    windDirectionDeg = sample.windDirection;
   };
 
   const setSeasonMonth = (month: number, immediate = false) => {
@@ -544,10 +549,13 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     stMat.uniforms.fl.value = lightningFlash;
     stormCurtain.visible = current.storm > 0.03;
 
-    WU.t.value = elapsed * motionScale;
     WU.sun.value = day * (1 - current.cover * 0.65);
     WU.sky.value.copy(skyTmp);
     WU.wind.value = current.wind;
+    // Ease the sway direction toward the real wind bearing so direction changes aren't a snap.
+    const windRad = ((windDirectionDeg + 180) * Math.PI) / 180;
+    windDirTmp.set(Math.sin(windRad), -Math.cos(windRad));
+    WU.windDir.value.lerp(windDirTmp, sk).normalize();
     WU.rain.value = current.rain;
     WU.lit.value = Math.min(1, Math.max(0, (1 - day) * 1.4 + current.cover * 0.3));
   };

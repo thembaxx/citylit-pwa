@@ -5,6 +5,8 @@ export const WU = {
   sun: { value: 1 },
   sky: { value: new THREE.Color('#3b6490') },
   wind: { value: 1 },
+  /** Unit vector pointing in the direction the wind is blowing towards (xz plane). */
+  windDir: { value: new THREE.Vector2(1, 0) },
   lit: { value: 0 },
   rain: { value: 0 },
   dy: { value: 100 },
@@ -390,18 +392,32 @@ export function windy(
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
     shader.uniforms.uWd = WU.wind;
+    shader.uniforms.uWindDir = WU.windDir;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uWT,uWd;')
+      .replace('#include <common>', '#include <common>\nuniform float uWT,uWd;uniform vec2 uWindDir;')
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
 {
 #ifdef USE_INSTANCING
-vec3 wp=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
+// Per-tree phase from the instance translation only, so a canopy bends as one piece.
+float seed=instanceMatrix[3].x*.73+instanceMatrix[3].z*1.17;
 #else
 vec3 wp=(modelMatrix*vec4(transformed,1.)).xyz;
+float seed=wp.x*.73+wp.z*1.17;
 #endif
-float k=max(position.y+.3,0.);transformed.x+=(sin(uWT*1.8+wp.x*.9+wp.z*.7)*.05+sin(uWT*7.+wp.x*5.)*.012)*uWd*k;transformed.z+=cos(uWT*1.5+wp.z*.8)*.035*uWd*k;}`
+// Zero at the trunk base, eased towards the canopy: no ground sliding, no rigid lean.
+float h=clamp(position.y/1.2,0.,1.);float k=h*h*(3.-2.*h);
+float t=uWT;
+// Layered incommensurate frequencies plus a slow gust envelope replace the single pendulum sine.
+float slow=sin(t*.83+seed),mid=sin(t*1.71+seed*1.7+1.3),fast=sin(t*3.37+seed*2.9+.7);
+float gust=.6+.32*sin(t*.21+seed*.5)+.14*sin(t*.53+seed*1.3);
+float amp=.085*clamp(uWd,0.,4.)*k*gust;
+float sway=(slow*.62+mid*.26)*amp,flutter=fast*.16*amp;
+vec2 dir=uWindDir;
+transformed.x+=dir.x*sway-dir.y*flutter;
+transformed.z+=dir.y*sway+dir.x*flutter;
+}`
       );
     applyDissolveToShader(shader);
   };

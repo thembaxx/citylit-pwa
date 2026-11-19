@@ -102,6 +102,8 @@ export class CitylitEngine {
   private pendingIndex: number | null = null;
   private lastTick = 0;
   private elapsed = 0;
+  /** Accumulated, motion-scaled time for shader animations. Continuous when motion toggles. */
+  private shaderTime = 0;
   private rafId = 0;
   private disposed = false;
   private afterDrawTimer = 0;
@@ -1148,6 +1150,10 @@ export class CitylitEngine {
     const dt = Math.max(0, Math.min(0.05, (now - this.lastTick) / 1000));
     this.lastTick = Math.max(this.lastTick, now);
     this.elapsed += dt;
+    // Accumulate scaled time instead of multiplying wall time by the scale, so toggling
+    // reduced motion eases into the new rate rather than jumping the shader phase.
+    this.shaderTime += dt * this.motionScale;
+    WU.t.value = this.shaderTime;
 
     // Auto quality monitor when qualitySetting === 'auto'
     if (this.qualitySetting === 'auto' && !this.isSoftwareGl) {
