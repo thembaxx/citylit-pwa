@@ -2,6 +2,7 @@ import { X } from '@phosphor-icons/react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
+import { ambientAudio } from '../../audio/ambientAudio';
 import { SPRING, shouldDismiss } from '../../lib/motion';
 
 /**
@@ -37,6 +38,15 @@ export function Sheet({
   const controls = useDragControls();
   const panelRef = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
+  const wasOpen = useRef(false);
+
+  // One cue per surface change, regardless of whether the user used the X,
+  // the backdrop, a drag gesture or Escape to dismiss it.
+  useEffect(() => {
+    if (open) ambientAudio.playUi('open');
+    else if (wasOpen.current) ambientAudio.playUi('close');
+    wasOpen.current = open;
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;

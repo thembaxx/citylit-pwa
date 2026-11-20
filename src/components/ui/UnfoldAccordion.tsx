@@ -1,6 +1,7 @@
 import { CaretDown } from '@phosphor-icons/react';
 import { useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { ambientAudio } from '../../audio/ambientAudio';
 import { EASE_SMOOTH_OUT, SPRING } from '../../lib/motion';
 
 /** UnfoldAccordion, adapted from EasyUI — chevron and height move as one. */
@@ -25,8 +26,10 @@ export function UnfoldAccordion({
   className = '',
 }: UnfoldAccordionProps) {
   const [open, setOpen] = useState<string[]>(defaultOpen);
-  const toggle = (id: string) =>
+  const toggle = (id: string) => {
+    ambientAudio.playUi(open.includes(id) ? 'collapse' : 'expand');
     setOpen((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
+  };
 
   return (
     <div

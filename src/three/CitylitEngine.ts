@@ -207,7 +207,7 @@ export class CitylitEngine {
     this.renderer.toneMappingExposure = 1.08;
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
       this.renderer.shadowMap.autoUpdate = false;
     }
 

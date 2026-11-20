@@ -11,6 +11,7 @@ import {
   Wind,
 } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
+import { ambientAudio } from '../audio/ambientAudio';
 import {
   getExtremeWeatherWarnings,
   getSeasonName,
@@ -121,6 +122,7 @@ export function WeatherWidget({
           type="button"
           whileTap={reducedMotion ? undefined : { scale: 0.985 }}
           onClick={() => {
+            ambientAudio.playUi(expanded ? 'collapse' : 'expand', { intensity: 0.7 });
             onToggleExpand();
             onTriggerRainbow();
           }}
@@ -312,7 +314,10 @@ export function WeatherWidget({
                     max={12}
                     step={1}
                     value={month}
-                    onChange={(e) => onChangeMonth(Number(e.target.value))}
+                    onChange={(e) => {
+                      onChangeMonth(Number(e.target.value));
+                      ambientAudio.playUi('tick');
+                    }}
                     aria-label="Select month"
                     className="w-full accent-[#e8b04a] cursor-pointer"
                   />

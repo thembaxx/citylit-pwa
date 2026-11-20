@@ -18,6 +18,7 @@ import {
   instancedMeshes,
   lampPost,
   lines,
+  litWindowMaterial,
   M,
   Mc,
   MCascade,
@@ -1715,7 +1716,24 @@ export function castle(): THREE.Group {
   // Kat Balcony Residence with pitched tiled roof & Bell Tower cupola
   add(g, CB(2.4, 0.9, 1.6, 0.04), wl, 0, 0.65, 0.3);
   add(g, gableRoofGeo(2.4, 1.6, 0.45, 0.1), rf, 0, 1.12, 0.3);
-  add(g, CB(0.45, 0.28, 0.04, 0.01), G('#ffd58a', 0.9), 0, 0.68, 1.11);
+  // A varied lit-window facade reads far better than a single glowing pane.
+  add(
+    g,
+    new THREE.PlaneGeometry(2.34, 0.84),
+    litWindowMaterial({
+      wall: '#e4d5a8',
+      lit: '#ffd58a',
+      dark: '#6b5a3a',
+      cols: 9,
+      rows: 3,
+      seed: 7,
+      chance: 0.5,
+      intensity: 0.14,
+    }),
+    0,
+    0.65,
+    1.116
+  );
   add(g, C(0.22, 0.24, 1.3, 12), wl, -0.9, 1.4, -0.8);
   add(g, new THREE.ConeGeometry(0.32, 0.52, 12), rf, -0.9, 2.3, -0.8);
   for (let i = 0; i < 6; i++) {
@@ -2075,47 +2093,17 @@ export function ponte(): THREE.Group {
   const g = new THREE.Group();
   const roadMat = MWet('#484b54', 0.84, 0.16, 0.06, 'plaster');
   add(g, C(7.6, 7.6, 0.2, 84), roadMat, 0, 0.1, 0);
-  const cv = document.createElement('canvas');
-  cv.width = 128;
-  cv.height = 256;
-  const x = cv.getContext('2d')!;
-  x.fillStyle = '#c4bcb0';
-  x.fillRect(0, 0, 128, 256);
-
-  const ecv = document.createElement('canvas');
-  ecv.width = 128;
-  ecv.height = 256;
-  const ex = ecv.getContext('2d')!;
-  ex.fillStyle = '#000000';
-  ex.fillRect(0, 0, 128, 256);
-
-  for (let r = 0; r < 48; r++) {
-    for (let c = 0; c < 16; c++) {
-      const lit = R(r * 16 + c) > 0.42;
-      x.fillStyle = lit ? '#e8ca86' : '#323844';
-      x.fillRect(c * 8 + 1, r * 5 + 1, 6, 3);
-      if (lit) {
-        ex.fillStyle = '#ffd582';
-        ex.fillRect(c * 8 + 1, r * 5 + 1, 6, 3);
-      }
-    }
-  }
-  const tx = new THREE.CanvasTexture(cv);
-  tx.colorSpace = THREE.SRGBColorSpace;
-  const etx = new THREE.CanvasTexture(ecv);
-  etx.colorSpace = THREE.SRGBColorSpace;
-  const wm = new THREE.MeshStandardMaterial({
-    map: tx,
-    emissive: '#ffffff',
-    emissiveMap: etx,
-    emissiveIntensity: 0.18,
-    roughness: 0.72,
-    bumpMap: MPlaster('#c4bcb0').bumpMap,
-    bumpScale: 0.012,
-    side: THREE.DoubleSide,
+  const wm = litWindowMaterial({
+    wall: '#c4bcb0',
+    lit: '#e8ca86',
+    dark: '#323844',
+    cols: 16,
+    rows: 48,
+    seed: 1,
+    chance: 0.58,
+    intensity: 0.18,
   });
   wm.userData.i = 0.85;
-  glowMaterials.push(wm);
   add(g, C(1.6, 1.6, 7.4, 64, 1, true), wm, 0, 3.9, 0);
   add(g, C(0.8, 0.8, 7.4, 32, 1, true), MPlaster('#c9c2b4', 0.8), 0, 3.9, 0);
   // Exterior vertical structural concrete ribs

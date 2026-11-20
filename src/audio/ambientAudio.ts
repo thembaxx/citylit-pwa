@@ -20,6 +20,52 @@ const smoothBell = (x: number, start: number, peak: number, end: number): number
 
 const equalPower = (x: number): number => Math.sin(clamp01(x) * Math.PI * 0.5);
 
+/**
+ * Semantic UI sound roles, modelled on sensory-ui: every cue maps to an
+ * interaction type instead of being decorative. Hero is opt-in (off by
+ * default) so celebrations never fire accidentally.
+ */
+export type UiCueCategory = 'interaction' | 'overlay' | 'navigation' | 'notification' | 'hero';
+
+export type UiCueKind =
+  | 'tap'
+  | 'subtle'
+  | 'toggle'
+  | 'confirm'
+  | 'tick'
+  | 'open'
+  | 'close'
+  | 'expand'
+  | 'collapse'
+  | 'forward'
+  | 'backward'
+  | 'tab'
+  | 'info'
+  | 'success'
+  | 'warning'
+  | 'error'
+  | 'milestone';
+
+const UI_CUE_CATEGORY: Record<UiCueKind, UiCueCategory> = {
+  tap: 'interaction',
+  subtle: 'interaction',
+  toggle: 'interaction',
+  confirm: 'interaction',
+  tick: 'interaction',
+  open: 'overlay',
+  close: 'overlay',
+  expand: 'overlay',
+  collapse: 'overlay',
+  forward: 'navigation',
+  backward: 'navigation',
+  tab: 'navigation',
+  info: 'notification',
+  success: 'notification',
+  warning: 'notification',
+  error: 'notification',
+  milestone: 'hero',
+};
+
 /** Base tactile vibration signatures (ms alternating on/off) for each biome. */
 const BIOME_HAPTIC_PATTERNS: Record<LandmarkBiome, readonly number[]> = {
   coastal: [24, 42, 16, 52, 12],
@@ -136,6 +182,16 @@ class AmbientAudioController {
   private spatialEmitters = new Map<string, SpatialEmitter>();
   private listener: SpatialListener | null = null;
   private spatialActive = true;
+  /** Separate opt-out for interface cues; ambient beds keep playing. */
+  private uiSounds = true;
+  private uiCategories: Record<UiCueCategory, boolean> = {
+    interaction: true,
+    overlay: true,
+    navigation: true,
+    notification: true,
+    hero: false,
+  };
+  private uiLastPlayed = new Map<UiCueKind, number>();
 
   constructor() {
     this.setSeasonMonth(this.seasonMonth, true);
@@ -215,8 +271,10 @@ class AmbientAudioController {
     mixer?: AmbientMixerSettings;
     haptics: boolean;
     reducedMotion: boolean;
+    uiSounds?: boolean;
   }): void {
     this.volume = Math.max(0, Math.min(1, opts.volume));
+    if (typeof opts.uiSounds === 'boolean') this.uiSounds = opts.uiSounds;
     if (opts.mixer) {
       this.mixer = {
         wind: Math.max(0, Math.min(1, opts.mixer.wind / 100)),
@@ -713,6 +771,155 @@ class AmbientAudioController {
       playNoise(this.whiteBuf, 'bandpass', 200, 2400, 1.1, 0.3, 0.7);
       playTone(220, 1.2, 0.08, 0);
     }
+  }
+
+  /**
+   * Play a short semantic interface cue. Cues are synthesized on the fly
+   * through the same master bus as the ambience, so the global sound toggle
+   * and volume remain the single source of truth. `uiSounds` can silence
+   * just these cues without touching the environmental bed.
+   */
+  playUi(kind: UiCueKind, opts: { intensity?: number; vibrate?: number | number[] } = {}): void {
+    if (!this.uiSounds || !this.uiCategories[UI_CUE_CATEGORY[kind]] || !this.enabled) return;
+    this.ensureContext();
+    const ctx = this.ctx;
+    if (!ctx || !this.masterGain || this.volume <= 0.001) return;
+    void ctx.resume();
+
+    const now = ctx.currentTime;
+    if (kind === 'tick' || kind === 'subtle') {
+      if (this.reducedMotion) return;
+      const gap = kind === 'tick' ? 0.055 : 0.04;
+      const last = this.uiLastPlayed.get(kind) ?? -Infinity;
+      if (now - last < gap) return;
+      this.uiLastPlayed.set(kind, now);
+    }
+    const intensity = Math.max(0.2, Math.min(1.3, opts.intensity ?? 1));
+    const bus = this.masterGain;
+
+    const tone = (
+      freq: number,
+      dur: number,
+      gain: number,
+      delay = 0,
+      type: OscillatorType = 'sine',
+      endFreq?: number
+    ) => {
+      const at = now + delay;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, at);
+      if (endFreq !== undefined) osc.frequency.exponentialRampToValueAtTime(endFreq, at + dur);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(gain * intensity, at + Math.min(0.012, dur * 0.25));
+      g.gain.exponentialRampToValueAtTime(0.0008, at + dur);
+      osc.connect(g);
+      g.connect(bus);
+      osc.start(at);
+      osc.stop(at + dur + 0.02);
+      osc.onended = () => g.disconnect();
+    };
+
+    const click = (
+      f0: number,
+      f1: number,
+      dur: number,
+      gain: number,
+      q = 1,
+      type: BiquadFilterType = 'bandpass'
+    ) => {
+      const buf = this.whiteBuf;
+      if (!buf) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const fl = ctx.createBiquadFilter();
+      fl.type = type;
+      fl.Q.value = q;
+      fl.frequency.setValueAtTime(f0, now);
+      fl.frequency.exponentialRampToValueAtTime(Math.max(40, f1), now + dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, now);
+      g.gain.linearRampToValueAtTime(gain * intensity, now + Math.min(0.008, dur * 0.3));
+      g.gain.exponentialRampToValueAtTime(0.0008, now + dur);
+      src.connect(fl);
+      fl.connect(g);
+      g.connect(bus);
+      src.start(now);
+      src.stop(now + dur + 0.02);
+      src.onended = () => {
+        fl.disconnect();
+        g.disconnect();
+      };
+    };
+
+    switch (kind) {
+      case 'tap':
+        click(3600, 2600, 0.028, 0.045, 1.1);
+        tone(720, 0.03, 0.018);
+        break;
+      case 'subtle':
+        click(3800, 3400, 0.018, 0.028, 2.2);
+        break;
+      case 'tick':
+        click(4200, 3800, 0.012, 0.024, 2.6);
+        break;
+      case 'toggle':
+        tone(700, 0.05, 0.04, 0, 'sine', 480);
+        break;
+      case 'confirm':
+        click(5200, 4200, 0.022, 0.05, 1.4);
+        tone(1040, 0.035, 0.022, 0.006);
+        break;
+      case 'open':
+        tone(420, 0.19, 0.032, 0, 'sine', 620);
+        tone(630, 0.16, 0.016, 0.035, 'sine', 880);
+        break;
+      case 'close':
+        tone(660, 0.18, 0.03, 0, 'sine', 440);
+        tone(880, 0.15, 0.015, 0.03, 'sine', 600);
+        break;
+      case 'expand':
+        tone(500, 0.12, 0.026, 0, 'sine', 720);
+        break;
+      case 'collapse':
+        tone(720, 0.12, 0.026, 0, 'sine', 500);
+        break;
+      case 'forward':
+        tone(420, 0.14, 0.03, 0, 'sine', 760);
+        click(1800, 3200, 0.1, 0.012, 0.8);
+        break;
+      case 'backward':
+        tone(760, 0.14, 0.03, 0, 'sine', 420);
+        click(3200, 1800, 0.1, 0.012, 0.8);
+        break;
+      case 'tab':
+        tone(560, 0.045, 0.03, 0, 'sine', 680);
+        break;
+      case 'info':
+        tone(720, 0.22, 0.03);
+        tone(1080, 0.18, 0.014, 0.05);
+        break;
+      case 'success':
+        tone(523, 0.18, 0.032);
+        tone(659, 0.18, 0.028, 0.11);
+        tone(784, 0.26, 0.026, 0.22);
+        break;
+      case 'warning':
+        tone(440, 0.16, 0.03);
+        tone(466, 0.2, 0.026, 0.14);
+        break;
+      case 'error':
+        tone(320, 0.2, 0.035, 0, 'triangle', 150);
+        break;
+      case 'milestone':
+        tone(523, 0.18, 0.03);
+        tone(659, 0.18, 0.028, 0.1);
+        tone(784, 0.18, 0.026, 0.2);
+        tone(1047, 0.38, 0.03, 0.3);
+        break;
+    }
+    if (opts.vibrate !== undefined) this.vibrate(opts.vibrate);
   }
 
   private chirp(biome: LandmarkBiome, intensity = 1): void {

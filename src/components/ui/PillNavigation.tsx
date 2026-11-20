@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
+import { ambientAudio } from '../../audio/ambientAudio';
 import { SPRING } from '../../lib/motion';
 
 /**
@@ -45,7 +46,10 @@ export function PillNavigation<T extends string>({
             role="tab"
             aria-selected={active}
             aria-label={option.ariaLabel}
-            onClick={() => onChange(option.value)}
+            onClick={() => {
+              if (!active) ambientAudio.playUi('tab');
+              onChange(option.value);
+            }}
             whileTap={reducedMotion ? undefined : { scale: 0.95 }}
             className={`relative flex items-center justify-center gap-1 rounded-lg font-medium transition-colors cursor-pointer ${
               compact ? 'min-h-7 px-2.5 text-[11px]' : 'min-h-8 px-3 text-[12px]'

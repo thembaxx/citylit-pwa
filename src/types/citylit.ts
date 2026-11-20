@@ -14,6 +14,8 @@ export interface CitylitSettings {
   volume: number;
   mixer: AmbientMixerSettings;
   haptics: boolean;
+  /** Short semantic sounds for interface interactions (distinct from ambience). */
+  uiSounds: boolean;
   motion: MotionSetting;
   tilt: boolean;
   theme: ThemeSetting;

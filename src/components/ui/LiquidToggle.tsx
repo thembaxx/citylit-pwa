@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId } from 'react';
 import { motion, useMotionValue, useSpring, useTransform } from 'motion/react';
+import { ambientAudio } from '../../audio/ambientAudio';
 
 /**
  * LiquidToggle, adapted from EasyUI. The thumb deforms into a blob while it
@@ -91,7 +92,10 @@ export function LiquidToggle({
     blobPath(width, height, t as number, s as number)
   );
 
-  const toggle = useCallback(() => onChange(!value), [onChange, value]);
+  const toggle = useCallback(() => {
+    ambientAudio.playUi('toggle');
+    onChange(!value);
+  }, [onChange, value]);
 
   return (
     <button
@@ -103,10 +107,16 @@ export function LiquidToggle({
       onKeyDown={(e) => {
         if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
           e.preventDefault();
-          if (!value) onChange(true);
+          if (!value) {
+            ambientAudio.playUi('toggle');
+            onChange(true);
+          }
         } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
           e.preventDefault();
-          if (value) onChange(false);
+          if (value) {
+            ambientAudio.playUi('toggle');
+            onChange(false);
+          }
         }
       }}
       className="relative inline-flex shrink-0 cursor-pointer items-center rounded-full border border-white/15 bg-white/[0.06] select-none focus-visible:outline-2 focus-visible:outline-[#e8b04a]"

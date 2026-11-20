@@ -8,6 +8,23 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function usePWARegistration(): void {
   useEffect(() => {
+    // Older dev builds registered a service worker that precached Vite's
+    // optimized deps. After a dependency change it can keep serving an older
+    // copy of three alongside the current one, which breaks the renderer.
+    // Clear any leftover dev SW/cache so a stale bundle can never be reused.
+    if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+      void navigator.serviceWorker.getRegistrations().then((regs) => {
+        for (const reg of regs) {
+          if (reg.active?.scriptURL.includes('dev-sw')) void reg.unregister();
+        }
+      });
+      void caches.keys().then((keys) => {
+        for (const key of keys) {
+          if (key.startsWith('workbox-precache')) void caches.delete(key);
+        }
+      });
+    }
+
     const updateSW = registerSW({
       immediate: true,
       onRegisteredSW() {

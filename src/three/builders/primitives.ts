@@ -96,8 +96,8 @@ export function updateWetSurfaces(rain: number): void {
 
 export function MRoof(
   c: THREE.ColorRepresentation,
-  r = 0.82,
-  bumpScale = 0.026
+  r = 0.8,
+  bumpScale = 0.032
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
   const key = `roof_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
@@ -114,8 +114,8 @@ export function MRoof(
 
 export function MSteel(
   c: THREE.ColorRepresentation,
-  r = 0.78,
-  m = 0.82
+  r = 0.74,
+  m = 0.9
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
   const key = `steel_${colHex}_${r.toFixed(2)}_${m.toFixed(2)}`;
@@ -124,6 +124,7 @@ export function MSteel(
     color: c,
     roughness: r,
     metalness: m,
+    envMapIntensity: 1.15,
     roughnessMap: getBrushedRoughnessTexture(),
   });
   return cacheMat(key, mat);
@@ -131,8 +132,8 @@ export function MSteel(
 
 export function MCanvas(
   c: THREE.ColorRepresentation,
-  r = 0.9,
-  bumpScale = 0.018
+  r = 0.88,
+  bumpScale = 0.022
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
   const key = `canvas_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
@@ -167,6 +168,89 @@ export function MGlass(
   return cacheMat(key, mat);
 }
 
+const litWindowCache = new Map<string, THREE.MeshStandardMaterial>();
+
+/**
+ * Procedural facade with varied lit windows. One CanvasTexture pair and one
+ * material regardless of window count, so it costs a single draw call and
+ * plugs into the existing night/emissive update system.
+ */
+export function litWindowMaterial(opts: {
+  wall: THREE.ColorRepresentation;
+  lit?: THREE.ColorRepresentation;
+  dark?: THREE.ColorRepresentation;
+  cols?: number;
+  rows?: number;
+  seed?: number;
+  chance?: number;
+  intensity?: number;
+}): THREE.MeshStandardMaterial {
+  const cols = Math.max(1, Math.round(opts.cols ?? 12));
+  const rows = Math.max(1, Math.round(opts.rows ?? 24));
+  const chance = Math.max(0, Math.min(1, opts.chance ?? 0.55));
+  const intensity = opts.intensity ?? 0.18;
+  const wall = new THREE.Color(opts.wall).getHexString();
+  const lit = new THREE.Color(opts.lit ?? '#ffd582').getHexString();
+  const dark = new THREE.Color(opts.dark ?? '#323844').getHexString();
+  const key = `${wall}_${lit}_${dark}_${cols}x${rows}_${opts.seed ?? 0}_${chance}_${intensity}`;
+  const cached = litWindowCache.get(key);
+  if (cached) {
+    if (!glowMaterials.includes(cached)) glowMaterials.push(cached);
+    return cached;
+  }
+
+  const cw = 8;
+  const ch = 6;
+  const cv = document.createElement('canvas');
+  cv.width = cols * cw;
+  cv.height = rows * ch;
+  const ctx = cv.getContext('2d')!;
+  ctx.fillStyle = `#${wall}`;
+  ctx.fillRect(0, 0, cv.width, cv.height);
+
+  const ecv = document.createElement('canvas');
+  ecv.width = cv.width;
+  ecv.height = cv.height;
+  const ex = ecv.getContext('2d')!;
+  ex.fillStyle = '#000000';
+  ex.fillRect(0, 0, ecv.width, ecv.height);
+
+  const ww = cw - 2;
+  const wh = ch - 2;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const on = R((opts.seed ?? 0) * 97 + r * cols + c) > 1 - chance;
+      const px = c * cw + 1;
+      const py = r * ch + 1;
+      ctx.fillStyle = on ? `#${lit}` : `#${dark}`;
+      ctx.fillRect(px, py, ww, wh);
+      if (on) {
+        ex.fillStyle = '#ffd582';
+        ex.fillRect(px, py, ww, wh);
+      }
+    }
+  }
+
+  const map = new THREE.CanvasTexture(cv);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const emissiveMap = new THREE.CanvasTexture(ecv);
+  emissiveMap.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshStandardMaterial({
+    map,
+    emissive: '#ffffff',
+    emissiveMap,
+    emissiveIntensity: intensity,
+    roughness: 0.72,
+    bumpMap: getPlasterBumpTexture(),
+    bumpScale: 0.012,
+    side: THREE.DoubleSide,
+  });
+  mat.userData.sharedResource = true;
+  litWindowCache.set(key, mat);
+  glowMaterials.push(mat);
+  return mat;
+}
+
 export function MPatina(c: THREE.ColorRepresentation): THREE.MeshStandardMaterial {
   return M(c, 0.58, 0.42);
 }
@@ -182,8 +266,8 @@ export function M(c: THREE.ColorRepresentation, r = 0.7, m = 0): THREE.MeshStand
 
 export function MStone(
   c: THREE.ColorRepresentation,
-  r = 0.92,
-  bumpScale = 0.032,
+  r = 0.9,
+  bumpScale = 0.045,
   m = 0.02
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
@@ -201,8 +285,8 @@ export function MStone(
 
 export function MPlaster(
   c: THREE.ColorRepresentation,
-  r = 0.78,
-  bumpScale = 0.014,
+  r = 0.75,
+  bumpScale = 0.02,
   m = 0.02
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
@@ -220,8 +304,8 @@ export function MPlaster(
 
 export function MWood(
   c: THREE.ColorRepresentation,
-  r = 0.86,
-  bumpScale = 0.024
+  r = 0.84,
+  bumpScale = 0.03
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
   const key = `wood_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
@@ -1735,10 +1819,12 @@ export function stampContactShadowsFromMeshes(g: THREE.Object3D): void {
     csTmpBox.getCenter(csTmpCenter);
 
     const span = Math.max(csTmpSize.x, csTmpSize.z);
-    if (span < 0.16 || span > 3.8 || csTmpSize.y < 0.08) return;
-    if (csTmpBox.min.y < -0.08 || csTmpBox.min.y > 0.48) return;
+    // Cover tall towers and broad mountain masses too; the rim/sea plate are
+    // far wider than 7.5 so they still cannot stamp themselves.
+    if (span < 0.16 || span > 7.5 || csTmpSize.y < 0.08) return;
+    if (csTmpBox.min.y < -0.35 || csTmpBox.min.y > 0.48) return;
 
-    const r = Math.min(2.2, Math.max(0.18, span * 0.62));
+    const r = Math.min(2.4, Math.max(0.18, span * 0.62));
     stampContactShadow(
       g,
       csTmpCenter.x,

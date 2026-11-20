@@ -557,11 +557,15 @@ const FALLBACK_PROFILE: SiteProfile = {
 };
 
 export function getSiteProfile(key: string): SiteProfile {
-  return SITE_PROFILES[key] ?? FALLBACK_PROFILE;
+  return SITE_PROFILES[normalizeProfileKey(key)] ?? FALLBACK_PROFILE;
+}
+
+function normalizeProfileKey(key: string): string {
+  return key.replace(/[’‘`]/g, "'");
 }
 
 export function hasSiteProfile(key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(SITE_PROFILES, key);
+  return Object.prototype.hasOwnProperty.call(SITE_PROFILES, normalizeProfileKey(key));
 }
 
 /* ------------------------------------------------------------------ */
@@ -574,10 +578,10 @@ function getRimMaterial(): THREE.MeshStandardMaterial {
   if (!rimMaterial) {
     rimMaterial = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.88,
+      roughness: 0.85,
       metalness: 0.03,
       bumpMap: getStoneBumpTexture(),
-      bumpScale: 0.018,
+      bumpScale: 0.03,
     });
     rimMaterial.userData.sharedResource = true;
   }
@@ -659,15 +663,35 @@ function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: 
 /** Square cutaway block with layered earth walls, used for the estate dioramas. */
 function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   const [top, edge, band, wall] = profile.rim;
-  const geo = new THREE.BoxGeometry(16.8, 1.2, 16.8, 2, 20, 2).translate(0, -0.56, 0);
+  // Subdivided so the carved lip and the two small ledges are real geometry,
+  // not just painted bands — still one mesh and one material.
+  const geo = new THREE.BoxGeometry(16.8, 1.2, 16.8, 10, 24, 10).translate(0, -0.56, 0);
   paintStrata(geo, [wall, band, edge, edge], 3.4);
   const pos = geo.attributes.position;
   const col = geo.attributes.color as THREE.BufferAttribute;
   const cTop = new THREE.Color(top);
   for (let i = 0; i < pos.count; i++) {
-    if (pos.getY(i) > 0.03) col.setXYZ(i, cTop.r, cTop.g, cTop.b);
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    if (y > 0.03) {
+      // Erode the perimeter of the top face so it reads as a cut slab.
+      const perimeter = Math.max(Math.abs(x), Math.abs(z)) / 8.4;
+      const lip = Math.max(0, (perimeter - 0.8) / 0.2);
+      const chip = Math.sin(x * 4.7 + z * 3.1) * lip;
+      pos.setX(i, x * (1 - 0.012 * lip) + 0.035 * chip);
+      pos.setZ(i, z * (1 - 0.012 * lip) + 0.021 * chip);
+      pos.setY(i, y - lip * (0.018 + 0.014 * Math.sin(x * 7.3 - z * 5.9)));
+      col.setXYZ(i, cTop.r, cTop.g, cTop.b);
+    } else if (y > -0.36) {
+      // Shallow stepped ledges on the four walls give the strata relief.
+      const step = y > -0.14 ? 0.055 : 0.026;
+      if (Math.abs(x) > 8.2) pos.setX(i, x + Math.sign(x) * step);
+      if (Math.abs(z) > 8.2) pos.setZ(i, z + Math.sign(z) * step);
+    }
   }
   col.needsUpdate = true;
+  pos.needsUpdate = true;
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   const mesh = new THREE.Mesh(geo, getRimMaterial());
@@ -802,21 +826,26 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
   const rockCount = Math.round(baseRocks * 1.3);
   const plantCount = Math.round(basePlants * 1.25);
   if (rockCount <= 0 && plantCount <= 0) return;
+  // Water-covered sites keep their scatter on the rim; interior props would
+  // otherwise float on the sea plate.
+  const hasWaterPlate = profile.biome === 'coastal' || profile.biome === 'wetland';
 
   const detailGroup = new THREE.Group();
   if (rockCount > 0) {
     const items: InstanceTransform[] = [];
     for (let i = 0; i < rockCount; i++) {
       const a = (i / rockCount) * 6.2832 + R(i * 7.1 + 3) * 0.55;
-      const r = 7.1 + R(i * 3.7 + 9) * 0.85;
+      const inner = !hasWaterPlate && i % 3 === 2;
+      const r = inner ? 2.8 + Math.sqrt(R(i * 2.1 + 17)) * 3.5 : 7.1 + R(i * 3.7 + 9) * 0.85;
+      const size = inner ? 0.72 : 1;
       items.push({
         x: Math.cos(a) * r,
         y: 0.2,
         z: Math.sin(a) * r,
         ry: R(i + 4) * 6.28,
-        sx: 0.3 + R(i + 5) * 0.38,
-        sy: 0.2 + R(i + 6) * 0.24,
-        sz: 0.3 + R(i + 7) * 0.38,
+        sx: (0.3 + R(i + 5) * 0.38) * size,
+        sy: (0.2 + R(i + 6) * 0.24) * size,
+        sz: (0.3 + R(i + 7) * 0.38) * size,
       });
     }
     scatterRocks(detailGroup, items, profile.rock[0], profile.rock[1]);
@@ -827,15 +856,17 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
     const items: InstanceTransform[] = [];
     for (let i = 0; i < plantCount; i++) {
       const a = (i / plantCount) * 6.2832 + R(i * 5.3 + 2) * 0.8;
-      const r = 6.9 + R(i * 2.9 + 1) * 0.65;
+      const inner = !hasWaterPlate && i % 3 === 1;
+      const r = inner ? 2.6 + Math.sqrt(R(i * 1.7 + 11)) * 3.4 : 6.9 + R(i * 2.9 + 1) * 0.65;
+      const size = inner ? 0.78 : 1;
       items.push({
         x: Math.cos(a) * r,
         y: 0.19,
         z: Math.sin(a) * r,
         ry: R(i) * 6.28,
-        sx: 0.7 + R(i + 3) * 0.55,
-        sy: 0.75 + R(i + 4) * 0.7,
-        sz: 0.7 + R(i + 5) * 0.55,
+        sx: (0.7 + R(i + 3) * 0.55) * size,
+        sy: (0.75 + R(i + 4) * 0.7) * size,
+        sz: (0.7 + R(i + 5) * 0.55) * size,
       });
     }
     grassTufts(detailGroup, items, plants);
@@ -1345,6 +1376,10 @@ function addSoaringBirds(g: THREE.Group, profile: SiteProfile, seedAngle: number
  * spatial audio metadata. Tree instances are batched at the end.
  */
 export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Group {
+  // LANDMARKS keys use curly apostrophes (Bourke’s, Chapman’s) while the
+  // curated site profiles use straight ones. Normalize once so both lookups
+  // resolve to the intended biome, rim palette, FX and spatial audio.
+  key = normalizeProfileKey(key);
   const profile = getSiteProfile(key);
   const angle = keyAngle(key) + 0.6;
 

@@ -74,9 +74,13 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,hdr,webmanifest}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
+      // A dev service worker precaches Vite's optimized dependencies. When the
+      // lockfile or optimizer changes it can keep serving an old copy of three
+      // alongside the new one ("Multiple instances of Three.js"), which breaks
+      // the renderer with cross-version Matrix4 errors. PWA behaviour in the
+      // production build is unaffected; use `pnpm preview` to test the SW.
       devOptions: {
-        enabled: true,
-        type: 'module',
+        enabled: false,
       },
     }),
   ],

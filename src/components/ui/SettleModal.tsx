@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { ambientAudio } from '../../audio/ambientAudio';
 import { modalVariants } from '../../lib/motion';
 
 /**
@@ -34,6 +35,13 @@ export function SettleModal({
   reducedMotion = false,
   children,
 }: SettleModalProps) {
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) ambientAudio.playUi('open');
+    else if (wasOpen.current) ambientAudio.playUi('close');
+    wasOpen.current = open;
+  }, [open]);
+
   return (
     <AnimatePresence>
       {open && (

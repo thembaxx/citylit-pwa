@@ -76,6 +76,7 @@ function readSettings(): CitylitSettings {
             typeof parsed.mixer?.traffic === 'number' ? parsed.mixer.traffic : defaultMixer.traffic,
         },
         haptics: parsed.haptics ?? true,
+        uiSounds: parsed.uiSounds ?? true,
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
         theme: parsed.theme === 'daylight' || parsed.theme === 'studio' ? parsed.theme : 'dark',
@@ -89,6 +90,7 @@ function readSettings(): CitylitSettings {
     volume: 80,
     mixer: defaultMixer,
     haptics: true,
+    uiSounds: true,
     motion: 'auto',
     tilt: false,
     theme: 'dark',
@@ -179,12 +181,14 @@ export function App() {
   }, [settings.motion]);
 
   const showToast = useCallback((msg: string) => {
+    ambientAudio.playUi('info');
     setToastText(msg);
     if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     toastTimerRef.current = window.setTimeout(() => setToastText(null), 2600);
   }, []);
 
   const showFact = useCallback((text: string) => {
+    ambientAudio.playUi('subtle', { intensity: 0.7 });
     setFactText(text);
     if (factTimerRef.current) window.clearTimeout(factTimerRef.current);
     factTimerRef.current = window.setTimeout(() => setFactText(null), 5200);
@@ -342,6 +346,7 @@ export function App() {
       mixer: settings.mixer,
       haptics: settings.haptics,
       reducedMotion,
+      uiSounds: settings.uiSounds,
     });
     document.documentElement.dataset.theme = settings.theme;
     engineRef.current?.applyQuality(settings.quality);
@@ -535,9 +540,11 @@ export function App() {
         else if (searchOpen) setSearchOpen(false);
         else if (infoOpen) setInfoOpen(false);
         else if (placesOpen) {
+          ambientAudio.playUi('close');
           engineRef.current?.closePlaces();
           setPlacesOpen(false);
         } else if (globeOpen) {
+          ambientAudio.playUi('close');
           engineRef.current?.closeGlobe();
           setGlobeOpen(false);
         } else if (fullscreen) setFullscreen(false);
@@ -561,19 +568,29 @@ export function App() {
     selectLandmark,
   ]);
 
-  const toggleFavorite = useCallback((targetIndex: number) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(targetIndex)) next.delete(targetIndex);
-      else next.add(targetIndex);
-      try {
-        localStorage.setItem('cl-f', JSON.stringify([...next]));
-      } catch {
-        // Ignore storage failures
-      }
-      return next;
-    });
-    ambientAudio.vibrate(10);
+  const toggleFavorite = useCallback(
+    (targetIndex: number) => {
+      ambientAudio.playUi(favorites.has(targetIndex) ? 'toggle' : 'success', { intensity: 0.75 });
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (next.has(targetIndex)) next.delete(targetIndex);
+        else next.add(targetIndex);
+        try {
+          localStorage.setItem('cl-f', JSON.stringify([...next]));
+        } catch {
+          // Ignore storage failures
+        }
+        return next;
+      });
+      ambientAudio.vibrate(10);
+    },
+    [favorites]
+  );
+
+  const handleToggleSound = useCallback(() => {
+    const enabled = ambientAudio.toggle();
+    setSoundOn(enabled);
+    if (enabled) ambientAudio.playUi('toggle');
   }, []);
 
   const shareCurrentLandmark = useCallback(async () => {
@@ -639,6 +656,7 @@ export function App() {
   const toggleGlobe = useCallback(() => {
     if (!engineRef.current) return;
     if (globeOpen) {
+      ambientAudio.playUi('close');
       engineRef.current.closeGlobe();
       setGlobeOpen(false);
     } else {
@@ -668,6 +686,7 @@ export function App() {
 
   const closePlaces = useCallback(() => {
     if (!engineRef.current) return;
+    ambientAudio.playUi('close');
     engineRef.current.closePlaces();
     setPlacesOpen(false);
   }, []);
@@ -711,10 +730,16 @@ export function App() {
           globeOpen={globeOpen || placesOpen}
           theme={settings.theme}
           reducedMotion={reducedMotion}
-          onToggleSound={() => setSoundOn(ambientAudio.toggle())}
-          onToggleTod={() => setTodOpen((v) => !v)}
+          onToggleSound={handleToggleSound}
+          onToggleTod={() => {
+            ambientAudio.playUi(todOpen ? 'close' : 'open');
+            setTodOpen((v) => !v);
+          }}
           onToggleFullscreen={() => setFullscreen((v) => !v)}
-          onHeroView={() => engineRef.current?.frameCurrentLandmark()}
+          onHeroView={() => {
+            ambientAudio.playUi('tap', { intensity: 0.7 });
+            engineRef.current?.frameCurrentLandmark();
+          }}
           onOpenSearch={() => setSearchOpen(true)}
         />
 
@@ -732,6 +757,7 @@ export function App() {
                 setTimeHour(val);
                 setTimeScrubbed(true);
                 engineRef.current?.setSunAltitudeFromSlider(val);
+                ambientAudio.playUi('tick');
               }}
               aria-label="Time of day hour"
               className="w-full accent-[#e8b04a] cursor-pointer"
@@ -791,13 +817,19 @@ export function App() {
           onPrev={() => selectLandmark(index - 1)}
           onNext={() => selectLandmark(index + 1)}
           onToggleFavorite={() => toggleFavorite(index)}
-          onToggleTour={() => setTourActive((v) => !v)}
+          onToggleTour={() => {
+            ambientAudio.playUi('toggle');
+            setTourActive((v) => !v);
+          }}
           onOpenInfo={() => setInfoOpen(true)}
           onOpenGallery={() => setGalleryOpen(true)}
           onOpenPostcard={handleOpenPostcard}
           onOpenGlobe={toggleGlobe}
           onShare={shareCurrentLandmark}
-          onVibrate={() => ambientAudio.vibrate(18)}
+          onVibrate={() => {
+            ambientAudio.playUi('expand');
+            ambientAudio.vibrate(18);
+          }}
         />
 
         {/* Desktop Orbit Hint */}
@@ -862,7 +894,7 @@ export function App() {
             engineRef.current?.places.resetOverview();
           }}
           onSwitchToGlobe={toggleGlobe}
-          onToggleSound={() => setSoundOn(ambientAudio.toggle())}
+          onToggleSound={handleToggleSound}
           onSelectTimePreset={(h) => {
             setTimeHour(h);
             setTimeScrubbed(true);

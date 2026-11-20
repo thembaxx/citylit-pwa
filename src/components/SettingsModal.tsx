@@ -4,10 +4,12 @@ import {
   Car,
   SlidersHorizontal,
   SpeakerHigh,
+  Waveform,
   Wind,
   X,
 } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
+import { ambientAudio } from '../audio/ambientAudio';
 import type {
   AmbientMixerSettings,
   CitylitSettings,
@@ -132,7 +134,10 @@ export function SettingsModal({
               min={0}
               max={100}
               value={settings.volume}
-              onChange={(e) => onUpdate({ volume: Number(e.target.value) })}
+              onChange={(e) => {
+                onUpdate({ volume: Number(e.target.value) });
+                ambientAudio.playUi('tick');
+              }}
               aria-label="Master sound volume"
               className="w-32 accent-[#e8b04a] cursor-pointer"
             />
@@ -195,7 +200,10 @@ export function SettingsModal({
                       min={0}
                       max={100}
                       value={value}
-                      onChange={(e) => updateMixerChannel(key, Number(e.target.value))}
+                      onChange={(e) => {
+                        updateMixerChannel(key, Number(e.target.value));
+                        ambientAudio.playUi('tick');
+                      }}
                       aria-label={`${label} ambient volume`}
                       className="w-32 sm:w-36 accent-[#e8b04a] cursor-pointer"
                     />
@@ -219,6 +227,19 @@ export function SettingsModal({
               label="Haptic feedback"
               value={settings.haptics}
               onChange={(haptics) => onUpdate({ haptics })}
+              reducedMotion={reducedMotion}
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6] inline-flex items-center gap-2">
+              <Waveform size={15} className="text-[#e8b04a]" />
+              Interface sounds
+            </span>
+            <LiquidToggle
+              label="Interface sounds"
+              value={settings.uiSounds}
+              onChange={(uiSounds) => onUpdate({ uiSounds })}
               reducedMotion={reducedMotion}
             />
           </div>
