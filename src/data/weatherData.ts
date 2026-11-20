@@ -206,6 +206,81 @@ export function conditionFromCode(
   return key;
 }
 
+export type ExtremeWeatherWarningKind = 'storm' | 'heatwave' | 'freeze' | 'gale' | 'downpour';
+
+export interface ExtremeWeatherWarning {
+  kind: ExtremeWeatherWarningKind;
+  label: string;
+  detail: string;
+}
+
+/** Detect extreme weather conditions from a live observation, ordered by severity. */
+export function getExtremeWeatherWarnings(sample: LiveWeatherSample): ExtremeWeatherWarning[] {
+  const warnings: ExtremeWeatherWarning[] = [];
+
+  if (sample.code >= 95) {
+    const hail = sample.code === 96 || sample.code === 99;
+    warnings.push({
+      kind: 'storm',
+      label: hail ? 'Hail storm' : 'Severe storm',
+      detail: hail ? 'Thunderstorm with hail' : 'Active thunderstorm',
+    });
+  }
+
+  if (sample.temp >= 35 || sample.feelsLike >= 38) {
+    warnings.push({
+      kind: 'heatwave',
+      label: 'Heatwave',
+      detail:
+        sample.feelsLike >= sample.temp + 2
+          ? `Feels like ${Math.round(sample.feelsLike)}°C`
+          : `${Math.round(sample.temp)}°C extreme heat`,
+    });
+  }
+
+  const snowCode =
+    (sample.code >= 71 && sample.code <= 77) || sample.code === 85 || sample.code === 86;
+  if (sample.temp <= 2 || sample.feelsLike <= 0 || snowCode) {
+    warnings.push({
+      kind: 'freeze',
+      label: snowCode ? 'Snow alert' : 'Frost alert',
+      detail:
+        sample.feelsLike <= 0
+          ? `Feels like ${Math.round(sample.feelsLike)}°C`
+          : `${Math.round(sample.temp)}°C cold conditions`,
+    });
+  }
+
+  if (sample.windSpeed >= 50 || sample.windGusts >= 70) {
+    warnings.push({
+      kind: 'gale',
+      label: 'Gale winds',
+      detail:
+        sample.windGusts >= 70
+          ? `Gusts ${Math.round(sample.windGusts)} km/h`
+          : `Sustained ${Math.round(sample.windSpeed)} km/h`,
+    });
+  }
+
+  if (
+    sample.precipitation >= 10 ||
+    sample.code === 65 ||
+    sample.code === 67 ||
+    sample.code === 82
+  ) {
+    warnings.push({
+      kind: 'downpour',
+      label: 'Heavy rain',
+      detail:
+        sample.precipitation > 0
+          ? `${sample.precipitation.toFixed(1)} mm/h downpour`
+          : 'Heavy rainfall',
+    });
+  }
+
+  return warnings;
+}
+
 /** A label that can be more specific than the coarse display condition. */
 export function liveConditionLabel(
   sample: LiveWeatherSample,

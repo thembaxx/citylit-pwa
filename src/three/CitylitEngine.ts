@@ -1357,7 +1357,9 @@ export class CitylitEngine {
         this.weather.current.wind,
         this.weather.current.rain,
         this.weather.current.night,
-        this.weather.current.storm
+        this.weather.current.storm,
+        this.weather.current.fog,
+        this.weather.current.timeOfDay
       );
 
       if (
@@ -1521,7 +1523,9 @@ export class CitylitEngine {
         this.weather.current.wind,
         this.weather.current.rain,
         this.weather.current.night,
-        this.weather.current.storm
+        this.weather.current.storm,
+        this.weather.current.fog,
+        this.weather.current.timeOfDay
       );
 
       if (!this.isSoftwareGl && this.qualityIndex < 2 && (this.shadowFrameCounter++ & 1) === 0) {

@@ -1,6 +1,22 @@
-import { GlobeHemisphereEast, Moon, Sun, SunDim, SunHorizon } from '@phosphor-icons/react';
+import {
+  CloudLightning,
+  CloudRain,
+  GlobeHemisphereEast,
+  Moon,
+  Sun,
+  SunDim,
+  SunHorizon,
+  ThermometerCold,
+  ThermometerHot,
+  Wind,
+} from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
-import { getSeasonName, MONTHS } from '../data/weatherData';
+import {
+  getExtremeWeatherWarnings,
+  getSeasonName,
+  MONTHS,
+  type ExtremeWeatherWarningKind,
+} from '../data/weatherData';
 import type { ForecastSlot, WeatherDisplayState } from '../types/citylit';
 import { EASE_SMOOTH_OUT, SPRING, swapTransition } from '../lib/motion';
 import { WeatherIcon } from './WeatherIcon';
@@ -38,6 +54,37 @@ const TIME_PRESETS: ReadonlyArray<{
   { value: 'night', label: 'Night', hour: 22, icon: Moon },
 ];
 
+const WARNING_STYLE: Record<
+  ExtremeWeatherWarningKind,
+  { icon: typeof Sun; iconClass: string; badgeClass: string }
+> = {
+  storm: {
+    icon: CloudLightning,
+    iconClass: 'text-amber-300',
+    badgeClass: 'bg-amber-500/18 border-amber-400/40 text-amber-200',
+  },
+  heatwave: {
+    icon: ThermometerHot,
+    iconClass: 'text-orange-300',
+    badgeClass: 'bg-orange-500/18 border-orange-400/40 text-orange-200',
+  },
+  freeze: {
+    icon: ThermometerCold,
+    iconClass: 'text-sky-200',
+    badgeClass: 'bg-sky-400/16 border-sky-300/40 text-sky-100',
+  },
+  gale: {
+    icon: Wind,
+    iconClass: 'text-cyan-200',
+    badgeClass: 'bg-cyan-400/16 border-cyan-300/40 text-cyan-100',
+  },
+  downpour: {
+    icon: CloudRain,
+    iconClass: 'text-blue-300',
+    badgeClass: 'bg-blue-500/18 border-blue-400/40 text-blue-200',
+  },
+};
+
 export function WeatherWidget({
   weather,
   expanded,
@@ -57,6 +104,7 @@ export function WeatherWidget({
   if (!visible || globeOpen) return null;
 
   const activePreset = TIME_PRESETS.find((p) => Math.abs(activeTimeHour - p.hour) < 1.5)?.value;
+  const warnings = weather.live ? getExtremeWeatherWarnings(weather.live) : [];
 
   return (
     <div className={`weather-island ${expanded ? 'weather-island--expanded' : ''}`}>
@@ -83,13 +131,41 @@ export function WeatherWidget({
             <WeatherIcon condition={weather.condition} night={weather.night} size={28} />
           </motion.span>
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-center gap-1.5">
               <AnimatedNumber
                 value={weather.temp}
                 suffix="°C"
                 className="text-[15px] font-semibold text-[#f3efe6]"
                 reducedMotion={reducedMotion}
               />
+              {warnings.length > 0 && (
+                <span className="inline-flex items-center gap-1 shrink-0">
+                  <AnimatePresence initial={false}>
+                    {warnings.slice(0, 2).map((w) => {
+                      const style = WARNING_STYLE[w.kind];
+                      const WarnIcon = style.icon;
+                      return (
+                        <motion.span
+                          key={w.kind}
+                          initial={reducedMotion ? false : { opacity: 0, scale: 0.75 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={
+                            reducedMotion
+                              ? { opacity: 0, transition: { duration: 0 } }
+                              : { opacity: 0, scale: 0.75 }
+                          }
+                          transition={reducedMotion ? { duration: 0 } : SPRING.snappy}
+                          title={`${w.label}: ${w.detail}`}
+                          aria-label={`${w.label}: ${w.detail}`}
+                          className={`w-[18px] h-[18px] rounded-full border grid place-items-center ${style.badgeClass}`}
+                        >
+                          <WarnIcon size={11} weight="fill" className={style.iconClass} />
+                        </motion.span>
+                      );
+                    })}
+                  </AnimatePresence>
+                </span>
+              )}
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={weather.label}
@@ -152,6 +228,31 @@ export function WeatherWidget({
                     </motion.div>
                   ))}
                 </div>
+
+                {warnings.length > 0 && (
+                  <div className="space-y-1.5" role="status" aria-label="Extreme weather warnings">
+                    {warnings.map((w) => {
+                      const style = WARNING_STYLE[w.kind];
+                      const WarnIcon = style.icon;
+                      return (
+                        <div
+                          key={w.kind}
+                          className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border text-[11px] ${style.badgeClass}`}
+                        >
+                          <span className="inline-flex items-center gap-1.5 font-medium min-w-0">
+                            <WarnIcon
+                              size={14}
+                              weight="fill"
+                              className={`shrink-0 ${style.iconClass}`}
+                            />
+                            <span className="truncate">{w.label}</span>
+                          </span>
+                          <span className="text-[10px] opacity-85 shrink-0">{w.detail}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {weather.live && (
                   <div className="grid grid-cols-2 gap-1.5">
