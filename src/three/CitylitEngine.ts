@@ -44,6 +44,7 @@ import { createWeatherScene, type WeatherSceneController } from './weatherScene'
 
 export interface EngineCallbacks {
   onSelectLandmarkFromGlobe?: (index: number) => void;
+  onGlobePinHover?: (index: number | null, clientX?: number, clientY?: number) => void;
   onSelectPlaceSlice?: (info: PlacesSelectionInfo) => void;
   onOpenLandmarkFromPlaces?: (index: number) => void;
   onFactDot?: (text: string) => void;
@@ -182,6 +183,7 @@ export class CitylitEngine {
   private camGoalT = 1;
   private tapDown = { x: 0, y: 0, t: 0 };
   private lastPlaceTap = { sliceIndex: -1, t: 0 };
+  private lastGlobeTap = 0;
   private lastPlaceSliceIndex = -1;
   private lastHoverCheck = 0;
   private pinchDist = 0;
@@ -440,7 +442,8 @@ export class CitylitEngine {
     this.globe = createGlobeScene(
       canvas,
       window.innerWidth / window.innerHeight,
-      this.isSoftwareGl
+      this.isSoftwareGl,
+      this.isSoftwareGl ? 2 : 0
     );
     this.scene.add(this.globe.group);
     this.places = createPlacesScene(
@@ -1603,6 +1606,7 @@ export class CitylitEngine {
     const projPos = new THREE.Vector3();
     const onPointerDown = (e: PointerEvent) => {
       this.camGoal = null;
+      this.globe.cancelFly();
       this.tapDown = { x: e.clientX, y: e.clientY, t: performance.now() };
       this.callbacks.onFirstInteract?.();
     };
@@ -1616,8 +1620,9 @@ export class CitylitEngine {
       const ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
 
       if (this.globe.isOpen) {
-        const hoveredPin = this.globe.hoverPin(ndcX, ndcY);
+        const hoveredPin = this.globe.hoverPin(ndcX, ndcY, 14);
         canvas.style.cursor = hoveredPin !== null ? 'pointer' : 'grab';
+        this.callbacks.onGlobePinHover?.(hoveredPin, e.clientX, e.clientY);
         return;
       }
 
@@ -1684,6 +1689,7 @@ export class CitylitEngine {
       this.isLandmarkHovered = false;
       this.hoveredMarkerIndex = -1;
       this.globe.clearHover();
+      this.callbacks.onGlobePinHover?.(null);
       if (!this.globe.isOpen && !this.places.isOpen) {
         canvas.style.cursor = 'default';
       }
@@ -1697,10 +1703,19 @@ export class CitylitEngine {
         const ndcX = (e.clientX / window.innerWidth) * 2 - 1;
         const ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
         if (this.globe.isOpen) {
-          const picked = this.globe.pickPin(ndcX, ndcY);
+          const picked = this.globe.pickPin(ndcX, ndcY, e.pointerType === 'touch' ? 28 : 14);
           if (picked !== null) {
             ambientAudio.vibrate(10);
             this.callbacks.onSelectLandmarkFromGlobe?.(picked);
+          } else {
+            // Double-tap empty globe space resets to the overview.
+            const now = performance.now();
+            if (now - this.lastGlobeTap < 420) {
+              this.globe.resetView();
+              this.lastGlobeTap = 0;
+            } else {
+              this.lastGlobeTap = now;
+            }
           }
           return;
         }
@@ -1757,7 +1772,7 @@ export class CitylitEngine {
     const onWheel = (e: WheelEvent) => {
       if (!this.globe.isOpen) return;
       e.preventDefault();
-      this.globe.zoomBy(1 + Math.sign(e.deltaY) * 0.08);
+      this.globe.zoomBy(1 + Math.sign(e.deltaY) * 0.12);
     };
 
     const onTouchStart = (e: TouchEvent) => {

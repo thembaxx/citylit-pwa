@@ -16,7 +16,7 @@ import { SearchSheet } from './components/SearchSheet';
 import { SettingsModal } from './components/SettingsModal';
 import { TopBar } from './components/TopBar';
 import { WeatherWidget } from './components/WeatherWidget';
-import { LANDMARKS, slugifyLandmark } from './data/landmarks';
+import { LANDMARKS, PROVINCES, slugifyLandmark } from './data/landmarks';
 import {
   fetchLiveWeather,
   getBestMonths,
@@ -72,6 +72,31 @@ function setUrlForCoordinates({ lat, lon }: LatLon): void {
 function setUrlForLandmark(slug: string): void {
   window.history.replaceState(null, '', `${window.location.pathname}#${slug}`);
 }
+
+/** `?globe=1&province=Western%20Cape` deep-links into the globe. */
+function readInitialGlobeState(): { open: boolean; province: string } {
+  if (typeof window === 'undefined') return { open: false, province: 'All' };
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('globe') !== '1') return { open: false, province: 'All' };
+  const requested = params.get('province') ?? 'All';
+  return { open: true, province: PROVINCES.includes(requested) ? requested : 'All' };
+}
+
+function setUrlForGlobe(open: boolean, province: string): void {
+  const params = new URLSearchParams(window.location.search);
+  if (open) params.set('globe', '1');
+  else params.delete('globe');
+  if (open && province !== 'All') params.set('province', province);
+  else params.delete('province');
+  const query = params.toString();
+  window.history.replaceState(
+    null,
+    '',
+    `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
+  );
+}
+
+const INITIAL_GLOBE = readInitialGlobeState();
 
 function readStoredSet(key: string): Set<number> {
   try {
@@ -138,6 +163,8 @@ export function App() {
   const [index, setIndex] = useState<number>(readInitialLandmarkIndex);
   const [favorites, setFavorites] = useState<Set<number>>(() => readStoredSet('cl-f'));
   const [visited, setVisited] = useState<Set<number>>(() => readStoredSet('cl-vs'));
+  // Captured at mount for the engine's one-time setup effect (deep-link open).
+  const visitedRef = useRef(visited);
   const [settings, setSettings] = useState<CitylitSettings>(readSettings);
   const [thumbnails, setThumbnails] = useState<Record<number, string>>({});
 
@@ -181,11 +208,15 @@ export function App() {
   const galleryOpenRef = useRef(galleryOpen);
   const [passportOpen, setPassportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [globeOpen, setGlobeOpen] = useState(false);
+  const [globeOpen, setGlobeOpen] = useState(INITIAL_GLOBE.open);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlacesSelectionInfo | null>(null);
   const [exploring, setExploring] = useState(false);
-  const [activeProvince, setActiveProvince] = useState('All');
+  const [activeProvince, setActiveProvince] = useState(INITIAL_GLOBE.province);
+  const [globeHover, setGlobeHover] = useState<{ index: number; x: number; y: number } | null>(
+    null
+  );
+  const globeUrlSynced = useRef(false);
   const [placesWeatherMode, setPlacesWeatherMode] = useState<PlacesWeatherMode>('auto');
 
   const [postcardUrl, setPostcardUrl] = useState('');
@@ -310,6 +341,22 @@ export function App() {
         const instance = new Engine(host, {
           onFirstInteract: () => setHintVisible(false),
           onFactDot: (text) => showFact(text),
+          onGlobePinHover: (pinIndex, x, y) => {
+            setGlobeHover((prev) => {
+              if (pinIndex === null) return prev === null ? prev : null;
+              const px = x ?? 0;
+              const py = y ?? 0;
+              if (
+                prev &&
+                prev.index === pinIndex &&
+                Math.abs(prev.x - px) < 8 &&
+                Math.abs(prev.y - py) < 8
+              ) {
+                return prev;
+              }
+              return { index: pinIndex, x: px, y: py };
+            });
+          },
           onSelectLandmarkFromGlobe: (pickedIndex) => {
             instance.closeGlobe();
             setGlobeOpen(false);
@@ -343,6 +390,14 @@ export function App() {
           });
         } else {
           instance.showLandmarkImmediate(initialIdx);
+          if (INITIAL_GLOBE.open) {
+            instance.openGlobe(visitedRef.current);
+            instance.globe.setActiveProvince(INITIAL_GLOBE.province);
+            if (INITIAL_GLOBE.province !== 'All') {
+              instance.globe.flyToProvince(INITIAL_GLOBE.province);
+            }
+            setGlobeOpen(true);
+          }
         }
         setBooted(true);
         instance.prewarmShaders();
@@ -627,6 +682,16 @@ export function App() {
     selectLandmark,
   ]);
 
+  // Mirror globe state into the URL for deep-linking. Skip the first run so an
+  // incoming `?lat=&lon=` coordinate link isn't clobbered on mount.
+  useEffect(() => {
+    if (!globeUrlSynced.current) {
+      globeUrlSynced.current = true;
+      return;
+    }
+    setUrlForGlobe(globeOpen, activeProvince);
+  }, [globeOpen, activeProvince]);
+
   const toggleFavorite = useCallback(
     (targetIndex: number) => {
       ambientAudio.playUi(favorites.has(targetIndex) ? 'toggle' : 'success', { intensity: 0.75 });
@@ -728,6 +793,7 @@ export function App() {
     if (!engineRef.current) return;
     if (globeOpen) {
       ambientAudio.playUi('close');
+      setGlobeHover(null);
       // Never leave the Places stage visible behind a closed globe.
       if (engineRef.current.places.isOpen) engineRef.current.closePlaces();
       engineRef.current.closeGlobe();
@@ -952,10 +1018,35 @@ export function App() {
             setActiveProvince(pv);
             engineRef.current?.globe.flyToProvince(pv);
           }}
+          onSelectLandmark={(i) => {
+            setGlobeHover(null);
+            selectLandmark(i, { cinematic: true });
+          }}
+          onResetView={() => {
+            setActiveProvince('All');
+            engineRef.current?.globe.resetView();
+          }}
           onOpenPlaces={openPlaces}
           onBackToLandmarks={backToLandmarks}
           onClose={toggleGlobe}
         />
+
+        {/* Hover label for globe pins, which live inside the WebGL canvas. */}
+        {globeOpen && globeHover && LANDMARKS[globeHover.index] && (
+          <div
+            className="pointer-events-none fixed z-30 max-w-[220px] -translate-y-full rounded-lg border border-white/15 bg-[#121319]/95 px-2.5 py-1.5 text-[12px] leading-tight text-[#f3efe6] shadow-xl backdrop-blur-sm"
+            style={{ left: globeHover.x + 14, top: globeHover.y - 6 }}
+            role="status"
+          >
+            <span className="font-semibold text-[#e8b04a]">
+              {LANDMARKS[globeHover.index].k}
+            </span>
+            <span className="block text-[11px] text-white/60">
+              {LANDMARKS[globeHover.index].c}
+              {visited.has(globeHover.index) ? ' · visited' : ''}
+            </span>
+          </div>
+        )}
 
         {/* Places 3D Geological Diorama Archipelago HUD */}
         <PlacesOverlay

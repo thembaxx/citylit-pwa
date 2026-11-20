@@ -1,6 +1,6 @@
-import { ArrowLeft, MapTrifold, X } from '@phosphor-icons/react';
+import { ArrowLeft, Compass, MapTrifold, X } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
-import { PROVINCES } from '../data/landmarks';
+import { LANDMARKS, PROVINCES } from '../data/landmarks';
 import { SPRING } from '../lib/motion';
 
 interface GlobeOverlayProps {
@@ -8,6 +8,8 @@ interface GlobeOverlayProps {
   activeProvince: string;
   reducedMotion?: boolean;
   onSelectProvince: (province: string) => void;
+  onSelectLandmark: (index: number) => void;
+  onResetView: () => void;
   onOpenPlaces: () => void;
   onBackToLandmarks: () => void;
   onClose: () => void;
@@ -18,6 +20,8 @@ export function GlobeOverlay({
   activeProvince,
   reducedMotion = false,
   onSelectProvince,
+  onSelectLandmark,
+  onResetView,
   onOpenPlaces,
   onBackToLandmarks,
   onClose,
@@ -61,6 +65,18 @@ export function GlobeOverlay({
           type="button"
           whileTap={reducedMotion ? undefined : { scale: 0.92 }}
           transition={SPRING.snappy}
+          onClick={onResetView}
+          aria-label="Reset globe view"
+          title="Reset globe view"
+          className="w-10 h-10 rounded-full grid place-items-center bg-[#121319]/92 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
+        >
+          <Compass size={18} />
+        </motion.button>
+
+        <motion.button
+          type="button"
+          whileTap={reducedMotion ? undefined : { scale: 0.92 }}
+          transition={SPRING.snappy}
           onClick={onClose}
           aria-label="Close 3D globe"
           className="w-10 h-10 rounded-full grid place-items-center bg-[#121319]/92 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
@@ -89,6 +105,18 @@ export function GlobeOverlay({
           );
         })}
       </div>
+
+      {/* The canvas pins aren't reachable by keyboard or screen readers, so
+          expose the same destinations as a visually hidden landmark list. */}
+      <ul className="sr-only" aria-label="Landmarks on the globe">
+        {LANDMARKS.map((lm, i) => (
+          <li key={lm.k}>
+            <button type="button" onClick={() => onSelectLandmark(i)}>
+              Visit {lm.k} — {lm.c}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

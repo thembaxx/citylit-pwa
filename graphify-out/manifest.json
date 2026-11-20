@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795198805.9278116,
-    "seen": 1795198924.4337397,
-    "ast_hash": "1a88c4d668f4fb8a208f7ac9a1bdac53",
+    "mtime": 1795199425.99928,
+    "seen": 1795199603.4556835,
+    "ast_hash": "0894bd58ac55e52afa0d702799602aca",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -67,9 +67,9 @@
     "semantic_hash": "98ac2e5133f45e1c828769747009feac"
   },
   "src/components/GlobeOverlay.tsx": {
-    "mtime": 1795198687.5356412,
-    "seen": 1795198924.4337518,
-    "ast_hash": "b0f9c51611b01ea9a81ed5911e71624d",
+    "mtime": 1795199298.665314,
+    "seen": 1795199603.4556942,
+    "ast_hash": "49f970fe6e75367dad37861939887f43",
     "semantic_hash": ""
   },
   "src/components/InfoDrawer.tsx": {
@@ -223,9 +223,9 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795197527.0759056,
-    "seen": 1795198128.73889,
-    "ast_hash": "3af5c4d0cad4a9c16e783ef82810a0b9",
+    "mtime": 1795199280.9757612,
+    "seen": 1795199603.455749,
+    "ast_hash": "d35a817d0392abda88a7a75a4879471e",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -253,10 +253,10 @@
     "semantic_hash": "d12c0cb01b1de4a8c646bc6e67191b36"
   },
   "src/three/globeScene.ts": {
-    "mtime": 1795187027.273702,
-    "seen": 1795194883.6598022,
-    "ast_hash": "2f578321eec9a0cee311a680693f27ec",
-    "semantic_hash": "2f578321eec9a0cee311a680693f27ec"
+    "mtime": 1795199237.6331334,
+    "seen": 1795199603.4557607,
+    "ast_hash": "febf76ef2cb182effa1bcad0c628e310",
+    "semantic_hash": ""
   },
   "src/three/lightingRig.ts": {
     "mtime": 1795187027.273702,
