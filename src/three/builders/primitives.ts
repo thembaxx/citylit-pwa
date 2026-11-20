@@ -71,15 +71,20 @@ const tmpPos = new THREE.Vector3();
 const tmpScale = new THREE.Vector3();
 const tmpColor = new THREE.Color();
 
+let lastWetRain = -1;
+
 export function resetSceneDynamicLists(ringMat: THREE.MeshStandardMaterial): void {
   glowMaterials.length = 0;
   glowMaterials.push(ringMat);
   swayItems.length = 0;
   wetMaterials.length = 0;
+  lastWetRain = -1;
 }
 
 export function updateWetSurfaces(rain: number): void {
   const w = Math.max(0, Math.min(1, rain));
+  if (Math.abs(w - lastWetRain) < 0.002) return;
+  lastWetRain = w;
   const wetFactor = w * w * (3 - 2 * w);
   for (let i = 0; i < wetMaterials.length; i++) {
     const entry = wetMaterials[i];
@@ -369,10 +374,23 @@ export function mergeByMaterial(g: THREE.Group): THREE.Group {
   }
   buckets.forEach((meshes, mat) => {
     if (meshes.length < 2) return;
+    const stdMat = mat as THREE.MeshStandardMaterial;
+    const usesMaps = Boolean(
+      stdMat.map || stdMat.bumpMap || stdMat.roughnessMap || stdMat.normalMap || stdMat.emissiveMap
+    );
+    let hasAllUv = true;
+    for (let i = 0; i < meshes.length; i++) {
+      if (!meshes[i].geometry.attributes.uv) {
+        hasAllUv = false;
+        break;
+      }
+    }
+    const dropUv = !hasAllUv && !usesMaps;
     const geos: THREE.BufferGeometry[] = [];
     for (const m of meshes) {
       const src = m.geometry;
       const geo = src.index ? src.toNonIndexed() : src.clone();
+      if (dropUv) geo.deleteAttribute('uv');
       geo.deleteAttribute('uv1');
       geo.deleteAttribute('uv2');
       m.updateMatrix();
@@ -1463,6 +1481,10 @@ export function car(col: string, sc = 0.5): THREE.Group {
       wheel: new THREE.CylinderGeometry(0.075, 0.075, 0.08, 16).rotateX(Math.PI / 2),
       lamp: new THREE.BoxGeometry(0.02, 0.035, 0.08),
     };
+    carGeos.body.userData.sharedResource = true;
+    carGeos.glass.userData.sharedResource = true;
+    carGeos.wheel.userData.sharedResource = true;
+    carGeos.lamp.userData.sharedResource = true;
   }
   const c = new THREE.Group();
   const b = M(col, 0.35, 0.55);
@@ -1540,6 +1562,7 @@ export function train(col: string): THREE.Group {
       }
     }
   });
+  mergeByMaterial(t);
   return t;
 }
 
@@ -1562,6 +1585,7 @@ export function animal(col: string): THREE.Group {
   for (const s of [-1, 1]) {
     add(a, new THREE.ConeGeometry(0.01, 0.05, 6), dk, 0.15, 0.22, s * 0.025).rotation.z = -0.4;
   }
+  mergeByMaterial(a);
   return a;
 }
 
@@ -1587,6 +1611,7 @@ export function boat(col: string, sc = 1): THREE.Group {
   add(b, CB(0.4, 0.16, 0.22, 0.02), M(col, 0.55), -0.08, 0.26, 0);
   add(b, CB(0.28, 0.06, 0.23, 0.01), MT('#1c2a3a', 0.85, 0.15, 0.6), -0.06, 0.28, 0);
   add(b, C(0.035, 0.048, 0.14, 8), M('#c8342d', 0.6), -0.15, 0.4, 0);
+  mergeByMaterial(b);
   b.scale.setScalar(sc);
   return b;
 }

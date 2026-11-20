@@ -5,7 +5,7 @@ export const DIORAMA_SHADOW_EXTENT = 3.6;
 
 /** Tight ortho shadow frustum and bias tuned for the 3x3 isometric slice. */
 export function configureDioramaShadow(light: THREE.DirectionalLight): void {
-  light.shadow.mapSize.set(4096, 4096);
+  light.shadow.mapSize.set(2048, 2048);
   const cam = light.shadow.camera;
   cam.left = -DIORAMA_SHADOW_EXTENT;
   cam.right = DIORAMA_SHADOW_EXTENT;

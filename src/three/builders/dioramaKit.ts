@@ -17,6 +17,7 @@ import {
   grassTufts,
   instancedMeshes,
   Mc,
+  mergeByMaterial,
   MSteel,
   MStone,
   MWood,
@@ -24,6 +25,7 @@ import {
   scatterRocks,
   stampContactShadowsFromMeshes,
   stream,
+  swayItems,
   tree,
   type InstanceTransform,
 } from './primitives';
@@ -577,6 +579,7 @@ function getRimMaterial(): THREE.MeshStandardMaterial {
       bumpMap: getStoneBumpTexture(),
       bumpScale: 0.018,
     });
+    rimMaterial.userData.sharedResource = true;
   }
   return rimMaterial;
 }
@@ -750,6 +753,7 @@ function getDioramaCloudMat(): THREE.MeshStandardMaterial {
       roughness: 0.96,
       metalness: 0,
     });
+    dioramaCloudMat.userData.sharedResource = true;
   }
   return dioramaCloudMat;
 }
@@ -773,9 +777,12 @@ function addDioramaClouds(g: THREE.Group): Update[] {
         (R(i * 11 + j) - 0.5) * s * 0.6,
         (R(i * 17 + j) - 0.5) * s * 0.9
       );
-      puff.userData.noShadow = true;
       cluster.add(puff);
     }
+    mergeByMaterial(cluster);
+    cluster.traverse((o) => {
+      if (o instanceof THREE.Mesh) o.userData.noShadow = true;
+    });
     cluster.position.set(bx, by, bz);
     g.add(cluster);
     updates.push((t) => {
@@ -876,6 +883,7 @@ function addJetty(g: THREE.Group, angle: number): Update[] {
   }
   add(grp, C(0.03, 0.038, 0.5, 6), dark, 7.78, 0.36, 0.24);
   add(grp, new THREE.SphereGeometry(0.055, 10, 8), G('#ffd9a0', 1.2), 7.78, 0.63, 0.24);
+  mergeByMaterial(grp);
   return [];
 }
 
@@ -900,6 +908,7 @@ function addWindpump(g: THREE.Group, angle: number): Update[] {
   add(grp, CB(0.02, 0.02, 0.26, 0.005), steel, 0, 0.5, 0).rotation.y = 0.78;
   add(grp, CB(0.16, 0.1, 0.12, 0.02), steel, 0, 0.92, 0);
   add(grp, CB(0.03, 0.16, 0.46, 0.01), steel, 0, 0.97, 0.2);
+  mergeByMaterial(grp);
   const wheel = new THREE.Group();
   wheel.position.set(0, 0.94, -0.06);
   grp.add(wheel);
@@ -915,6 +924,7 @@ function addWindpump(g: THREE.Group, angle: number): Update[] {
     );
     blade.rotation.z = a + Math.PI / 2;
   }
+  mergeByMaterial(wheel);
   return [
     (t) => {
       wheel.rotation.z = t * 2.4;
@@ -931,6 +941,7 @@ function addBollards(g: THREE.Group, angle: number): Update[] {
     add(grp, new THREE.SphereGeometry(0.055, 10, 8), G('#ffd9a0', 1.0), 7.2, 0.42, z);
   }
   add(grp, CB(0.5, 0.2, 0.3, 0.02), MStone('#8a8378', 0.9), 7.1, 0.29, 0);
+  mergeByMaterial(grp);
   grassTufts(grp, [{ x: 7.1, y: 0.4, z: 0 }], ['#5c7a42', '#7a8f4c']);
   return [];
 }
@@ -945,6 +956,7 @@ function addDeck(g: THREE.Group, angle: number): Update[] {
   }
   for (let i = 0; i < 3; i++) add(grp, C(0.012, 0.012, 0.34, 5), st, 6.68 + i * 0.42, 0.46, 0.33);
   add(grp, CB(0.86, 0.02, 0.02, 0.005), st, 7.1, 0.56, 0.33);
+  mergeByMaterial(grp);
   return [];
 }
 
@@ -1359,6 +1371,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   for (let i = 0; i < birds.length; i++) updates.push(birds[i]);
 
   const prev = group.userData.tick as Tick | undefined;
+  group.userData.hasAnimatedShadowMeshes =
+    Boolean(prev) || profile.anchor === 'windpump' || swayItems.length > 0;
   group.userData.tick = (t: number, dt: number) => {
     if (prev) prev(t, dt);
     for (let i = 0; i < updates.length; i++) updates[i](t);

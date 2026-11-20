@@ -29,6 +29,7 @@ import {
 import { WEATHER_CONDITIONS } from './data/weatherData';
 import { useOnlineStatus, usePWARegistration } from './hooks/usePWAInstall';
 import { CitylitEngine } from './three/CitylitEngine';
+import { loadCachedThumbnails, saveCachedThumbnails } from './three/thumbnailCache';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from './three/placesScene';
 import type {
   CitylitSettings,
@@ -140,6 +141,9 @@ export function App() {
 
   const [fullscreen, setFullscreen] = useState(false);
   const [idleInFullscreen, setIdleInFullscreen] = useState(false);
+  const [docHidden, setDocHidden] = useState(() =>
+    typeof document !== 'undefined' ? document.hidden : false
+  );
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -278,20 +282,45 @@ export function App() {
     engine.setSeasonMonth(new Date().getMonth() + 1, true);
     engine.showLandmarkImmediate(initialIdx);
     setBooted(true);
+    engine.prewarmShaders();
 
+    let unmounted = false;
     let cancelThumbs: (() => void) | null = null;
-    const thumbTimer = window.setTimeout(() => {
-      cancelThumbs = engine.generateThumbnailsAsync((batch) => {
-        setThumbnails((prev) => ({ ...prev, ...batch }));
-      });
-    }, 80);
+    let thumbTimer = 0;
+
+    void loadCachedThumbnails(initialTheme).then((cached) => {
+      if (unmounted) return;
+      const accumulated: Record<number, string> = cached ? { ...cached } : {};
+      if (cached && Object.keys(cached).length > 0) {
+        setThumbnails(cached);
+      }
+      if (cached && Object.keys(cached).length >= LANDMARKS.length) {
+        return;
+      }
+      thumbTimer = window.setTimeout(() => {
+        if (unmounted) return;
+        cancelThumbs = engine.generateThumbnailsAsync(
+          (batch) => {
+            Object.assign(accumulated, batch);
+            setThumbnails((prev) => ({ ...prev, ...batch }));
+          },
+          () => {
+            if (!unmounted) {
+              void saveCachedThumbnails(initialTheme, accumulated);
+            }
+          }
+        );
+      }, 80);
+    });
 
     const onVisibility = () => {
+      setDocHidden(document.hidden);
       ambientAudio.handleVisibilityChange(document.hidden);
     };
     document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
+      unmounted = true;
       window.clearTimeout(thumbTimer);
       cancelThumbs?.();
       document.removeEventListener('visibilitychange', onVisibility);
@@ -299,6 +328,11 @@ export function App() {
       engineRef.current = null;
     };
   }, [selectLandmark, showFact]);
+
+  // Pause WebGL render loop while tab is hidden or full-screen opaque gallery covers viewport
+  useEffect(() => {
+    engineRef.current?.setPaused(docHidden || galleryOpen);
+  }, [docHidden, galleryOpen]);
 
   // Sync audio & engine settings
   useEffect(() => {

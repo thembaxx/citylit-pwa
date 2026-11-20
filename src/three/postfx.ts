@@ -27,6 +27,7 @@ const MiniatureShader = {
     uFar: { value: 200 },
     uFocusDistance: { value: 9.0 },
     uDepthRange: { value: 2.0 },
+    toneMappingExposure: { value: 1.08 },
   },
   vertexShader: /* glsl */ `
     varying vec2 vUv;
@@ -101,6 +102,8 @@ const MiniatureShader = {
       col.rgb *= vig;
 
       gl_FragColor = col;
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
     }
   `,
 };
@@ -109,11 +112,13 @@ export interface MiniaturePass extends ShaderPass {
   setResolution(width: number, height: number): void;
   setDepth(texture: THREE.Texture | null, near: number, far: number): void;
   setFocus(distance: number): void;
+  setExposure(exposure: number): void;
   applyTuning(tuning: Partial<MiniatureTuning>): void;
 }
 
 export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}): MiniaturePass {
   const pass = new ShaderPass(MiniatureShader) as MiniaturePass;
+  pass.material.toneMapped = true;
 
   pass.setResolution = (width: number, height: number) => {
     const res = pass.uniforms.uResolution.value as THREE.Vector2;
@@ -137,6 +142,10 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
     const d = Math.max(0.1, distance);
     pass.uniforms.uFocusDistance.value = d;
     pass.uniforms.uDepthRange.value = THREE.MathUtils.clamp(d * 0.24, 0.8, 3.4);
+  };
+
+  pass.setExposure = (exposure) => {
+    pass.uniforms.toneMappingExposure.value = exposure;
   };
 
   pass.applyTuning = (tuning: Partial<MiniatureTuning>) => {

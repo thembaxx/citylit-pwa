@@ -12,6 +12,25 @@ interface AudioVisualizerBarProps {
 
 const BAND_COUNT = 16;
 const BAR_COUNT = BAND_COUNT * 2 - 1; // 31 symmetric bars radiating from center bass to high wings
+const PALETTE_STEPS = 32;
+
+const LIGHT_PALETTE = Array.from({ length: PALETTE_STEPS }, (_, idx) => {
+  const energy = idx / (PALETTE_STEPS - 1);
+  const alpha = 0.28 + energy * 0.62;
+  const r = Math.round(28 + energy * 164);
+  const g = Math.round(35 + energy * 88);
+  const b = Math.round(48 - energy * 24);
+  return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+});
+
+const DARK_PALETTE = Array.from({ length: PALETTE_STEPS }, (_, idx) => {
+  const energy = idx / (PALETTE_STEPS - 1);
+  const alpha = 0.28 + energy * 0.62;
+  const r = Math.round(232 + energy * 14);
+  const g = Math.round(176 + energy * 52);
+  const b = Math.round(74 + energy * 102);
+  return `rgba(${r},${g},${b},${alpha.toFixed(3)})`;
+});
 
 export function AudioVisualizerBar({
   active,
@@ -50,8 +69,14 @@ export function AudioVisualizerBar({
     let rafId = 0;
     let lastTime = performance.now();
     let lastDrawTime = 0;
+    const palette = theme !== 'dark' ? LIGHT_PALETTE : DARK_PALETTE;
+    const baselineColor = theme !== 'dark' ? 'rgba(28, 35, 48, 0.14)' : 'rgba(243, 239, 230, 0.14)';
 
     const draw = (now: number) => {
+      if (document.hidden) {
+        rafId = 0;
+        return;
+      }
       rafId = window.requestAnimationFrame(draw);
 
       const dt = Math.min(0.1, Math.max(0.001, (now - lastTime) / 1000));
@@ -75,9 +100,6 @@ export function AudioVisualizerBar({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, cssW, cssH);
 
-      const isLight = theme !== 'dark';
-      const baselineColor = isLight ? 'rgba(28, 35, 48, 0.14)' : 'rgba(243, 239, 230, 0.14)';
-
       // Ultra-subtle hairline baseline across the visualizer span
       ctx.fillStyle = baselineColor;
       ctx.fillRect(0, cssH - 1, cssW, 1);
@@ -94,33 +116,32 @@ export function AudioVisualizerBar({
         const h = minH + energy * (maxH - minH);
         const x = i * step;
         const y = cssH - h;
-        const alpha = 0.28 + energy * 0.62;
-
-        if (isLight) {
-          // Deep slate-ink shifting to warm amber on acoustic peaks
-          const r = Math.round(28 + energy * 164);
-          const g = Math.round(35 + energy * 88);
-          const b = Math.round(48 - energy * 24);
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
-        } else {
-          // Warm gold shifting softly toward cream on peaks
-          const r = Math.round(232 + energy * 14);
-          const g = Math.round(176 + energy * 52);
-          const b = Math.round(74 + energy * 102);
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
-        }
-
-        const radius = 1;
+        const palIdx = Math.min(
+          PALETTE_STEPS - 1,
+          Math.max(0, Math.round(energy * (PALETTE_STEPS - 1)))
+        );
+        ctx.fillStyle = palette[palIdx];
         ctx.beginPath();
-        ctx.roundRect(x, y, barWidth, h, radius);
+        ctx.roundRect(x, y, barWidth, h, 1);
         ctx.fill();
       }
     };
 
-    rafId = window.requestAnimationFrame(draw);
+    const onVisibility = () => {
+      if (!document.hidden && !rafId) {
+        lastTime = performance.now();
+        rafId = window.requestAnimationFrame(draw);
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    if (!document.hidden) {
+      rafId = window.requestAnimationFrame(draw);
+    }
 
     return () => {
-      window.cancelAnimationFrame(rafId);
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (rafId) window.cancelAnimationFrame(rafId);
       ro?.disconnect();
     };
   }, [active, theme, reducedMotion]);

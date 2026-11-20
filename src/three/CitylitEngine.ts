@@ -3,7 +3,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
@@ -22,6 +21,10 @@ import type {
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
 import {
   glowMaterials,
+  G,
+  Mc,
+  MCascade,
+  MWater,
   resetSceneDynamicLists,
   setContactShadowFade,
   swayItems,
@@ -76,7 +79,6 @@ export class CitylitEngine {
   private readonly bloomPass: UnrealBloomPass;
   private readonly miniaturePass: MiniaturePass;
   private readonly smaaPass: SMAAPass;
-  private readonly outputPass: OutputPass;
 
   private readonly keyLight: THREE.DirectionalLight;
   private readonly fillLight: THREE.DirectionalLight;
@@ -99,6 +101,7 @@ export class CitylitEngine {
   private currentGroup: THREE.Group | null = null;
   private outgoingGroup: THREE.Group | null = null;
   private markerSprites: THREE.Sprite[] = [];
+  private activeLods: THREE.LOD[] = [];
   private activeIndex = 0;
 
   private dissolvePhase = 0;
@@ -110,6 +113,8 @@ export class CitylitEngine {
   private shaderTime = 0;
   private rafId = 0;
   private disposed = false;
+  private paused = false;
+  private warmupDone = false;
   private afterDrawTimer = 0;
 
   private qualitySetting: QualitySetting = 'auto';
@@ -126,6 +131,8 @@ export class CitylitEngine {
   private contextLost = false;
   private usingSkyHdr = false;
   private shadowFrameCounter = 0;
+  private hasAnimatedShadowScene = false;
+  private lastGlowLit = -1;
   private autoScaleTimer = 0;
   private autoScaleSamples = 0;
   private autoScaleAcc = 0;
@@ -133,6 +140,10 @@ export class CitylitEngine {
   private baseTargetX = 0;
   private baseTargetY = 1.5;
   private readonly lodCamProxy = new THREE.PerspectiveCamera();
+  private readonly lastLodCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private lastLodQuality = -1;
+  private readonly lastShadowKeyPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+  private readonly tmpCasterSize = new THREE.Vector3();
 
   private tiltEnabled = false;
   private tiltOffsetX = 0;
@@ -287,21 +298,26 @@ export class CitylitEngine {
     this.n8aoPass.setQualityMode('Performance');
 
     this.bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      new THREE.Vector2(
+        Math.max(1, Math.floor(window.innerWidth * 0.5)),
+        Math.max(1, Math.floor(window.innerHeight * 0.5))
+      ),
       0.26,
       0.5,
       0.9
     );
+    const baseBloomSetSize = this.bloomPass.setSize.bind(this.bloomPass);
+    this.bloomPass.setSize = (width: number, height: number) => {
+      baseBloomSetSize(Math.max(1, Math.floor(width * 0.5)), Math.max(1, Math.floor(height * 0.5)));
+    };
     this.miniaturePass = createMiniaturePass(this.miniatureTuning);
     this.smaaPass = new SMAAPass();
-    this.outputPass = new OutputPass();
 
     this.composer.addPass(this.renderPass);
     this.composer.addPass(this.n8aoPass);
     this.composer.addPass(this.bloomPass);
-    this.composer.addPass(this.miniaturePass);
     this.composer.addPass(this.smaaPass);
-    this.composer.addPass(this.outputPass);
+    this.composer.addPass(this.miniaturePass);
 
     // Plinth & glowing ring
     this.plinthGroup = new THREE.Group();
@@ -476,7 +492,18 @@ export class CitylitEngine {
     const group = builder ? builder() : new THREE.Group();
     group.traverse((obj) => {
       if (obj instanceof THREE.Mesh && !obj.userData.noShadow) {
-        obj.castShadow = !this.isSoftwareGl;
+        const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+        const transparent = Boolean(mat && mat.transparent && mat.opacity < 0.85);
+        let tinyStatic = false;
+        if (!transparent && !(obj instanceof THREE.InstancedMesh) && obj.geometry) {
+          if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+          const bb = obj.geometry.boundingBox;
+          if (bb) {
+            bb.getSize(this.tmpCasterSize);
+            if (this.tmpCasterSize.length() < 0.09) tinyStatic = true;
+          }
+        }
+        obj.castShadow = !this.isSoftwareGl && !transparent && !tinyStatic;
         obj.receiveShadow = !this.isSoftwareGl;
       }
     });
@@ -501,21 +528,30 @@ export class CitylitEngine {
     });
   }
 
-  private updateLods(cam: THREE.Camera): void {
-    if (!this.currentGroup) return;
+  private updateLods(cam: THREE.Camera, force = false): void {
+    if (!this.currentGroup || this.activeLods.length === 0) return;
+    if (
+      !force &&
+      this.qualityIndex === this.lastLodQuality &&
+      cam.position.distanceToSquared(this.lastLodCamPos) < 0.0025
+    ) {
+      return;
+    }
+    this.lastLodCamPos.copy(cam.position);
+    this.lastLodQuality = this.qualityIndex;
     const lodBias = this.qualityIndex === 2 ? 1.45 : this.qualityIndex === 1 ? 1.18 : 1.0;
     if (lodBias === 1) {
-      this.currentGroup.traverse((obj) => {
-        if (obj instanceof THREE.LOD) obj.update(cam);
-      });
+      for (let i = 0; i < this.activeLods.length; i++) {
+        this.activeLods[i].update(cam);
+      }
       return;
     }
     this.lodCamProxy.copy(cam as THREE.PerspectiveCamera);
     this.lodCamProxy.position.copy(cam.position).multiplyScalar(lodBias);
     this.lodCamProxy.updateMatrixWorld(true);
-    this.currentGroup.traverse((obj) => {
-      if (obj instanceof THREE.LOD) obj.update(this.lodCamProxy);
-    });
+    for (let i = 0; i < this.activeLods.length; i++) {
+      this.activeLods[i].update(this.lodCamProxy);
+    }
   }
 
   private forceLodLevel0(root: THREE.Object3D): void {
@@ -543,6 +579,15 @@ export class CitylitEngine {
     }
     resetSceneDynamicLists(this.ringMat);
     this.currentGroup = this.buildLandmarkGroup(index);
+    const lods: THREE.LOD[] = [];
+    this.currentGroup.traverse((obj) => {
+      if (obj instanceof THREE.LOD) lods.push(obj);
+    });
+    this.activeLods = lods;
+    this.hasAnimatedShadowScene = Boolean(this.currentGroup.userData.hasAnimatedShadowMeshes);
+    this.lastLodCamPos.set(Infinity, Infinity, Infinity);
+    this.lastShadowKeyPos.set(Infinity, Infinity, Infinity);
+    this.lastGlowLit = -1;
     setContactShadowFade(this.currentGroup, 1);
     ambientAudio.setSiteProfile(
       (this.currentGroup.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
@@ -557,7 +602,7 @@ export class CitylitEngine {
     WU.dy.value = 100;
     this.dustPoints.visible = false;
     if (this.isStudio()) this.frameCurrentLandmark();
-    this.updateLods(this.camera);
+    this.updateLods(this.camera, true);
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
     }
@@ -602,6 +647,14 @@ export class CitylitEngine {
     this.setQualityIndex(idx);
   }
 
+  private setShadowMapSize(size: number): void {
+    if (this.keyLight.shadow.mapSize.x !== size) {
+      this.keyLight.shadow.mapSize.set(size, size);
+      this.keyLight.shadow.map?.dispose();
+      this.keyLight.shadow.map = null;
+    }
+  }
+
   private setQualityIndex(idx: QualityIndex): void {
     this.qualityIndex = idx;
     const rawPr = [Math.min(devicePixelRatio || 1, 2), Math.min(devicePixelRatio || 1, 1.4), 1][
@@ -619,19 +672,14 @@ export class CitylitEngine {
       this.isUserOrbiting && this.qualitySetting === 'auto' && (window.devicePixelRatio || 1) > 1.5;
     this.n8aoPass.enabled = highFx && !suspendAoForDrag;
     this.renderPass.enabled = midFx || (highFx && suspendAoForDrag);
-    this.bloomPass.enabled = postFx;
+    this.bloomPass.enabled = postFx && this.studioWeight < 0.99;
     this.miniaturePass.enabled = postFx;
     this.smaaPass.enabled = postFx;
 
     const shadowsOn = !this.isSoftwareGl && idx < 2;
     this.renderer.shadowMap.enabled = shadowsOn;
     if (shadowsOn) {
-      const targetSize = idx === 0 ? 4096 : 2048;
-      if (this.keyLight.shadow.mapSize.x !== targetSize) {
-        this.keyLight.shadow.mapSize.set(targetSize, targetSize);
-        this.keyLight.shadow.map?.dispose();
-        this.keyLight.shadow.map = null;
-      }
+      this.setShadowMapSize(idx === 0 ? 2048 : 1024);
       this.renderer.shadowMap.needsUpdate = true;
     }
   }
@@ -1192,8 +1240,9 @@ export class CitylitEngine {
     const savedMarkers = this.markerGroup.visible;
     const prevQualityIndex = this.qualityIndex;
     this.markerGroup.visible = false;
-    if (!this.isSoftwareGl && prevQualityIndex !== 0) {
-      this.setQualityIndex(0);
+    if (!this.isSoftwareGl) {
+      if (prevQualityIndex !== 0) this.setQualityIndex(0);
+      this.setShadowMapSize(4096);
     }
 
     const results: MediaItem[] = shots.map((sh) => {
@@ -1214,6 +1263,9 @@ export class CitylitEngine {
       };
     });
 
+    if (!this.isSoftwareGl) {
+      this.setShadowMapSize(prevQualityIndex === 0 ? 2048 : 1024);
+    }
     if (prevQualityIndex !== this.qualityIndex) {
       this.setQualityIndex(prevQualityIndex);
     }
@@ -1228,11 +1280,15 @@ export class CitylitEngine {
     const wasMarkersVisible = this.markerGroup.visible;
     const prevQualityIndex = this.qualityIndex;
     this.markerGroup.visible = false;
-    if (!this.isSoftwareGl && prevQualityIndex !== 0) {
-      this.setQualityIndex(0);
+    if (!this.isSoftwareGl) {
+      if (prevQualityIndex !== 0) this.setQualityIndex(0);
+      this.setShadowMapSize(4096);
+      this.renderer.shadowMap.needsUpdate = true;
     }
-    if (!this.isSoftwareGl) this.renderer.shadowMap.needsUpdate = true;
     this.renderCurrentPass();
+    if (!this.isSoftwareGl) {
+      this.setShadowMapSize(prevQualityIndex === 0 ? 2048 : 1024);
+    }
     if (prevQualityIndex !== this.qualityIndex) {
       this.setQualityIndex(prevQualityIndex);
     }
@@ -1282,6 +1338,7 @@ export class CitylitEngine {
 
   private syncMiniatureDepth(camera: THREE.PerspectiveCamera, target: THREE.Vector3): void {
     this.miniaturePass.setFocus(camera.position.distanceTo(target));
+    this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
     const depth = this.n8aoPass.enabled
       ? this.n8aoPass.beautyRenderTarget.depthTexture
       : this.composer.readBuffer.depthTexture;
@@ -1507,8 +1564,60 @@ export class CitylitEngine {
 
   private unbindListeners: () => void = () => {};
 
+  setPaused(paused: boolean): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    if (paused) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
+      window.clearTimeout(this.afterDrawTimer);
+    } else if (!this.disposed && !this.contextLost) {
+      this.lastTick = performance.now();
+      this.scheduleNextFrame();
+    }
+  }
+
+  /** Asynchronously pre-compile common custom shader variants to avoid landmark switch stutters. */
+  prewarmShaders(): void {
+    if (this.warmupDone || this.disposed || this.isSoftwareGl) return;
+    this.warmupDone = true;
+    const compileAsync = (
+      this.renderer as THREE.WebGLRenderer & {
+        compileAsync?: (
+          obj: THREE.Object3D,
+          cam: THREE.Camera,
+          targetScene?: THREE.Scene
+        ) => Promise<THREE.Object3D>;
+      }
+    ).compileAsync;
+    if (typeof compileAsync !== 'function') return;
+
+    const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    const warmupGroup = new THREE.Group();
+    warmupGroup.position.set(0, -50, 0);
+    const mats = [
+      MWater('#1a7598', 0.1, 0.25),
+      MCascade('#d9f4ff', 0.88),
+      G('#ffe1a0', 0.85),
+      Mc('#4f9146'),
+    ];
+    for (let i = 0; i < mats.length; i++) {
+      warmupGroup.add(new THREE.Mesh(geo, mats[i]));
+    }
+    this.scene.add(warmupGroup);
+    void compileAsync
+      .call(this.renderer, warmupGroup, this.camera, this.scene)
+      .catch(() => {
+        // Ignore warmup failures on constrained drivers
+      })
+      .finally(() => {
+        this.scene.remove(warmupGroup);
+        geo.dispose();
+      });
+  }
+
   private scheduleNextFrame(): void {
-    if (this.disposed) return;
+    if (this.disposed || this.paused) return;
     this.rafId = requestAnimationFrame(this.frame);
   }
 
@@ -1551,7 +1660,7 @@ export class CitylitEngine {
   }
 
   private readonly frame = (now: number): void => {
-    if (this.disposed || this.contextLost) return;
+    if (this.disposed || this.contextLost || this.paused) return;
 
     const dt = Math.max(0, Math.min(0.05, (now - this.lastTick) / 1000));
     this.lastTick = Math.max(this.lastTick, now);
@@ -1742,9 +1851,12 @@ export class CitylitEngine {
           (0.6 + this.weather.current.wind * 0.35);
       }
       const litStrength = WU.lit.value;
-      for (const gm of glowMaterials) {
-        const baseI = (gm.userData.i as number | undefined) ?? 1;
-        gm.emissiveIntensity = baseI * (0.15 + litStrength * 1.45);
+      if (Math.abs(litStrength - this.lastGlowLit) >= 0.002) {
+        this.lastGlowLit = litStrength;
+        for (const gm of glowMaterials) {
+          const baseI = (gm.userData.i as number | undefined) ?? 1;
+          gm.emissiveIntensity = baseI * (0.15 + litStrength * 1.45);
+        }
       }
 
       // Marker sprite pulse
@@ -1770,6 +1882,9 @@ export class CitylitEngine {
       updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
       const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
       this.studioWeight += ((this.isStudio() ? 1 : 0) - this.studioWeight) * themeLerp;
+      if (!this.isSoftwareGl && this.qualityIndex < 2) {
+        this.bloomPass.enabled = this.studioWeight < 0.99;
+      }
       this.plinthTopMat.color.lerp(this.targetPlinthTop, themeLerp);
       this.plinthBaseMat.color.lerp(this.targetPlinthBase, themeLerp);
       this.ringMat.color.lerp(this.targetRingCol, themeLerp);
@@ -1844,12 +1959,18 @@ export class CitylitEngine {
       );
 
       const shadowStride = this.isUserOrbiting ? 3 : 2;
+      const keyMoved = this.keyLight.position.distanceToSquared(this.lastShadowKeyPos) > 0.002;
+      const animateShadows =
+        this.hasAnimatedShadowScene &&
+        this.motionScale > 0 &&
+        this.shadowFrameCounter++ % shadowStride === 0;
       if (
         !this.isSoftwareGl &&
         this.qualityIndex < 2 &&
-        (this.dissolvePhase > 0 || this.shadowFrameCounter++ % shadowStride === 0)
+        (this.dissolvePhase > 0 || keyMoved || animateShadows)
       ) {
         this.renderer.shadowMap.needsUpdate = true;
+        this.lastShadowKeyPos.copy(this.keyLight.position);
       }
       this.renderCurrentPass();
     }

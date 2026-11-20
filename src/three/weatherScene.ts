@@ -17,7 +17,7 @@ export interface WeatherTargetState {
 export interface WeatherSceneController {
   root: THREE.Group;
   starPoints: THREE.Points;
-  clouds: THREE.Group;
+  clouds: THREE.InstancedMesh;
   sunDisc: THREE.Mesh;
   moonDisc: THREE.Mesh;
   rainLines: THREE.LineSegments;
@@ -84,7 +84,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     },
     vertexShader:
       'varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader: `varying vec3 v;uniform float t,cv,nt,hor,rb;uniform vec3 top,bot,sunDir,glow;${SKY_NOISE_GLSL}void main(){float y=clamp(v.y,0.,1.);vec3 col=mix(bot,top,pow(y,.55));vec3 d=normalize(v),sd=normalize(sunDir);float sdDot=max(0.,dot(d,sd));float sunUp=smoothstep(-.02,.08,sd.y);float horMask=smoothstep(-.22,.02,v.y);col+=glow*(hor*pow(1.-y,4.)*(.45+.55*sdDot)+pow(sdDot,18.)*.35)*sunUp*horMask;float sp=pow(sdDot,420.)*(1.-cv*.85)*sunUp;col+=mix(vec3(1.,.96,.88),glow,hor)*sp*1.5;if(v.y>.03){vec2 p=v.xz/(v.y+.18);float c=fbm(p*.9+vec2(t*.015,t*.006));float f=smoothstep(.65-cv*.4,.88-cv*.3,c)*smoothstep(.03,.2,v.y)*cv;vec3 cCol=mix(vec3(.88,.91,.96),vec3(.25,.28,.36),nt*.7+cv*.3)+glow*hor*.45;col=mix(col,cCol,f*.8);}if(rb>.01){float ang=acos(clamp(dot(d,-sd),-1.,1.));float r=smoothstep(.045,0.,abs(ang-.73))*smoothstep(0.,.12,v.y);float h=clamp((ang-.685)/.09,0.,1.);vec3 rc=clamp(abs(mod(h*5.+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.);col+=rc*r*rb*.22;}gl_FragColor=vec4(col,1.);}`,
+    fragmentShader: `varying vec3 v;uniform float t,cv,nt,hor,rb;uniform vec3 top,bot,sunDir,glow;${SKY_NOISE_GLSL}void main(){float y=clamp(v.y,0.,1.);vec3 col=mix(bot,top,pow(y,.55));vec3 d=normalize(v),sd=normalize(sunDir);float sdDot=max(0.,dot(d,sd));float sunUp=smoothstep(-.02,.08,sd.y);float horMask=smoothstep(-.22,.02,v.y);col+=glow*(hor*pow(1.-y,4.)*(.45+.55*sdDot)+pow(sdDot,18.)*.35)*sunUp*horMask;float sp=pow(sdDot,420.)*(1.-cv*.85)*sunUp;col+=mix(vec3(1.,.96,.88),glow,hor)*sp*1.5;if(v.y>.03&&cv>.02){vec2 p=v.xz/(v.y+.18);float c=fbm(p*.9+vec2(t*.015,t*.006));float f=smoothstep(.65-cv*.4,.88-cv*.3,c)*smoothstep(.03,.2,v.y)*cv;vec3 cCol=mix(vec3(.88,.91,.96),vec3(.25,.28,.36),nt*.7+cv*.3)+glow*hor*.45;col=mix(col,cCol,f*.8);}if(rb>.01){float ang=acos(clamp(dot(d,-sd),-1.,1.));float r=smoothstep(.045,0.,abs(ang-.73))*smoothstep(0.,.12,v.y);float h=clamp((ang-.685)/.09,0.,1.);vec3 rc=clamp(abs(mod(h*5.+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.);col+=rc*r*rb*.22;}gl_FragColor=vec4(col,1.);}`,
   });
 
   const skyDome = new THREE.Mesh(new THREE.SphereGeometry(75, 32, 24), skyMat);
@@ -169,50 +169,102 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   );
   root.add(moonDisc);
 
-  const clouds = new THREE.Group();
-  root.add(clouds);
   const cloudMat = new THREE.MeshStandardMaterial({
     color: '#ffffff',
     roughness: 1,
     transparent: true,
     opacity: 0.85,
   });
+  cloudMat.userData.noDissolve = true;
+
+  interface CloudSpec {
+    a: number;
+    r: number;
+    y: number;
+    s: number;
+    puffs: Array<{ ox: number; oy: number; oz: number; sx: number; sy: number; sz: number }>;
+  }
+  const cloudSpecs: CloudSpec[] = [];
+  let totalCloudPuffs = 0;
   for (let i = 0; i < 14; i++) {
-    const g = new THREE.Group();
     const k = 3 + (i % 3);
-    for (let j = 0; j < k; j++) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(1 + ((i + j) % 3) * 0.4, 10, 8), cloudMat);
-      m.position.set((j - 1) * 1.1, (j % 2) * 0.25, (((i * j) % 3) - 1) * 0.4);
-      m.scale.set(1.5, 0.55, 1.1);
-      g.add(m);
-    }
     const a = i * 0.45;
     const rad = 16 + (i % 4) * 5;
-    g.position.set(Math.cos(a) * rad, 11 + (i % 4) * 2.2, Math.sin(a) * rad);
-    g.userData = { a, r: rad, s: 0.015 + (i % 3) * 0.01 };
-    clouds.add(g);
+    const puffs: CloudSpec['puffs'] = [];
+    for (let j = 0; j < k; j++) {
+      const pu = 1 + ((i + j) % 3) * 0.4;
+      puffs.push({
+        ox: (j - 1) * 1.1,
+        oy: (j % 2) * 0.25,
+        oz: (((i * j) % 3) - 1) * 0.4,
+        sx: 1.5 * pu,
+        sy: 0.55 * pu,
+        sz: 1.1 * pu,
+      });
+    }
+    totalCloudPuffs += k;
+    cloudSpecs.push({ a, r: rad, y: 11 + (i % 4) * 2.2, s: 0.015 + (i % 3) * 0.01, puffs });
   }
+  const cloudPuffGeo = new THREE.SphereGeometry(1, 10, 8);
+  const clouds = new THREE.InstancedMesh(cloudPuffGeo, cloudMat, totalCloudPuffs);
+  clouds.castShadow = false;
+  clouds.receiveShadow = false;
+  clouds.frustumCulled = false;
+  clouds.userData.noShadow = true;
+  clouds.userData.cannotReceiveAO = true;
+  root.add(clouds);
 
   const RN = 450;
   const rainPos = new Float32Array(RN * 6);
-  const rainGeo = new THREE.BufferGeometry().setAttribute(
-    'position',
-    new THREE.BufferAttribute(rainPos, 3)
-  );
-  const rainMat = new THREE.LineBasicMaterial({
-    color: '#bcd4ff',
-    transparent: true,
-    opacity: 0,
-  });
-  const rainLines = new THREE.LineSegments(rainGeo, rainMat);
-  rainLines.frustumCulled = false;
-  root.add(rainLines);
+  const rainSeed = new Float32Array(RN * 8);
   for (let i = 0; i < RN; i++) {
     const x = (Math.random() - 0.5) * 28;
     const y = Math.random() * 18;
     const z = (Math.random() - 0.5) * 28;
     rainPos.set([x, y, z, x, y - 0.65, z], i * 6);
+    rainSeed.set([x, y, z, 0, x, y, z, 1], i * 8);
   }
+  const rainGeo = new THREE.BufferGeometry()
+    .setAttribute('position', new THREE.BufferAttribute(rainPos, 3))
+    .setAttribute('aSeed', new THREE.BufferAttribute(rainSeed, 4));
+  const rainMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      uTime: { value: 0 },
+      uWind: { value: 1 },
+      uOpacity: { value: 0 },
+      uColor: { value: new THREE.Color('#bcd4ff') },
+    },
+    vertexShader: /* glsl */ `
+      attribute vec4 aSeed;
+      uniform float uTime;
+      uniform float uWind;
+      varying float vFade;
+      void main() {
+        float fall = mod(aSeed.y - uTime * 19.0, 18.0);
+        float driftX = mod(aSeed.x + uTime * uWind * 1.4 + 14.0, 28.0) - 14.0;
+        vec3 p = vec3(driftX, fall, aSeed.z);
+        if (aSeed.w > 0.5) {
+          p.x += uWind * 0.08;
+          p.y -= 0.65;
+        }
+        vFade = smoothstep(0.0, 1.5, fall) * smoothstep(18.0, 15.5, fall);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uOpacity;
+      uniform vec3 uColor;
+      varying float vFade;
+      void main() {
+        gl_FragColor = vec4(uColor, uOpacity * vFade);
+      }
+    `,
+  });
+  const rainLines = new THREE.LineSegments(rainGeo, rainMat);
+  rainLines.frustumCulled = false;
+  root.add(rainLines);
 
   const current: WeatherTargetState = {
     sky: new THREE.Color('#27476e'),
@@ -509,13 +561,22 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const showShadows = current.cover > 0.06 && day > 0.12;
     groundShadow.visible = wStudio < 0.995 && showShadows;
     cloudShadowMat.opacity = Math.min(0.18, current.cover * 0.16 * day) * (1 - wStudio);
-    for (let i = 0; i < clouds.children.length; i++) {
-      const c = clouds.children[i];
-      c.userData.a += safeDt * (c.userData.s as number) * current.wind * motionScale;
-      const cx = Math.cos(c.userData.a as number) * (c.userData.r as number);
-      const cz = Math.sin(c.userData.a as number) * (c.userData.r as number);
-      c.position.x = cx;
-      c.position.z = cz;
+    let puffIdx = 0;
+    const updateClouds = clouds.visible;
+    for (let i = 0; i < cloudSpecs.length; i++) {
+      const c = cloudSpecs[i];
+      c.a += safeDt * c.s * current.wind * motionScale;
+      const cx = Math.cos(c.a) * c.r;
+      const cz = Math.sin(c.a) * c.r;
+      if (updateClouds) {
+        for (let j = 0; j < c.puffs.length; j++) {
+          const p = c.puffs[j];
+          csPos.set(cx + p.ox, c.y + p.oy, cz + p.oz);
+          csScale.set(p.sx, p.sy, p.sz);
+          csMatrix.compose(csPos, csQuat, csScale);
+          clouds.setMatrixAt(puffIdx++, csMatrix);
+        }
+      }
       if (showShadows && i < cloudShadowCount) {
         const sc = 3.8 + (i % 3) * 1.15;
         csPos.set(cx * 0.34 - sx * 0.02, 0.045, cz * 0.34 - sz * 0.02);
@@ -523,6 +584,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
         csMatrix.compose(csPos, csQuat, csScale);
         groundShadow.setMatrixAt(i, csMatrix);
       }
+    }
+    if (updateClouds) {
+      clouds.instanceMatrix.needsUpdate = true;
     }
     if (showShadows) {
       groundShadow.instanceMatrix.needsUpdate = true;
@@ -572,20 +636,10 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const rainCount = Math.floor((qualityIndex > 1 ? 150 : RN) * current.rain);
     rainGeo.setDrawRange(0, rainCount * 2);
     rainLines.visible = wStudio < 0.995 && current.rain > 0.03;
-    rainMat.opacity = current.rain * 0.42 * (1 - wStudio);
+    rainMat.uniforms.uOpacity.value = current.rain * 0.42 * (1 - wStudio);
     if (rainLines.visible) {
-      for (let i = 0; i < rainCount; i++) {
-        const j = i * 6;
-        rainPos[j] += safeDt * current.wind * 1.4;
-        rainPos[j + 1] -= safeDt * 19;
-        if (rainPos[j + 1] < 0) {
-          rainPos[j + 1] = 18;
-          rainPos[j] = (Math.random() - 0.5) * 28;
-        }
-        rainPos[j + 3] = rainPos[j] + current.wind * 0.08;
-        rainPos[j + 4] = rainPos[j + 1] - 0.65;
-      }
-      rainGeo.attributes.position.needsUpdate = true;
+      rainMat.uniforms.uTime.value = elapsed * motionScale;
+      rainMat.uniforms.uWind.value = current.wind;
     }
 
     stMat.uniforms.t.value = elapsed * motionScale;
