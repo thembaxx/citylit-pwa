@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
@@ -239,7 +239,7 @@ export class CitylitEngine {
     this.scene.environment = this.envTex;
     this.scene.environmentIntensity = 0.48;
 
-    new RGBELoader().load(
+    new HDRLoader().load(
       '/assets/env/sky.hdr',
       (hdrTex) => {
         if (this.disposed) {
