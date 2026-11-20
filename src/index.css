@@ -50,6 +50,14 @@
   --cl-acc: #e8b04a;
 }
 
+:root[data-theme='daylight'] {
+  --cl-bg: #a8d8ec;
+}
+
+:root[data-theme='studio'] {
+  --cl-bg: #f7f7f4;
+}
+
 html,
 body,
 #root {
@@ -62,6 +70,9 @@ body,
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  transition:
+    background-color 650ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 450ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .font-serif-display {

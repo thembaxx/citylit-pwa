@@ -146,18 +146,23 @@ export function SettingsModal({
         </div>
 
         <div className="pt-4.5 border-t border-white/10 space-y-3.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.14em] uppercase text-[#e8b04a]">
-              <SlidersHorizontal size={14} />
-              Ambient Mixer
-            </span>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <span className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.14em] uppercase text-[#e8b04a]">
+                <SlidersHorizontal size={14} />
+                Ambient Atmosphere
+              </span>
+              <p className="mt-0.5 text-[11.5px] text-[#a9a69e]/80 m-0">
+                Adjust environmental layers independently
+              </p>
+            </div>
             {!isDefaultMixer && (
               <motion.button
                 type="button"
                 whileTap={reducedMotion ? undefined : { scale: 0.94 }}
                 onClick={() => onUpdate({ mixer: { ...DEFAULT_MIXER } })}
-                aria-label="Reset ambient mixer levels"
-                className="inline-flex items-center gap-1 text-[11.5px] text-[#a9a69e] hover:text-[#e8b04a] transition-colors cursor-pointer"
+                aria-label="Reset ambient atmosphere levels"
+                className="inline-flex items-center gap-1 text-[11.5px] text-[#a9a69e] hover:text-[#e8b04a] transition-colors cursor-pointer shrink-0"
               >
                 <ArrowsCounterClockwise size={12} />
                 Reset
@@ -194,9 +199,12 @@ export function SettingsModal({
                       aria-label={`${label} ambient volume`}
                       className="w-32 sm:w-36 accent-[#e8b04a] cursor-pointer"
                     />
-                    <span className="w-9 text-right text-[12px] font-mono tabular-nums text-[#a9a69e]">
-                      {value}%
-                    </span>
+                    <AnimatedNumber
+                      value={value}
+                      suffix="%"
+                      className="w-9 justify-end text-[12px] text-[#a9a69e]"
+                      reducedMotion={reducedMotion}
+                    />
                   </div>
                 </div>
               );

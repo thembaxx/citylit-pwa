@@ -115,6 +115,12 @@ export class CitylitEngine {
   private qualitySetting: QualitySetting = 'auto';
   private qualityIndex: QualityIndex = 0;
   private theme: ThemeSetting = 'dark';
+  private studioWeight = 0;
+  private targetPlinthTop = new THREE.Color('#1a1c24');
+  private targetPlinthBase = new THREE.Color('#111218');
+  private targetRingCol = new THREE.Color('#e8b04a');
+  private targetRingEmissive = 0.35;
+  private targetBloomThreshold = 0.9;
   private motionScale = 1;
   private autoRotateSpeed = 0.3;
   private contextLost = false;
@@ -580,16 +586,20 @@ export class CitylitEngine {
     this.studioShadow.visible = !hidden && this.isStudio();
   }
 
-  setTheme(theme: ThemeSetting): void {
+  setTheme(theme: ThemeSetting, immediate = false): void {
     const wasStudio = this.isStudio();
     this.theme = theme;
-    this.weather.setTheme(theme);
+    this.weather.setTheme(theme, immediate);
     this.updatePlinthVisibility();
 
     if (theme === 'studio') {
-      this.scene.background = new THREE.Color('#f7f7f4');
       this.scene.environment = this.roomEnvTex;
-      this.bloomPass.threshold = 1.15;
+      this.targetBloomThreshold = 1.15;
+      if (immediate) {
+        this.studioWeight = 1;
+        this.bloomPass.threshold = this.targetBloomThreshold;
+        (this.scene.background as THREE.Color).set('#f7f7f4');
+      }
       this.miniaturePass.applyTuning({
         blur: 0.7,
         vignette: 0.03,
@@ -601,7 +611,7 @@ export class CitylitEngine {
       this.camera.fov = 14;
       this.camera.updateProjectionMatrix();
       this.controls.autoRotate = false;
-      if (!wasStudio) this.frameCurrentLandmark();
+      if (!wasStudio && !immediate) this.frameCurrentLandmark();
       return;
     }
 
@@ -618,23 +628,31 @@ export class CitylitEngine {
         focusRange: 0.2,
         focusY: 0.49,
       });
-      this.resetCamera(window.innerWidth <= window.innerHeight);
+      if (!immediate) this.resetCamera(window.innerWidth <= window.innerHeight);
     }
 
     if (theme === 'daylight') {
-      this.plinthTopMat.color.set('#b8ad99');
-      this.plinthBaseMat.color.set('#968b76');
-      this.ringMat.color.set('#b8842f');
-      this.ringMat.emissive.set('#b8842f');
-      this.ringMat.emissiveIntensity = 0.14;
-      this.bloomPass.threshold = 1.0;
+      this.targetPlinthTop.set('#b8ad99');
+      this.targetPlinthBase.set('#968b76');
+      this.targetRingCol.set('#b8842f');
+      this.targetRingEmissive = 0.14;
+      this.targetBloomThreshold = 1.0;
     } else {
-      this.plinthTopMat.color.set('#1a1c24');
-      this.plinthBaseMat.color.set('#111218');
-      this.ringMat.color.set('#e8b04a');
-      this.ringMat.emissive.set('#e8b04a');
-      this.ringMat.emissiveIntensity = 0.35;
-      this.bloomPass.threshold = 0.9;
+      this.targetPlinthTop.set('#1a1c24');
+      this.targetPlinthBase.set('#111218');
+      this.targetRingCol.set('#e8b04a');
+      this.targetRingEmissive = 0.35;
+      this.targetBloomThreshold = 0.9;
+    }
+
+    if (immediate) {
+      this.studioWeight = 0;
+      this.plinthTopMat.color.copy(this.targetPlinthTop);
+      this.plinthBaseMat.color.copy(this.targetPlinthBase);
+      this.ringMat.color.copy(this.targetRingCol);
+      this.ringMat.emissive.copy(this.targetRingCol);
+      this.ringMat.emissiveIntensity = this.targetRingEmissive;
+      this.bloomPass.threshold = this.targetBloomThreshold;
     }
   }
 
@@ -642,7 +660,11 @@ export class CitylitEngine {
     this.motionScale = reduced ? 0 : 1;
     this.autoRotateSpeed = reduced || this.isSoftwareGl ? 0 : 0.3;
     this.controls.autoRotate =
-      !reduced && !this.isSoftwareGl && !this.globe.isOpen && !this.places.isOpen && !this.isStudio();
+      !reduced &&
+      !this.isSoftwareGl &&
+      !this.globe.isOpen &&
+      !this.places.isOpen &&
+      !this.isStudio();
     this.controls.autoRotateSpeed = this.autoRotateSpeed;
   }
 
@@ -874,7 +896,9 @@ export class CitylitEngine {
     this.plinthGroup.visible = true;
     this.markerGroup.visible = false;
     this.heroRoot.visible = true;
-    (this.scene.background as THREE.Color).set(this.theme === 'daylight' ? '#a8d8ec' : '#141721');
+    (this.scene.background as THREE.Color).set(
+      this.theme === 'studio' ? '#f7f7f4' : this.theme === 'daylight' ? '#a8d8ec' : '#141721'
+    );
 
     if (!this.isSoftwareGl && prevQualityIndex !== 0) {
       this.setQualityIndex(0);
@@ -1023,10 +1047,7 @@ export class CitylitEngine {
     return out.toDataURL('image/png');
   }
 
-  private syncMiniatureDepth(
-    camera: THREE.PerspectiveCamera,
-    target: THREE.Vector3
-  ): void {
+  private syncMiniatureDepth(camera: THREE.PerspectiveCamera, target: THREE.Vector3): void {
     this.miniaturePass.setFocus(camera.position.distanceTo(target));
     const depth = this.n8aoPass.enabled
       ? this.n8aoPass.beautyRenderTarget.depthTexture
@@ -1469,17 +1490,26 @@ export class CitylitEngine {
         },
       });
       updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
-      if (this.isStudio()) {
-        this.scene.environmentIntensity = 0.55;
-      } else {
-        const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
-        const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
-        this.scene.environmentIntensity =
-          envFloor +
-          (envCeiling - envFloor) *
-            (1 - this.weather.current.night) *
-            (1 - this.weather.current.cover * 0.35);
-      }
+      const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
+      this.studioWeight += ((this.isStudio() ? 1 : 0) - this.studioWeight) * themeLerp;
+      this.plinthTopMat.color.lerp(this.targetPlinthTop, themeLerp);
+      this.plinthBaseMat.color.lerp(this.targetPlinthBase, themeLerp);
+      this.ringMat.color.lerp(this.targetRingCol, themeLerp);
+      this.ringMat.emissive.lerp(this.targetRingCol, themeLerp);
+      this.ringMat.emissiveIntensity +=
+        (this.targetRingEmissive - this.ringMat.emissiveIntensity) * themeLerp;
+      this.bloomPass.threshold +=
+        (this.targetBloomThreshold - this.bloomPass.threshold) * themeLerp;
+
+      const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
+      const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
+      const skyEnvIntensity =
+        envFloor +
+        (envCeiling - envFloor) *
+          (1 - this.weather.current.night) *
+          (1 - this.weather.current.cover * 0.35);
+      this.scene.environmentIntensity =
+        skyEnvIntensity + (0.55 - skyEnvIntensity) * this.studioWeight;
       updateWetSurfaces(this.weather.current.rain);
 
       // Localized atmosphere shell: ridge fog, heat shimmer, sea and spray mist

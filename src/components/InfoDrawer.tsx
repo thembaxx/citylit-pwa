@@ -70,7 +70,7 @@ export function InfoDrawer({
       side="right"
       reducedMotion={reducedMotion}
       label={`${lm.k} historical and architectural info`}
-      className="pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)]"
+      className="pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] md:max-w-[540px] lg:max-w-[580px]"
     >
       <header className="px-5 pt-5 pb-4 border-b border-white/12 flex items-start justify-between gap-3 shrink-0">
         <div className="min-w-0">

@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Play, ShareNetwork, X } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, Play, ShareNetwork, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue } from 'motion/react';
 import { LANDMARKS } from '../data/landmarks';
@@ -249,7 +249,7 @@ function GalleryDialog({
               aria-label="Previous photo"
               className="w-9 h-9 rounded-full grid place-items-center bg-[#181a22] border border-white/15 text-[#f3efe6] disabled:opacity-35 hover:border-[#e8b04a] cursor-pointer"
             >
-              <ArrowLeft size={16} />
+              <CaretLeft size={16} />
             </motion.button>
             <div className="flex items-center gap-1.5">
               {items.map((item, idx) => (
@@ -278,7 +278,7 @@ function GalleryDialog({
               aria-label="Next photo"
               className="w-9 h-9 rounded-full grid place-items-center bg-[#181a22] border border-white/15 text-[#f3efe6] disabled:opacity-35 hover:border-[#e8b04a] cursor-pointer"
             >
-              <ArrowRight size={16} />
+              <CaretRight size={16} />
             </motion.button>
           </div>
           <p className="text-[12.5px] text-[#f3efe6]/90 line-clamp-2 m-0">{activeItem.cap}</p>
@@ -362,7 +362,7 @@ function GalleryDialog({
                 aria-label="Previous image"
                 className="w-10 h-10 rounded-full grid place-items-center bg-[#181a22] border border-white/15 text-[#f3efe6] disabled:opacity-35 cursor-pointer shrink-0"
               >
-                <ArrowLeft size={18} />
+                <CaretLeft size={18} />
               </motion.button>
               <div className="text-center min-w-0">
                 <p className="text-[13px] text-[#f3efe6] line-clamp-2 m-0">{fullItem.cap}</p>
@@ -385,7 +385,7 @@ function GalleryDialog({
                 aria-label="Next image"
                 className="w-10 h-10 rounded-full grid place-items-center bg-[#181a22] border border-white/15 text-[#f3efe6] disabled:opacity-35 cursor-pointer shrink-0"
               >
-                <ArrowRight size={18} />
+                <CaretRight size={18} />
               </motion.button>
             </div>
           </motion.div>

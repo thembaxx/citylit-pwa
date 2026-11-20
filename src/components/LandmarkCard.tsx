@@ -1,8 +1,8 @@
 import {
-  ArrowLeft,
-  ArrowRight,
   BookmarkSimple,
   Camera,
+  CaretLeft,
+  CaretRight,
   GlobeHemisphereEast,
   Heart,
   Images,
@@ -228,7 +228,7 @@ export function LandmarkCard({
     <>
       <div
         ref={cardWrapRef}
-        className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
+        className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] md:landscape:max-w-[490px] lg:max-w-[560px] lg:landscape:max-w-[560px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
       >
         <motion.div
           initial={reducedMotion ? false : { opacity: 0, y: 12, scale: 0.985 }}
@@ -240,7 +240,7 @@ export function LandmarkCard({
             e.preventDefault();
             openRadial(e.clientX, e.clientY);
           }}
-          className="relative bg-[#121319]/92 border border-white/15 squircle-card px-4 py-[18px] landscape:px-3.5 landscape:py-3.5 [@media(max-height:700px)]:px-3.5 [@media(max-height:700px)]:py-3.5 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
+          className="relative bg-[#121319]/92 border border-white/15 squircle-card px-4 py-[18px] landscape:px-3.5 landscape:py-3.5 md:landscape:px-4 md:landscape:py-[18px] [@media(max-height:700px)]:px-3.5 [@media(max-height:700px)]:py-3.5 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
         >
           <div className="flex items-start justify-between gap-3">
             <motion.div
@@ -348,7 +348,7 @@ export function LandmarkCard({
               aria-label="Previous landmark"
               className={smallBtn}
             >
-              <ArrowLeft size={16} />
+              <CaretLeft size={16} />
             </motion.button>
             <div className="flex-1 h-[3px] rounded-full bg-white/15 overflow-hidden">
               <motion.div
@@ -368,7 +368,7 @@ export function LandmarkCard({
               aria-label="Next landmark"
               className={smallBtn}
             >
-              <ArrowRight size={16} />
+              <CaretRight size={16} />
             </motion.button>
             <motion.button
               type="button"

@@ -76,8 +76,7 @@ function readSettings(): CitylitSettings {
         haptics: parsed.haptics ?? true,
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
-        theme:
-          parsed.theme === 'daylight' || parsed.theme === 'studio' ? parsed.theme : 'dark',
+        theme: parsed.theme === 'daylight' || parsed.theme === 'studio' ? parsed.theme : 'dark',
       };
     }
   } catch {
@@ -272,7 +271,9 @@ export function App() {
     engineRef.current = engine;
 
     const initialIdx = readInitialLandmarkIndex();
-    engine.setTheme(readSettings().theme);
+    const initialTheme = readSettings().theme;
+    document.documentElement.dataset.theme = initialTheme;
+    engine.setTheme(initialTheme, true);
     engine.setSeasonMonth(new Date().getMonth() + 1, true);
     engine.showLandmarkImmediate(initialIdx);
 
@@ -304,6 +305,7 @@ export function App() {
       haptics: settings.haptics,
       reducedMotion,
     });
+    document.documentElement.dataset.theme = settings.theme;
     engineRef.current?.applyQuality(settings.quality);
     engineRef.current?.setTheme(settings.theme);
     engineRef.current?.setMotionPreferences(reducedMotion);
@@ -646,16 +648,20 @@ export function App() {
 
         {/* Vignette */}
         {!globeOpen && !placesOpen && (
-          <div
-            aria-hidden="true"
-            className={`fixed inset-0 pointer-events-none transition-opacity duration-500 ${
-              settings.theme === 'studio'
-                ? 'opacity-0'
-                : settings.theme === 'daylight'
-                  ? 'bg-[radial-gradient(ellipse_at_center,transparent_64%,rgba(16,32,48,0.16))]'
-                  : 'bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]'
-            }`}
-          />
+          <>
+            <div
+              aria-hidden="true"
+              className={`fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))] transition-opacity duration-700 ease-out ${
+                settings.theme === 'dark' ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+            <div
+              aria-hidden="true"
+              className={`fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_64%,rgba(16,32,48,0.16))] transition-opacity duration-700 ease-out ${
+                settings.theme === 'daylight' ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+          </>
         )}
 
         {/* Top Navigation */}
@@ -759,7 +765,7 @@ export function App() {
         {/* Desktop Orbit Hint */}
         {!fullscreen && !globeOpen && !placesOpen && hintVisible && (
           <div
-            className={`hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] pointer-events-none ${
+            className={`hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] pointer-events-none transition-colors duration-500 ${
               settings.theme === 'dark' ? 'text-[#a9a69e]' : 'text-[#1c2330]/75'
             }`}
           >

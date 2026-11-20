@@ -29,7 +29,7 @@ export interface WeatherSceneController {
   /** Drive the scene from a real observation using continuous values. */
   applyLiveSample: (sample: LiveWeatherSample, timeOfDay: number) => void;
   setSeasonMonth: (month: number, immediate?: boolean) => void;
-  setTheme: (theme: ThemeSetting) => void;
+  setTheme: (theme: ThemeSetting, immediate?: boolean) => void;
   triggerRainbow: (duration?: number) => void;
   setHidden: (hidden: boolean) => void;
   update: (
@@ -238,7 +238,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   let lightningFlash = 0;
   let thunderTimer = 3;
   let rainbowTimer = 0;
-  let activeTheme: ThemeSetting = 'dark';
+  const themeTarget = { daylight: 0, studio: 0 };
+  const themeCurrent = { daylight: 0, studio: 0 };
 
   const csPos = new THREE.Vector3();
   const csQuat = new THREE.Quaternion();
@@ -249,9 +250,16 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const daylightSkyBotCol = new THREE.Color('#cfeaf6');
   const daylightStormBgCol = new THREE.Color('#7d98ad');
   const daylightNightBgCol = new THREE.Color('#131b2c');
+  const studioBgCol = new THREE.Color('#f7f7f4');
+  const studioKeyPos = new THREE.Vector3(9, 13, 7);
+  const studioKeyCol = new THREE.Color('#fffaf0');
+  const studioFillCol = new THREE.Color('#e9efff');
+  const studioHemiSky = new THREE.Color('#ffffff');
+  const studioHemiGround = new THREE.Color('#cdd2d8');
 
   const skyTmp = new THREE.Color();
   const skyDarkTmp = new THREE.Color();
+  const daylightBgTmp = new THREE.Color();
   const botTmp = new THREE.Color();
   const fogTmp = new THREE.Color();
   const sunGlowTmp = new THREE.Color();
@@ -346,8 +354,13 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     }
   };
 
-  const setTheme = (theme: ThemeSetting) => {
-    activeTheme = theme;
+  const setTheme = (theme: ThemeSetting, immediate = false) => {
+    themeTarget.daylight = theme === 'daylight' ? 1 : 0;
+    themeTarget.studio = theme === 'studio' ? 1 : 0;
+    if (immediate) {
+      themeCurrent.daylight = themeTarget.daylight;
+      themeCurrent.studio = themeTarget.studio;
+    }
   };
 
   const triggerRainbow = (duration = 12) => {
@@ -364,8 +377,14 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     { qualityIndex, motionScale, keyLight, fillLight, hemiLight, scene: s, renderer, onThunder }
   ) => {
     const safeDt = Math.max(0, dt);
-    const studio = activeTheme === 'studio';
-    skyDome.visible = !studio;
+    const tk = motionScale === 0 ? 1 : 1 - Math.exp(-safeDt * 4.5);
+    themeCurrent.daylight += (themeTarget.daylight - themeCurrent.daylight) * tk;
+    themeCurrent.studio += (themeTarget.studio - themeCurrent.studio) * tk;
+    const wDay = themeCurrent.daylight;
+    const wStudio = themeCurrent.studio;
+    const wDark = Math.max(0, 1 - wDay - wStudio);
+
+    skyDome.visible = wStudio < 0.995;
     const k = Math.max(0, Math.min(1, safeDt * 1.5));
     const sk = 1 - Math.exp(-safeDt * 0.45);
     current.sky.lerp(target.sky, k);
@@ -391,9 +410,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const day = Math.max(0, Math.min(1, alt * 2.5 + 0.35));
 
     sunDisc.position.set(sx, sy, sz);
-    sunDisc.visible = !studio && sy > -2 && !renderer.xr.isPresenting;
+    sunDisc.visible = wStudio < 0.99 && sy > -2 && !renderer.xr.isPresenting;
     moonDisc.position.set(-sx * 0.85, Math.max(12, -sy * 0.7 + 14), -16);
-    moonDisc.visible = !studio && day < 0.7;
+    moonDisc.visible = wStudio < 0.99 && day < 0.7;
 
     if (current.storm > 0.4) {
       thunderTimer -= safeDt;
@@ -413,19 +432,27 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .copy(current.sky)
       .lerp(seasonSkyTmp, 0.38)
       .lerp(duskSkyTmp, hor * (0.58 + 0.14 * seasonCurrent.warmth));
-    if (activeTheme === 'daylight') {
-      dayTopTmp.lerp(daylightSkyTopCol, 0.72 * (1 - current.storm * 0.5));
-    }
     skyTmp.copy(dayTopTmp).lerp(nightSkyTmp, 1 - day);
+    skyDarkTmp.copy(skyTmp).multiplyScalar(0.5);
+
+    if (wDay > 0.001) {
+      dayTopTmp.lerp(daylightSkyTopCol, 0.72 * (1 - current.storm * 0.5) * wDay);
+    }
+    skyTmp
+      .copy(dayTopTmp)
+      .lerp(nightSkyTmp, 1 - day)
+      .lerp(studioBgCol, wStudio);
     skyMat.uniforms.top.value.copy(skyTmp);
 
     botTmp
-      .copy(activeTheme === 'daylight' ? daylightSkyBotCol : botDayTmp)
-      .lerp(botNightTmp, 1 - day);
+      .copy(botDayTmp)
+      .lerp(daylightSkyBotCol, wDay)
+      .lerp(botNightTmp, 1 - day)
+      .lerp(studioBgCol, wStudio);
     skyMat.uniforms.bot.value.copy(botTmp);
     skyMat.uniforms.t.value = elapsed * motionScale;
-    skyMat.uniforms.cv.value = current.cover;
-    skyMat.uniforms.nt.value = 1 - day;
+    skyMat.uniforms.cv.value = current.cover * (1 - wStudio);
+    skyMat.uniforms.nt.value = (1 - day) * (1 - wStudio);
     skyMat.uniforms.sunDir.value.set(sx, sy, sz).normalize();
 
     seasonGlowTmp.copy(winterGlowCol).lerp(summerGlowCol, seasonCurrent.warmth);
@@ -434,58 +461,54 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .lerp(seasonGlowTmp, 0.45)
       .lerp(sunRedTmp, Math.max(0, 0.5 - alt) * (1.4 + 0.6 * seasonCurrent.warmth));
     skyMat.uniforms.glow.value.copy(sunGlowTmp);
-    skyMat.uniforms.hor.value = hor * (1 - current.cover * 0.5);
+    skyMat.uniforms.hor.value = hor * (1 - current.cover * 0.5) * (1 - wStudio);
 
     rainbowTimer = Math.max(0, rainbowTimer - safeDt);
-    skyMat.uniforms.rb.value = Math.min(1, rainbowTimer / 2) * day;
+    skyMat.uniforms.rb.value = Math.min(1, rainbowTimer / 2) * day * (1 - wStudio);
 
-    if (studio) {
-      (s.background as THREE.Color).set('#f7f7f4');
-    } else if (activeTheme === 'daylight') {
-      skyDarkTmp
-        .copy(daylightBgCol)
-        .lerp(daylightStormBgCol, Math.min(1, current.cover * 0.35 + current.storm * 0.55))
-        .lerp(daylightNightBgCol, 1 - day);
-      (s.background as THREE.Color).copy(skyDarkTmp);
-    } else {
-      skyDarkTmp.copy(skyTmp).multiplyScalar(0.5);
-      (s.background as THREE.Color).copy(skyDarkTmp);
-    }
+    daylightBgTmp
+      .copy(daylightBgCol)
+      .lerp(daylightStormBgCol, Math.min(1, current.cover * 0.35 + current.storm * 0.55))
+      .lerp(daylightNightBgCol, 1 - day);
+    (s.background as THREE.Color).setRGB(
+      skyDarkTmp.r * wDark + daylightBgTmp.r * wDay + studioBgCol.r * wStudio,
+      skyDarkTmp.g * wDark + daylightBgTmp.g * wDay + studioBgCol.g * wStudio,
+      skyDarkTmp.b * wDark + daylightBgTmp.b * wDay + studioBgCol.b * wStudio
+    );
 
     fogDayTmp.copy(winterFogDay).lerp(summerFogDay, seasonCurrent.warmth);
-    if (activeTheme === 'daylight') {
-      fogDayTmp.lerp(daylightBgCol, 0.72);
+    if (wDay > 0.001) {
+      fogDayTmp.lerp(daylightBgCol, 0.72 * wDay);
     }
-    fogTmp.copy(fogDayTmp).lerp(fogNightTmp, 1 - day);
-    const fogDensity = studio
-      ? 0
-      : activeTheme === 'daylight'
-        ? 0.0018 + current.fog * 0.0085
-        : 0.008 + current.fog * 0.032;
+    fogTmp
+      .copy(fogDayTmp)
+      .lerp(fogNightTmp, 1 - day)
+      .lerp(studioBgCol, wStudio);
+    const fogDensity =
+      (0.008 + current.fog * 0.032) * wDark + (0.0018 + current.fog * 0.0085) * wDay;
     if (s.fog instanceof THREE.FogExp2) {
-      s.fog.density += (fogDensity - s.fog.density) * k;
+      s.fog.density += (fogDensity - s.fog.density) * Math.max(k, tk);
       s.fog.color
         .copy(fogTmp)
         .lerp(
           sunGlowTmp,
-          hor * (activeTheme === 'daylight' ? 0.08 : 0.18 + 0.14 * seasonCurrent.warmth)
+          hor * (1 - wStudio) * (0.18 + 0.14 * seasonCurrent.warmth) * (1 - wDay * 0.65)
         );
     }
 
-    starMat.opacity = studio
-      ? 0
-      : Math.max(0, 1 - day - 0.15) * (1 - current.cover * 0.85) * 0.9;
+    starMat.opacity =
+      (1 - wStudio) * Math.max(0, 1 - day - 0.15) * (1 - current.cover * 0.85) * 0.9;
     starPoints.rotation.y = elapsed * 0.002 * motionScale;
 
     cloudMat.color
       .set('#ffffff')
       .lerp(sunGlowTmp, hor * (0.45 + 0.25 * seasonCurrent.warmth))
       .lerp(fogNightTmp, 1 - day);
-    cloudMat.opacity = current.cover * 0.85;
-    clouds.visible = !studio && current.cover > 0.06;
+    cloudMat.opacity = current.cover * 0.85 * (1 - wStudio);
+    clouds.visible = wStudio < 0.995 && current.cover > 0.06;
     const showShadows = current.cover > 0.06 && day > 0.12;
-    groundShadow.visible = !studio && showShadows;
-    cloudShadowMat.opacity = Math.min(0.18, current.cover * 0.16 * day);
+    groundShadow.visible = wStudio < 0.995 && showShadows;
+    cloudShadowMat.opacity = Math.min(0.18, current.cover * 0.16 * day) * (1 - wStudio);
     for (let i = 0; i < clouds.children.length; i++) {
       const c = clouds.children[i];
       c.userData.a += safeDt * (c.userData.s as number) * current.wind * motionScale;
@@ -534,22 +557,22 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     hemiLight.groundColor.copy(seasonHemiGroundTmp);
     hemiLight.intensity = (0.36 + 0.08 * seasonCurrent.warmth) * day + 0.34 * (1 - day);
 
-    // Studio/catalog look: flat, neutral, bright light that reads cleanly on white.
-    if (studio) {
-      keyLight.position.set(9, 13, 7);
-      keyLight.color.set('#fffaf0');
-      keyLight.intensity = 2.8;
-      fillLight.color.set('#e9efff');
-      fillLight.intensity = 1.0;
-      hemiLight.color.set('#ffffff');
-      hemiLight.groundColor.set('#cdd2d8');
-      hemiLight.intensity = 0.75;
+    // Studio/catalog look: smoothly blend toward flat neutral catalog lighting.
+    if (wStudio > 0.001) {
+      keyLight.position.lerp(studioKeyPos, wStudio);
+      keyLight.color.lerp(studioKeyCol, wStudio);
+      keyLight.intensity += (2.8 - keyLight.intensity) * wStudio;
+      fillLight.color.lerp(studioFillCol, wStudio);
+      fillLight.intensity += (1.0 - fillLight.intensity) * wStudio;
+      hemiLight.color.lerp(studioHemiSky, wStudio);
+      hemiLight.groundColor.lerp(studioHemiGround, wStudio);
+      hemiLight.intensity += (0.75 - hemiLight.intensity) * wStudio;
     }
 
     const rainCount = Math.floor((qualityIndex > 1 ? 150 : RN) * current.rain);
     rainGeo.setDrawRange(0, rainCount * 2);
-    rainLines.visible = !studio && current.rain > 0.03;
-    rainMat.opacity = current.rain * 0.42;
+    rainLines.visible = wStudio < 0.995 && current.rain > 0.03;
+    rainMat.opacity = current.rain * 0.42 * (1 - wStudio);
     if (rainLines.visible) {
       for (let i = 0; i < rainCount; i++) {
         const j = i * 6;
@@ -566,9 +589,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     }
 
     stMat.uniforms.t.value = elapsed * motionScale;
-    stMat.uniforms.st.value = current.storm;
+    stMat.uniforms.st.value = current.storm * (1 - wStudio);
     stMat.uniforms.fl.value = lightningFlash;
-    stormCurtain.visible = !studio && current.storm > 0.03;
+    stormCurtain.visible = wStudio < 0.995 && current.storm > 0.03;
 
     WU.sun.value = day * (1 - current.cover * 0.65);
     WU.sky.value.copy(skyTmp);
