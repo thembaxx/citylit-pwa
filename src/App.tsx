@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { toastVariants } from './lib/motion';
 import { ambientAudio } from './audio/ambientAudio';
+import { AudioVisualizerBar } from './components/AudioVisualizerBar';
 import { BootSplash } from './components/BootSplash';
 import { GalleryModal } from './components/GalleryModal';
 import { GlobeOverlay } from './components/GlobeOverlay';
@@ -772,6 +773,9 @@ export function App() {
             Drag to orbit · Scroll to zoom · Tap pins for facts
           </div>
         )}
+
+        {/* Minimalist Ambient Audio Frequency Bar (visible only when sound is ON) */}
+        <AudioVisualizerBar active={soundOn} theme={settings.theme} reducedMotion={reducedMotion} />
 
         {/* Globe Overlay HUD */}
         <GlobeOverlay

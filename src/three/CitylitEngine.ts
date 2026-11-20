@@ -525,8 +525,9 @@ export class CitylitEngine {
     this.pendingIndex = index;
     this.dissolvePhase = 1;
     this.dissolveT = 0;
+    const lm = LANDMARKS[index];
     ambientAudio.playSfx('whoosh');
-    ambientAudio.vibrate(15);
+    ambientAudio.vibrateForLandmark(lm.biome, lm.c);
   }
 
   applyQuality(setting: QualitySetting): void {
@@ -826,6 +827,7 @@ export class CitylitEngine {
     const lm = LANDMARKS[landmarkIndex];
     if (!lm) return;
     this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
+    ambientAudio.vibrateForLandmark(lm.biome, lm.c);
   }
 
   flyCameraPreset(pos: [number, number, number]): void {

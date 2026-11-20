@@ -20,6 +20,36 @@ const smoothBell = (x: number, start: number, peak: number, end: number): number
 
 const equalPower = (x: number): number => Math.sin(clamp01(x) * Math.PI * 0.5);
 
+/** Base tactile vibration signatures (ms alternating on/off) for each biome. */
+const BIOME_HAPTIC_PATTERNS: Record<LandmarkBiome, readonly number[]> = {
+  coastal: [24, 42, 16, 52, 12],
+  waterfall: [14, 18, 20, 18, 28, 18, 12],
+  mountain: [32, 48, 36],
+  savannah: [14, 28, 22, 54, 14],
+  urban: [12, 24, 12],
+  desert: [10, 66, 18],
+  wetland: [14, 38, 18, 46, 12],
+};
+
+/** Provincial cadence & trailing accent ([pauseMs, vibrateMs, ...]) layered per region. */
+const REGION_HAPTIC_ACCENTS: Record<string, { tempo: number; tail: readonly number[] }> = {
+  'Western Cape': { tempo: 1.08, tail: [36, 12] },
+  Gauteng: { tempo: 0.85, tail: [20, 10] },
+  'KwaZulu-Natal': { tempo: 1, tail: [26, 14, 26, 10] },
+  'Northern Cape': { tempo: 1.22, tail: [58, 14] },
+  Mpumalanga: { tempo: 0.96, tail: [28, 20] },
+  Limpopo: { tempo: 1.12, tail: [34, 22] },
+  'Eastern Cape': { tempo: 1.04, tail: [30, 16, 24, 12] },
+  'North West': { tempo: 0.94, tail: [32, 16] },
+  'Free State': { tempo: 1.15, tail: [42, 16] },
+};
+
+const extractRegionName = (regionOrPlace?: string): string | undefined => {
+  if (!regionOrPlace) return undefined;
+  const parts = regionOrPlace.split(' · ');
+  return (parts.length > 1 ? parts[parts.length - 1] : regionOrPlace).trim();
+};
+
 interface FilterBand {
   fl: BiquadFilterNode;
   g: GainNode;
@@ -53,6 +83,8 @@ export interface SpatialListener {
 class AmbientAudioController {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
+  private analyser: AnalyserNode | null = null;
+  private analyserData: Uint8Array<ArrayBuffer> | null = null;
   private brownBuf: AudioBuffer | null = null;
   private whiteBuf: AudioBuffer | null = null;
   private windBand: FilterBand | null = null;
@@ -209,6 +241,21 @@ class AmbientAudioController {
     }
   }
 
+  /** Build a unique haptic signature combining biome character and provincial cadence. */
+  getLandmarkVibrationPattern(biome: LandmarkBiome, regionOrPlace?: string): number[] {
+    const base = BIOME_HAPTIC_PATTERNS[biome] ?? [15];
+    const region = extractRegionName(regionOrPlace);
+    const accent = region ? REGION_HAPTIC_ACCENTS[region] : undefined;
+    if (!accent) return [...base];
+    const scaled = base.map((ms) => Math.max(8, Math.round(ms * accent.tempo)));
+    return [...scaled, ...accent.tail];
+  }
+
+  /** Trigger a biome- and region-specific haptic pulse via `vibrate`. */
+  vibrateForLandmark(biome: LandmarkBiome, regionOrPlace?: string): void {
+    this.vibrate(this.getLandmarkVibrationPattern(biome, regionOrPlace));
+  }
+
   private ensureContext(): void {
     if (this.ctx) return;
     const AudioCtx =
@@ -219,7 +266,18 @@ class AmbientAudioController {
     this.ctx = new AudioCtx();
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.value = 0;
-    this.masterGain.connect(this.ctx.destination);
+    if (typeof this.ctx.createAnalyser === 'function') {
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 128;
+      this.analyser.smoothingTimeConstant = 0.8;
+      this.analyser.minDecibels = -94;
+      this.analyser.maxDecibels = -22;
+      this.analyserData = new Uint8Array(this.analyser.frequencyBinCount);
+      this.masterGain.connect(this.analyser);
+      this.analyser.connect(this.ctx.destination);
+    } else {
+      this.masterGain.connect(this.ctx.destination);
+    }
 
     const makeNoiseBuffer = (isWhite: boolean): AudioBuffer => {
       const ctx = this.ctx!;
@@ -558,6 +616,43 @@ class AmbientAudioController {
 
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /**
+   * Capture real-time normalized (0–1) frequency spectrum bars from the
+   * master AnalyserNode for minimalist UI visualization.
+   */
+  sampleFrequencyBars(out: Float32Array): boolean {
+    if (
+      !this.enabled ||
+      !this.analyser ||
+      !this.analyserData ||
+      !this.ctx ||
+      this.ctx.state !== 'running'
+    ) {
+      out.fill(0);
+      return false;
+    }
+
+    this.analyser.getByteFrequencyData(this.analyserData);
+    const binCount = this.analyserData.length;
+    const barCount = out.length;
+    const usableBins = Math.min(binCount, Math.max(barCount, Math.floor(binCount * 0.78)));
+
+    for (let i = 0; i < barCount; i++) {
+      const start = Math.floor((i / barCount) * usableBins);
+      const end = Math.max(start + 1, Math.floor(((i + 1) / barCount) * usableBins));
+      let sum = 0;
+      for (let b = start; b < end; b++) {
+        sum += this.analyserData[b];
+      }
+      const avg = sum / ((end - start) * 255);
+      // Slight high-band tilt so bird chirps, cicadas, and rain shimmer register beside bass wind.
+      const tilt = 1 + (i / Math.max(1, barCount - 1)) * 0.45;
+      out[i] = Math.min(1, Math.pow(avg * tilt, 0.75));
+    }
+
+    return true;
   }
 
   playSfx(kind: 'whoosh' | 'ping' | 'thunder' | 'open'): void {
