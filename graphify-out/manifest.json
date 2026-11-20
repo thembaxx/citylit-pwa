@@ -19,9 +19,9 @@
     "ast_empty": true
   },
   "package.json": {
-    "mtime": 1795196565.3053458,
-    "seen": 1795198128.7388198,
-    "ast_hash": "1cd9a4f57ef434d58679a9b8ff2f5435",
+    "mtime": 1795200085.139966,
+    "seen": 1795200519.3057446,
+    "ast_hash": "f47c4ce98b166e63995468a7bceb5b6f",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -169,10 +169,10 @@
     "semantic_hash": "8532424b2bbf2342cfcdcb2abb6ae3b6"
   },
   "src/data/globeData.ts": {
-    "mtime": 1794996593.8090014,
-    "seen": 1795194883.6572702,
-    "ast_hash": "d020d8e7d0312c7c02259266d5788024",
-    "semantic_hash": "d020d8e7d0312c7c02259266d5788024"
+    "mtime": 1795199886.927644,
+    "seen": 1795200519.3057966,
+    "ast_hash": "1a7713bca3c033c5a88c746f38638e4c",
+    "semantic_hash": ""
   },
   "src/data/landmarkDetails.ts": {
     "mtime": 1794961671.4492068,
@@ -223,9 +223,9 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795199280.9757612,
-    "seen": 1795199603.455749,
-    "ast_hash": "d35a817d0392abda88a7a75a4879471e",
+    "mtime": 1795200297.5611293,
+    "seen": 1795200519.3058257,
+    "ast_hash": "f62fcccb7d737dd566c52d52ddf7bf2c",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -253,9 +253,9 @@
     "semantic_hash": "d12c0cb01b1de4a8c646bc6e67191b36"
   },
   "src/three/globeScene.ts": {
-    "mtime": 1795199237.6331334,
-    "seen": 1795199603.4557607,
-    "ast_hash": "febf76ef2cb182effa1bcad0c628e310",
+    "mtime": 1795200313.8085444,
+    "seen": 1795200519.3058376,
+    "ast_hash": "2bf8ccf0afa05878b5fab9c54e3aa02c",
     "semantic_hash": ""
   },
   "src/three/lightingRig.ts": {
@@ -367,10 +367,10 @@
     "semantic_hash": "0f66b836165705f473b4c4d019c2a781"
   },
   "tsconfig.json": {
-    "mtime": 1794998326.2180235,
-    "seen": 1795194883.6628563,
-    "ast_hash": "f8e6fe21619cdc4741f5fb5efd96dbc9",
-    "semantic_hash": "f8e6fe21619cdc4741f5fb5efd96dbc9"
+    "mtime": 1795200092.525313,
+    "seen": 1795200519.3058786,
+    "ast_hash": "687c6f5758c9b2a3e430458c5907d3a2",
+    "semantic_hash": ""
   },
   "vite.config.ts": {
     "mtime": 1795197261.1037264,
@@ -462,10 +462,34 @@
     "ast_hash": "1cc5e688bdb75391d4f63e860f800f56",
     "semantic_hash": ""
   },
+  ".github/workflows/ci.yml": {
+    "mtime": 1795200052.7667184,
+    "seen": 1795200519.3057191,
+    "ast_hash": "b878106d9f56752f4471036d3b99a2f0",
+    "semantic_hash": ""
+  },
+  "src/data/globeGeo.ts": {
+    "mtime": 1795199877.4422464,
+    "seen": 1795200519.305799,
+    "ast_hash": "a2adbff41438a612af0b10656182644f",
+    "semantic_hash": ""
+  },
+  "src/lib/globeMath.test.ts": {
+    "mtime": 1795200017.4257915,
+    "seen": 1795200519.3058121,
+    "ast_hash": "a8b4e44ff301d3f83835d96cfc85183d",
+    "semantic_hash": ""
+  },
+  "src/lib/globeMath.ts": {
+    "mtime": 1795199973.2624898,
+    "seen": 1795200519.305814,
+    "ast_hash": "8d7a8e32e2e396dcbd512089d324e0c4",
+    "semantic_hash": ""
+  },
   "pnpm-lock.yaml": {
-    "mtime": 1795196565.252024,
-    "seen": 1795198128.7389622,
-    "ast_hash": "13dca48ec959175e4049d00528b37f7f",
+    "mtime": 1795200104.1966462,
+    "seen": 1795200519.3059032,
+    "ast_hash": "ce11b50d1be83c4ece15266b1081f9c7",
     "semantic_hash": ""
   }
 }

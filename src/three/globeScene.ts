@@ -1,62 +1,34 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import {
-  AFRICA_POLY,
+  AFRICA_POLYS,
   ENCLAVE_POLYS,
   GLOBE_NEIGHBOR_LABELS,
   GLOBE_PROVINCES,
   NEIGHBOR_POLYS,
 } from '../data/globeData';
 import { LANDMARKS } from '../data/landmarks';
+import {
+  easeInOutCubic,
+  easeOutCubic,
+  GLOBE_RADIUS,
+  latLonToVec3,
+  mulberry32,
+  pointInPoly,
+  provinceVisitRatio,
+  slerpDirection,
+} from '../lib/globeMath';
 import { getSoftTexture } from './shaders';
 import type { QualityIndex } from '../types/citylit';
 
-const GLOBE_RADIUS = 5;
+export { latLonToVec3 } from '../lib/globeMath';
+
 const DEFAULT_LAT = -28.5;
 const DEFAULT_LON = 24.5;
 const DEFAULT_ZOOM = 11;
 const OVERVIEW_ZOOM = 9.7;
 const PROVINCE_ZOOM = 7.2;
 const UP = new THREE.Vector3(0, 1, 0);
-
-export function latLonToVec3(lat: number, lon: number, radius = GLOBE_RADIUS): THREE.Vector3 {
-  const phi = ((90 - lat) * Math.PI) / 180;
-  const theta = ((lon + 180) * Math.PI) / 180;
-  return new THREE.Vector3(
-    -radius * Math.sin(phi) * Math.cos(theta),
-    radius * Math.cos(phi),
-    radius * Math.sin(phi) * Math.sin(theta)
-  );
-}
-
-function pointInPoly(x: number, y: number, poly: readonly number[]): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 2; i < poly.length; j = i, i += 2) {
-    const xi = poly[i];
-    const yi = poly[i + 1];
-    const xj = poly[j];
-    const yj = poly[j + 1];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-const easeInOutCubic = (t: number) =>
-  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-/** Deterministic PRNG so the starfield is identical across reloads and screenshots. */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 type DimMaterial = THREE.PointsMaterial | THREE.LineBasicMaterial;
 
@@ -80,6 +52,7 @@ export interface GlobeController {
   resetView: () => void;
   cancelFly: () => void;
   setAspect: (aspect: number) => void;
+  setQuality: (index: QualityIndex) => void;
   dispose: () => void;
 }
 
@@ -90,8 +63,9 @@ export function createGlobeScene(
   qualityIndex: QualityIndex = 0
 ): GlobeController {
   // Quality 0 is highest detail, 2 is lowest (also forced for software GL).
-  const detail = qualityIndex === 0 ? 1 : qualityIndex === 1 ? 0.72 : 0.5;
-  const stepScale = 1 / detail;
+  const detailFor = (q: QualityIndex) => (q === 0 ? 1 : q === 1 ? 0.72 : 0.5);
+  let detail = detailFor(qualityIndex);
+  let stepScale = 1 / detail;
   const clampZoom = (z: number) =>
     Math.max(controls.minDistance, Math.min(controls.maxDistance, z));
 
@@ -112,16 +86,21 @@ export function createGlobeScene(
   const group = new THREE.Group();
   group.visible = false;
 
-  // Base ocean sphere
+  // Ocean sphere with a gentle Fresnel limb so the disc reads as a lit globe.
   const sphere = new THREE.Mesh(
     new THREE.SphereGeometry(GLOBE_RADIUS, Math.max(24, Math.round(48 * detail)), Math.max(18, Math.round(36 * detail))),
-    new THREE.MeshBasicMaterial({ color: '#0b1018' })
+    new THREE.ShaderMaterial({
+      vertexShader:
+        'varying vec3 N,V;void main(){N=normalize(normalMatrix*normal);vec4 p=modelViewMatrix*vec4(position,1.);V=normalize(-p.xyz);gl_Position=projectionMatrix*p;}',
+      fragmentShader:
+        'varying vec3 N,V;void main(){float f=pow(1.-abs(dot(N,V)),2.2);vec3 base=vec3(.043,.063,.094);vec3 col=base+vec3(.018,.045,.085)*f;gl_FragColor=vec4(col,1.);}',
+    })
   );
   group.add(sphere);
 
-  // Subtle glow atmosphere rim
+  // Tighter glow atmosphere rim
   const atmosphere = new THREE.Mesh(
-    new THREE.SphereGeometry(GLOBE_RADIUS * 1.07, Math.max(20, Math.round(40 * detail)), Math.max(14, Math.round(28 * detail))),
+    new THREE.SphereGeometry(GLOBE_RADIUS * 1.045, Math.max(20, Math.round(40 * detail)), Math.max(14, Math.round(28 * detail))),
     new THREE.ShaderMaterial({
       side: THREE.BackSide,
       transparent: true,
@@ -130,25 +109,28 @@ export function createGlobeScene(
       vertexShader:
         'varying vec3 N,V;void main(){N=normalize(normalMatrix*normal);vec4 p=modelViewMatrix*vec4(position,1.);V=normalize(-p.xyz);gl_Position=projectionMatrix*p;}',
       fragmentShader:
-        'varying vec3 N,V;void main(){float f=pow(1.-abs(dot(N,V)),3.);gl_FragColor=vec4(.28,.55,.95,f*.45);}',
+        'varying vec3 N,V;void main(){float f=pow(1.-abs(dot(N,V)),4.);gl_FragColor=vec4(.28,.55,.95,f*.55);}',
     })
   );
   group.add(atmosphere);
 
   // Deterministic starfield backdrop
-  const starPositions: number[] = [];
-  const rand = mulberry32(0x5a17c1);
-  const starCount = Math.max(180, Math.round(600 * detail));
-  for (let i = 0; i < starCount; i++) {
-    const a = rand() * 6.283;
-    const z = rand() * 2 - 1;
-    const r = Math.sqrt(1 - z * z);
-    starPositions.push(r * Math.cos(a) * 35, z * 35, r * Math.sin(a) * 35);
-  }
+  const buildStarPositions = (count: number): number[] => {
+    const rand = mulberry32(0x5a17c1);
+    const pos: number[] = [];
+    for (let i = 0; i < count; i++) {
+      const a = rand() * 6.283;
+      const z = rand() * 2 - 1;
+      const r = Math.sqrt(1 - z * z);
+      pos.push(r * Math.cos(a) * 35, z * 35, r * Math.sin(a) * 35);
+    }
+    return pos;
+  };
+  const starCountFor = (d: number) => Math.max(180, Math.round(600 * d));
   const starField = new THREE.Points(
     new THREE.BufferGeometry().setAttribute(
       'position',
-      new THREE.Float32BufferAttribute(starPositions, 3)
+      new THREE.Float32BufferAttribute(buildStarPositions(starCountFor(detail)), 3)
     ),
     new THREE.PointsMaterial({ color: '#9ab4e0', size: 0.14, transparent: true, opacity: 0.7 })
   );
@@ -160,18 +142,18 @@ export function createGlobeScene(
     dimmable.push({ mat, base: mat.opacity, provinceIndex });
   };
 
-  // Dot-matrix landmass generator
-  const addPolyDots = (
-    poly: readonly number[],
-    step: number,
-    color: string,
-    size: number,
-    opacity: number,
-    radius = GLOBE_RADIUS + 0.015,
-    exclude?: readonly (readonly number[])[],
-    additive = false,
-    provinceIndex = -1
-  ): THREE.Points => {
+  // Dot-matrix landmass generator. Sources are kept so a quality change can
+  // rebuild the point clouds without recreating materials or group children.
+  type DotParams = {
+    poly: readonly number[];
+    step: number;
+    radius: number;
+    exclude?: readonly (readonly number[])[];
+  };
+  const dotSources: { params: DotParams; points: THREE.Points }[] = [];
+
+  const buildDotPositions = (params: DotParams, scale: number): number[] => {
+    const { poly, step, radius, exclude } = params;
     let x0 = 999;
     let x1 = -999;
     let y0 = 999;
@@ -183,7 +165,7 @@ export function createGlobeScene(
       y1 = Math.max(y1, poly[i + 1]);
     }
     const pts: number[] = [];
-    const s = step * stepScale;
+    const s = step * scale;
     for (let y = y0; y <= y1; y += s) {
       for (let x = x0; x <= x1; x += s) {
         if (pointInPoly(x, y, poly) && (!exclude || !exclude.some((ex) => pointInPoly(x, y, ex)))) {
@@ -192,6 +174,20 @@ export function createGlobeScene(
         }
       }
     }
+    return pts;
+  };
+
+  const addPolyDots = (
+    poly: readonly number[],
+    step: number,
+    color: string,
+    size: number,
+    opacity: number,
+    radius = GLOBE_RADIUS + 0.015,
+    exclude?: readonly (readonly number[])[],
+    additive = false,
+    provinceIndex = -1
+  ): THREE.Points => {
     const mat = new THREE.PointsMaterial({
       color,
       size,
@@ -201,16 +197,21 @@ export function createGlobeScene(
       depthWrite: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
+    const params: DotParams = { poly, step, radius, exclude };
     const points = new THREE.Points(
-      new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)),
+      new THREE.BufferGeometry().setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(buildDotPositions(params, stepScale), 3)
+      ),
       mat
     );
+    dotSources.push({ params, points });
     track(mat, provinceIndex);
     group.add(points);
     return points;
   };
 
-  addPolyDots(AFRICA_POLY, 0.85, '#4a6c9c', 0.075, 0.62);
+  AFRICA_POLYS.forEach((poly) => addPolyDots(poly, 0.85, '#4a6c9c', 0.075, 0.62));
   NEIGHBOR_POLYS.forEach((poly) => addPolyDots(poly, 0.45, '#5f83b2', 0.055, 0.7));
   ENCLAVE_POLYS.forEach((poly) =>
     addPolyDots(poly, 0.16, '#0d1422', 0.05, 0.98, GLOBE_RADIUS + 0.021)
@@ -271,7 +272,7 @@ export function createGlobeScene(
     )
   );
 
-  addPolyBorder(AFRICA_POLY, '#3d5885', 0.6, GLOBE_RADIUS + 0.015);
+  AFRICA_POLYS.forEach((poly) => addPolyBorder(poly, '#3d5885', 0.6, GLOBE_RADIUS + 0.015));
   NEIGHBOR_POLYS.forEach((poly) => addPolyBorder(poly, '#2f4568', 0.45, GLOBE_RADIUS + 0.016));
   GLOBE_PROVINCES.forEach((pv, i) =>
     addPolyBorder(pv.poly, '#f0bc58', 0.72, GLOBE_RADIUS + 0.025, i)
@@ -354,8 +355,12 @@ export function createGlobeScene(
 
   // Pulsing landmark pins
   const pinGeo = new THREE.SphereGeometry(0.022, 10, 8);
+  const pinSuppressed: boolean[] = new Array(LANDMARKS.length).fill(false);
   const pins: THREE.Mesh[] = LANDMARKS.map((lm, i) => {
-    const pin = new THREE.Mesh(pinGeo, new THREE.MeshBasicMaterial({ color: '#ffcf6a' }));
+    const pin = new THREE.Mesh(
+      pinGeo,
+      new THREE.MeshBasicMaterial({ color: '#ffcf6a', transparent: true, opacity: 1 })
+    );
     const pos = latLonToVec3(lm.coords[0], lm.coords[1], GLOBE_RADIUS + 0.05);
     pin.position.copy(pos);
     pin.userData = { i, p: i * 0.7 };
@@ -371,14 +376,7 @@ export function createGlobeScene(
     // Tint each province towards green in proportion to how many of its
     // landmarks have been visited — a subtle completion heat-map on the globe.
     provinceDotMats.forEach(({ mat, baseColor }, i) => {
-      const name = GLOBE_PROVINCES[i].name;
-      const inProvince: number[] = [];
-      LANDMARKS.forEach((lm, idx) => {
-        if (lm.c.includes(name)) inProvince.push(idx);
-      });
-      const ratio = inProvince.length
-        ? inProvince.filter((idx) => visited.has(idx)).length / inProvince.length
-        : 0;
+      const ratio = provinceVisitRatio(GLOBE_PROVINCES[i].name, LANDMARKS, visited);
       mat.color.copy(baseColor).lerp(new THREE.Color('#7dffb0'), ratio * 0.5);
     });
   };
@@ -470,19 +468,9 @@ export function createGlobeScene(
       const t = easeInOutCubic(Math.min(1, flyT));
       const fromDir = flyFrom.clone().normalize();
       const toDir = flyGoal.clone().normalize();
-      const angle = fromDir.angleTo(toDir);
-      let dir: THREE.Vector3;
-      if (angle < 1e-4) {
-        dir = toDir;
-      } else {
-        const sin = Math.sin(angle);
-        dir = fromDir
-          .clone()
-          .multiplyScalar(Math.sin((1 - t) * angle) / sin)
-          .add(toDir.clone().multiplyScalar(Math.sin(t * angle) / sin));
-      }
+      const dir = slerpDirection(fromDir, toDir, t);
       const radius = THREE.MathUtils.lerp(flyFrom.length(), flyGoal.length(), t);
-      camera.position.copy(dir.normalize().multiplyScalar(clampZoom(radius)));
+      camera.position.copy(dir.multiplyScalar(clampZoom(radius)));
       if (flyT >= 1) flyGoal = null;
       idleTime = 0;
     } else if (zoomTarget !== null) {
@@ -504,10 +492,17 @@ export function createGlobeScene(
       }
     }
 
+    declutterPins();
     pins.forEach((pin, idx) => {
       const phase = (pin.userData.p as number) + elapsed * 2.5 * motionScale;
       const baseScale = 1 + 0.35 * Math.sin(phase);
-      pin.scale.setScalar(hoveredPinIdx === idx ? Math.max(baseScale, 1.55) : baseScale);
+      const suppressed = pinSuppressed[idx] && hoveredPinIdx !== idx;
+      pin.scale.setScalar(
+        hoveredPinIdx === idx
+          ? Math.max(baseScale, 1.55)
+          : baseScale * (suppressed ? 0.6 : 1)
+      );
+      (pin.material as THREE.MeshBasicMaterial).opacity = suppressed ? 0.5 : 1;
     });
     controls.update();
   };
@@ -518,6 +513,30 @@ export function createGlobeScene(
   const ndc = new THREE.Vector3();
   const pxPerNdcX = () => window.innerWidth / 2;
   const pxPerNdcY = () => window.innerHeight / 2;
+
+  /** De-emphasise pins that collapse onto each other at the current zoom. */
+  const declutterPins = () => {
+    const screen = pins.map((pin) => {
+      pin.getWorldPosition(worldPos);
+      ndc.copy(worldPos).project(camera);
+      return {
+        x: (ndc.x + 1) * pxPerNdcX(),
+        y: (1 - ndc.y) * pxPerNdcY(),
+        behind: ndc.z > 1,
+      };
+    });
+    pinSuppressed.fill(false);
+    for (let i = 0; i < screen.length; i++) {
+      if (screen[i].behind) continue;
+      for (let j = 0; j < i; j++) {
+        if (screen[j].behind) continue;
+        if (Math.hypot(screen[i].x - screen[j].x, screen[i].y - screen[j].y) < 20) {
+          pinSuppressed[i] = true;
+          break;
+        }
+      }
+    }
+  };
 
   /** True when the pin is on the camera-facing hemisphere (not hidden behind the sphere). */
   const isNearSide = (pin: THREE.Mesh): boolean => {
@@ -586,6 +605,26 @@ export function createGlobeScene(
     fitLabels();
   };
 
+  let appliedQuality = qualityIndex;
+  const setQuality = (index: QualityIndex) => {
+    if (index === appliedQuality) return;
+    appliedQuality = index;
+    detail = detailFor(index);
+    stepScale = 1 / detail;
+    dotSources.forEach(({ params, points }) => {
+      points.geometry.dispose();
+      points.geometry = new THREE.BufferGeometry().setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(buildDotPositions(params, stepScale), 3)
+      );
+    });
+    starField.geometry.dispose();
+    starField.geometry = new THREE.BufferGeometry().setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(buildStarPositions(starCountFor(detail)), 3)
+    );
+  };
+
   const dispose = () => {
     controls.dispose();
     const geometries = new Set<THREE.BufferGeometry>();
@@ -627,6 +666,7 @@ export function createGlobeScene(
     resetView,
     cancelFly,
     setAspect,
+    setQuality,
     dispose,
   };
 

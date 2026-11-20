@@ -796,6 +796,7 @@ export class CitylitEngine {
 
   private setQualityIndex(idx: QualityIndex): void {
     this.qualityIndex = idx;
+    this.globe.setQuality(idx);
     this.appliedRenderScale = -1;
     this.applyRenderScale();
 
