@@ -9,6 +9,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { N8AOPass } from 'n8ao';
 import { ambientAudio } from '../audio/ambientAudio';
 import { LANDMARKS } from '../data/landmarks';
+import type { OsmPlaceData } from '../services/osmService';
 import type {
   AmbientSiteProfile,
   LiveWeatherSample,
@@ -125,6 +126,8 @@ export class CitylitEngine {
 
   private qualitySetting: QualitySetting = 'auto';
   private qualityIndex: QualityIndex = 0;
+  /** Optional WebGL approximation of ThreeRT-style path-traced lighting. */
+  private cinematic = false;
   private theme: ThemeSetting = 'dark';
   private studioWeight = 0;
   private targetPlinthTop = new THREE.Color('#1a1c24');
@@ -810,6 +813,34 @@ export class CitylitEngine {
       this.setShadowMapSize(1024);
       this.renderer.shadowMap.needsUpdate = true;
     }
+
+    if (this.cinematic && !this.isSoftwareGl) {
+      // Best-effort WebGL stand-in for a native path tracer: bigger shadow
+      // maps, higher-quality AO, slightly warmer exposure. A native ThreeRT
+      // host overrides this through setCinematic() and traces every light.
+      this.setShadowMapSize(2048);
+      this.renderer.shadowMap.needsUpdate = true;
+      this.renderer.toneMappingExposure = 1.16;
+      this.n8aoPass.configuration.halfRes = false;
+      this.n8aoPass.configuration.aoRadius = 0.72;
+      this.n8aoPass.configuration.intensity = 3;
+      this.n8aoPass.configuration.distanceFalloff = 1.25;
+      this.n8aoPass.setQualityMode('High');
+      this.n8aoPass.enabled = idx < 2;
+    } else {
+      this.renderer.toneMappingExposure = 1.08;
+      this.n8aoPass.configuration.halfRes = true;
+      this.n8aoPass.configuration.aoRadius = 0.58;
+      this.n8aoPass.configuration.intensity = 2.4;
+      this.n8aoPass.configuration.distanceFalloff = 1.05;
+      this.n8aoPass.setQualityMode('Performance');
+    }
+  }
+
+  setCinematic(enabled: boolean): void {
+    if (this.cinematic === enabled) return;
+    this.cinematic = enabled;
+    this.setQualityIndex(this.qualityIndex);
   }
 
   /** Apply the current quality tier's pixel ratio scaled by the 60fps target. */
@@ -1035,11 +1066,19 @@ export class CitylitEngine {
     ambientAudio.setSiteProfile(
       (this.currentGroup?.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
     );
-    this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
+    if (lm) this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
     ambientAudio.playSfx('open');
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
     }
+    return info;
+  }
+
+  /** Show an on-demand OSM coordinate slice in the Places stage. */
+  openOsmPlace(data: OsmPlaceData): PlacesSelectionInfo {
+    this.openPlaces(new Set(), 'All');
+    const info = this.places.addOsmSlice(data);
+    this.lastPlaceSliceIndex = info.sliceIndex;
     return info;
   }
 
@@ -1673,12 +1712,13 @@ export class CitylitEngine {
               this.lastPlaceTap.sliceIndex === picked.sliceIndex && now - this.lastPlaceTap.t < 480;
             this.lastPlaceTap = { sliceIndex: picked.sliceIndex, t: now };
             if (isDoubleTap) {
+              if (picked.landmarkIndex < 0) return;
               ambientAudio.vibrate(12);
               this.callbacks.onOpenLandmarkFromPlaces?.(picked.landmarkIndex);
             } else {
               ambientAudio.playSfx('ping');
               ambientAudio.vibrate(10);
-              this.focusPlaceSiteAudio(picked.landmarkIndex);
+              if (picked.landmarkIndex >= 0) this.focusPlaceSiteAudio(picked.landmarkIndex);
               this.callbacks.onSelectPlaceSlice?.(picked);
             }
           }
@@ -1977,7 +2017,9 @@ export class CitylitEngine {
       if (sliceChanged) {
         this.lastPlaceSliceIndex = sel.sliceIndex;
       }
-      const lm = LANDMARKS[sel.landmarkIndex];
+      // Explorer slices have no landmark index; keep the ambient bed of the
+      // current diorama so the Places stage never crashes on a missing entry.
+      const lm = LANDMARKS[sel.landmarkIndex] ?? LANDMARKS[this.activeIndex] ?? LANDMARKS[0];
       this.places.camera.updateMatrixWorld();
       audioRight.setFromMatrixColumn(this.places.camera.matrixWorld, 0).normalize();
       audioForward.setFromMatrixColumn(this.places.camera.matrixWorld, 2).normalize().negate();

@@ -28,6 +28,7 @@ import {
 } from './data/weatherData';
 import { WEATHER_CONDITIONS } from './data/weatherData';
 import { useOnlineStatus, usePWARegistration } from './hooks/usePWAInstall';
+import { formatCoordinates, loadOsmPlace, type LatLon } from './services/osmService';
 import type { CitylitEngine } from './three/CitylitEngine';
 import { loadCachedThumbnails, saveCachedThumbnails } from './three/thumbnailCache';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from './three/placesScene';
@@ -44,6 +45,32 @@ function readInitialLandmarkIndex(): number {
   if (!hash) return 0;
   const idx = LANDMARKS.findIndex((lm) => slugifyLandmark(lm.k) === hash);
   return idx >= 0 ? idx : 0;
+}
+
+/** `?lat=-33.9&lon=18.4` opens the on-demand coordinate explorer. */
+function readInitialCoordinate(): LatLon | null {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const latRaw = params.get('lat');
+  const lonRaw = params.get('lon');
+  if (!latRaw || !lonRaw) return null;
+  const lat = Number(latRaw);
+  const lon = Number(lonRaw);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { lat, lon };
+}
+
+function setUrlForCoordinates({ lat, lon }: LatLon): void {
+  window.history.replaceState(
+    null,
+    '',
+    `${window.location.pathname}?lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}`
+  );
+}
+
+function setUrlForLandmark(slug: string): void {
+  window.history.replaceState(null, '', `${window.location.pathname}#${slug}`);
 }
 
 function readStoredSet(key: string): Set<number> {
@@ -80,6 +107,7 @@ function readSettings(): CitylitSettings {
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
         theme: parsed.theme === 'daylight' || parsed.theme === 'studio' ? parsed.theme : 'dark',
+        cinematic: parsed.cinematic ?? false,
       };
     }
   } catch {
@@ -94,6 +122,7 @@ function readSettings(): CitylitSettings {
     motion: 'auto',
     tilt: false,
     theme: 'dark',
+    cinematic: false,
   };
 }
 
@@ -155,6 +184,7 @@ export function App() {
   const [globeOpen, setGlobeOpen] = useState(false);
   const [placesOpen, setPlacesOpen] = useState(false);
   const [selectedPlace, setSelectedPlace] = useState<PlacesSelectionInfo | null>(null);
+  const [exploring, setExploring] = useState(false);
   const [activeProvince, setActiveProvince] = useState('All');
   const [placesWeatherMode, setPlacesWeatherMode] = useState<PlacesWeatherMode>('auto');
 
@@ -245,7 +275,7 @@ export function App() {
       const wrapped = ((nextIndex % LANDMARKS.length) + LANDMARKS.length) % LANDMARKS.length;
       setIndex(wrapped);
       setFactText(null);
-      window.history.replaceState(null, '', '#' + slugifyLandmark(LANDMARKS[wrapped].k));
+      setUrlForLandmark(slugifyLandmark(LANDMARKS[wrapped].k));
       engineRef.current?.transitionToLandmark(wrapped);
       if (opts.cinematic && !reducedMotion) {
         setCineKey(Date.now());
@@ -303,7 +333,17 @@ export function App() {
         document.documentElement.dataset.theme = initialTheme;
         instance.setTheme(initialTheme, true);
         instance.setSeasonMonth(new Date().getMonth() + 1, true);
-        instance.showLandmarkImmediate(initialIdx);
+        const initialCoord = readInitialCoordinate();
+        if (initialCoord) {
+          void loadOsmPlace(initialCoord).then((data) => {
+            if (unmounted) return;
+            const info = instance.openOsmPlace(data);
+            setSelectedPlace(info);
+            setPlacesOpen(true);
+          });
+        } else {
+          instance.showLandmarkImmediate(initialIdx);
+        }
         setBooted(true);
         instance.prewarmShaders();
 
@@ -371,6 +411,7 @@ export function App() {
     engineRef.current?.setTheme(settings.theme);
     engineRef.current?.setMotionPreferences(reducedMotion);
     engineRef.current?.setTiltEnabled(settings.tilt);
+    engineRef.current?.setCinematic(settings.cinematic);
     try {
       localStorage.setItem('cl-st', JSON.stringify(settings));
     } catch {
@@ -702,12 +743,33 @@ export function App() {
     setPlacesOpen(true);
   }, [visited, activeProvince, index]);
 
+  const exploreCoordinates = useCallback(async (center: LatLon) => {
+    if (!engineRef.current) return;
+    setExploring(true);
+    setSearchOpen(false);
+    setInfoOpen(false);
+    setWeatherExpanded(false);
+    setTodOpen(false);
+    setGlobeOpen(false);
+    try {
+      const data = await loadOsmPlace(center);
+      const info = engineRef.current.openOsmPlace(data);
+      setSelectedPlace(info);
+      setPlacesOpen(true);
+      setUrlForCoordinates(center);
+      showToast(`Exploring ${formatCoordinates(center)}`);
+    } finally {
+      setExploring(false);
+    }
+  }, [showToast]);
+
   const closePlaces = useCallback(() => {
     if (!engineRef.current) return;
     ambientAudio.playUi('close');
     engineRef.current.closePlaces();
     setPlacesOpen(false);
-  }, []);
+    setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k));
+  }, [index]);
 
   const forecast = useMemo(
     () => liveForecast ?? getForecastSlots(index, month),
@@ -1048,6 +1110,8 @@ export function App() {
           onToggleFavorite={toggleFavorite}
           onOpenPassport={() => setPassportOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          onExploreCoordinates={(center) => void exploreCoordinates(center)}
+          exploring={exploring}
           onInstalledToast={showToast}
         />
 

@@ -4,11 +4,17 @@ import {
   DownloadSimple,
   GearSix,
   Heart,
+  MapPin,
   ShareNetwork,
   Stamp,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
+import {
+  geocodePlace,
+  parseCoordinateInput,
+  type LatLon,
+} from '../services/osmService';
 import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
 import { SPRING, revealItem, revealVariants, swapTransition } from '../lib/motion';
@@ -28,6 +34,8 @@ interface SearchSheetProps {
   onToggleFavorite: (index: number) => void;
   onOpenPassport: () => void;
   onOpenSettings: () => void;
+  onExploreCoordinates: (center: LatLon) => void;
+  exploring?: boolean;
   onInstalledToast: (msg: string) => void;
 }
 
@@ -80,9 +88,13 @@ export function SearchSheet({
   onToggleFavorite,
   onOpenPassport,
   onOpenSettings,
+  onExploreCoordinates,
+  exploring = false,
   onInstalledToast,
 }: SearchSheetProps) {
   const [query, setQuery] = useState('');
+  const [locating, setLocating] = useState(false);
+  const [locationHint, setLocationHint] = useState('');
   const [province, setProvince] = useState('All');
   const [installDismissed, setInstallDismissed] = useState(() => {
     try {
@@ -118,6 +130,28 @@ export function SearchSheet({
     onClose();
   };
 
+  const exploreQuery = async () => {
+    const text = query.trim();
+    if (!text || locating || exploring) return;
+    const coords = parseCoordinateInput(text);
+    if (coords) {
+      setLocationHint('');
+      onExploreCoordinates(coords);
+      return;
+    }
+    setLocating(true);
+    setLocationHint('');
+    try {
+      const found = await geocodePlace(text);
+      if (found) onExploreCoordinates(found);
+      else setLocationHint('No place found. Try “latitude, longitude”.');
+    } catch {
+      setLocationHint('Map search unavailable offline. Try coordinates.');
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const handleInstallClick = async () => {
     const ok = await install();
     if (ok) onInstalledToast('Citylit installed for offline use');
@@ -150,7 +184,10 @@ export function SearchSheet({
             ref={inputRef}
             type="search"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setLocationHint('');
+            }}
             placeholder={`Search ${LANDMARKS.length} landmarks · try “sunset at Table Mountain”`}
             className="w-full bg-white/[0.06] border border-white/15 rounded-xl px-3.5 py-2 text-[15px] text-[#f3efe6] placeholder:text-[#a9a69e]/70 focus-visible:outline-2 focus-visible:outline-[#e8b04a] [&::-webkit-search-cancel-button]:hidden"
           />
@@ -172,6 +209,11 @@ export function SearchSheet({
           </AnimatePresence>
         </div>
         {[
+          {
+            label: locating || exploring ? 'Exploring location…' : 'Explore coordinates or place',
+            icon: MapPin,
+            onClick: () => void exploreQuery(),
+          },
           { label: 'Explorer Passport', icon: Stamp, onClick: onOpenPassport },
           { label: 'Settings', icon: GearSix, onClick: onOpenSettings },
           { label: 'Close search sheet', icon: X, onClick: onClose },
@@ -209,6 +251,12 @@ export function SearchSheet({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {locationHint && (
+        <p role="status" className="mb-2 text-[11.5px] text-[#e8b04a]">
+          {locationHint}
+        </p>
+      )}
 
       <AnimatePresence initial={false}>
         {!isInstalled && !installDismissed && (isInstallable || isIOS) && (

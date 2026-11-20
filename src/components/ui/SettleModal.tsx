@@ -1,12 +1,20 @@
-import { motion, AnimatePresence } from 'motion/react';
+import {
+  Dialog,
+  DialogBackdrop,
+  DialogContent,
+  DialogTitle,
+} from '@ui-sdk/react/dialog';
+import { motion } from 'motion/react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ambientAudio } from '../../audio/ambientAudio';
-import { modalVariants } from '../../lib/motion';
 
 /**
  * SettleModal, adapted from EasyUI. The panel scales 0.96 → 1 with a short
  * settle, and the inner content follows one layer behind (transitions.dev
  * 06-modal).
+ *
+ * Focus trapping, Escape, outside-press dismissal, inert background and
+ * focus restoration are handled by the UI SDK dialog primitive.
  */
 interface SettleModalProps {
   open: boolean;
@@ -43,38 +51,26 @@ export function SettleModal({
   }, [open]);
 
   return (
-    <AnimatePresence>
-      {open && (
-        <div className="fixed inset-0 z-50 grid place-items-center p-4">
-          <motion.div
-            aria-hidden="true"
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reducedMotion ? 0 : 0.2 }}
-            onClick={onClose}
-          />
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            aria-label={typeof title === 'string' ? title : undefined}
-            variants={reducedMotion ? undefined : modalVariants}
-            initial={reducedMotion ? { opacity: 0 } : 'initial'}
-            animate={reducedMotion ? { opacity: 1 } : 'animate'}
-            exit={reducedMotion ? { opacity: 0 } : 'exit'}
-            className={`relative w-full max-w-md max-h-[calc(100dvh-32px)] overflow-y-auto bg-[#14161e] border border-white/15 rounded-3xl px-5 py-6 shadow-2xl no-scrollbar ${className}`}
-          >
-            <motion.div
-              initial={reducedMotion ? false : inner.initial}
-              animate={reducedMotion ? { opacity: 1, scale: 1, y: 0 } : inner.animate}
-              transition={reducedMotion ? { duration: 0 } : undefined}
-            >
-              {children}
-            </motion.div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose();
+      }}
+      modal
+    >
+      <DialogBackdrop aria-hidden="true" />
+      <DialogContent
+        className={`w-[calc(100%-32px)] max-w-md max-h-[calc(100dvh-32px)] overflow-y-auto bg-[#14161e] border border-white/15 rounded-3xl px-5 py-6 shadow-2xl no-scrollbar ${className}`}
+      >
+        {typeof title === 'string' && <DialogTitle className="sr-only">{title}</DialogTitle>}
+        <motion.div
+          initial={reducedMotion ? false : inner.initial}
+          animate={reducedMotion ? { opacity: 1, scale: 1, y: 0 } : inner.animate}
+          transition={reducedMotion ? { duration: 0 } : undefined}
+        >
+          {children}
+        </motion.div>
+      </DialogContent>
+    </Dialog>
   );
 }

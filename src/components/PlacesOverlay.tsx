@@ -104,7 +104,7 @@ export function PlacesOverlay({
     : 0;
   const activeLandmark = selectedPlace ? LANDMARKS[selectedPlace.landmarkIndex] : null;
   const isVisited = selectedPlace ? visited.has(selectedPlace.landmarkIndex) : false;
-  const cardCondition = selectedPlace
+  const cardCondition = selectedPlace && selectedPlace.landmarkIndex >= 0
     ? placeCardCondition(weatherMode, selectedPlace.landmarkIndex, activeTimeHour)
     : weather.condition;
 
@@ -306,6 +306,42 @@ export function PlacesOverlay({
                 <span>Open diorama</span>
                 <ArrowUpRight size={14} weight="bold" />
               </motion.button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* On-demand coordinate explorer card */}
+      <AnimatePresence mode="wait">
+        {selectedPlace?.explorer && (
+          <motion.div
+            key={`explorer-${selectedPlace.sliceIndex}`}
+            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.985 }}
+            className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] md:w-[min(490px,calc(100vw-28px))] bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3.5 shadow-2xl pointer-events-auto"
+          >
+            <div className="text-[10.5px] uppercase tracking-[0.12em] text-[#e8b04a]">
+              Coordinate Explorer
+            </div>
+            <div className="font-serif-display italic text-[20px] leading-tight text-[#f3efe6] mt-1">
+              {selectedPlace.explorer.label}
+            </div>
+            <div className="text-[12px] text-[#a9a69e] mt-1">{selectedPlace.explorer.detail}</div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-[#c8c4bc] tabular-nums">
+              <span>{selectedPlace.explorer.stats.buildings} buildings</span>
+              <span>{selectedPlace.explorer.stats.roads} roads</span>
+              <span>{selectedPlace.explorer.stats.elevation} m elevation</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/10">
+              <span className="text-[10px] text-[#a9a69e]">© OpenStreetMap contributors</span>
+              <button
+                type="button"
+                onClick={() => void navigator.clipboard?.writeText(window.location.href)}
+                className="h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 border border-white/15 bg-white/[0.06] text-[12px] text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
+              >
+                Copy link
+              </button>
             </div>
           </motion.div>
         )}

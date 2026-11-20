@@ -471,6 +471,40 @@ body,
   }
 }
 
+/* UI SDK dialogs render in the browser top layer and ship unstyled. */
+[data-slot='dialog-backdrop'] {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(0 0 0 / 70%);
+  backdrop-filter: blur(4px);
+  transition: opacity 200ms ease;
+}
+
+[data-slot='dialog-content'] {
+  position: fixed;
+  inset: 0;
+  z-index: 51;
+  margin: auto;
+  height: fit-content;
+  color: #f3efe6;
+  transition:
+    opacity 250ms ease,
+    transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-slot='dialog-backdrop'][data-starting-style],
+[data-slot='dialog-backdrop'][data-ending-style],
+[data-slot='dialog-content'][data-starting-style],
+[data-slot='dialog-content'][data-ending-style] {
+  opacity: 0;
+}
+
+[data-slot='dialog-content'][data-starting-style],
+[data-slot='dialog-content'][data-ending-style] {
+  transform: scale(0.96) translateY(4px);
+}
+
 body.rm * {
   animation: none !important;
   transition: none !important;

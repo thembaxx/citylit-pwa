@@ -15,14 +15,24 @@ import {
   type PlaceSliceSpec,
 } from './placesSliceBuilders';
 import { getSoftTexture, WU } from './shaders';
+import type { OsmPlaceData } from '../services/osmService';
+import { createOsmSlice } from './osmSlice';
 
 export type PlacesWeatherMode = 'auto' | 'rain' | 'snow' | 'fog';
+
+export interface ExplorerInfo {
+  label: string;
+  detail: string;
+  stats: { buildings: number; roads: number; water: number; green: number; elevation: number };
+}
 
 export interface PlacesSelectionInfo {
   sliceIndex: number;
   landmarkIndex: number;
   province: string;
   subtitle: string;
+  /** Present for on-demand coordinate slices (landmarkIndex is -1). */
+  explorer?: ExplorerInfo;
 }
 
 export interface PlacesController {
@@ -31,6 +41,9 @@ export interface PlacesController {
   controls: OrbitControls;
   isOpen: boolean;
   slices: BuiltPlaceSlice[];
+  /** Generate and select a diorama slice from an OSM patch; replaces the previous explorer slice. */
+  addOsmSlice: (data: OsmPlaceData) => PlacesSelectionInfo;
+  removeOsmSlice: () => void;
   open: (visited: Set<number>, province?: string, activeLandmarkIndex?: number) => void;
   close: () => void;
   flyToProvince: (provinceName: string) => void;
@@ -173,6 +186,7 @@ export function createPlacesScene(
 
   let isOpen = false;
   let selectedSliceIndex = 0;
+  let osmSliceIndex: number | null = null;
   let hoveredSliceIndex: number | null = null;
   let visitedSet = new Set<number>();
   let weatherMode: PlacesWeatherMode = 'auto';
@@ -222,7 +236,57 @@ export function createPlacesScene(
       landmarkIndex: s.spec.landmarkIndex,
       province: s.spec.province,
       subtitle: s.spec.subtitle,
+      explorer:
+        s.spec.landmarkIndex < 0
+          ? {
+              label: 'Coordinate Explorer',
+              detail: s.spec.subtitle,
+              stats: (s.root.userData.osmStats ?? {
+                buildings: 0,
+                roads: 0,
+                water: 0,
+                green: 0,
+                elevation: 0,
+              }) as ExplorerInfo['stats'],
+            }
+          : undefined,
     };
+  };
+
+  const removeOsmSlice = () => {
+    if (osmSliceIndex === null) return;
+    const removed = slices.splice(osmSliceIndex, 1)[0];
+    group.remove(removed.root);
+    removed.root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj !== removed.hitBox && obj !== removed.ringMesh) {
+        const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+        if (mat && 'dispose' in mat) mat.dispose();
+      }
+    });
+    removed.dispose();
+    if (selectedSliceIndex >= slices.length) selectedSliceIndex = slices.length - 1;
+    osmSliceIndex = null;
+  };
+
+  const addOsmSlice = (data: OsmPlaceData): PlacesSelectionInfo => {
+    removeOsmSlice();
+    const { built } = createOsmSlice(shared, data, slices.length);
+    built.root.position.set(0, 0, 0);
+    built.root.visible = false;
+    built.root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh && obj !== built.hitBox && obj !== built.ringMesh) {
+        const mat = Array.isArray(obj.material) ? obj.material[0] : obj.material;
+        if (mat && !mat.transparent && !('isShaderMaterial' in mat)) {
+          obj.castShadow = !isSoftwareGl;
+          obj.receiveShadow = !isSoftwareGl;
+        }
+      }
+    });
+    group.add(built.root);
+    slices.push(built);
+    osmSliceIndex = slices.length - 1;
+    selectSlice(osmSliceIndex, false);
+    return getSelectedInfo();
   };
 
   const selectSlice = (sliceIndex: number, focusCamera = true) => {
@@ -524,6 +588,8 @@ export function createPlacesScene(
     controls,
     isOpen,
     slices,
+    addOsmSlice,
+    removeOsmSlice,
     open,
     close,
     flyToProvince,

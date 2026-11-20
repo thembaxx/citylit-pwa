@@ -19,6 +19,11 @@ export interface CitylitSettings {
   motion: MotionSetting;
   tilt: boolean;
   theme: ThemeSetting;
+  /**
+   * High-fidelity lighting preset. In a native ThreeRT host this switches to
+   * path tracing; in the browser it applies a best-effort WebGL approximation.
+   */
+  cinematic: boolean;
 }
 
 export type WeatherConditionKey = 'sun' | 'partly' | 'cloud' | 'rain' | 'storm' | 'fog' | 'wind';

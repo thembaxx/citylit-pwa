@@ -76,6 +76,19 @@ export default defineConfig({
         // Generated/AI Studio experiments are not referenced by the app. Keep
         // them out of the precache if they are ever restored under public/.
         globIgnores: ['**/aistudio/**'],
+        // Named-place lookups survive offline after a single successful visit.
+        // Overpass/elevation responses are cached by osmService in localStorage.
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/nominatim\.openstreetmap\.org\/search/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'citylit-geocode',
+              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       // A dev service worker precaches Vite's optimized dependencies. When the
       // lockfile or optimizer changes it can keep serving a stale copy of the

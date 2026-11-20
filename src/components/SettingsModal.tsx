@@ -10,6 +10,7 @@ import {
 } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
 import { ambientAudio } from '../audio/ambientAudio';
+import { detectNativeHost } from '../three/cinematic/nativeHost';
 import type {
   AmbientMixerSettings,
   CitylitSettings,
@@ -74,6 +75,7 @@ export function SettingsModal({
   onClose,
 }: SettingsModalProps) {
   const mixer = settings.mixer ?? DEFAULT_MIXER;
+  const nativeHost = detectNativeHost();
   const isDefaultMixer =
     mixer.wind === DEFAULT_MIXER.wind &&
     mixer.birds === DEFAULT_MIXER.birds &&
@@ -120,6 +122,26 @@ export function SettingsModal({
             onChange={(quality) => onUpdate({ quality })}
             options={QUALITY_OPTIONS}
             compact
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Cinematic lighting</span>
+            <p className="mt-0.5 text-[11.5px] text-[#a9a69e]/80 m-0">
+              {nativeHost
+                ? `Path-traced by the ${nativeHost.name} host`
+                : 'Richer WebGL lighting and shadows'}
+            </p>
+          </div>
+          <LiquidToggle
+            label="Cinematic lighting"
+            value={settings.cinematic ?? false}
+            onChange={(cinematic) => {
+              onUpdate({ cinematic });
+              nativeHost?.setCinematic?.(cinematic);
+            }}
+            reducedMotion={reducedMotion}
           />
         </div>
 

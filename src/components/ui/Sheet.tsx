@@ -3,6 +3,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { ambientAudio } from '../../audio/ambientAudio';
+import { useFocusTrap } from '../../lib/focusTrap';
 import { SPRING, shouldDismiss } from '../../lib/motion';
 
 /**
@@ -39,6 +40,7 @@ export function Sheet({
   const panelRef = useRef<HTMLDivElement>(null);
   const returnTo = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
+  useFocusTrap(panelRef, open);
 
   // One cue per surface change, regardless of whether the user used the X,
   // the backdrop, a drag gesture or Escape to dismiss it.
