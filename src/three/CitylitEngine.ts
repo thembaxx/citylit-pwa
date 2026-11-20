@@ -37,7 +37,7 @@ import {
 import { createGlobeScene, type GlobeController } from './globeScene';
 import { createPlacesScene, type PlacesController, type PlacesSelectionInfo } from './placesScene';
 import { createMiniaturePass, type MiniaturePass, type MiniatureTuning } from './postfx';
-import { getSoftTexture, installDissolveShader, WU } from './shaders';
+import { configureTextureQuality, getSoftTexture, installDissolveShader, WU } from './shaders';
 import { configureDioramaShadow, createRimLight, updateRimLight } from './lightingRig';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
@@ -211,6 +211,9 @@ export class CitylitEngine {
       this.renderer.shadowMap.type = THREE.PCFShadowMap;
       this.renderer.shadowMap.autoUpdate = false;
     }
+    // Anisotropy and procedural normal maps are set up before any landmark
+    // texture is generated; software GL keeps the cheaper height-map path.
+    configureTextureQuality(this.renderer.capabilities.getMaxAnisotropy(), !this.isSoftwareGl);
 
     const canvas = this.renderer.domElement;
     canvas.className = 'block fixed inset-0 w-full h-full touch-none';
@@ -346,8 +349,11 @@ export class CitylitEngine {
     this.composer.addPass(this.renderPass);
     this.composer.addPass(this.n8aoPass);
     this.composer.addPass(this.bloomPass);
-    this.composer.addPass(this.smaaPass);
+    // Tone mapping, grading and depth-of-field live in the miniature pass, so
+    // SMAA goes last: its edge detection expects final sRGB pixels, not the
+    // linear HDR buffer that the earlier passes operate on.
     this.composer.addPass(this.miniaturePass);
+    this.composer.addPass(this.smaaPass);
 
     // Plinth & glowing ring
     this.plinthGroup = new THREE.Group();

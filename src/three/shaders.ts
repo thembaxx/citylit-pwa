@@ -72,6 +72,111 @@ export function installDissolveShader(): void {
   };
 }
 
+/**
+ * Procedural surface textures are generated lazily, after the renderer exists.
+ * Texture filtering and height->normal conversion are configured once at engine
+ * startup so every material helper picks up the same policy.
+ */
+let textureAnisotropy = 1;
+let normalMapsEnabled = false;
+const trackedCanvasTextures = new Set<THREE.CanvasTexture>();
+const normalTextureCache: Record<string, THREE.CanvasTexture> = {};
+
+function prepareCanvasTexture(tex: THREE.CanvasTexture): THREE.CanvasTexture {
+  tex.anisotropy = textureAnisotropy;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  trackedCanvasTextures.add(tex);
+  return tex;
+}
+
+/** Configure filtering for all generated textures; call once from CitylitEngine. */
+export function configureTextureQuality(anisotropy: number, useNormalMaps: boolean): void {
+  textureAnisotropy = Math.max(1, Math.floor(anisotropy));
+  normalMapsEnabled = useNormalMaps;
+  for (const tex of trackedCanvasTextures) {
+    tex.anisotropy = textureAnisotropy;
+    tex.needsUpdate = true;
+  }
+  for (const tex of Object.values(normalTextureCache)) {
+    tex.anisotropy = textureAnisotropy;
+    tex.needsUpdate = true;
+  }
+}
+
+export function normalMapsActive(): boolean {
+  return normalMapsEnabled;
+}
+
+/**
+ * Sobel-derive a tangent-space normal map from an existing grayscale height
+ * canvas. Sampling wraps at the edges so the result tiles seamlessly with the
+ * original RepeatWrapping bump texture.
+ */
+function heightToNormalTexture(
+  key: string,
+  heightTex: THREE.CanvasTexture,
+  strength: number
+): THREE.CanvasTexture | null {
+  if (!normalMapsEnabled) return null;
+  const cached = normalTextureCache[key];
+  if (cached) return cached;
+  const src = heightTex.image as HTMLCanvasElement | undefined;
+  const sctx = src?.getContext('2d', { willReadFrequently: true });
+  if (!src || !sctx) return null;
+  const w = src.width;
+  const h = src.height;
+  const srcData = sctx.getImageData(0, 0, w, h).data;
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const octx = out.getContext('2d');
+  if (!octx) return null;
+  const img = octx.createImageData(w, h);
+  const dst = img.data;
+  const sample = (x: number, y: number) =>
+    srcData[((((y % h) + h) % h) * w + (((x % w) + w) % w)) * 4] / 255;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const dx = (sample(x + 1, y) - sample(x - 1, y)) * strength;
+      // Image rows increase downward but UV v increases upward: flip dy to
+      // produce an OpenGL-style (+Y green) tangent-space normal.
+      const dy = (sample(x, y - 1) - sample(x, y + 1)) * strength;
+      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+      const i = (y * w + x) * 4;
+      dst[i] = Math.round((-dx * inv * 0.5 + 0.5) * 255);
+      dst[i + 1] = Math.round((-dy * inv * 0.5 + 0.5) * 255);
+      dst[i + 2] = Math.round((inv * 0.5 + 0.5) * 255);
+      dst[i + 3] = 255;
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(out);
+  tex.wrapS = heightTex.wrapS;
+  tex.wrapT = heightTex.wrapT;
+  tex.repeat.copy(heightTex.repeat);
+  normalTextureCache[key] = prepareCanvasTexture(tex);
+  return tex;
+}
+
+export function getStoneNormalTexture(): THREE.CanvasTexture | null {
+  return heightToNormalTexture('stone', getStoneBumpTexture(), 3.4);
+}
+export function getPlasterNormalTexture(): THREE.CanvasTexture | null {
+  return heightToNormalTexture('plaster', getPlasterBumpTexture(), 3.0);
+}
+export function getRoofNormalTexture(): THREE.CanvasTexture | null {
+  return heightToNormalTexture('roof', getRoofBumpTexture(), 4.6);
+}
+export function getCanvasNormalTexture(): THREE.CanvasTexture | null {
+  return heightToNormalTexture('canvas', getCanvasBumpTexture(), 3.8);
+}
+export function getWoodNormalTexture(): THREE.CanvasTexture | null {
+  return heightToNormalTexture('wood', getWoodBumpTexture(), 3.2);
+}
+
 let softTextureCache: THREE.CanvasTexture | null = null;
 let stoneBumpCache: THREE.CanvasTexture | null = null;
 let plasterBumpCache: THREE.CanvasTexture | null = null;
@@ -96,7 +201,7 @@ export function getSoftTexture(): THREE.CanvasTexture {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 64, 64);
   }
-  softTextureCache = new THREE.CanvasTexture(c);
+  softTextureCache = prepareCanvasTexture(new THREE.CanvasTexture(c));
   return softTextureCache;
 }
 
@@ -131,6 +236,7 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(3, 2);
+  prepareCanvasTexture(tex);
   stoneBumpCache = tex;
   return tex;
 }
@@ -163,6 +269,7 @@ export function getPlasterBumpTexture(): THREE.CanvasTexture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(2, 2);
+  prepareCanvasTexture(tex);
   plasterBumpCache = tex;
   return tex;
 }
@@ -202,6 +309,7 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(3, 3);
+  prepareCanvasTexture(tex);
   roofBumpCache = tex;
   return tex;
 }
@@ -234,6 +342,7 @@ export function getCanvasBumpTexture(): THREE.CanvasTexture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(2, 2);
+  prepareCanvasTexture(tex);
   canvasBumpCache = tex;
   return tex;
 }
@@ -266,6 +375,7 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(4, 1);
+  prepareCanvasTexture(tex);
   brushedRoughCache = tex;
   return tex;
 }
@@ -299,6 +409,7 @@ export function getWoodBumpTexture(): THREE.CanvasTexture {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(2, 2);
+  prepareCanvasTexture(tex);
   woodBumpCache = tex;
   return tex;
 }

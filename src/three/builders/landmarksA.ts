@@ -30,15 +30,18 @@ import {
   MWood,
   n,
   R,
+  railing,
   rock,
   rondavel,
   scatterRocks,
   sea,
   seaRings,
   swayItems,
+  surfaceDetail,
   tint,
   train,
   tree,
+  weatherVertexColors,
   type InstanceTransform,
 } from './primitives';
 
@@ -59,7 +62,7 @@ const warpTable = <T extends THREE.BufferGeometry>(geo: T, cap: boolean): T => {
     const f = 1 + 0.09 * n(a * 3, y * 2) + ribs - gorge;
     p.setXYZ(i, x * f, y + 0.045 * n(x * 2, z * 2), z * f);
   }
-  return tint(geo, (k, _x, y) => {
+  tint(geo, (k, _x, y) => {
     const t = Math.floor(((y + 1.2) / 2.4) * 10) / 10;
     if (cap) {
       k.copy(a3);
@@ -69,6 +72,7 @@ const warpTable = <T extends THREE.BufferGeometry>(geo: T, cap: boolean): T => {
       k.lerp(aoDark, (1 - ao) * 0.45);
     }
   });
+  return weatherVertexColors(geo, { ao: 0.28, exposure: 0.1, grain: 0.05, aoSpan: 2.4 });
 };
 
 const lump = (
@@ -90,14 +94,14 @@ const lump = (
   const ca = new THREE.Color(c1);
   const cb = new THREE.Color(c2);
   tint(s, (k, _X, Y) => k.copy(ca).lerp(cb, Math.min(1, Math.max(0, (Y + r) / (r * 2)))));
+  weatherVertexColors(s, { ao: 0.24, exposure: 0.12, grain: 0.05, aoSpan: r * 2 });
   add(
     g,
     s,
     new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.94,
-      bumpMap: MStone(c1).bumpMap,
-      bumpScale: 0.025,
+      ...surfaceDetail('stone', 0.025),
     }),
     x,
     0.4,
@@ -107,13 +111,11 @@ const lump = (
 
 export function table(): THREE.Group {
   const g = new THREE.Group();
-  const stoneTex = MStone('#b8986b', 0.92).bumpMap;
   const vm = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.93,
     metalness: 0.02,
-    bumpMap: stoneTex,
-    bumpScale: 0.03,
+    ...surfaceDetail('stone', 0.03),
     side: THREE.DoubleSide,
   });
   add(g, C(6.2, 6.9, 0.5, 84), MStone('#436333', 0.95), 0, 0.25, 0);
@@ -847,8 +849,7 @@ export function hole(): THREE.Group {
   const vm = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.94,
-    bumpMap: MStone('#c07d47').bumpMap,
-    bumpScale: 0.032,
+    ...surfaceDetail('stone', 0.032),
     side: THREE.DoubleSide,
   });
   add(g, geo, vm);
@@ -1639,8 +1640,7 @@ export function holewall(): THREE.Group {
     new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.94,
-      bumpMap: MStone('#b69268').bumpMap,
-      bumpScale: 0.032,
+      ...surfaceDetail('stone', 0.032),
     })
   ).scale.setScalar(1.3);
 
@@ -2098,7 +2098,7 @@ export function ponte(): THREE.Group {
     lit: '#e8ca86',
     dark: '#323844',
     cols: 16,
-    rows: 48,
+    rows: 55,
     seed: 1,
     chance: 0.58,
     intensity: 0.18,
@@ -2114,6 +2114,14 @@ export function ponte(): THREE.Group {
   }
   instancedMeshes(g, CB(0.08, 7.4, 0.1, 0.02), MPlaster('#d0cabd', 0.82), ribT);
 
+  // Ponte City is 55 storeys; one thin balcony band per level reads as the
+  // building's stacked cylindrical rhythm at miniature scale.
+  const bandT: InstanceTransform[] = [];
+  for (let i = 0; i < 55; i++) {
+    bandT.push({ x: 0, y: 0.27 + i * (7.4 / 55), z: 0, rx: Math.PI / 2 });
+  }
+  instancedMeshes(g, new THREE.TorusGeometry(1.625, 0.012, 4, 48), MPlaster('#ded6c7', 0.86), bandT);
+
   add(
     g,
     new THREE.RingGeometry(0.8, 1.6, 64).rotateX(-Math.PI / 2),
@@ -2125,6 +2133,10 @@ export function ponte(): THREE.Group {
   const sg = G('#ff4a3a', 2);
   add(g, new THREE.TorusGeometry(1.64, 0.12, 8, 64).rotateX(Math.PI / 2), sg, 0, 7.35, 0);
   add(g, C(0.03, 0.05, 1.2, 6), M('#999', 0.5, 0.7), 0, 8.2, 0);
+  // Rooftop neon sign frame — the cylinder's other signature identifier.
+  const signMat = G('#ff4a3a', 1.6);
+  for (const dx of [-0.9, 0.9]) add(g, CB(0.06, 0.7, 0.06, 0.01), signMat, dx, 8.45, 0);
+  add(g, CB(1.86, 0.06, 0.06, 0.01), signMat, 0, 8.8, 0);
 
   for (let i = 0; i < 14; i++) {
     const a = i * 0.9;
@@ -2147,6 +2159,8 @@ export function ponte(): THREE.Group {
     });
     sg.color.setHSL((t * 0.1) % 1, 0.9, 0.55);
     sg.emissive.copy(sg.color);
+    signMat.color.copy(sg.color);
+    signMat.emissive.copy(sg.color);
   };
   return g;
 }
@@ -2342,19 +2356,21 @@ export function agulhas(): THREE.Group {
       0.12
     );
   }
-  // Banded red-and-white Pharos lighthouse
+  // Round Pharos tower, painted red with a single broad white band
+  // (Cape Agulhas Lighthouse, Wikipedia "Characteristics").
   add(g, CB(1.5, 0.35, 1.5, 0.05), wh, -0.4, 0.62, 0);
   for (let i = 0; i < 6; i++) {
     add(
       g,
       C(0.62 - i * 0.045, 0.68 - i * 0.045, 0.62, 32),
-      i % 2 ? wh : rd,
+      i === 4 ? wh : rd,
       -0.4,
       0.81 + i * 0.62,
       0
     );
   }
   add(g, C(0.5, 0.45, 0.12, 32), dk, -0.4, 4.3, 0);
+  railing(g, 0.5, -0.4, 4.36, 0, dk, 10, 0.14, 0.012);
   add(g, C(0.3, 0.3, 0.4, 24), lt, -0.4, 4.55, 0);
   add(g, new THREE.ConeGeometry(0.38, 0.4, 24), rd, -0.4, 4.95, 0);
   // Keeper's museum house with pitched red-slate roof
@@ -2432,8 +2448,7 @@ export function orlando(): THREE.Group {
       new THREE.MeshStandardMaterial({
         vertexColors: true,
         roughness: 0.78,
-        bumpMap: MPlaster('#fff').bumpMap,
-        bumpScale: 0.015,
+        ...surfaceDetail('plaster', 0.015),
         side: THREE.DoubleSide,
       }),
       x,
@@ -2525,8 +2540,7 @@ export function bourke(): THREE.Group {
     new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.92,
-      bumpMap: MStone('#e2d2ae').bumpMap,
-      bumpScale: 0.03,
+      ...surfaceDetail('stone', 0.03),
       side: THREE.DoubleSide,
     })
   );

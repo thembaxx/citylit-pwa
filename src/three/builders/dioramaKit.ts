@@ -6,7 +6,7 @@ import type {
   LandmarkBiome,
   SpatialAudioSource,
 } from '../../types/citylit';
-import { getStoneBumpTexture, WU, waterize } from '../shaders';
+import { WU, waterize } from '../shaders';
 import {
   add,
   C,
@@ -25,8 +25,10 @@ import {
   scatterRocks,
   stampContactShadowsFromMeshes,
   stream,
+  surfaceDetail,
   swayItems,
   tree,
+  weatherVertexColors,
   type InstanceTransform,
 } from './primitives';
 
@@ -580,8 +582,7 @@ function getRimMaterial(): THREE.MeshStandardMaterial {
       vertexColors: true,
       roughness: 0.85,
       metalness: 0.03,
-      bumpMap: getStoneBumpTexture(),
-      bumpScale: 0.03,
+      ...surfaceDetail('stone', 0.03),
     });
     rimMaterial.userData.sharedResource = true;
   }
@@ -693,6 +694,7 @@ function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   col.needsUpdate = true;
   pos.needsUpdate = true;
   geo.computeVertexNormals();
+  weatherVertexColors(geo, { ao: 0.16, exposure: 0.06, grain: 0.05, aoSpan: 1.2 });
   geo.computeBoundingSphere();
   const mesh = new THREE.Mesh(geo, getRimMaterial());
   mesh.receiveShadow = true;

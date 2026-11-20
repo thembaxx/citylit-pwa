@@ -5,13 +5,19 @@ import {
   cascadeize,
   getBrushedRoughnessTexture,
   getCanvasBumpTexture,
+  getCanvasNormalTexture,
   getPlasterBumpTexture,
+  getPlasterNormalTexture,
   getRoofBumpTexture,
+  getRoofNormalTexture,
   getSoftTexture,
   getStoneBumpTexture,
+  getStoneNormalTexture,
   getWoodBumpTexture,
+  getWoodNormalTexture,
   grassWindy,
   lights,
+  normalMapsActive,
   waterize,
   windy,
 } from '../shaders';
@@ -24,11 +30,58 @@ export interface SwayItem {
 }
 
 export interface WetMaterialEntry {
-  mat: THREE.MeshStandardMaterial;
+  mat: THREE.MeshPhysicalMaterial;
   dryColor: THREE.Color;
   wetColor: THREE.Color;
   rDry: number;
   rWet: number;
+}
+
+export type SurfaceKind = 'stone' | 'plaster' | 'roof' | 'canvas' | 'wood';
+
+const heightTextureByKind: Record<SurfaceKind, () => THREE.CanvasTexture> = {
+  stone: getStoneBumpTexture,
+  plaster: getPlasterBumpTexture,
+  roof: getRoofBumpTexture,
+  canvas: getCanvasBumpTexture,
+  wood: getWoodBumpTexture,
+};
+
+const normalTextureByKind: Record<SurfaceKind, () => THREE.CanvasTexture | null> = {
+  stone: getStoneNormalTexture,
+  plaster: getPlasterNormalTexture,
+  roof: getRoofNormalTexture,
+  canvas: getCanvasNormalTexture,
+  wood: getWoodNormalTexture,
+};
+
+/**
+ * Shared surface-detail parameters for every procedural material. The height
+ * map is always supplied as a fallback; when normal maps are enabled the
+ * renderer prefers them automatically (Three's normal/bump chunks are an
+ * either/or), so the same call sites work on software GL and full hardware.
+ */
+export function surfaceDetail(
+  kind: SurfaceKind,
+  bumpScale: number
+): Pick<
+  THREE.MeshStandardMaterialParameters,
+  'bumpMap' | 'bumpScale' | 'normalMap' | 'normalScale'
+> {
+  const detail: Pick<
+    THREE.MeshStandardMaterialParameters,
+    'bumpMap' | 'bumpScale' | 'normalMap' | 'normalScale'
+  > = {
+    bumpMap: heightTextureByKind[kind](),
+    bumpScale,
+  };
+  const normalMap = normalMapsActive() ? normalTextureByKind[kind]() : null;
+  if (normalMap) {
+    const s = THREE.MathUtils.clamp(bumpScale * 20, 0.2, 1.15);
+    detail.normalMap = normalMap;
+    detail.normalScale = new THREE.Vector2(s, s);
+  }
+  return detail;
 }
 
 export interface InstanceTransform {
@@ -91,6 +144,8 @@ export function updateWetSurfaces(rain: number): void {
     entry.mat.roughness = entry.rDry + (entry.rWet - entry.rDry) * wetFactor;
     entry.mat.color.copy(entry.dryColor).lerp(entry.wetColor, wetFactor * 0.55);
     entry.mat.envMapIntensity = 0.45 + wetFactor * 0.85;
+    entry.mat.clearcoat = 0.02 + wetFactor * 0.83;
+    entry.mat.clearcoatRoughness = 0.24 - wetFactor * 0.18;
   }
 }
 
@@ -106,8 +161,7 @@ export function MRoof(
     color: c,
     roughness: r,
     metalness: 0.03,
-    bumpMap: getRoofBumpTexture(),
-    bumpScale,
+    ...surfaceDetail('roof', bumpScale),
   });
   return cacheMat(key, mat);
 }
@@ -142,8 +196,7 @@ export function MCanvas(
     color: c,
     roughness: r,
     metalness: 0,
-    bumpMap: getCanvasBumpTexture(),
-    bumpScale,
+    ...surfaceDetail('canvas', bumpScale),
   });
   return cacheMat(key, mat);
 }
@@ -153,19 +206,27 @@ export function MGlass(
   opacity = 0.62,
   r = 0.09,
   m = 0.42
-): THREE.MeshStandardMaterial {
+): THREE.MeshPhysicalMaterial {
   const colHex = tmpColor.set(c).getHexString();
   const key = `glass_${colHex}_${opacity.toFixed(2)}_${r.toFixed(2)}_${m.toFixed(2)}`;
-  if (matCache[key]) return matCache[key];
-  const mat = new THREE.MeshStandardMaterial({
+  if (matCache[key]) return matCache[key] as THREE.MeshPhysicalMaterial;
+  const refractive = opacity < 1;
+  const mat = new THREE.MeshPhysicalMaterial({
     color: c,
     roughness: r,
     metalness: m,
-    transparent: opacity < 1,
-    opacity,
-    depthWrite: opacity >= 0.9,
+    // Transmission handles the see-through look; plain alpha blending would
+    // sort badly against the miniature plinth and the rain/dissolve layers.
+    transparent: !refractive,
+    opacity: refractive ? 1 : opacity,
+    depthWrite: true,
+    transmission: refractive ? THREE.MathUtils.clamp(0.55 + (1 - opacity) * 0.5, 0, 0.95) : 0,
+    ior: 1.46,
+    thickness: 0.18,
+    clearcoat: 0.85,
+    clearcoatRoughness: 0.06,
   });
-  return cacheMat(key, mat);
+  return cacheMat(key, mat) as THREE.MeshPhysicalMaterial;
 }
 
 const litWindowCache = new Map<string, THREE.MeshStandardMaterial>();
@@ -241,8 +302,7 @@ export function litWindowMaterial(opts: {
     emissiveMap,
     emissiveIntensity: intensity,
     roughness: 0.72,
-    bumpMap: getPlasterBumpTexture(),
-    bumpScale: 0.012,
+    ...surfaceDetail('plaster', 0.012),
     side: THREE.DoubleSide,
   });
   mat.userData.sharedResource = true;
@@ -277,8 +337,7 @@ export function MStone(
     color: c,
     roughness: r,
     metalness: m,
-    bumpMap: getStoneBumpTexture(),
-    bumpScale,
+    ...surfaceDetail('stone', bumpScale),
   });
   return cacheMat(key, mat);
 }
@@ -296,8 +355,7 @@ export function MPlaster(
     color: c,
     roughness: r,
     metalness: m,
-    bumpMap: getPlasterBumpTexture(),
-    bumpScale,
+    ...surfaceDetail('plaster', bumpScale),
   });
   return cacheMat(key, mat);
 }
@@ -314,8 +372,7 @@ export function MWood(
     color: c,
     roughness: r,
     metalness: 0.0,
-    bumpMap: getWoodBumpTexture(),
-    bumpScale,
+    ...surfaceDetail('wood', bumpScale),
   });
   return cacheMat(key, mat);
 }
@@ -387,20 +444,18 @@ export function MWet(
   rWet = 0.16,
   m = 0.05,
   tex: 'stone' | 'plaster' | 'plain' = 'stone'
-): THREE.MeshStandardMaterial {
+): THREE.MeshPhysicalMaterial {
   const dryColor = new THREE.Color(c);
   const wetColor = dryColor.clone().multiplyScalar(0.72);
-  const mat = new THREE.MeshStandardMaterial({
+  const mat = new THREE.MeshPhysicalMaterial({
     color: c,
     roughness: rDry,
     metalness: m,
-    bumpMap:
-      tex === 'stone'
-        ? getStoneBumpTexture()
-        : tex === 'plaster'
-          ? getPlasterBumpTexture()
-          : undefined,
-    bumpScale: tex === 'stone' ? 0.022 : tex === 'plaster' ? 0.01 : 0,
+    // Keep clearcoat non-zero at compile time so rain only has to animate the
+    // value below, never trigger a shader recompile mid-weather transition.
+    clearcoat: 0.02,
+    clearcoatRoughness: 0.24,
+    ...(tex !== 'plain' ? surfaceDetail(tex, tex === 'stone' ? 0.022 : 0.01) : {}),
   });
   wetMaterials.push({ mat, dryColor, wetColor, rDry, rWet });
   return mat;
@@ -511,8 +566,17 @@ export const C = (
   open = false,
   thetaStart = 0,
   thetaLength = Math.PI * 2
-): THREE.CylinderGeometry =>
-  new THREE.CylinderGeometry(rt, rb, h, seg, hseg, open, thetaStart, thetaLength);
+): THREE.CylinderGeometry => {
+  // Big silhouettes keep their full segment budget; small fittings (rails,
+  // cables, posts) were paying for 48-84 segments they can never resolve.
+  const radius = Math.max(Math.abs(rt), Math.abs(rb));
+  let effective = seg;
+  if (seg > 24) effective = THREE.MathUtils.clamp(Math.round(12 + radius * 18), 12, seg);
+  if (thetaLength < Math.PI * 2 - 0.001) {
+    effective = Math.max(effective, Math.round((seg * thetaLength) / (Math.PI * 2)));
+  }
+  return new THREE.CylinderGeometry(rt, rb, h, effective, hseg, open, thetaStart, thetaLength);
+};
 
 export function instancedMeshes(
   g: THREE.Object3D,
@@ -540,6 +604,44 @@ export function instancedMeshes(
   im.computeBoundingSphere();
   g.add(im);
   return im;
+}
+
+/** Instanced gallery/balcony railing: one torus rail plus one instanced post batch. */
+export function railing(
+  g: THREE.Object3D,
+  radius: number,
+  x: number,
+  y: number,
+  z: number,
+  mat: THREE.Material,
+  posts = 12,
+  height = 0.16,
+  postRadius = 0.012
+): THREE.Group {
+  const holder = new THREE.Group();
+  holder.position.set(x, y, z);
+  g.add(holder);
+  const transforms: InstanceTransform[] = [];
+  for (let i = 0; i < posts; i++) {
+    const a = (i / posts) * Math.PI * 2;
+    transforms.push({
+      x: radius * Math.cos(a),
+      y: height / 2,
+      z: radius * Math.sin(a),
+    });
+  }
+  instancedMeshes(holder, C(postRadius, postRadius, height, 8), mat, transforms);
+  add(
+    holder,
+    new THREE.TorusGeometry(radius, postRadius * 0.8, 6, Math.max(24, posts * 3)).rotateX(
+      Math.PI / 2
+    ),
+    mat,
+    0,
+    height,
+    0
+  );
+  return holder;
 }
 
 export function gableRoofGeo(
@@ -649,6 +751,66 @@ export function tint<T extends THREE.BufferGeometry>(
   return geo;
 }
 
+export interface WeatheringOptions {
+  /** Strength of base/crevice darkening (default 0.3). */
+  ao?: number;
+  /** Strength of upward-face lift (default 0.1). */
+  exposure?: number;
+  /** Deterministic per-vertex value-noise amount (default 0.06). */
+  grain?: number;
+  /** World-Y span over which contact AO fades; auto-detected when omitted. */
+  aoSpan?: number;
+}
+
+/**
+ * Multiplies an existing vertex-color attribute with cheap baked weathering:
+ * contact darkening, sheltered-face creases, upward exposure and fine grain.
+ * Composes with the hand-authored gradients from `tint()` instead of replacing
+ * them, so it adds perceived detail without new geometry or draw calls.
+ */
+export function weatherVertexColors<T extends THREE.BufferGeometry>(
+  geo: T,
+  opts: WeatheringOptions = {}
+): T {
+  const p = geo.attributes.position;
+  if (!p) return geo;
+  if (!geo.attributes.normal) geo.computeVertexNormals();
+  const nrm = geo.attributes.normal;
+  let colors = geo.attributes.color as THREE.BufferAttribute | undefined;
+  if (!colors) {
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(p.count * 3).fill(1), 3));
+    colors = geo.attributes.color as THREE.BufferAttribute;
+  }
+  const ao = opts.ao ?? 0.3;
+  const exposure = opts.exposure ?? 0.1;
+  const grain = opts.grain ?? 0.06;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i);
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const span = Math.max(0.001, opts.aoSpan ?? maxY - minY);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i);
+    const y = p.getY(i);
+    const z = p.getZ(i);
+    const up = THREE.MathUtils.clamp(nrm.getY(i), -1, 1);
+    const aoFade = THREE.MathUtils.smoothstep((y - minY) / span, 0, 0.55);
+    const shelter = 1 - THREE.MathUtils.smoothstep(up, -0.4, 0.6);
+    const groundAO = (1 - aoFade) * 0.72 + shelter * 0.28;
+    const noise = Math.abs(Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453) % 1;
+    const shade =
+      (1 - ao * groundAO) *
+      (1 + exposure * Math.max(0, up)) *
+      (1 - grain * 0.5 + grain * noise);
+    colors.setXYZ(i, colors.getX(i) * shade, colors.getY(i) * shade, colors.getZ(i) * shade);
+  }
+  colors.needsUpdate = true;
+  return geo;
+}
+
 export function rock(
   g: THREE.Object3D,
   rt: number,
@@ -696,6 +858,7 @@ export function rock(
     const ao = Math.min(1, Math.max(0, (Y + h * 0.5) / Math.max(0.2, h * 0.28)));
     c.lerp(aoDark, (1 - ao) * 0.5);
   });
+  weatherVertexColors(gm, { ao: 0.22, exposure: 0.1, grain: 0.05 });
   return add(
     g,
     gm,
@@ -703,8 +866,7 @@ export function rock(
       vertexColors: true,
       roughness: 0.92,
       metalness: 0.02,
-      bumpMap: getStoneBumpTexture(),
-      bumpScale: 0.032,
+      ...surfaceDetail('stone', 0.032),
     }),
     x,
     y0 + h / 2,
@@ -743,8 +905,7 @@ export function scatterRocks(
     new THREE.MeshStandardMaterial({
       roughness: 0.93,
       metalness: 0.02,
-      bumpMap: getStoneBumpTexture(),
-      bumpScale: 0.025,
+      ...surfaceDetail('stone', 0.025),
     }),
     items,
     colors

@@ -223,34 +223,34 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795204022.7692728,
-    "seen": 1795204055.0476687,
-    "ast_hash": "ce1f5d3903a8654956c41c2c5684a46f",
+    "mtime": 1795204738.5547516,
+    "seen": 1795205033.8593655,
+    "ast_hash": "c892b23c5b8c7591107dee3dd3a07574",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795193410.8735647,
-    "seen": 1795194883.6590908,
-    "ast_hash": "5bfaac5ecfd0f2601477af84fb423a39",
-    "semantic_hash": "5bfaac5ecfd0f2601477af84fb423a39"
+    "mtime": 1795204717.6645586,
+    "seen": 1795205033.859374,
+    "ast_hash": "2b7a17cfd476ad17ea68985dc23d26d1",
+    "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795193410.876684,
-    "seen": 1795194883.6592553,
-    "ast_hash": "cd08058e9203abd1e6cb55e8d465aec8",
-    "semantic_hash": "cd08058e9203abd1e6cb55e8d465aec8"
+    "mtime": 1795206308.080405,
+    "seen": 1795206503.912086,
+    "ast_hash": "3c9e589bf786b88c5631574e9171cb86",
+    "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795175604.4116259,
-    "seen": 1795194883.659433,
-    "ast_hash": "cc90e45cde6237a641ea23536b0357d8",
-    "semantic_hash": "cc90e45cde6237a641ea23536b0357d8"
+    "mtime": 1795206319.0610697,
+    "seen": 1795206503.912089,
+    "ast_hash": "e512bb23caa8d12476ceb9f47ec76e80",
+    "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795193410.8746789,
-    "seen": 1795194883.6596336,
-    "ast_hash": "d12c0cb01b1de4a8c646bc6e67191b36",
-    "semantic_hash": "d12c0cb01b1de4a8c646bc6e67191b36"
+    "mtime": 1795204919.1058464,
+    "seen": 1795205033.8593957,
+    "ast_hash": "886f83ad9378fef213188d3a34454f80",
+    "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
     "mtime": 1795200730.8904796,
@@ -295,9 +295,9 @@
     "semantic_hash": "16860da8295644f58d7b83c6bebf7bad"
   },
   "src/three/shaders.ts": {
-    "mtime": 1795203944.1638188,
-    "seen": 1795204055.0476997,
-    "ast_hash": "0f77e7a294b20b18b8a979ddb6eb1504",
+    "mtime": 1795204450.489411,
+    "seen": 1795205033.8594756,
+    "ast_hash": "5acb480812517d2fcc7237244d885cb5",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
@@ -508,6 +508,12 @@
     "mtime": 1795202280.9980206,
     "seen": 1795204055.047743,
     "ast_hash": "f368afa678455bb3a4ffb7069e59aead",
+    "semantic_hash": ""
+  },
+  "docs/LANDMARK_ART_DIRECTION.md": {
+    "mtime": 1795206148.5641596,
+    "seen": 1795206503.9121737,
+    "ast_hash": "ca046681486b8c2f42649c86b893405c",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

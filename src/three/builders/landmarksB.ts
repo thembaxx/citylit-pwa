@@ -51,13 +51,16 @@ import {
   MWet,
   MWood,
   R,
+  railing,
   rock,
   scatterRocks,
   sea,
   seaRings,
   swayItems,
+  surfaceDetail,
   tint,
   tree,
+  weatherVertexColors,
   type InstanceTransform,
 } from './primitives';
 import { applyDioramaUpgrade } from './dioramaKit';
@@ -256,6 +259,12 @@ export function salt(): THREE.Group {
   add(en, C(0.3, 0.3, 0.4, 16), M('#c8342d', 0.45), 0, 3.9, 0);
   add(en, new THREE.SphereGeometry(0.08, 10, 8), G('#ff4a3a', 2.0), 0, 4.18, 0);
 
+  // SALT's centre-of-curvature alignment sensor sits in a tall, narrow tower —
+  // the dome-plus-tower pairing is its distinguishing silhouette.
+  add(g, C(0.28, 0.36, 4.6, 16), wh, -4.4, 2.55, -1.2);
+  add(g, C(0.42, 0.42, 0.12, 16), dk, -4.4, 4.93, -1.2);
+  add(g, new THREE.SphereGeometry(0.18, 12, 8), M('#a9c6d8', 0.28, 0.8), -4.4, 5.1, -1.2);
+
   [
     [-3.4, 2.2],
     [3.5, 1.4],
@@ -408,21 +417,22 @@ export function pilanesberg(): THREE.Group {
   const lo = new THREE.Color('#8a9a4a');
   const hi = new THREE.Color('#6b5f45');
   const mid = new THREE.Color('#5a8638');
+  const granite = tint(ge, (k, _X, Y, Z) =>
+    Y < 0.6
+      ? k.copy(lo).lerp(mid, Y / 0.6)
+      : k
+          .copy(mid)
+          .lerp(hi, Math.min(1, (Y - 0.6) / 1.8))
+          .multiplyScalar(0.9 + 0.1 * Math.sin(Y * 30 + Math.atan2(Z, _X) * 5))
+  );
+  weatherVertexColors(granite, { ao: 0.26, exposure: 0.08, grain: 0.06 });
   add(
     g,
-    tint(ge, (k, _X, Y, Z) =>
-      Y < 0.6
-        ? k.copy(lo).lerp(mid, Y / 0.6)
-        : k
-            .copy(mid)
-            .lerp(hi, Math.min(1, (Y - 0.6) / 1.8))
-            .multiplyScalar(0.9 + 0.1 * Math.sin(Y * 30 + Math.atan2(Z, _X) * 5))
-    ),
+    granite,
     new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.94,
-      bumpMap: MStone('#6b5f45').bumpMap,
-      bumpScale: 0.028,
+      ...surfaceDetail('stone', 0.028),
       side: THREE.DoubleSide,
     })
   );
@@ -918,8 +928,7 @@ export function kgalagadi(): THREE.Group {
     new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.95,
-      bumpMap: MStone('#d9733a').bumpMap,
-      bumpScale: 0.018,
+      ...surfaceDetail('stone', 0.018),
     })
   );
   [
@@ -1587,8 +1596,7 @@ export function vredefort(): THREE.Group {
     new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.94,
-      bumpMap: MStone('#8a7858').bumpMap,
-      bumpScale: 0.025,
+      ...surfaceDetail('stone', 0.025),
       side: THREE.DoubleSide,
     })
   );
@@ -1899,6 +1907,8 @@ export function donkin(): THREE.Group {
   // 1861 Donkin Lighthouse + keeper's cottage
   add(g, C(0.26, 0.4, 1.8, 24), wh, 1.6, 2.4, -0.6);
   add(g, C(0.45, 0.4, 0.1, 24), dk, 1.6, 3.35, -0.6);
+  // Gallery railing is the lighthouse's defining miniature-scale silhouette.
+  railing(g, 0.44, 1.6, 3.4, -0.6, dk, 10, 0.15, 0.013);
   add(g, C(0.22, 0.22, 0.35, 16), lt, 1.6, 3.6, -0.6);
   add(g, new THREE.ConeGeometry(0.3, 0.3, 16), dk, 1.6, 3.95, -0.6);
   const bm = new THREE.Group();
@@ -2029,8 +2039,7 @@ export function orlando(): THREE.Group {
       o.material = new THREE.MeshStandardMaterial({
         map: coolingTowerMural(tower++),
         roughness: 0.78,
-        bumpMap: MPlaster('#fff').bumpMap,
-        bumpScale: 0.015,
+        ...surfaceDetail('plaster', 0.015),
         side: THREE.DoubleSide,
       });
     }
