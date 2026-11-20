@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795197476.6821673,
-    "seen": 1795198128.7388275,
-    "ast_hash": "e5cdfd178ad9650c4295e8e98ab17646",
+    "mtime": 1795198805.9278116,
+    "seen": 1795198924.4337397,
+    "ast_hash": "1a88c4d668f4fb8a208f7ac9a1bdac53",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -67,10 +67,10 @@
     "semantic_hash": "98ac2e5133f45e1c828769747009feac"
   },
   "src/components/GlobeOverlay.tsx": {
-    "mtime": 1795027856.8482163,
-    "seen": 1795194883.6546311,
-    "ast_hash": "80b94f78335f91baeb35d4141126ce3a",
-    "semantic_hash": "80b94f78335f91baeb35d4141126ce3a"
+    "mtime": 1795198687.5356412,
+    "seen": 1795198924.4337518,
+    "ast_hash": "b0f9c51611b01ea9a81ed5911e71624d",
+    "semantic_hash": ""
   },
   "src/components/InfoDrawer.tsx": {
     "mtime": 1795180654.748143,
@@ -91,9 +91,9 @@
     "semantic_hash": "386a62dead6ac5d4052b0e74d73af849"
   },
   "src/components/PlacesOverlay.tsx": {
-    "mtime": 1795197164.8743863,
-    "seen": 1795198128.7388446,
-    "ast_hash": "8b87667cce6412ed80ae52337d27fa16",
+    "mtime": 1795198738.229884,
+    "seen": 1795198924.4337597,
+    "ast_hash": "42586ccf047c8ac314e04bb11fbe1929",
     "semantic_hash": ""
   },
   "src/components/PostcardModal.tsx": {

@@ -1,4 +1,4 @@
-import { MapTrifold, X } from '@phosphor-icons/react';
+import { ArrowLeft, MapTrifold, X } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
 import { PROVINCES } from '../data/landmarks';
 import { SPRING } from '../lib/motion';
@@ -9,6 +9,7 @@ interface GlobeOverlayProps {
   reducedMotion?: boolean;
   onSelectProvince: (province: string) => void;
   onOpenPlaces: () => void;
+  onBackToLandmarks: () => void;
   onClose: () => void;
 }
 
@@ -18,6 +19,7 @@ export function GlobeOverlay({
   reducedMotion = false,
   onSelectProvince,
   onOpenPlaces,
+  onBackToLandmarks,
   onClose,
 }: GlobeOverlayProps) {
   if (!open) return null;
@@ -29,6 +31,19 @@ export function GlobeOverlay({
       </div>
 
       <div className="absolute right-4 top-[calc(14px+env(safe-area-inset-top,0px))] flex items-center gap-2 pointer-events-auto">
+        <motion.button
+          type="button"
+          whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+          transition={SPRING.snappy}
+          onClick={onBackToLandmarks}
+          aria-label="Back to landmarks"
+          title="Back to the landmark diorama"
+          className="h-10 px-3.5 rounded-full inline-flex items-center gap-1.5 bg-[#121319]/92 border border-white/15 text-[13px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
+        >
+          <ArrowLeft size={16} weight="bold" />
+          <span>Landmarks</span>
+        </motion.button>
+
         <motion.button
           type="button"
           whileTap={reducedMotion ? undefined : { scale: 0.94 }}

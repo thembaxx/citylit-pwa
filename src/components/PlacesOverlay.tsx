@@ -1,4 +1,5 @@
 import {
+  ArrowLeft,
   ArrowUpRight,
   CaretLeft,
   CaretRight,
@@ -31,6 +32,7 @@ interface PlacesOverlayProps {
   onSelectProvince: (province: string) => void;
   onStepSlice: (dir: 1 | -1) => void;
   onOpenLandmark: (landmarkIndex: number) => void;
+  onBackToLandmarks: () => void;
   onResetView: () => void;
   onSwitchToGlobe: () => void;
   onToggleSound: () => void;
@@ -83,6 +85,7 @@ export function PlacesOverlay({
   onSelectProvince,
   onStepSlice,
   onOpenLandmark,
+  onBackToLandmarks,
   onResetView,
   onSwitchToGlobe,
   onToggleSound,
@@ -150,6 +153,19 @@ export function PlacesOverlay({
             className="w-9 h-9 sm:w-10 sm:h-10 rounded-full grid place-items-center bg-[#121319]/92 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
           >
             <Compass size={17} />
+          </motion.button>
+
+          <motion.button
+            type="button"
+            whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+            transition={SPRING.snappy}
+            onClick={onBackToLandmarks}
+            aria-label="Back to landmarks"
+            title="Back to the landmark diorama"
+            className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-full inline-flex items-center gap-1.5 bg-[#121319]/92 border border-white/15 text-[12.5px] sm:text-[13px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
+          >
+            <ArrowLeft size={15} weight="bold" />
+            <span>Landmarks</span>
           </motion.button>
 
           <motion.button

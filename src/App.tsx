@@ -712,16 +712,32 @@ export function App() {
     []
   );
 
+  /** Leave both exploration stages and restore the landmark diorama. */
+  const backToLandmarks = useCallback(() => {
+    if (!engineRef.current) return;
+    ambientAudio.playUi('close');
+    if (engineRef.current.places.isOpen) engineRef.current.closePlaces();
+    if (engineRef.current.globe.isOpen) engineRef.current.closeGlobe();
+    setPlacesOpen(false);
+    setGlobeOpen(false);
+    setSelectedPlace(null);
+    setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k));
+  }, [index]);
+
   const toggleGlobe = useCallback(() => {
     if (!engineRef.current) return;
     if (globeOpen) {
       ambientAudio.playUi('close');
+      // Never leave the Places stage visible behind a closed globe.
+      if (engineRef.current.places.isOpen) engineRef.current.closePlaces();
       engineRef.current.closeGlobe();
+      setPlacesOpen(false);
       setGlobeOpen(false);
     } else {
       setSearchOpen(false);
       setInfoOpen(false);
       setWeatherExpanded(false);
+      if (engineRef.current.places.isOpen) engineRef.current.closePlaces();
       setPlacesOpen(false);
       engineRef.current.openGlobe(visited);
       if (activeProvince !== 'All') {
@@ -768,6 +784,7 @@ export function App() {
     ambientAudio.playUi('close');
     engineRef.current.closePlaces();
     setPlacesOpen(false);
+    setSelectedPlace(null);
     setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k));
   }, [index]);
 
@@ -936,6 +953,7 @@ export function App() {
             engineRef.current?.globe.flyToProvince(pv);
           }}
           onOpenPlaces={openPlaces}
+          onBackToLandmarks={backToLandmarks}
           onClose={toggleGlobe}
         />
 
@@ -967,6 +985,7 @@ export function App() {
           onOpenLandmark={(pickedIndex) => {
             engineRef.current?.closePlaces();
             setPlacesOpen(false);
+            setSelectedPlace(null);
             selectLandmark(pickedIndex, { cinematic: true });
           }}
           onResetView={() => {
@@ -974,6 +993,7 @@ export function App() {
             engineRef.current?.places.resetOverview();
           }}
           onSwitchToGlobe={toggleGlobe}
+          onBackToLandmarks={backToLandmarks}
           onToggleSound={handleToggleSound}
           onSelectTimePreset={(h) => {
             setTimeHour(h);
