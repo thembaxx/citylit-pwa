@@ -28,7 +28,7 @@ import {
 } from './data/weatherData';
 import { WEATHER_CONDITIONS } from './data/weatherData';
 import { useOnlineStatus, usePWARegistration } from './hooks/usePWAInstall';
-import { CitylitEngine } from './three/CitylitEngine';
+import type { CitylitEngine } from './three/CitylitEngine';
 import { loadCachedThumbnails, saveCachedThumbnails } from './three/thumbnailCache';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from './three/placesScene';
 import type {
@@ -149,6 +149,7 @@ export function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const galleryOpenRef = useRef(galleryOpen);
   const [passportOpen, setPassportOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [globeOpen, setGlobeOpen] = useState(false);
@@ -255,67 +256,16 @@ export function App() {
     [reducedMotion]
   );
 
-  // Initialize Three.js engine once
+  // Initialize Three.js engine once. The engine and its Three.js chunk are
+  // dynamically imported so the DOM UI can paint before the WebGL bundle loads.
   useEffect(() => {
     const host = canvasHostRef.current;
     if (!host) return;
 
-    const engine = new CitylitEngine(host, {
-      onFirstInteract: () => setHintVisible(false),
-      onFactDot: (text) => showFact(text),
-      onSelectLandmarkFromGlobe: (pickedIndex) => {
-        engine.closeGlobe();
-        setGlobeOpen(false);
-        selectLandmark(pickedIndex, { cinematic: true });
-      },
-      onSelectPlaceSlice: (info) => {
-        setSelectedPlace(info);
-      },
-      onOpenLandmarkFromPlaces: (pickedIndex) => {
-        engine.closePlaces();
-        setPlacesOpen(false);
-        selectLandmark(pickedIndex, { cinematic: true });
-      },
-    });
-    engineRef.current = engine;
-
-    const initialIdx = readInitialLandmarkIndex();
-    const initialTheme = readSettings().theme;
-    document.documentElement.dataset.theme = initialTheme;
-    engine.setTheme(initialTheme, true);
-    engine.setSeasonMonth(new Date().getMonth() + 1, true);
-    engine.showLandmarkImmediate(initialIdx);
-    setBooted(true);
-    engine.prewarmShaders();
-
     let unmounted = false;
+    let engine: CitylitEngine | null = null;
     let cancelThumbs: (() => void) | null = null;
     let thumbTimer = 0;
-
-    void loadCachedThumbnails(initialTheme).then((cached) => {
-      if (unmounted) return;
-      const accumulated: Record<number, string> = cached ? { ...cached } : {};
-      if (cached && Object.keys(cached).length > 0) {
-        setThumbnails(cached);
-      }
-      if (cached && Object.keys(cached).length >= LANDMARKS.length) {
-        return;
-      }
-      thumbTimer = window.setTimeout(() => {
-        if (unmounted) return;
-        cancelThumbs = engine.generateThumbnailsAsync(
-          (batch) => {
-            Object.assign(accumulated, batch);
-            setThumbnails((prev) => ({ ...prev, ...batch }));
-          },
-          () => {
-            if (!unmounted) {
-              void saveCachedThumbnails(initialTheme, accumulated);
-            }
-          }
-        );
-      }, 80);
-    });
 
     const onVisibility = () => {
       setDocHidden(document.hidden);
@@ -323,18 +273,86 @@ export function App() {
     };
     document.addEventListener('visibilitychange', onVisibility);
 
+    void import('./three/CitylitEngine')
+      .then(({ CitylitEngine: Engine }) => {
+        if (unmounted) return;
+
+        const instance = new Engine(host, {
+          onFirstInteract: () => setHintVisible(false),
+          onFactDot: (text) => showFact(text),
+          onSelectLandmarkFromGlobe: (pickedIndex) => {
+            instance.closeGlobe();
+            setGlobeOpen(false);
+            selectLandmark(pickedIndex, { cinematic: true });
+          },
+          onSelectPlaceSlice: (info) => {
+            setSelectedPlace(info);
+          },
+          onOpenLandmarkFromPlaces: (pickedIndex) => {
+            instance.closePlaces();
+            setPlacesOpen(false);
+            selectLandmark(pickedIndex, { cinematic: true });
+          },
+        });
+        engine = instance;
+        engineRef.current = instance;
+        instance.setPaused(document.hidden || galleryOpenRef.current);
+
+        const initialIdx = readInitialLandmarkIndex();
+        const initialTheme = readSettings().theme;
+        document.documentElement.dataset.theme = initialTheme;
+        instance.setTheme(initialTheme, true);
+        instance.setSeasonMonth(new Date().getMonth() + 1, true);
+        instance.showLandmarkImmediate(initialIdx);
+        setBooted(true);
+        instance.prewarmShaders();
+
+        void loadCachedThumbnails(initialTheme).then((cached) => {
+          if (unmounted) return;
+          const accumulated: Record<number, string> = cached ? { ...cached } : {};
+          if (cached && Object.keys(cached).length > 0) {
+            setThumbnails(cached);
+          }
+          if (cached && Object.keys(cached).length >= LANDMARKS.length) {
+            return;
+          }
+          thumbTimer = window.setTimeout(() => {
+            if (unmounted) return;
+            cancelThumbs = instance.generateThumbnailsAsync(
+              (batch) => {
+                Object.assign(accumulated, batch);
+                setThumbnails((prev) => ({ ...prev, ...batch }));
+              },
+              () => {
+                if (!unmounted) {
+                  void saveCachedThumbnails(initialTheme, accumulated);
+                }
+              }
+            );
+          }, 80);
+        });
+      })
+      .catch((error: unknown) => {
+        if (!unmounted) {
+          // Leave the UI usable (search/info/offline media) if WebGL fails.
+          console.error('Failed to load the 3D engine', error);
+          setBooted(true);
+        }
+      });
+
     return () => {
       unmounted = true;
       window.clearTimeout(thumbTimer);
       cancelThumbs?.();
       document.removeEventListener('visibilitychange', onVisibility);
-      engine.dispose();
+      engine?.dispose();
       engineRef.current = null;
     };
   }, [selectLandmark, showFact]);
 
   // Pause WebGL render loop while tab is hidden or full-screen opaque gallery covers viewport
   useEffect(() => {
+    galleryOpenRef.current = galleryOpen;
     engineRef.current?.setPaused(docHidden || galleryOpen);
   }, [docHidden, galleryOpen]);
 

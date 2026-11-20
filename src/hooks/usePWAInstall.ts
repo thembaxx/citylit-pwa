@@ -9,9 +9,11 @@ interface BeforeInstallPromptEvent extends Event {
 export function usePWARegistration(): void {
   useEffect(() => {
     // Older dev builds registered a service worker that precached Vite's
-    // optimized deps. After a dependency change it can keep serving an older
-    // copy of three alongside the current one, which breaks the renderer.
-    // Clear any leftover dev SW/cache so a stale bundle can never be reused.
+    // optimized deps. After a dependency change it can keep serving a stale
+    // bundle alongside the current one, which can break the renderer with
+    // mismatched Three.js instances. Clear any leftover dev SW/cache so a
+    // stale bundle can never be reused. Three.js itself is pinned to one
+    // version via pnpm overrides; this is only a dev-cache guard.
     if (import.meta.env.DEV && 'serviceWorker' in navigator) {
       void navigator.serviceWorker.getRegistrations().then((regs) => {
         for (const reg of regs) {

@@ -4,3 +4,8 @@
 # and depends on the patched minimatch@11.
 overrides:
   "workbox-build>glob": "^14.0.6"
+  # Keep a single Three.js instance across the app and its peers (n8ao,
+  # postprocessing). Both declare wide peer ranges, so pinning here prevents a
+  # future install from resolving a second copy and breaking WebGL with
+  # cross-instance Matrix4 errors.
+  three: "0.187.0"

@@ -1819,15 +1819,32 @@ export class CitylitEngine {
       warmupGroup.add(new THREE.Mesh(geo, mats[i]));
     }
     this.scene.add(warmupGroup);
-    try {
-      // r170's compileAsync polls material programs and throws when a shared
-      // material is disposed during boot; the synchronous path prewarms safely.
-      this.renderer.compile(warmupGroup, this.camera, this.scene);
-    } catch {
-      // Ignore warmup failures on constrained drivers
-    } finally {
+
+    const finish = () => {
       this.scene.remove(warmupGroup);
       geo.dispose();
+    };
+    // The materials from builders/primitives are cached and shared, so they are
+    // deliberately not disposed here. compileAsync uses
+    // KHR_parallel_shader_compile where available, keeping shader compilation
+    // off the boot's critical path; fall back to the synchronous path on
+    // drivers that don't expose it.
+    if (typeof this.renderer.compileAsync === 'function') {
+      void this.renderer.compileAsync(warmupGroup, this.camera, this.scene).then(finish, () => {
+        try {
+          this.renderer.compile(warmupGroup, this.camera, this.scene);
+        } catch {
+          // Ignore warmup failures on constrained drivers
+        }
+        finish();
+      });
+    } else {
+      try {
+        this.renderer.compile(warmupGroup, this.camera, this.scene);
+      } catch {
+        // Ignore warmup failures on constrained drivers
+      }
+      finish();
     }
   }
 

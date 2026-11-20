@@ -6,6 +6,7 @@ settings:
 
 overrides:
   workbox-build>glob: ^14.0.6
+  three: 0.187.0
 
 importers:
 
@@ -2274,7 +2275,7 @@ packages:
     resolution: {integrity: sha512-b/L5N7QiwNqI4nE3larcZ5PVkUiy5zHjYC5u7nMC9z3w3t2eGkiSDAUcQlcDar2ZQ9W4ZiiHpcZ3QX1tf1Vsbw==}
     peerDependencies:
       postprocessing: '>=6.30.0'
-      three: '>=0.137'
+      three: 0.187.0
 
   nanoid@3.3.20:
     resolution: {integrity: sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ==}
@@ -2373,7 +2374,7 @@ packages:
   postprocessing@6.39.6:
     resolution: {integrity: sha512-HIVhnU8R9tF2YBMXOF2x+TKt3ia+caSHGsycSqrfkd426vH/jwm7w19YQCWsA8jMQJXvAsniLYMiJaNugxUFtA==}
     peerDependencies:
-      three: '>= 0.168.0 < 0.188.0'
+      three: 0.187.0
 
   pretty-bytes@5.6.0:
     resolution: {integrity: sha512-FFw039TmrBqFK8ma/7OL3sDz/VytdtJr044/QUJtH0wK9lb9jLq9tJyIxUwtQJHwar2BqtiA4iCWSwo9JLkzFg==}

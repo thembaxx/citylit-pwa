@@ -25,10 +25,10 @@
     "semantic_hash": "8348920db7e3e3fc601955b96a4012d2"
   },
   "pnpm-workspace.yaml": {
-    "mtime": 1795194407.286102,
-    "seen": 1795194883.6535325,
-    "ast_hash": "2b7c7d1b249792650f4015a70bb54a5f",
-    "semantic_hash": "2b7c7d1b249792650f4015a70bb54a5f"
+    "mtime": 1795195652.060102,
+    "seen": 1795196010.3131182,
+    "ast_hash": "8af43b921fdd3c2ec91e20ab83cb1cbd",
+    "semantic_hash": ""
   },
   "server.js": {
     "mtime": 1795188482.9721484,
@@ -37,10 +37,10 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795193410.8715036,
-    "seen": 1795194883.6538317,
-    "ast_hash": "4fd705df84ee0d67db712c0da7b5542c",
-    "semantic_hash": "4fd705df84ee0d67db712c0da7b5542c"
+    "mtime": 1795195715.6080678,
+    "seen": 1795196010.3131237,
+    "ast_hash": "acd5762af4104d231f8c638627196509",
+    "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
     "mtime": 1795193348.5972168,
@@ -193,10 +193,10 @@
     "semantic_hash": "1193a74503c831335b8701d876a56a6d"
   },
   "src/hooks/usePWAInstall.ts": {
-    "mtime": 1795194019.9024043,
-    "seen": 1795194883.657875,
-    "ast_hash": "7d0dff6ff390b94ba326cb5e03c82a5a",
-    "semantic_hash": "7d0dff6ff390b94ba326cb5e03c82a5a"
+    "mtime": 1795195749.858296,
+    "seen": 1795196010.3131824,
+    "ast_hash": "9a0b8c357126d7bb5072602db6640dad",
+    "semantic_hash": ""
   },
   "src/lib/motion.ts": {
     "mtime": 1794997725.7956693,
@@ -223,10 +223,10 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795194594.0871658,
-    "seen": 1795194883.6589282,
-    "ast_hash": "31b0da88965efa135beb9ff6e9881162",
-    "semantic_hash": "31b0da88965efa135beb9ff6e9881162"
+    "mtime": 1795195732.830021,
+    "seen": 1795196010.3131933,
+    "ast_hash": "55da7e06c3e2e3916690cd87d7e5acea",
+    "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
     "mtime": 1795193410.8735647,
@@ -373,9 +373,69 @@
     "semantic_hash": "f8e6fe21619cdc4741f5fb5efd96dbc9"
   },
   "vite.config.ts": {
-    "mtime": 1795194019.9024043,
-    "seen": 1795194883.6630085,
-    "ast_hash": "5185e27788115a0a3ed863eb5e23b26d",
-    "semantic_hash": "5185e27788115a0a3ed863eb5e23b26d"
+    "mtime": 1795195913.2288566,
+    "seen": 1795196010.3132498,
+    "ast_hash": "d81e1e6c31fd02ace9beedbf733f2bab",
+    "semantic_hash": ""
+  },
+  "AGENTS.md": {
+    "mtime": 1795194893.5263615,
+    "seen": 1795196010.3132524,
+    "ast_hash": "9c9200425215c39e62e5f02c4a881233",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1795195744.2117462,
+    "seen": 1795196010.3132544,
+    "ast_hash": "b1d043495df0af55071e64afa39655a9",
+    "semantic_hash": ""
+  },
+  "docs/vite-framework-research.md": {
+    "mtime": 1795195823.878028,
+    "seen": 1795196010.313256,
+    "ast_hash": "5e7cae7106e3eda7213f9108f9199ec7",
+    "semantic_hash": ""
+  },
+  "index.html": {
+    "mtime": 1794998326.2030208,
+    "seen": 1795196010.3132577,
+    "ast_hash": "d7b4436b4cef1358439ac7e00fe3af66",
+    "semantic_hash": ""
+  },
+  "public/icons/apple-touch-icon.png": {
+    "mtime": 1794941943.281958,
+    "seen": 1795196010.3132596,
+    "ast_hash": "bc1c93ba37558f785387ba4628206a06",
+    "semantic_hash": ""
+  },
+  "public/icons/icon-192.png": {
+    "mtime": 1794941943.281958,
+    "seen": 1795196010.313261,
+    "ast_hash": "b3d6441600691df8035b6d3b6de6b5f6",
+    "semantic_hash": ""
+  },
+  "public/icons/icon-512.png": {
+    "mtime": 1794941943.281958,
+    "seen": 1795196010.3132627,
+    "ast_hash": "cf5a154bb9d6b61eecb2e7b656498382",
+    "semantic_hash": ""
+  },
+  "public/icons/icon.svg": {
+    "mtime": 1794941943.281958,
+    "seen": 1795196010.3132641,
+    "ast_hash": "7633cb5501321cbf94e4da96a775cd4a",
+    "semantic_hash": ""
+  },
+  "public/icons/maskable-512.png": {
+    "mtime": 1794941943.281958,
+    "seen": 1795196010.313266,
+    "ast_hash": "cd269c99f247c3563bd606f6b680f0f8",
+    "semantic_hash": ""
+  },
+  "pnpm-lock.yaml": {
+    "mtime": 1795195836.2689333,
+    "seen": 1795196010.3132687,
+    "ast_hash": "e108895d072febb5df34f9c8e6678ce0",
+    "semantic_hash": ""
   }
 }
