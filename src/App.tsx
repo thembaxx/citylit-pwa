@@ -2,6 +2,13 @@ import { Sparkle } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { toastVariants } from './lib/motion';
+import {
+  readInitialCoordinate,
+  readInitialGlobeState,
+  setUrlForCoordinates,
+  setUrlForGlobe,
+  setUrlForLandmark,
+} from './lib/urlState';
 import { ambientAudio } from './audio/ambientAudio';
 import { AudioVisualizerBar } from './components/AudioVisualizerBar';
 import { BootSplash } from './components/BootSplash';
@@ -47,56 +54,7 @@ function readInitialLandmarkIndex(): number {
   return idx >= 0 ? idx : 0;
 }
 
-/** `?lat=-33.9&lon=18.4` opens the on-demand coordinate explorer. */
-function readInitialCoordinate(): LatLon | null {
-  if (typeof window === 'undefined') return null;
-  const params = new URLSearchParams(window.location.search);
-  const latRaw = params.get('lat');
-  const lonRaw = params.get('lon');
-  if (!latRaw || !lonRaw) return null;
-  const lat = Number(latRaw);
-  const lon = Number(lonRaw);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
-  return { lat, lon };
-}
-
-function setUrlForCoordinates({ lat, lon }: LatLon): void {
-  window.history.replaceState(
-    null,
-    '',
-    `${window.location.pathname}?lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}`
-  );
-}
-
-function setUrlForLandmark(slug: string): void {
-  window.history.replaceState(null, '', `${window.location.pathname}#${slug}`);
-}
-
-/** `?globe=1&province=Western%20Cape` deep-links into the globe. */
-function readInitialGlobeState(): { open: boolean; province: string } {
-  if (typeof window === 'undefined') return { open: false, province: 'All' };
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('globe') !== '1') return { open: false, province: 'All' };
-  const requested = params.get('province') ?? 'All';
-  return { open: true, province: PROVINCES.includes(requested) ? requested : 'All' };
-}
-
-function setUrlForGlobe(open: boolean, province: string): void {
-  const params = new URLSearchParams(window.location.search);
-  if (open) params.set('globe', '1');
-  else params.delete('globe');
-  if (open && province !== 'All') params.set('province', province);
-  else params.delete('province');
-  const query = params.toString();
-  window.history.replaceState(
-    null,
-    '',
-    `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`
-  );
-}
-
-const INITIAL_GLOBE = readInitialGlobeState();
+const INITIAL_GLOBE = readInitialGlobeState(PROVINCES);
 
 function readStoredSet(key: string): Set<number> {
   try {
@@ -357,6 +315,7 @@ export function App() {
               return { index: pinIndex, x: px, y: py };
             });
           },
+          onGlobeReset: () => setActiveProvince('All'),
           onSelectLandmarkFromGlobe: (pickedIndex) => {
             instance.closeGlobe();
             setGlobeOpen(false);

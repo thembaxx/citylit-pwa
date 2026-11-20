@@ -1,11 +1,15 @@
 # Citylit PWA
 
+[![CI](https://github.com/thembaxx/citylit-pwa/actions/workflows/ci.yml/badge.svg)](https://github.com/thembaxx/citylit-pwa/actions/workflows/ci.yml)
+
 Files: index.html, manifest.webmanifest, sw.js, icons/.
 
 ## Develop and build
 
 - Install: `pnpm install`
 - Dev server: `pnpm dev` (http://localhost:3000)
+- Lint and type-check: `pnpm lint`
+- Unit tests: `pnpm test` (Node's test runner over `src/lib/*.test.ts`)
 - Production build: `pnpm build` (runs `tsc --noEmit` then `vite build`, output in `dist/`)
 - Serve the production build locally: `pnpm preview` — use this to test the service worker, since the dev SW is intentionally disabled.
 - `pnpm start` serves `dist/` via the Express fallback in `server.js`.
@@ -29,6 +33,27 @@ Files: index.html, manifest.webmanifest, sw.js, icons/.
 - Updates use `registerType: 'autoUpdate'` in `vite.config.ts`; the service worker is regenerated on each build, so there is no version string to bump by hand.
 - three.js is pinned to a single version (`three@0.187.0` / `@types/three@0.187.0`) via `pnpm-workspace.yaml` overrides and bundled at build time — no CDN dependency and no duplicate Three.js instances.
 - Rendering uses PCF shadows only (`PCFShadowMap`), exponential fog, ACES filmic tone mapping, and sky-matched dissolve particles.
+
+## 3D globe
+
+The **Globe** button (or the globe icon in a landmark card) opens a 3D map of
+South Africa. Landmasses are drawn as stylised dot clouds from simplified
+Natural Earth boundaries (public domain, generated into `src/data/globeGeo.ts`).
+
+- **Navigate:** drag to rotate, scroll or pinch to zoom, double-tap empty space
+  or press the compass button to reset the view.
+- **Explore:** the province pills fly to and highlight a province; landmark
+  pins show a tooltip on hover (or tap) and open that landmark when selected.
+  Visited landmarks turn green, and provinces tint towards green as their
+  landmarks are completed.
+- **Keyboard / screen readers:** the HUD exposes a visually hidden list of all
+  landmarks alongside the province pills.
+- **Deep links:** `/?globe=1` opens the globe;
+  `/?globe=1&province=Western%20Cape` opens it focused on a province.
+- **Motion and quality:** the globe honours the reduced-motion setting and
+  rebuilds its dot density when the quality tier changes.
+
+For the manual touch-device checklist see `docs/qa-mobile.md`.
 
 ## Coordinate explorer (on-demand OSM places)
 

@@ -45,6 +45,7 @@ import { createWeatherScene, type WeatherSceneController } from './weatherScene'
 export interface EngineCallbacks {
   onSelectLandmarkFromGlobe?: (index: number) => void;
   onGlobePinHover?: (index: number | null, clientX?: number, clientY?: number) => void;
+  onGlobeReset?: () => void;
   onSelectPlaceSlice?: (info: PlacesSelectionInfo) => void;
   onOpenLandmarkFromPlaces?: (index: number) => void;
   onFactDot?: (text: string) => void;
@@ -1713,6 +1714,7 @@ export class CitylitEngine {
             const now = performance.now();
             if (now - this.lastGlobeTap < 420) {
               this.globe.resetView();
+              this.callbacks.onGlobeReset?.();
               this.lastGlobeTap = 0;
             } else {
               this.lastGlobeTap = now;

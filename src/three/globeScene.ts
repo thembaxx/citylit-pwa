@@ -330,11 +330,13 @@ export function createGlobeScene(
     return sprite;
   };
 
-  // Sprites are sized in world units, so short (landscape) viewports shrink them.
-  // Grow them back towards a constant on-screen size when the viewport is short.
+  // Sprites are sized in world units, so both a short viewport and a distant
+  // camera shrink them. Scale towards a roughly constant on-screen size.
+  let labelDistanceScale = 1;
   const fitLabels = () => {
     const short = window.innerHeight < 640;
-    const k = Math.min(1.95, Math.max(1, 840 / Math.max(320, window.innerHeight)));
+    const viewportK = Math.min(1.95, Math.max(1, 840 / Math.max(320, window.innerHeight)));
+    const k = viewportK * labelDistanceScale;
     labelSprites.forEach((s) => {
       const base = s.userData.base as { x: number; y: number };
       const name = s.userData.label as string;
@@ -490,6 +492,15 @@ export function createGlobeScene(
       if (motionScale > 0 && idleTime > 2.5 && camera.position.length() > 8.5) {
         camera.position.applyAxisAngle(UP, dt * 0.02);
       }
+    }
+
+    // Screen size of a world-space sprite is inversely proportional to camera
+    // distance; compensate so labels stay legible at the overview zoom and
+    // don't balloon when flying in to a province.
+    const distanceK = THREE.MathUtils.clamp(camera.position.length() / 9.7, 0.62, 1.55);
+    if (Math.abs(distanceK - labelDistanceScale) > 0.004) {
+      labelDistanceScale = distanceK;
+      fitLabels();
     }
 
     declutterPins();

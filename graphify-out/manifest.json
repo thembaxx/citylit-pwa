@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795199425.99928,
-    "seen": 1795199603.4556835,
-    "ast_hash": "0894bd58ac55e52afa0d702799602aca",
+    "mtime": 1795200857.5187967,
+    "seen": 1795200953.962138,
+    "ast_hash": "70294a1118876e2ac07583e06c95a8da",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -223,9 +223,9 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795200297.5611293,
-    "seen": 1795200519.3058257,
-    "ast_hash": "f62fcccb7d737dd566c52d52ddf7bf2c",
+    "mtime": 1795200848.228941,
+    "seen": 1795200953.9621878,
+    "ast_hash": "5604c9229e795d3fa6d4f7dde1d86536",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -253,9 +253,9 @@
     "semantic_hash": "d12c0cb01b1de4a8c646bc6e67191b36"
   },
   "src/three/globeScene.ts": {
-    "mtime": 1795200313.8085444,
-    "seen": 1795200519.3058376,
-    "ast_hash": "2bf8ccf0afa05878b5fab9c54e3aa02c",
+    "mtime": 1795200730.8904796,
+    "seen": 1795200953.9621954,
+    "ast_hash": "cb32c2fce7266f505dedacf241a2d412",
     "semantic_hash": ""
   },
   "src/three/lightingRig.ts": {
@@ -385,9 +385,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795198060.270223,
-    "seen": 1795198128.7389445,
-    "ast_hash": "1ee271a0f03cf4b5168ac13084cce14c",
+    "mtime": 1795200830.131246,
+    "seen": 1795200953.9622245,
+    "ast_hash": "43fff5879f382765b33532e757444f0a",
     "semantic_hash": ""
   },
   "docs/vite-framework-research.md": {
@@ -484,6 +484,24 @@
     "mtime": 1795199973.2624898,
     "seen": 1795200519.305814,
     "ast_hash": "8d7a8e32e2e396dcbd512089d324e0c4",
+    "semantic_hash": ""
+  },
+  "src/lib/urlState.test.ts": {
+    "mtime": 1795200779.974177,
+    "seen": 1795200953.9621801,
+    "ast_hash": "204b08b89d1a96532779d6570190725e",
+    "semantic_hash": ""
+  },
+  "src/lib/urlState.ts": {
+    "mtime": 1795200748.5133986,
+    "seen": 1795200953.9621816,
+    "ast_hash": "f0dda47d22775230d3686e9a509ed794",
+    "semantic_hash": ""
+  },
+  "docs/qa-mobile.md": {
+    "mtime": 1795200869.1985445,
+    "seen": 1795200953.9622269,
+    "ast_hash": "27ce5e343c0eb61b372f1b6bdfe370b6",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {
