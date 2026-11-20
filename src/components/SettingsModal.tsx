@@ -50,6 +50,7 @@ const MOTION_OPTIONS = [
 const THEME_OPTIONS = [
   { value: 'dark' as const, label: 'Dark' },
   { value: 'daylight' as const, label: 'Daylight' },
+  { value: 'studio' as const, label: 'Studio' },
 ];
 
 const MIXER_CHANNELS: Array<{

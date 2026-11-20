@@ -4,6 +4,7 @@ import {
   B,
   bird,
   birds,
+  boat,
   C,
   car,
   CB,
@@ -296,6 +297,14 @@ export function union(): THREE.Group {
     add(g, CB(12.2, h, 1.0, 0.03), plaza, 0, h / 2, z);
     add(g, CB(11.6, 0.04, 0.7, 0.015), gr, 0, h + 0.015, z);
   });
+  // Two lower lawn terraces stepping toward the forecourt, with stone copings.
+  add(g, CB(12.0, 0.1, 0.9, 0.03), plaza, 0, 0.05, 2.95);
+  add(g, CB(11.5, 0.04, 0.6, 0.015), gr, 0, 0.11, 2.95);
+  add(g, CB(12.0, 0.08, 0.7, 0.03), plaza, 0, 0.04, 3.7);
+  add(g, CB(11.5, 0.035, 0.5, 0.015), gr, 0, 0.09, 3.7);
+  const copingT: InstanceTransform[] = [];
+  for (let i = -6; i <= 6; i++) copingT.push({ x: i * 0.85, y: 0.16, z: 2.45 });
+  instancedMeshes(g, CB(0.12, 0.22, 0.12, 0.02), st, copingT);
 
   // Semicircular Baker colonnade & vaulted loggia
   add(g, C(3.75, 3.75, 1.85, 64, 1, true, Math.PI / 2, Math.PI), dk, 0, 1.725, -1.2);
@@ -336,6 +345,25 @@ export function union(): THREE.Group {
   instancedMeshes(g, C(0.085, 0.105, 1.85, 12), st, colTransforms);
   instancedMeshes(g, CB(0.28, 0.9, 0.06, 0.02), wn, winTransforms);
 
+  // Inner arcade of columns with plinths and capitals behind the outer colonnade.
+  const innerColT: InstanceTransform[] = [];
+  const capitalT: InstanceTransform[] = [];
+  for (let i = 0; i <= 14; i++) {
+    const a = (i / 14) * Math.PI;
+    const x = 2.96 * Math.cos(a);
+    const z = -1.2 - 2.96 * Math.sin(a);
+    innerColT.push({ x, y: 1.725, z });
+    capitalT.push({ x, y: 2.63, z });
+  }
+  instancedMeshes(g, C(0.06, 0.075, 1.85, 10), st, innerColT);
+  instancedMeshes(g, CB(0.22, 0.06, 0.22, 0.015), dk, capitalT);
+
+  // Central hall linking the two wings behind the colonnade.
+  add(g, CB(2.4, 1.7, 1.4, 0.04), st, 0, 1.65, -3.4);
+  add(g, CB(2.6, 0.12, 1.6, 0.03), dk, 0, 2.56, -3.4);
+  add(g, gableRoofGeo(2.6, 1.6, 0.38, 0.08), rf, 0, 2.62, -3.4);
+  add(g, CB(0.34, 0.8, 0.05, 0.012), wn, 0, 1.3, -2.68);
+
   // Symmetrical East & West sandstone wings with pitched terracotta roofs + domed clock towers
   const fl = M('#dce0e4', 0.35, 0.65);
   const hd = M('#3c6838', 0.92);
@@ -343,6 +371,9 @@ export function union(): THREE.Group {
   const bz = M('#7c5e34', 0.38, 0.72);
   const flagMat = MT('#007749', 1, 0.6, 0, true);
   const flags: THREE.Mesh[] = [];
+  const roofTileT: InstanceTransform[] = [];
+  const wingWinT: InstanceTransform[] = [];
+  const domeWinT: InstanceTransform[] = [];
 
   [-1, 1].forEach((s) => {
     add(g, CB(2.65, 2.0, 2.4, 0.04), st, s * 5.1, 1.8, -1.2);
@@ -383,6 +414,31 @@ export function union(): THREE.Group {
     p.rotation.y = Math.PI / 4;
     p.scale.z = 0.25;
 
+    // Ribbed terracotta roof tiling and a second storey of glowing windows.
+    for (let j = -4; j <= 4; j++) {
+      const dx = j * 0.3;
+      roofTileT.push({
+        x: s * 5.1 + dx,
+        y: 2.94 + 0.52 * (1 - Math.abs(dx) / 1.39),
+        z: -1.2,
+      });
+    }
+    for (let j = 0; j < 3; j++) {
+      wingWinT.push({ x: s * 5.1 + (j - 1) * 0.75 - s * 0.2, y: 2.55, z: 0 });
+    }
+    // Dome drum windows and a bronze finial on each clock tower.
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      domeWinT.push({
+        x: s * 5.8 + 0.6 * Math.cos(a),
+        y: 4.65,
+        z: -0.9 + 0.6 * Math.sin(a),
+        ry: -a + Math.PI / 2,
+      });
+    }
+    add(g, C(0.03, 0.04, 0.34, 8), bz, s * 5.8, 5.72, -0.9);
+    add(g, new THREE.SphereGeometry(0.07, 10, 8), bz, s * 5.8, 5.92, -0.9);
+
     add(g, C(0.03, 0.03, 2.4, 8), fl, s * 5.8, 6.8, -0.9);
     const fMesh = add(
       g,
@@ -394,12 +450,19 @@ export function union(): THREE.Group {
     );
     flags.push(fMesh);
   });
+  instancedMeshes(g, CB(0.05, 0.03, 2.5, 0.01), rf, roofTileT);
+  instancedMeshes(g, CB(0.18, 0.3, 0.05, 0.012), wn, wingWinT);
+  instancedMeshes(g, CB(0.09, 0.18, 0.04, 0.01), wn, domeWinT);
 
   // Batched garden hedges & balustrade posts
   const hedgeTransforms: InstanceTransform[] = [];
   for (let i = -4; i <= 4; i++) {
     hedgeTransforms.push({ x: i * 1.3, y: 0.53, z: 2.25 });
     hedgeTransforms.push({ x: i * 1.3 + 0.65, y: 0.73, z: 1.5 });
+  }
+  for (let i = -5; i <= 5; i++) {
+    hedgeTransforms.push({ x: i * 1.25, y: 0.16, z: 3.25 });
+    hedgeTransforms.push({ x: i * 1.25 + 0.6, y: 0.14, z: 3.75 });
   }
   instancedMeshes(g, new THREE.ConeGeometry(0.2, 0.65, 10), hd, hedgeTransforms);
 
@@ -426,6 +489,29 @@ export function union(): THREE.Group {
   for (let i = 0; i < 12; i++) {
     tree(g, (i < 6 ? -1 : 1) * (3.6 + (i % 6) * 0.8), 3.2 + (i % 2) * 0.5, 1.15 + R(i) * 0.4, 0);
   }
+  // Additional jacarandas framing the lower terraces.
+  for (let i = 0; i < 6; i++) {
+    tree(
+      g,
+      (i < 3 ? -1 : 1) * (2.4 + (i % 3) * 1.3),
+      2.0 + (i % 2) * 0.7,
+      0.9 + R(i + 40) * 0.25,
+      0,
+      0.1
+    );
+  }
+
+  // Forecourt driveway with lane markings and tiny moving cars.
+  add(g, CB(12.4, 0.06, 0.9, 0.02), plaza, 0, 0.04, 4.6);
+  const laneT: InstanceTransform[] = [];
+  for (let i = -7; i <= 7; i++) laneT.push({ x: i * 0.8, y: 0.08, z: 4.6 });
+  instancedMeshes(g, CB(0.32, 0.012, 0.03, 0.006), M('#efe6d0', 0.85), laneT);
+  const cars = ['#8d2f2b', '#e8e6df', '#2a6fd3', '#d8a53a'].map((col) => {
+    const c = car(col, 0.26);
+    g.add(c);
+    return c;
+  });
+
   const pet = drift(g, 70, '#b58be0', 0.07, (i, t) => {
     const u = ((R(i) * 3 + t * 0.3) % 3) / 3;
     return [
@@ -436,6 +522,15 @@ export function union(): THREE.Group {
   });
   g.userData.tick = (t: number) => {
     pet(t);
+    cars.forEach((c, i) => {
+      const d = i % 2 ? 1 : -1;
+      c.position.set(
+        ((((t * 0.5 * d + i * 3.2) % 12.4) + 12.4) % 12.4) - 6.2,
+        0.08,
+        4.6 + (i % 2 ? 0.18 : -0.18)
+      );
+      c.rotation.y = d > 0 ? 0 : Math.PI;
+    });
     flags.forEach((f, k) => {
       const p = f.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
@@ -1003,20 +1098,38 @@ export function capePoint(): THREE.Group {
   ].forEach(([x, z, r], i) =>
     rock(g, r * 0.7, r * 1.3, 1.2 + i * 0.3, x, z, '#645440', '#968260', 0.13)
   );
+  // Extra buttresses and a skirt of weathered scree at the cliff foot.
+  rock(g, 0.7, 1.3, 2.4, 2.0, -1.5, '#6f5b44', '#a98f68', 0.16);
+  rock(g, 0.6, 1.15, 2.0, -2.4, 2.3, '#6f5b44', '#a98f68', 0.16);
+  rock(g, 0.9, 1.5, 1.5, 4.7, -1.9, '#645440', '#968260', 0.14);
+  const screeT: InstanceTransform[] = [];
+  for (let i = 0; i < 26; i++) {
+    const a = R(i + 70) * 6.28;
+    const r = 3.6 + R(i + 90) * 1.9;
+    screeT.push({
+      x: -0.4 + r * Math.cos(a),
+      y: 0.24,
+      z: 0.2 + r * Math.sin(a),
+      sx: 0.3 + R(i) * 0.35,
+      sy: 0.22 + R(i + 3) * 0.22,
+      sz: 0.3 + R(i + 6) * 0.35,
+    });
+  }
+  scatterRocks(g, screeT, '#746554', '#9c8b70');
   add(g, C(1.9, 1.95, 0.12, 48), MStone('#5c7036', 0.95), -0.4, 3.84, 0.2);
 
-  // Batched Cape fynbos cushions
+  // Batched Cape fynbos cushions on the summit plateau
   const bushT: InstanceTransform[] = [];
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 26; i++) {
     const a = R(i) * 6.28;
-    const r = R(i + 3) * 1.5;
+    const r = R(i + 3) * 1.55;
     bushT.push({
       x: -0.4 + r * Math.cos(a),
       y: 3.94,
       z: 0.2 + r * Math.sin(a),
-      sx: 0.85,
-      sy: 0.55,
-      sz: 0.85,
+      sx: 0.7 + R(i + 20) * 0.5,
+      sy: 0.45 + R(i + 25) * 0.3,
+      sz: 0.7 + R(i + 28) * 0.5,
     });
   }
   instancedMeshes(g, new THREE.IcosahedronGeometry(0.18, 1), Mc('#567438'), bushT, [
@@ -1039,6 +1152,100 @@ export function capePoint(): THREE.Group {
     d: 0.48,
     wall: '#f2efe6',
     roof: '#464d56',
+  });
+
+  // Winding switchback road snaking up the cliff face to the lighthouse.
+  const roadPts: THREE.Vector3[] = [];
+  for (let i = 0; i <= 72; i++) {
+    const u = i / 72;
+    const a = 0.4 + u * Math.PI * 3.1;
+    const rad = 3.75 - u * 1.8;
+    roadPts.push(
+      new THREE.Vector3(-0.4 + rad * Math.cos(a), 0.3 + u * 3.54, 0.2 + rad * Math.sin(a))
+    );
+  }
+  const roadCurve = new THREE.CatmullRomCurve3(roadPts);
+  add(g, new THREE.TubeGeometry(roadCurve, 200, 0.16, 6), MStone('#a49b88', 0.95));
+  const dashT: InstanceTransform[] = [];
+  for (let i = 1; i < 48; i++) {
+    const u = i / 48;
+    const p = roadCurve.getPointAt(u);
+    const tg = roadCurve.getTangentAt(u);
+    dashT.push({ x: p.x, y: p.y + 0.15, z: p.z, ry: Math.atan2(-tg.z, tg.x) });
+  }
+  instancedMeshes(g, CB(0.18, 0.02, 0.04, 0.01), M('#e8e0cc', 0.85), dashT);
+  const roadCars = ['#c33', '#e8c84a', '#f4f2ec'].map((col, i) => {
+    const c = car(col, i === 1 ? 0.32 : 0.26);
+    g.add(c);
+    return c;
+  });
+
+  // Sandy cove with turquoise shallows and drifting surf rings.
+  const beachX = 4.6;
+  const beachZ = 4.0;
+  add(g, C(1.45, 1.55, 0.07, 48), MStone('#e6d4a8', 0.96), beachX, 0.13, beachZ);
+  add(g, C(0.95, 1.0, 0.03, 40), MStone('#f0e2bd', 0.96), beachX, 0.18, beachZ);
+  add(
+    g,
+    new THREE.RingGeometry(1.5, 1.85, 48).rotateX(-Math.PI / 2),
+    MWater('#3bb6bf', 0.08, 0.22),
+    beachX,
+    0.12,
+    beachZ
+  );
+  const surf = [0, 1, 2].map(() =>
+    add(
+      g,
+      new THREE.RingGeometry(1.5, 1.6, 48).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color: '#eafaff',
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+      beachX,
+      0.15,
+      beachZ
+    )
+  );
+  const skiff = boat('#d8543c', 0.7);
+  g.add(skiff);
+
+  // Coastal fynbos clumps perched on low islets around the headland.
+  [2.0, 3.2, 4.4, 5.6].forEach((a, i) => {
+    const r = 4.9 + R(i + 120) * 0.9;
+    const x = -0.4 + r * Math.cos(a);
+    const z = 0.2 + r * Math.sin(a);
+    rock(g, 0.75, 1.25, 0.55, x, z, '#6f5b44', '#a98f68', 0.14);
+    add(g, C(0.78, 0.82, 0.06, 24), MStone('#5c7036', 0.95), x, 0.58, z);
+    tree(g, x, z, 0.7 + R(i + 8) * 0.2, i % 2 ? 1 : 2, 0.62);
+  });
+
+  // Soft billowing cloud puffs above the summit.
+  const cloudMat = M('#ffffff', 0.92, 0);
+  const clouds: THREE.Group[] = [];
+  [
+    [-2.4, 6.4, -1.8, 0.75],
+    [2.2, 6.0, -2.4, 0.6],
+  ].forEach(([x, y, z, s], ci) => {
+    const cl = new THREE.Group();
+    for (let j = 0; j < 4; j++) {
+      const puff = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(s * (0.4 + R(ci * 9 + j) * 0.22), 1),
+        cloudMat
+      );
+      puff.position.set(
+        (R(ci * 13 + j) - 0.5) * s * 1.6,
+        (R(ci * 17 + j) - 0.5) * s * 0.5,
+        (R(ci * 19 + j) - 0.5) * s * 0.8
+      );
+      cl.add(puff);
+    }
+    cl.position.set(x, y, z);
+    cl.userData.baseX = x;
+    g.add(cl);
+    clouds.push(cl);
   });
 
   const bm = new THREE.Group();
@@ -1084,6 +1291,28 @@ export function capePoint(): THREE.Group {
     sr(t);
     spray(t);
     bd(t);
+    roadCars.forEach((c, i) => {
+      const u = (((t * 0.028 * (i % 2 ? 1 : -1) + i / 3) % 1) + 1) % 1;
+      const p = roadCurve.getPointAt(u);
+      const tg = roadCurve.getTangentAt(u);
+      if (i % 2) tg.negate();
+      c.position.set(p.x, p.y + 0.16, p.z);
+      c.rotation.y = Math.atan2(-tg.z, tg.x);
+    });
+    surf.forEach((r, i) => {
+      const k = (t * 0.22 + i / 3) % 1;
+      r.scale.setScalar(1 + k * 0.45);
+      r.material.opacity = 0.5 * (1 - k);
+    });
+    skiff.position.set(
+      beachX + 1 + Math.sin(t * 0.4) * 0.25,
+      0.13,
+      beachZ + 0.9 + Math.cos(t * 0.3) * 0.2
+    );
+    skiff.rotation.y = -0.6 + Math.sin(t * 0.2) * 0.15;
+    clouds.forEach((cl, i) => {
+      cl.position.x = (cl.userData.baseX as number) + Math.sin(t * 0.16 + i) * 0.22;
+    });
   };
   return g;
 }
@@ -1502,13 +1731,30 @@ export function amphi(): THREE.Group {
   const wm = MCascade('#e4f5ff', 0.85);
   const cm = MT('#f6faff', 0.62, 0.98, 0, false);
   add(g, C(7.6, 7.6, 0.2, 84), MStone('#587442', 0.95), 0, 0.1, 0);
-  for (let i = 0; i < 7; i++) {
-    const q = 3.2 + i * 0.28;
+  // Towering layered basalt wall of the Amphitheatre, banded by erosion.
+  const bandCols = ['#5d4a3a', '#6b563f', '#7a6047', '#67503a'];
+  for (let i = 0; i < 8; i++) {
+    add(
+      g,
+      CB(9.0 - i * 0.7, 0.85, 1.5, 0.06),
+      MStone(bandCols[i % 4], 0.95),
+      (R(i + 3) - 0.5) * 0.3,
+      0.35 + i * 0.82,
+      -5.0 + i * 0.08
+    );
+  }
+  const strataT: InstanceTransform[] = [];
+  for (let i = 0; i < 8; i++) {
+    strataT.push({ x: 0, y: 0.79 + i * 0.82, z: -4.22 + i * 0.08, sx: 1 - i * 0.075 });
+  }
+  instancedMeshes(g, CB(9.0, 0.05, 0.06, 0.01), M('#4a3a2c', 0.95), strataT);
+  for (let i = 0; i < 9; i++) {
+    const q = 3.2 + i * 0.21;
     rock(
       g,
       1.1,
       1.7,
-      5.2 + R(i) * 0.9,
+      5.2 + R(i) * 1.1,
       5.2 * Math.cos(q),
       5.2 * Math.sin(q),
       '#6c4f39',
@@ -1516,11 +1762,24 @@ export function amphi(): THREE.Group {
       0.14
     );
   }
+  rock(g, 1.4, 2.0, 5.4, 5.6, -2.8, '#6c4f39', '#b09270', 0.15);
+  rock(g, 1.3, 1.9, 4.8, -5.6, -1.6, '#6c4f39', '#b09270', 0.15);
   const a = 4.04;
   const wx = 3.9 * Math.cos(a);
   const wz = 3.9 * Math.sin(a);
   // Multi-leap cascading Tugela Falls sheet + pool mist puffs
   add(g, CB(0.26, 5.4, 0.1, 0.03), wm, wx, 3.1, wz);
+  add(g, CB(0.22, 1.5, 0.1, 0.03), wm, wx - 0.12, 5.35, wz + 0.1).rotation.z = 0.12;
+  add(g, CB(0.36, 1.9, 0.12, 0.03), wm, wx + 0.16, 3.6, wz - 0.08).rotation.z = -0.1;
+  add(g, CB(0.46, 1.6, 0.12, 0.03), wm, wx - 0.06, 1.35, wz + 0.14);
+  // Upper lip ledge and a short stream feeding the first leap.
+  add(g, CB(2.2, 0.28, 1.0, 0.05), MStone('#67503a', 0.95), wx, 6.05, wz - 0.45);
+  const lipCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(wx - 0.9, 6.32, wz - 1.25),
+    new THREE.Vector3(wx - 0.35, 6.28, wz - 0.75),
+    new THREE.Vector3(wx + 0.05, 6.2, wz - 0.3),
+  ]);
+  add(g, new THREE.TubeGeometry(lipCurve, 24, 0.12, 6), MWater('#3fa6c0', 0.1, 0.22));
   add(g, C(0.85, 0.95, 0.06, 24), MWater('#3394b4', 0.1, 0.2), wx, 0.23, wz + 0.25);
   const ms = Array.from({ length: 10 }, (_, i) => {
     const o = add(
@@ -1535,16 +1794,114 @@ export function amphi(): THREE.Group {
     o.userData.x = o.position.x;
     return o;
   });
-  for (let i = 0; i < 10; i++)
-    tree(g, -1 + R(i) * 5, -0.5 + R(i + 10) * 5, 0.8 + R(i) * 0.3, i % 3 ? 1 : 2, 0.2);
-  const fall = drift(g, 110, '#e8f6ff', 0.09, (i, t) => {
-    const u = (t * 0.8 + R(i)) % 1;
-    return [wx + (R(i + 3) - 0.5) * 0.3, 5.8 - u * 5.5, wz + (R(i + 4) - 0.5) * 0.28];
+  for (let i = 0; i < 16; i++)
+    tree(g, -5 + R(i) * 10, -0.5 + R(i + 10) * 5.5, 0.75 + R(i) * 0.35, i % 3 ? 1 : 2, 0.2);
+  // Grassy valley slopes with batched alpine shrubs and tufts.
+  const tuftT: InstanceTransform[] = [];
+  const shrubT: InstanceTransform[] = [];
+  for (let i = 0; i < 80; i++) {
+    const ang = R(i + 20) * 6.2832;
+    const r = 2.5 + R(i + 80) * 3.8;
+    tuftT.push({
+      x: r * Math.cos(ang),
+      y: 0.2,
+      z: r * Math.sin(ang),
+      ry: R(i * 7) * 6.28,
+      sy: 1.1,
+    });
+    if (i % 3 === 0)
+      shrubT.push({
+        x: r * Math.cos(ang),
+        y: 0.24,
+        z: r * Math.sin(ang),
+        sx: 0.4 + R(i + 3) * 0.3,
+        sy: 0.28 + R(i + 5) * 0.2,
+        sz: 0.4 + R(i + 9) * 0.3,
+      });
+  }
+  grassTufts(g, tuftT, ['#4d6e35', '#688240', '#8d8746']);
+  instancedMeshes(g, new THREE.IcosahedronGeometry(0.3, 1), Mc('#4d6b3d'), shrubT, [
+    '#4d6b3d',
+    '#6a8549',
+    '#7d8a4a',
+  ]);
+
+  // Meandering river carrying foam away from the plunge pool.
+  const riverCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(wx + 0.1, 0.28, wz + 0.55),
+    new THREE.Vector3(-1.0, 0.27, -1.6),
+    new THREE.Vector3(0.6, 0.26, -0.4),
+    new THREE.Vector3(1.2, 0.25, 1.4),
+    new THREE.Vector3(3.0, 0.24, 2.4),
+    new THREE.Vector3(4.6, 0.24, 4.0),
+  ]);
+  add(g, new THREE.TubeGeometry(riverCurve, 80, 0.24, 8), MWater('#3394b4', 0.1, 0.22));
+  const foamT: InstanceTransform[] = [];
+  for (let i = 1; i < 26; i++) {
+    const p = riverCurve.getPointAt(i / 26);
+    foamT.push({ x: p.x, y: 0.5, z: p.z, sx: 0.5 + R(i) * 0.4, sz: 0.35 });
+  }
+  instancedMeshes(
+    g,
+    new THREE.CircleGeometry(0.14, 12).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({
+      color: '#eaf8ff',
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+    foamT
+  );
+
+  // Mist clinging to the escarpment peaks above the falls.
+  const peakMist = Array.from({ length: 8 }, (_, i) => {
+    const o = add(
+      g,
+      new THREE.SphereGeometry(0.7, 12, 10),
+      cm,
+      -3.4 + R(i) * 6.8,
+      6.0 + R(i + 3) * 0.5,
+      -4.9 + (R(i + 5) - 0.5) * 1.2
+    );
+    o.scale.set(1.5, 0.45, 0.9);
+    o.userData.x = o.position.x;
+    return o;
   });
+
+  const fall = drift(g, 150, '#e8f6ff', 0.09, (i, t) => {
+    const stage = i % 3;
+    const u = (t * 0.85 + R(i)) % 1;
+    const top = [6.1, 4.5, 2.5][stage];
+    const len = [1.7, 2.1, 2.4][stage];
+    const dx = [0.12, -0.06, 0.02][stage];
+    return [
+      wx + dx + (R(i + 3) - 0.5) * 0.34,
+      top - u * len,
+      wz + (R(i + 4) - 0.5) * 0.3 + u * 0.12,
+    ];
+  });
+  const riverFoam = drift(
+    g,
+    60,
+    '#eaf8ff',
+    0.07,
+    (i, t) => {
+      const u = (t * 0.06 + R(i)) % 1;
+      const p = riverCurve.getPointAt(u);
+      return [p.x + (R(i + 3) - 0.5) * 0.3, 0.52, p.z + (R(i + 5) - 0.5) * 0.3];
+    },
+    0.55
+  );
   g.userData.tick = (t: number) => {
     fall(t);
+    riverFoam(t);
     ms.forEach((o, i) => {
       o.position.x = (o.userData.x as number) + Math.sin(t * 0.4 + i) * 0.14;
+    });
+    peakMist.forEach((o, i) => {
+      o.position.x = (o.userData.x as number) + Math.sin(t * 0.18 + i) * 0.3;
+      o.scale.y = 0.45 + 0.06 * Math.sin(t * 0.5 + i);
     });
   };
   return g;
@@ -1817,21 +2174,40 @@ export function boulders(): THREE.Group {
 
   // Authentic organic 540-million-year-old rounded Cape granite boulders (instanced!)
   const boulderT: InstanceTransform[] = [];
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 34; i++) {
     const a = R(i) * 6.28;
-    const r = 3.25 + R(i + 4) * 1.5;
-    const s = 1.05 + R(i + 8) * 1.4;
+    const r = 2.6 + R(i + 4) * 2.9;
+    const s = 0.9 + R(i + 8) * 1.7;
     boulderT.push({
       x: r * Math.cos(a),
-      y: s * 0.2,
+      y: s * 0.18,
       z: -0.6 + r * Math.sin(a),
       ry: R(i + 15) * 6.28,
-      sx: s * 1.25,
-      sy: s * 0.85,
+      sx: s * (1.1 + R(i + 21) * 0.35),
+      sy: s * (0.72 + R(i + 25) * 0.25),
       sz: s,
     });
   }
   scatterRocks(g, boulderT, '#8a8278', '#b0a698');
+  // A few signature whale-backed tors with hand-tinted granite shading.
+  lump(g, 1.15, -3.3, -3.1, 1.35, 0.78, '#8f887c', '#c0b7a5');
+  lump(g, 1.0, 3.7, -1.5, 1.3, 0.72, '#948c7e', '#c6bda9');
+  lump(g, 0.85, 1.9, 2.7, 1.25, 0.7, '#8c8477', '#bcb3a1');
+  // Fine granite pebbles scattered between the large boulders.
+  const pebbleT: InstanceTransform[] = [];
+  for (let i = 0; i < 30; i++) {
+    const a = R(i + 110) * 6.28;
+    const r = 1.2 + R(i + 130) * 4.3;
+    pebbleT.push({
+      x: r * Math.cos(a),
+      y: 0.22,
+      z: -0.6 + r * Math.sin(a),
+      sx: 0.3 + R(i + 2) * 0.3,
+      sy: 0.16 + R(i + 5) * 0.14,
+      sz: 0.3 + R(i + 7) * 0.3,
+    });
+  }
+  scatterRocks(g, pebbleT, '#9a9080', '#c2b9a6');
 
   for (let i = 0; i < 14; i++) {
     const p = new THREE.Group();
@@ -1850,6 +2226,94 @@ export function boulders(): THREE.Group {
     g.add(p);
     P.push(p);
   }
+
+  // A much larger colony of tiny penguins, batched into four instanced draws.
+  const penT: InstanceTransform[] = [];
+  for (let i = 0; i < 26; i++) {
+    const a = R(i + 60) * 6.28;
+    const r = Math.sqrt(R(i + 80)) * 3.5;
+    const sc = 0.55 + R(i + 5) * 0.2;
+    penT.push({
+      x: r * Math.cos(a),
+      y: 0.2,
+      z: -0.6 + r * Math.sin(a),
+      ry: R(i + 90) * 6.28,
+      sx: sc,
+      sy: sc,
+      sz: sc,
+    });
+  }
+  instancedMeshes(
+    g,
+    new THREE.SphereGeometry(0.22, 12, 10).scale(1, 1.5, 0.9).translate(0, 0.38, 0),
+    bk,
+    penT
+  );
+  instancedMeshes(
+    g,
+    new THREE.SphereGeometry(0.17, 12, 10).scale(1, 1.4, 0.6).translate(0, 0.34, 0.07),
+    wt,
+    penT
+  );
+  instancedMeshes(g, new THREE.SphereGeometry(0.12, 10, 8).translate(0, 0.78, 0), bk, penT);
+  instancedMeshes(
+    g,
+    new THREE.ConeGeometry(0.04, 0.12, 6).rotateX(Math.PI / 2).translate(0, 0.76, 0.13),
+    or,
+    penT
+  );
+
+  // Timber boardwalk with stringers, handrails and evenly spaced posts.
+  const plankT: InstanceTransform[] = [];
+  for (let z = -3.8; z <= 3.25; z += 0.24) plankT.push({ x: 2.3, y: 0.3, z });
+  instancedMeshes(g, CB(0.9, 0.06, 0.15, 0.02), MWood('#9a7d55', 0.9), plankT);
+  const postT: InstanceTransform[] = [];
+  for (let z = -3.7; z <= 3.2; z += 0.9) {
+    postT.push({ x: 1.82, y: 0.58, z });
+    postT.push({ x: 2.78, y: 0.58, z });
+  }
+  instancedMeshes(g, CB(0.07, 0.6, 0.07, 0.015), MWood('#7d6443', 0.9), postT);
+  [-1, 1].forEach((s) => {
+    const x = 2.3 + s * 0.48;
+    add(g, CB(0.07, 0.07, 7.05, 0.015), MWood('#7d6443', 0.9), x, 0.86, -0.3);
+    add(g, CB(0.12, 0.12, 7.05, 0.02), MWood('#8a7050', 0.9), x, 0.25, -0.3);
+  });
+
+  // Coastal scrub around the back of the cove and soft shoreline surf lines.
+  const shrubT: InstanceTransform[] = [];
+  for (let i = 0; i < 34; i++) {
+    const a = R(i + 140) * 6.28;
+    const r = 4.9 + R(i + 160) * 1.0;
+    shrubT.push({
+      x: r * Math.cos(a),
+      y: 0.2,
+      z: -0.6 + r * Math.sin(a),
+      sx: 0.4 + R(i + 2) * 0.3,
+      sy: 0.22 + R(i + 4) * 0.18,
+      sz: 0.4 + R(i + 6) * 0.3,
+    });
+  }
+  instancedMeshes(g, new THREE.IcosahedronGeometry(0.3, 1), Mc('#6a7f45'), shrubT, [
+    '#6a7f45',
+    '#88964f',
+    '#5b7038',
+  ]);
+  const shoreFoam = [4.65, 4.9].map((r, i) =>
+    add(
+      g,
+      new THREE.TorusGeometry(r, 0.035, 6, 96).rotateX(Math.PI / 2),
+      new THREE.MeshBasicMaterial({
+        color: '#eafaff',
+        transparent: true,
+        opacity: 0.26,
+        depthWrite: false,
+      }),
+      0,
+      0.16 + i * 0.01,
+      -0.6
+    )
+  );
+
   const sr = seaRings(g, 0.14, 4, 3);
   const bd = birds(g, 3, 3, 5);
   g.userData.tick = (t: number) => {
@@ -1859,6 +2323,10 @@ export function boulders(): THREE.Group {
     });
     sr(t);
     bd(t);
+    shoreFoam.forEach((ring, i) => {
+      ring.material.opacity = 0.18 + 0.14 * (0.5 + 0.5 * Math.sin(t * 1.6 + i));
+      ring.position.y = 0.16 + i * 0.01 + Math.sin(t * 1.1 + i) * 0.02;
+    });
   };
   return g;
 }

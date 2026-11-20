@@ -1,7 +1,7 @@
 export type QualitySetting = 'auto' | 'high' | 'balanced' | 'low';
 export type QualityIndex = 0 | 1 | 2;
 export type MotionSetting = 'auto' | 'reduce';
-export type ThemeSetting = 'dark' | 'daylight';
+export type ThemeSetting = 'dark' | 'daylight' | 'studio';
 
 export interface AmbientMixerSettings {
   wind: number;

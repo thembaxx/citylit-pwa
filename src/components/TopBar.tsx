@@ -1,6 +1,7 @@
 import {
   CornersIn,
   CornersOut,
+  Crop,
   MagnifyingGlass,
   SpeakerHigh,
   SpeakerSlash,
@@ -22,6 +23,7 @@ interface TopBarProps {
   onToggleSound: () => void;
   onToggleTod: () => void;
   onToggleFullscreen: () => void;
+  onHeroView: () => void;
   onOpenSearch: () => void;
 }
 
@@ -89,6 +91,7 @@ export function TopBar({
   onToggleSound,
   onToggleTod,
   onToggleFullscreen,
+  onHeroView,
   onOpenSearch,
 }: TopBarProps) {
   if (globeOpen) return null;
@@ -104,7 +107,7 @@ export function TopBar({
         >
           <div
             className={`font-serif-display italic text-[22px] tracking-[0.01em] select-none transition-colors duration-300 ${
-              theme === 'daylight' ? 'text-[#16202e]' : 'text-[#f3efe6]'
+              theme === 'dark' ? 'text-[#f3efe6]' : 'text-[#16202e]'
             }`}
           >
             cıtylit
@@ -129,6 +132,13 @@ export function TopBar({
               label="Toggle fullscreen view"
               icon={CornersOut}
               onClick={onToggleFullscreen}
+              reducedMotion={reducedMotion}
+            />
+            <IconButton
+              label="Reset to hero framing"
+              title="Hero view (fit the landmark)"
+              icon={Crop}
+              onClick={onHeroView}
               reducedMotion={reducedMotion}
             />
             <IconButton

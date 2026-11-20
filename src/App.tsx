@@ -76,7 +76,8 @@ function readSettings(): CitylitSettings {
         haptics: parsed.haptics ?? true,
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
-        theme: parsed.theme === 'daylight' ? 'daylight' : 'dark',
+        theme:
+          parsed.theme === 'daylight' || parsed.theme === 'studio' ? parsed.theme : 'dark',
       };
     }
   } catch {
@@ -648,9 +649,11 @@ export function App() {
           <div
             aria-hidden="true"
             className={`fixed inset-0 pointer-events-none transition-opacity duration-500 ${
-              settings.theme === 'daylight'
-                ? 'bg-[radial-gradient(ellipse_at_center,transparent_64%,rgba(16,32,48,0.16))]'
-                : 'bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]'
+              settings.theme === 'studio'
+                ? 'opacity-0'
+                : settings.theme === 'daylight'
+                  ? 'bg-[radial-gradient(ellipse_at_center,transparent_64%,rgba(16,32,48,0.16))]'
+                  : 'bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))]'
             }`}
           />
         )}
@@ -667,6 +670,7 @@ export function App() {
           onToggleSound={() => setSoundOn(ambientAudio.toggle())}
           onToggleTod={() => setTodOpen((v) => !v)}
           onToggleFullscreen={() => setFullscreen((v) => !v)}
+          onHeroView={() => engineRef.current?.frameCurrentLandmark()}
           onOpenSearch={() => setSearchOpen(true)}
         />
 
@@ -756,7 +760,7 @@ export function App() {
         {!fullscreen && !globeOpen && !placesOpen && hintVisible && (
           <div
             className={`hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] pointer-events-none ${
-              settings.theme === 'daylight' ? 'text-[#1c2330]/75' : 'text-[#a9a69e]'
+              settings.theme === 'dark' ? 'text-[#a9a69e]' : 'text-[#1c2330]/75'
             }`}
           >
             Drag to orbit · Scroll to zoom · Tap pins for facts

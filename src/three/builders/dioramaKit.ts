@@ -6,7 +6,7 @@ import type {
   LandmarkBiome,
   SpatialAudioSource,
 } from '../../types/citylit';
-import { getStoneBumpTexture, WU } from '../shaders';
+import { getStoneBumpTexture, WU, waterize } from '../shaders';
 import {
   add,
   C,
@@ -55,6 +55,8 @@ interface SiteProfile {
   fx: readonly DioramaFx[];
   anchor: AnchorKind;
   audio: AmbientSiteProfile;
+  /** Marks landmarks with their own bespoke square-block treatment (e.g. cloud bank). */
+  square?: boolean;
 }
 
 function au(pan: number, events: AmbientEvent[] = [], density = 1): AmbientSiteProfile {
@@ -448,6 +450,7 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     fx: ['dust'],
     anchor: 'windpump',
     audio: au(-0.2, ['cicada'], 0.8),
+    square: true,
   },
   'Hermanus Whale Watching': {
     biome: 'coastal',
@@ -631,8 +634,17 @@ function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: 
     const i0 = Math.max(0, Math.min(cs.length - 1, Math.floor(f)));
     const i1 = Math.min(cs.length - 1, i0 + 1);
     c.copy(cs[i0]).lerp(cs[i1], f - i0);
-    const grain = 1 + 0.07 * Math.sin(x * 6.1 + seed) + 0.05 * Math.sin(z * 8.3 + y * 13);
-    c.multiplyScalar(grain);
+    const grain =
+      1 +
+      0.07 * Math.sin(x * 6.1 + seed) +
+      0.05 * Math.sin(z * 8.3 + y * 13) +
+      0.035 * Math.sin(y * 46 + x * 1.7) +
+      0.025 * Math.sin(x * 23 - z * 19 + y * 5);
+    // Darker seams at band boundaries and scattered pebble speckle read as real strata.
+    const bandPos = f - Math.floor(f);
+    const seam = Math.max(0, 1 - Math.min(bandPos, 1 - bandPos) * 9);
+    const pebble = Math.pow(Math.max(0, Math.sin(x * 13.7 + z * 11.3 + y * 7.1)), 16);
+    c.multiplyScalar(grain * (1 - seam * 0.16) + pebble * 0.12);
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
@@ -641,7 +653,32 @@ function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: 
   geo.deleteAttribute('uv');
 }
 
+/** Square cutaway block with layered earth walls, used for the estate dioramas. */
+function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
+  const [top, edge, band, wall] = profile.rim;
+  const geo = new THREE.BoxGeometry(16.8, 1.2, 16.8, 2, 20, 2).translate(0, -0.56, 0);
+  paintStrata(geo, [wall, band, edge, edge], 3.4);
+  const pos = geo.attributes.position;
+  const col = geo.attributes.color as THREE.BufferAttribute;
+  const cTop = new THREE.Color(top);
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > 0.03) col.setXYZ(i, cTop.r, cTop.g, cTop.b);
+  }
+  col.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, getRimMaterial());
+  mesh.receiveShadow = true;
+  g.add(mesh);
+}
+
 function addCraftedRim(g: THREE.Group, profile: SiteProfile): void {
+  // The square stratified block is the house style for every landmark; the old
+  // circular rim is retained only for profiles that explicitly opt back in.
+  if (profile.square !== false) {
+    addSquareRim(g, profile);
+    return;
+  }
   const [top, edge, band, wall] = profile.rim;
   const topGeo = new THREE.RingGeometry(7.62, 8.22, 120, 2)
     .rotateX(-Math.PI / 2)
@@ -673,12 +710,90 @@ function addCraftedRim(g: THREE.Group, profile: SiteProfile): void {
   g.add(mesh);
 }
 
+/** Fill the corners of the square block with sea so coastal scenes read as water-filled cuts. */
+function addSquareWaterPlate(g: THREE.Group): void {
+  const geo = new THREE.PlaneGeometry(16.2, 16.2, 32, 32).rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const cols = new Float32Array(pos.count * 3);
+  const deep = new THREE.Color('#176a8f');
+  const shallow = new THREE.Color('#46b9c4');
+  const tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const r = Math.hypot(x, z);
+    tmp.copy(shallow).lerp(deep, Math.min(1, Math.max(0, (r - 1.5) / 6.5)));
+    cols[i * 3] = tmp.r;
+    cols[i * 3 + 1] = tmp.g;
+    cols[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  const mat = waterize(
+    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.14, metalness: 0.22 })
+  );
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.y = 0.06;
+  mesh.userData.noShadow = true;
+  g.add(mesh);
+}
+
+/* ------------------------------------------------------------------ */
+/* Floating clouds — a signature of the reference miniature look       */
+/* ------------------------------------------------------------------ */
+
+let dioramaCloudMat: THREE.MeshStandardMaterial | null = null;
+
+function getDioramaCloudMat(): THREE.MeshStandardMaterial {
+  if (!dioramaCloudMat) {
+    dioramaCloudMat = new THREE.MeshStandardMaterial({
+      color: '#f8fbff',
+      roughness: 0.96,
+      metalness: 0,
+    });
+  }
+  return dioramaCloudMat;
+}
+
+function addDioramaClouds(g: THREE.Group): Update[] {
+  const updates: Update[] = [];
+  const specs: ReadonlyArray<readonly [number, number, number, number]> = [
+    [-4.6, 5.4, -3.8, 0.9],
+    [0.8, 6.1, -4.6, 1.15],
+    [4.4, 5.5, -3.4, 0.85],
+  ];
+  specs.forEach(([bx, by, bz, s], i) => {
+    const cluster = new THREE.Group();
+    for (let j = 0; j < 5; j++) {
+      const puff = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(s * (0.4 + R(i * 13 + j) * 0.24), 1),
+        getDioramaCloudMat()
+      );
+      puff.position.set(
+        (R(i * 7 + j) - 0.5) * s * 1.9,
+        (R(i * 11 + j) - 0.5) * s * 0.6,
+        (R(i * 17 + j) - 0.5) * s * 0.9
+      );
+      puff.userData.noShadow = true;
+      cluster.add(puff);
+    }
+    cluster.position.set(bx, by, bz);
+    g.add(cluster);
+    updates.push((t) => {
+      cluster.position.x = bx + Math.sin(t * 0.14 + i) * 0.32;
+      cluster.position.y = by + Math.sin(t * 0.09 + i * 1.7) * 0.08;
+    });
+  });
+  return updates;
+}
+
 /* ------------------------------------------------------------------ */
 /* Base scatter: rim boulders + biome ground cover                     */
 /* ------------------------------------------------------------------ */
 
 function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
-  const [rockCount, plantCount] = profile.count;
+  const [baseRocks, basePlants] = profile.count;
+  const rockCount = Math.round(baseRocks * 1.3);
+  const plantCount = Math.round(basePlants * 1.25);
   if (rockCount > 0) {
     const items: InstanceTransform[] = [];
     for (let i = 0; i < rockCount; i++) {
@@ -1139,12 +1254,21 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   const angle = keyAngle(key) + 0.6;
 
   addCraftedRim(group, profile);
+  if (profile.biome === 'coastal' || profile.biome === 'wetland') {
+    addSquareWaterPlate(group);
+  }
   addBaseScatter(group, profile);
   addTreeRing(group, profile, angle);
   const updates = addAnchor(group, profile, angle);
   finalizeTreeBatch(group);
   stampContactShadowsFromMeshes(group);
   finalizeContactShadows(group);
+
+  // Groot Constantia already has its own bespoke cloud bank.
+  if (!profile.square) {
+    const clouds = addDioramaClouds(group);
+    for (let i = 0; i < clouds.length; i++) updates.push(clouds[i]);
+  }
 
   const fx = addWeatherFx(group, profile);
   for (let i = 0; i < fx.length; i++) updates.push(fx[i]);

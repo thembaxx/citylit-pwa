@@ -364,6 +364,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     { qualityIndex, motionScale, keyLight, fillLight, hemiLight, scene: s, renderer, onThunder }
   ) => {
     const safeDt = Math.max(0, dt);
+    const studio = activeTheme === 'studio';
+    skyDome.visible = !studio;
     const k = Math.max(0, Math.min(1, safeDt * 1.5));
     const sk = 1 - Math.exp(-safeDt * 0.45);
     current.sky.lerp(target.sky, k);
@@ -389,9 +391,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const day = Math.max(0, Math.min(1, alt * 2.5 + 0.35));
 
     sunDisc.position.set(sx, sy, sz);
-    sunDisc.visible = sy > -2 && !renderer.xr.isPresenting;
+    sunDisc.visible = !studio && sy > -2 && !renderer.xr.isPresenting;
     moonDisc.position.set(-sx * 0.85, Math.max(12, -sy * 0.7 + 14), -16);
-    moonDisc.visible = day < 0.7;
+    moonDisc.visible = !studio && day < 0.7;
 
     if (current.storm > 0.4) {
       thunderTimer -= safeDt;
@@ -437,7 +439,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     rainbowTimer = Math.max(0, rainbowTimer - safeDt);
     skyMat.uniforms.rb.value = Math.min(1, rainbowTimer / 2) * day;
 
-    if (activeTheme === 'daylight') {
+    if (studio) {
+      (s.background as THREE.Color).set('#f7f7f4');
+    } else if (activeTheme === 'daylight') {
       skyDarkTmp
         .copy(daylightBgCol)
         .lerp(daylightStormBgCol, Math.min(1, current.cover * 0.35 + current.storm * 0.55))
@@ -453,8 +457,11 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       fogDayTmp.lerp(daylightBgCol, 0.72);
     }
     fogTmp.copy(fogDayTmp).lerp(fogNightTmp, 1 - day);
-    const fogDensity =
-      activeTheme === 'daylight' ? 0.0018 + current.fog * 0.0085 : 0.008 + current.fog * 0.032;
+    const fogDensity = studio
+      ? 0
+      : activeTheme === 'daylight'
+        ? 0.0018 + current.fog * 0.0085
+        : 0.008 + current.fog * 0.032;
     if (s.fog instanceof THREE.FogExp2) {
       s.fog.density += (fogDensity - s.fog.density) * k;
       s.fog.color
@@ -465,7 +472,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
         );
     }
 
-    starMat.opacity = Math.max(0, 1 - day - 0.15) * (1 - current.cover * 0.85) * 0.9;
+    starMat.opacity = studio
+      ? 0
+      : Math.max(0, 1 - day - 0.15) * (1 - current.cover * 0.85) * 0.9;
     starPoints.rotation.y = elapsed * 0.002 * motionScale;
 
     cloudMat.color
@@ -473,9 +482,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .lerp(sunGlowTmp, hor * (0.45 + 0.25 * seasonCurrent.warmth))
       .lerp(fogNightTmp, 1 - day);
     cloudMat.opacity = current.cover * 0.85;
-    clouds.visible = current.cover > 0.06;
+    clouds.visible = !studio && current.cover > 0.06;
     const showShadows = current.cover > 0.06 && day > 0.12;
-    groundShadow.visible = showShadows;
+    groundShadow.visible = !studio && showShadows;
     cloudShadowMat.opacity = Math.min(0.18, current.cover * 0.16 * day);
     for (let i = 0; i < clouds.children.length; i++) {
       const c = clouds.children[i];
@@ -525,9 +534,21 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     hemiLight.groundColor.copy(seasonHemiGroundTmp);
     hemiLight.intensity = (0.36 + 0.08 * seasonCurrent.warmth) * day + 0.34 * (1 - day);
 
+    // Studio/catalog look: flat, neutral, bright light that reads cleanly on white.
+    if (studio) {
+      keyLight.position.set(9, 13, 7);
+      keyLight.color.set('#fffaf0');
+      keyLight.intensity = 2.8;
+      fillLight.color.set('#e9efff');
+      fillLight.intensity = 1.0;
+      hemiLight.color.set('#ffffff');
+      hemiLight.groundColor.set('#cdd2d8');
+      hemiLight.intensity = 0.75;
+    }
+
     const rainCount = Math.floor((qualityIndex > 1 ? 150 : RN) * current.rain);
     rainGeo.setDrawRange(0, rainCount * 2);
-    rainLines.visible = current.rain > 0.03;
+    rainLines.visible = !studio && current.rain > 0.03;
     rainMat.opacity = current.rain * 0.42;
     if (rainLines.visible) {
       for (let i = 0; i < rainCount; i++) {
@@ -547,7 +568,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     stMat.uniforms.t.value = elapsed * motionScale;
     stMat.uniforms.st.value = current.storm;
     stMat.uniforms.fl.value = lightningFlash;
-    stormCurtain.visible = current.storm > 0.03;
+    stormCurtain.visible = !studio && current.storm > 0.03;
 
     WU.sun.value = day * (1 - current.cover * 0.65);
     WU.sky.value.copy(skyTmp);

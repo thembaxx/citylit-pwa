@@ -86,6 +86,10 @@ export class CitylitEngine {
   private readonly plinthTopMat: THREE.MeshStandardMaterial;
   private readonly plinthBaseMat: THREE.MeshStandardMaterial;
   private readonly ringMat: THREE.MeshStandardMaterial;
+  /** Kept alive so Studio mode can switch away from the sky HDRI without breaking it. */
+  private readonly roomEnvTex: THREE.Texture;
+  /** Soft elliptical shadow that makes the block read as a floating paper miniature. */
+  private readonly studioShadow: THREE.Mesh;
   private readonly heroRoot: THREE.Group;
   private readonly markerGroup: THREE.Group;
   private readonly dustPoints: THREE.Points;
@@ -179,7 +183,8 @@ export class CitylitEngine {
     this.controls.autoRotateSpeed = 0.3;
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.envTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.roomEnvTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    this.envTex = this.roomEnvTex;
     this.scene.environment = this.envTex;
     this.scene.environmentIntensity = 0.48;
 
@@ -220,8 +225,8 @@ export class CitylitEngine {
         hdrTex.dispose();
         this.envTex = pmremOut.texture;
         this.usingSkyHdr = true;
-        this.scene.environment = this.envTex;
-        if (prevEnv && prevEnv !== this.envTex) {
+        if (!this.isStudio()) this.scene.environment = this.envTex;
+        if (prevEnv && prevEnv !== this.envTex && prevEnv !== this.roomEnvTex) {
           prevEnv.dispose();
         }
       },
@@ -321,6 +326,22 @@ export class CitylitEngine {
     );
     plinthRing.position.y = 0.01;
     this.plinthGroup.add(plinthRing);
+
+    this.studioShadow = new THREE.Mesh(
+      new THREE.PlaneGeometry(9, 9),
+      new THREE.MeshBasicMaterial({
+        map: getSoftTexture(),
+        color: '#828c99',
+        transparent: true,
+        opacity: 0.34,
+        depthWrite: false,
+      })
+    );
+    this.studioShadow.rotation.x = -Math.PI / 2;
+    this.studioShadow.visible = false;
+    this.studioShadow.renderOrder = -1;
+    this.studioShadow.userData.cannotReceiveAO = true;
+    this.scene.add(this.studioShadow);
 
     this.heroRoot = new THREE.Group();
     this.scene.add(this.heroRoot);
@@ -475,6 +496,7 @@ export class CitylitEngine {
     this.dissolvePhase = 0;
     WU.dy.value = 100;
     this.dustPoints.visible = false;
+    if (this.isStudio()) this.frameCurrentLandmark();
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
     }
@@ -548,9 +570,57 @@ export class CitylitEngine {
     }
   }
 
+  private isStudio(): boolean {
+    return this.theme === 'studio';
+  }
+
+  private updatePlinthVisibility(): void {
+    const hidden = this.globe.isOpen || this.places.isOpen;
+    this.plinthGroup.visible = !hidden && !this.isStudio();
+    this.studioShadow.visible = !hidden && this.isStudio();
+  }
+
   setTheme(theme: ThemeSetting): void {
+    const wasStudio = this.isStudio();
     this.theme = theme;
     this.weather.setTheme(theme);
+    this.updatePlinthVisibility();
+
+    if (theme === 'studio') {
+      this.scene.background = new THREE.Color('#f7f7f4');
+      this.scene.environment = this.roomEnvTex;
+      this.bloomPass.threshold = 1.15;
+      this.miniaturePass.applyTuning({
+        blur: 0.7,
+        vignette: 0.03,
+        aperture: 0.7,
+        focusRange: 0.34,
+        focusY: 0.5,
+      });
+      // A narrow FOV from far away reads as orthographic without changing any camera paths.
+      this.camera.fov = 14;
+      this.camera.updateProjectionMatrix();
+      this.controls.autoRotate = false;
+      if (!wasStudio) this.frameCurrentLandmark();
+      return;
+    }
+
+    if (wasStudio) {
+      this.scene.environment = this.envTex;
+      this.camera.fov = 42;
+      this.camera.updateProjectionMatrix();
+      this.controls.minDistance = 6;
+      this.controls.maxDistance = 30;
+      this.miniaturePass.applyTuning({
+        blur: 1.7,
+        vignette: 0.2,
+        aperture: 1.0,
+        focusRange: 0.2,
+        focusY: 0.49,
+      });
+      this.resetCamera(window.innerWidth <= window.innerHeight);
+    }
+
     if (theme === 'daylight') {
       this.plinthTopMat.color.set('#b8ad99');
       this.plinthBaseMat.color.set('#968b76');
@@ -572,7 +642,7 @@ export class CitylitEngine {
     this.motionScale = reduced ? 0 : 1;
     this.autoRotateSpeed = reduced || this.isSoftwareGl ? 0 : 0.3;
     this.controls.autoRotate =
-      !reduced && !this.isSoftwareGl && !this.globe.isOpen && !this.places.isOpen;
+      !reduced && !this.isSoftwareGl && !this.globe.isOpen && !this.places.isOpen && !this.isStudio();
     this.controls.autoRotateSpeed = this.autoRotateSpeed;
   }
 
@@ -651,13 +721,13 @@ export class CitylitEngine {
   closeGlobe(): void {
     this.globe.close();
     this.heroRoot.visible = true;
-    this.plinthGroup.visible = true;
+    this.updatePlinthVisibility();
     this.markerGroup.visible = true;
     this.weather.setHidden(false);
     this.atmosphere.setHidden(false);
     ambientAudio.setSpatialActive(true);
     this.controls.enabled = true;
-    this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
+    this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl && !this.isStudio();
     this.renderer.domElement.style.cursor = 'default';
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -711,7 +781,7 @@ export class CitylitEngine {
     this.weather.groundShadow.visible = true;
     this.atmosphere.root.position.set(0, 0, 0);
     this.heroRoot.visible = true;
-    this.plinthGroup.visible = true;
+    this.updatePlinthVisibility();
     this.markerGroup.visible = true;
     this.weather.setHidden(false);
     this.atmosphere.setHidden(false);
@@ -722,7 +792,7 @@ export class CitylitEngine {
     );
     ambientAudio.setSpatialActive(true);
     this.controls.enabled = true;
-    this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl;
+    this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl && !this.isStudio();
     this.renderer.domElement.style.cursor = 'default';
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -745,6 +815,41 @@ export class CitylitEngine {
   resetCamera(isPortrait: boolean): void {
     this.camera.position.set(isPortrait ? 13 : 11.5, 6.2, isPortrait ? 14.5 : 13);
     this.controls.target.set(0, 1.5, 0);
+  }
+
+  /** Fit the current diorama into a fixed isometric, near-orthographic hero shot. */
+  frameCurrentLandmark(): void {
+    const group = this.currentGroup;
+    if (!group || this.globe.isOpen || this.places.isOpen) return;
+    const box = new THREE.Box3().setFromObject(group);
+    if (box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(size.x, size.y, size.z) * 0.5;
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const distance = Math.max(radius / Math.tan(hFov / 2), radius / Math.tan(vFov / 2)) * 0.72;
+
+    this.controls.target.set(center.x, center.y * 0.55, center.z);
+    const azimuth = Math.PI / 4;
+    const elevation = THREE.MathUtils.degToRad(33);
+    this.camera.position.set(
+      this.controls.target.x + distance * Math.cos(elevation) * Math.sin(azimuth),
+      this.controls.target.y + distance * Math.sin(elevation),
+      this.controls.target.z + distance * Math.cos(elevation) * Math.cos(azimuth)
+    );
+    this.camera.near = Math.max(0.1, distance - radius * 2);
+    this.camera.far = distance + radius * 4;
+    this.camera.updateProjectionMatrix();
+    this.controls.minDistance = Math.min(6, distance * 0.2);
+    this.controls.maxDistance = Math.max(30, distance * 1.6);
+    this.camGoal = null;
+    this.controls.autoRotate = false;
+    this.controls.update();
+
+    this.studioShadow.position.set(center.x, box.min.y - 0.03, center.z);
+    const span = Math.max(size.x, size.z) * 1.35;
+    this.studioShadow.scale.set(span / 9, span / 9, 1);
   }
 
   generateThumbnails(): Record<number, string> {
@@ -964,6 +1069,7 @@ export class CitylitEngine {
       this.places.setAspect(w / h);
       this.renderer.setSize(w, h);
       this.composer.setSize(w, h);
+      if (this.isStudio()) this.frameCurrentLandmark();
     };
 
     const raycaster = new THREE.Raycaster();
@@ -1193,13 +1299,17 @@ export class CitylitEngine {
       this.weather.groundShadow.visible = false;
       this.weather.rainLines.visible = false;
       this.weather.stormCurtain.visible = false;
-      const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
-      const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
-      this.scene.environmentIntensity =
-        envFloor +
-        (envCeiling - envFloor) *
-          (1 - this.weather.current.night) *
-          (1 - this.weather.current.cover * 0.35);
+      if (this.isStudio()) {
+        this.scene.environmentIntensity = 0.55;
+      } else {
+        const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
+        const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
+        this.scene.environmentIntensity =
+          envFloor +
+          (envCeiling - envFloor) *
+            (1 - this.weather.current.night) *
+            (1 - this.weather.current.cover * 0.35);
+      }
       updateWetSurfaces(
         Math.max(this.weather.current.rain, this.places.getWeatherMode() === 'rain' ? 0.85 : 0)
       );
@@ -1356,13 +1466,17 @@ export class CitylitEngine {
         },
       });
       updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
-      const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
-      const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
-      this.scene.environmentIntensity =
-        envFloor +
-        (envCeiling - envFloor) *
-          (1 - this.weather.current.night) *
-          (1 - this.weather.current.cover * 0.35);
+      if (this.isStudio()) {
+        this.scene.environmentIntensity = 0.55;
+      } else {
+        const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
+        const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
+        this.scene.environmentIntensity =
+          envFloor +
+          (envCeiling - envFloor) *
+            (1 - this.weather.current.night) *
+            (1 - this.weather.current.cover * 0.35);
+      }
       updateWetSurfaces(this.weather.current.rain);
 
       // Localized atmosphere shell: ridge fog, heat shimmer, sea and spray mist
@@ -1429,6 +1543,7 @@ export class CitylitEngine {
     this.atmosphere.dispose();
     this.pmrem.dispose();
     this.envTex.dispose();
+    if (this.roomEnvTex !== this.envTex) this.roomEnvTex.dispose();
     this.n8aoPass.dispose();
     this.bloomPass.dispose();
     this.miniaturePass.dispose();
