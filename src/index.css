@@ -443,6 +443,42 @@ body,
   backdrop-filter: blur(10px) saturate(1.15);
   color: #fff;
   pointer-events: none;
+  opacity: 0;
+  animation: compass-enter var(--duration-fast) var(--ease-smooth-out) forwards;
+}
+
+/* One-time boot reveal: fade in from a slight leftward offset, never from nothing. */
+@keyframes compass-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* Reduced motion keeps the fade (comprehension) but drops the movement. */
+.compass--reduced {
+  animation-name: compass-enter-reduced;
+  animation-duration: var(--duration-quick);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compass {
+    animation-name: compass-enter-reduced;
+    animation-duration: var(--duration-quick);
+  }
+}
+
+@keyframes compass-enter-reduced {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Weather island keeps clear of the landmark card, whatever height the card takes. */

@@ -936,7 +936,7 @@ export function App() {
         />
 
         {/* Compass */}
-        <Compass getEngine={() => engineRef.current} />
+        <Compass getEngine={() => engineRef.current} reducedMotion={reducedMotion} />
 
         {/* Bottom Landmark Card */}
         <LandmarkCard

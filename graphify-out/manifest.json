@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795213266.1990507,
-    "seen": 1795214065.8971934,
-    "ast_hash": "20fbab7afddd6b112485c6822ae7882f",
+    "mtime": 1795214826.4235013,
+    "seen": 1795214918.999566,
+    "ast_hash": "b970c774f993de692dc165e8878c3626",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -529,9 +529,9 @@
     "semantic_hash": ""
   },
   "src/components/Compass.tsx": {
-    "mtime": 1795214562.415393,
-    "seen": 1795214646.8158596,
-    "ast_hash": "0842050a9ddbb0d40409f67691d2ba5d",
+    "mtime": 1795214839.432292,
+    "seen": 1795214918.9995897,
+    "ast_hash": "9eabf12b301c116e5a3b810db4b8a8d2",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {
