@@ -106,7 +106,7 @@ export function SettingsModal({
           <PillNavigation<ThemeSetting>
             layoutId="settings-theme"
             reducedMotion={reducedMotion}
-            value={settings.theme ?? 'dark'}
+            value={settings.theme ?? 'daylight'}
             onChange={(theme) => onUpdate({ theme })}
             options={THEME_OPTIONS}
             compact

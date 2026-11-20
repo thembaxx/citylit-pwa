@@ -38,7 +38,13 @@ import { createGlobeScene, type GlobeController } from './globeScene';
 import { createPlacesScene, type PlacesController, type PlacesSelectionInfo } from './placesScene';
 import { createMiniaturePass, type MiniaturePass, type MiniatureTuning } from './postfx';
 import { configureTextureQuality, getSoftTexture, installDissolveShader, WU } from './shaders';
-import { configureDioramaShadow, createRimLight, updateRimLight } from './lightingRig';
+import {
+  configureDioramaShadow,
+  createBounceLight,
+  createRimLight,
+  setBounceLightBiome,
+  updateRimLight,
+} from './lightingRig';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
 
@@ -92,6 +98,8 @@ export class CitylitEngine {
   private readonly keyLight: THREE.DirectionalLight;
   private readonly fillLight: THREE.DirectionalLight;
   private readonly rimLight: THREE.DirectionalLight;
+  /** Soft, shadowless biome-tinted bounce fill. Deliberately not driven by weather. */
+  private readonly bounceLight: THREE.DirectionalLight;
   private readonly hemiLight: THREE.HemisphereLight;
   private readonly plinthGroup: THREE.Group;
   private readonly plinthTopMat: THREE.MeshStandardMaterial;
@@ -130,7 +138,7 @@ export class CitylitEngine {
   private qualityIndex: QualityIndex = 0;
   /** Optional WebGL approximation of ThreeRT-style path-traced lighting. */
   private cinematic = false;
-  private theme: ThemeSetting = 'dark';
+  private theme: ThemeSetting = 'daylight';
   private studioWeight = 0;
   private targetPlinthTop = new THREE.Color('#1a1c24');
   private targetPlinthBase = new THREE.Color('#111218');
@@ -164,6 +172,10 @@ export class CitylitEngine {
   private isUserOrbiting = false;
   private baseTargetX = 0;
   private baseTargetY = 1.5;
+  /** Per-landmark hero framing, recomputed only on switch/reset/resize/theme change. */
+  private readonly heroFitCenter = new THREE.Vector3();
+  private readonly heroFitDirection = new THREE.Vector3();
+  private hasHeroFit = false;
   private readonly lodCamProxy = new THREE.PerspectiveCamera();
   private readonly lastLodCamPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private lastLodQuality = -1;
@@ -208,7 +220,7 @@ export class CitylitEngine {
     this.renderer.toneMappingExposure = 1.08;
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       this.renderer.shadowMap.autoUpdate = false;
     }
     // Anisotropy and procedural normal maps are set up before any landmark
@@ -309,6 +321,10 @@ export class CitylitEngine {
     this.rimLight = createRimLight();
     this.scene.add(this.rimLight);
     this.scene.add(this.rimLight.target);
+
+    this.bounceLight = createBounceLight();
+    this.scene.add(this.bounceLight);
+    this.scene.add(this.bounceLight.target);
 
     // Post-processing pipeline (depth-aware DoF + N8AO + Bloom + Tilt-Shift + SMAA + Output)
     const composerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
@@ -713,12 +729,18 @@ export class CitylitEngine {
       key: LANDMARKS[index].k,
       biome: LANDMARKS[index].biome,
     });
+    // Re-tint the soft bounce fill to the newly loaded site's biome.
+    setBounceLightBiome(
+      this.bounceLight,
+      (this.currentGroup.userData.biome as string | undefined) ?? LANDMARKS[index].biome
+    );
     this.heroRoot.add(this.currentGroup);
     this.rebuildMarkers(index);
     this.dissolvePhase = 0;
     WU.dy.value = 100;
     this.dustPoints.visible = false;
-    if (this.isStudio()) this.frameCurrentLandmark();
+    // Reframes for the active theme (Studio keeps its fixed isometric shot).
+    this.frameCurrentLandmark();
     this.updateLods(this.camera, true);
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -774,6 +796,56 @@ export class CitylitEngine {
     }
   }
 
+  /** Exposure lift for Dark so shaded albedo still reads as a lit miniature. */
+  private themeExposure(): number {
+    const base = this.cinematic && !this.isSoftwareGl ? 1.16 : 1.08;
+    return base * (this.theme === 'dark' ? 1.06 : 1);
+  }
+
+  /** AO is relaxed by theme; Studio keeps its original catalogue-grade value. */
+  private n8aoThemeIntensity(): number {
+    const base = this.cinematic && !this.isSoftwareGl ? 3 : 2.4;
+    if (this.theme === 'dark') return base * 0.7;
+    if (this.theme === 'daylight') return base * 0.85;
+    return base;
+  }
+
+  /** Apply the per-theme miniature grade (DoF band, vignette, AO and exposure). */
+  private applyPostGrade(): void {
+    if (this.theme === 'studio') {
+      // Preserved verbatim from the original Studio preset.
+      this.miniaturePass.applyTuning({
+        blur: 0.7,
+        vignette: 0.03,
+        aperture: 0.7,
+        focusRange: 0.34,
+        focusY: 0.5,
+      });
+    } else if (this.theme === 'daylight') {
+      // Clean, bright tabletop: light blur and a shallow vignette.
+      this.miniaturePass.applyTuning({
+        blur: 1.05,
+        vignette: 0.1,
+        aperture: 0.78,
+        focusRange: 0.3,
+        focusY: 0.5,
+      });
+    } else {
+      // Dark: a wider focus band and much lighter vignette keep shaded detail
+      // legible instead of crushing the diorama into a silhouette.
+      this.miniaturePass.applyTuning({
+        blur: 1.2,
+        vignette: 0.08,
+        aperture: 0.82,
+        focusRange: 0.28,
+        focusY: 0.5,
+      });
+    }
+    this.n8aoPass.configuration.intensity = this.n8aoThemeIntensity();
+    this.renderer.toneMappingExposure = this.themeExposure();
+    this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
+  }
+
   private setQualityIndex(idx: QualityIndex): void {
     this.qualityIndex = idx;
     this.globe.setQuality(idx);
@@ -804,18 +876,18 @@ export class CitylitEngine {
       // host overrides this through setCinematic() and traces every light.
       this.setShadowMapSize(2048);
       this.renderer.shadowMap.needsUpdate = true;
-      this.renderer.toneMappingExposure = 1.16;
+      this.renderer.toneMappingExposure = this.themeExposure();
       this.n8aoPass.configuration.halfRes = false;
       this.n8aoPass.configuration.aoRadius = 0.72;
-      this.n8aoPass.configuration.intensity = 3;
+      this.n8aoPass.configuration.intensity = this.n8aoThemeIntensity();
       this.n8aoPass.configuration.distanceFalloff = 1.25;
       this.n8aoPass.setQualityMode('High');
       this.n8aoPass.enabled = idx < 2;
     } else {
-      this.renderer.toneMappingExposure = 1.08;
+      this.renderer.toneMappingExposure = this.themeExposure();
       this.n8aoPass.configuration.halfRes = true;
       this.n8aoPass.configuration.aoRadius = 0.58;
-      this.n8aoPass.configuration.intensity = 2.4;
+      this.n8aoPass.configuration.intensity = this.n8aoThemeIntensity();
       this.n8aoPass.configuration.distanceFalloff = 1.05;
       this.n8aoPass.setQualityMode('Performance');
     }
@@ -853,9 +925,11 @@ export class CitylitEngine {
 
   setTheme(theme: ThemeSetting, immediate = false): void {
     const wasStudio = this.isStudio();
+    const themeChanged = this.theme !== theme;
     this.theme = theme;
     this.weather.setTheme(theme, immediate);
     this.updatePlinthVisibility();
+    this.applyPostGrade();
 
     if (theme === 'studio') {
       this.scene.environment = this.roomEnvTex;
@@ -865,13 +939,6 @@ export class CitylitEngine {
         this.bloomPass.threshold = this.targetBloomThreshold;
         (this.scene.background as THREE.Color).set('#f7f7f4');
       }
-      this.miniaturePass.applyTuning({
-        blur: 0.7,
-        vignette: 0.03,
-        aperture: 0.7,
-        focusRange: 0.34,
-        focusY: 0.5,
-      });
       // A narrow FOV from far away reads as orthographic without changing any camera paths.
       this.camera.fov = 14;
       this.camera.updateProjectionMatrix();
@@ -886,14 +953,10 @@ export class CitylitEngine {
       this.camera.updateProjectionMatrix();
       this.controls.minDistance = 6;
       this.controls.maxDistance = 30;
-      this.miniaturePass.applyTuning({
-        blur: 1.7,
-        vignette: 0.2,
-        aperture: 1.0,
-        focusRange: 0.2,
-        focusY: 0.49,
-      });
       if (!immediate) this.resetCamera(window.innerWidth <= window.innerHeight);
+    } else if (themeChanged && !immediate) {
+      // Dark <-> Daylight: refit once, never on the per-frame path.
+      this.frameCurrentLandmark();
     }
 
     if (theme === 'daylight') {
@@ -1129,16 +1192,29 @@ export class CitylitEngine {
 
   resetCamera(isPortrait: boolean): void {
     this.computeResponsiveFraming();
+    // Re-establish the default view direction; the fitter derives distance and
+    // aim from the landmark instead of reusing the old fixed camera distance.
+    this.controls.target.set(this.baseTargetX, this.baseTargetY, 0);
     this.camera.position.set(
       isPortrait ? 13.4 : 11.5,
       isPortrait ? 6.4 : 6.2,
       isPortrait ? 14.8 : 13
     );
-    this.controls.target.set(this.baseTargetX, this.baseTargetY, 0);
+    this.fitHeroCamera();
   }
 
-  /** Fit the current diorama into a fixed isometric, near-orthographic hero shot. */
+  /** Reframe the active landmark for the current theme/shot, never per frame. */
   frameCurrentLandmark(): void {
+    if (this.globe.isOpen || this.places.isOpen) return;
+    if (this.isStudio()) {
+      this.frameStudioLandmark();
+    } else {
+      this.fitHeroCamera();
+    }
+  }
+
+  /** Original fixed isometric, near-orthographic Studio shot (unchanged). */
+  private frameStudioLandmark(): void {
     const group = this.currentGroup;
     if (!group || this.globe.isOpen || this.places.isOpen) return;
     const box = new THREE.Box3().setFromObject(group);
@@ -1170,6 +1246,68 @@ export class CitylitEngine {
     this.studioShadow.position.set(center.x, box.min.y - 0.03, center.z);
     const span = Math.max(size.x, size.z) * 1.35;
     this.studioShadow.scale.set(span / 9, span / 9, 1);
+  }
+
+  /**
+   * Solid geometry only: floating FX clouds, birds, sprites and invisible
+   * helpers would otherwise inflate the box and make every site look tiny.
+   */
+  private computeDioramaBounds(group: THREE.Group): THREE.Box3 {
+    const box = new THREE.Box3();
+    const objBox = new THREE.Box3();
+    group.updateWorldMatrix(true, true);
+    group.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh) || !obj.visible) return;
+      if (obj.userData.noShadow || obj.userData.cannotReceiveAO || obj.userData.noDissolve) return;
+      let node: THREE.Object3D | null = obj;
+      while (node) {
+        if (!node.visible) return;
+        node = node.parent;
+      }
+      objBox.setFromObject(obj);
+      if (!objBox.isEmpty()) box.union(objBox);
+    });
+    if (box.isEmpty()) box.setFromObject(group);
+    return box;
+  }
+
+  /**
+   * Fit the active diorama into the live FOV/aspect with an ~11% margin, along
+   * the camera's current view direction so the user's orbit is preserved.
+   */
+  private fitHeroCamera(): void {
+    const group = this.currentGroup;
+    if (!group || this.globe.isOpen || this.places.isOpen || this.isStudio()) return;
+    this.computeResponsiveFraming();
+    const box = this.computeDioramaBounds(group);
+    if (box.isEmpty()) return;
+
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = size.length() * 0.5;
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const fit = Math.max(radius / Math.tan(vFov / 2), radius / Math.tan(hFov / 2));
+    const distance = THREE.MathUtils.clamp(
+      fit * 1.11,
+      this.controls.minDistance + 0.2,
+      this.controls.maxDistance - 0.2
+    );
+
+    this.heroFitDirection.copy(this.camera.position).sub(this.controls.target);
+    if (this.heroFitDirection.lengthSq() < 1e-6) this.heroFitDirection.set(11.5, 4.7, 13);
+    this.heroFitDirection.normalize();
+
+    // Clamp the aim height so an unusually tall/short model doesn't tilt the shot.
+    const targetY = THREE.MathUtils.clamp(center.y + (this.baseTargetY - 1.5), 0.6, 2.8);
+    this.heroFitCenter.set(center.x + this.baseTargetX, targetY, center.z);
+    this.hasHeroFit = true;
+
+    this.controls.target.copy(this.heroFitCenter);
+    this.camera.position.copy(this.heroFitCenter).addScaledVector(this.heroFitDirection, distance);
+    this.miniaturePass.setFocus(this.camera.position.distanceTo(this.heroFitCenter));
+    this.camGoal = null;
+    this.controls.update();
   }
 
   /**
@@ -1547,7 +1685,7 @@ export class CitylitEngine {
       this.renderer.setSize(w, h);
       this.composer.setSize(w, h);
       this.computeResponsiveFraming();
-      if (this.isStudio()) this.frameCurrentLandmark();
+      this.frameCurrentLandmark();
     };
 
     const onControlStart = () => {
@@ -2183,13 +2321,22 @@ export class CitylitEngine {
         fogColor: fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color),
       });
 
-      // Gentle gyro tilt offset + responsive viewport framing
+      // Gentle gyro tilt offset + responsive viewport framing. The per-landmark
+      // hero fit supplies the aim point; without one, keep the legacy target.
       if (!this.isStudio()) {
-        this.controls.target.set(
-          this.baseTargetX + this.tiltOffsetX,
-          this.baseTargetY + this.tiltOffsetY,
-          0
-        );
+        if (this.hasHeroFit) {
+          this.controls.target.set(
+            this.heroFitCenter.x + this.tiltOffsetX,
+            this.heroFitCenter.y + this.tiltOffsetY,
+            this.heroFitCenter.z
+          );
+        } else {
+          this.controls.target.set(
+            this.baseTargetX + this.tiltOffsetX,
+            this.baseTargetY + this.tiltOffsetY,
+            0
+          );
+        }
       }
       this.controls.update();
       this.updateLods(this.camera);

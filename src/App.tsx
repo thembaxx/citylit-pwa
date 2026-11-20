@@ -89,7 +89,12 @@ function readSettings(): CitylitSettings {
         uiSounds: parsed.uiSounds ?? true,
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
-        theme: parsed.theme === 'daylight' || parsed.theme === 'studio' ? parsed.theme : 'dark',
+        // Keep an explicit persisted choice (including 'dark'); only fall back
+        // to the first-run default when no valid theme was stored.
+        theme:
+          parsed.theme === 'dark' || parsed.theme === 'daylight' || parsed.theme === 'studio'
+            ? parsed.theme
+            : 'daylight',
         cinematic: parsed.cinematic ?? false,
       };
     }
@@ -104,7 +109,7 @@ function readSettings(): CitylitSettings {
     uiSounds: true,
     motion: 'auto',
     tilt: false,
-    theme: 'dark',
+    theme: 'daylight',
     cinematic: false,
   };
 }

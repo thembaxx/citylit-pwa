@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795200857.5187967,
-    "seen": 1795200953.962138,
-    "ast_hash": "70294a1118876e2ac07583e06c95a8da",
+    "mtime": 1795207712.9780118,
+    "seen": 1795208539.449602,
+    "ast_hash": "31b40c7311d7543e9d143fa523cdc42b",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -109,9 +109,9 @@
     "semantic_hash": ""
   },
   "src/components/SettingsModal.tsx": {
-    "mtime": 1795196668.5792112,
-    "seen": 1795198128.7388499,
-    "ast_hash": "27d91388617646ff44706156b6b69ba7",
+    "mtime": 1795207717.063308,
+    "seen": 1795208539.4497073,
+    "ast_hash": "0791aecdf551527c94feb11dd1d07104",
     "semantic_hash": ""
   },
   "src/components/TopBar.tsx": {
@@ -223,46 +223,46 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795204738.5547516,
-    "seen": 1795205033.8593655,
-    "ast_hash": "c892b23c5b8c7591107dee3dd3a07574",
+    "mtime": 1795207823.9337103,
+    "seen": 1795208539.449931,
+    "ast_hash": "ed5d6626923432e58e067175a7e49775",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795204717.6645586,
-    "seen": 1795205033.859374,
-    "ast_hash": "2b7a17cfd476ad17ea68985dc23d26d1",
+    "mtime": 1795207904.9325485,
+    "seen": 1795208539.449938,
+    "ast_hash": "db2177d02e67a4a7929033920c0e723a",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795206308.080405,
-    "seen": 1795206503.912086,
-    "ast_hash": "3c9e589bf786b88c5631574e9171cb86",
+    "mtime": 1795209149.5931978,
+    "seen": 1795209309.9557238,
+    "ast_hash": "f4d6ab5707c0ca4f59819f665b59f2b6",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795206319.0610697,
-    "seen": 1795206503.912089,
-    "ast_hash": "e512bb23caa8d12476ceb9f47ec76e80",
+    "mtime": 1795209133.2264597,
+    "seen": 1795209309.9557316,
+    "ast_hash": "ec5de82ae5b6415f748a82a2b4155669",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795204919.1058464,
-    "seen": 1795205033.8593957,
-    "ast_hash": "886f83ad9378fef213188d3a34454f80",
+    "mtime": 1795207829.9820778,
+    "seen": 1795208539.4499598,
+    "ast_hash": "d97dc9367c5ad4b1afb658099cb4f429",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
-    "mtime": 1795200730.8904796,
-    "seen": 1795200953.9621954,
-    "ast_hash": "cb32c2fce7266f505dedacf241a2d412",
+    "mtime": 1795209856.575786,
+    "seen": 1795209969.5765615,
+    "ast_hash": "5df7c00f3768368ed8a3b7fc0f6c8dae",
     "semantic_hash": ""
   },
   "src/three/lightingRig.ts": {
-    "mtime": 1795187027.273702,
-    "seen": 1795194883.6599581,
-    "ast_hash": "22901431728124036465dfdd4cabaaa3",
-    "semantic_hash": "22901431728124036465dfdd4cabaaa3"
+    "mtime": 1795207723.8460612,
+    "seen": 1795208539.4499824,
+    "ast_hash": "0309d8d5015c9d370b3d434ce0f4474c",
+    "semantic_hash": ""
   },
   "src/three/placesClouds.ts": {
     "mtime": 1795099859.1980371,
@@ -295,9 +295,9 @@
     "semantic_hash": "16860da8295644f58d7b83c6bebf7bad"
   },
   "src/three/shaders.ts": {
-    "mtime": 1795204450.489411,
-    "seen": 1795205033.8594756,
-    "ast_hash": "5acb480812517d2fcc7237244d885cb5",
+    "mtime": 1795207704.6665418,
+    "seen": 1795208539.450043,
+    "ast_hash": "936e66174b65eaf9fd25e8e47fd90bf7",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
@@ -514,6 +514,18 @@
     "mtime": 1795206148.5641596,
     "seen": 1795206503.9121737,
     "ast_hash": "ca046681486b8c2f42649c86b893405c",
+    "semantic_hash": ""
+  },
+  "src/contact-sheet.ts": {
+    "mtime": 1795207605.1027663,
+    "seen": 1795208539.4497945,
+    "ast_hash": "906c86376e2f21653f4839f496dd6ec3",
+    "semantic_hash": ""
+  },
+  "contact-sheet.html": {
+    "mtime": 1795207596.2247255,
+    "seen": 1795208539.4501703,
+    "ast_hash": "47f301754df94727f94aceeca6ab9dfe",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

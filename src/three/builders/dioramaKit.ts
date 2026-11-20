@@ -6,7 +6,7 @@ import type {
   LandmarkBiome,
   SpatialAudioSource,
 } from '../../types/citylit';
-import { WU, waterize } from '../shaders';
+import { WU, getSoftTexture, normalMapsActive, waterize } from '../shaders';
 import {
   add,
   C,
@@ -18,6 +18,7 @@ import {
   instancedMeshes,
   Mc,
   mergeByMaterial,
+  MGlass,
   MSteel,
   MStone,
   MWood,
@@ -614,7 +615,11 @@ function paintRadial(
       0.02 * Math.sin((x + z) * 21.3);
     c.copy(cInner).lerp(cOuter, u);
     const ao = 0.84 + 0.16 * Math.min(1, u * 4.5);
-    c.multiplyScalar(ao + grain);
+    // Broad terrain undulation plus a soft contact shadow where the ground
+    // meets the carved rim on both sides of the band.
+    const macro = 1 + 0.05 * Math.sin(x * 0.38 + z * 0.27) + 0.03 * Math.sin(x * 0.83 - z * 0.61);
+    const contact = 1 - 0.16 * Math.max(0, 1 - Math.min(u, 1 - u) * 7);
+    c.multiplyScalar((ao + grain) * macro * contact);
     if (u > 0.9) c.lerp(cEdge, (u - 0.9) * 3.5);
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
@@ -683,12 +688,27 @@ function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
       pos.setX(i, x * (1 - 0.012 * lip) + 0.035 * chip);
       pos.setZ(i, z * (1 - 0.012 * lip) + 0.021 * chip);
       pos.setY(i, y - lip * (0.018 + 0.014 * Math.sin(x * 7.3 - z * 5.9)));
-      col.setXYZ(i, cTop.r, cTop.g, cTop.b);
+      // Macro terrain variation, a faint plaza/cross-path accent and contact
+      // darkening where the top surface meets the cut wall.
+      const macro = 1 + 0.045 * Math.sin(x * 0.47 + z * 0.29) + 0.03 * Math.sin(x * 0.93 - z * 0.71);
+      const plaza = Math.max(0, 1 - Math.hypot(x, z) / 3.4) * 0.09;
+      const path = Math.exp(-Math.min(Math.abs(x), Math.abs(z)) * 1.7) * 0.055;
+      const contact = 1 - 0.2 * Math.max(0, (perimeter - 0.82) / 0.18);
+      const tone = (macro + plaza + path) * contact;
+      col.setXYZ(
+        i,
+        Math.min(1, cTop.r * tone),
+        Math.min(1, cTop.g * tone),
+        Math.min(1, cTop.b * tone)
+      );
     } else if (y > -0.36) {
       // Shallow stepped ledges on the four walls give the strata relief.
       const step = y > -0.14 ? 0.055 : 0.026;
       if (Math.abs(x) > 8.2) pos.setX(i, x + Math.sign(x) * step);
       if (Math.abs(z) > 8.2) pos.setZ(i, z + Math.sign(z) * step);
+      // Contact shade just under the lip where wall meets ground.
+      const contact = 1 - 0.18 * Math.max(0, 1 - Math.abs(y + 0.02) / 0.16);
+      col.setXYZ(i, col.getX(i) * contact, col.getY(i) * contact, col.getZ(i) * contact);
     }
   }
   col.needsUpdate = true;
@@ -752,9 +772,13 @@ function addSquareWaterPlate(g: THREE.Group): void {
     const z = pos.getZ(i);
     const r = Math.hypot(x, z);
     tmp.copy(shallow).lerp(deep, Math.min(1, Math.max(0, (r - 1.5) / 6.5)));
-    cols[i * 3] = tmp.r;
-    cols[i * 3 + 1] = tmp.g;
-    cols[i * 3 + 2] = tmp.b;
+    // Slow shader-independent variation reads as shallows and depth bands;
+    // the edge darkens where the water laps against the cut wall.
+    const swell = 1 + 0.06 * Math.sin(x * 0.52 + z * 0.31) + 0.035 * Math.cos(x * 0.91 - z * 0.74);
+    const edge = 1 - 0.22 * Math.max(0, (r - 6.6) / 1.5);
+    cols[i * 3] = tmp.r * swell * edge;
+    cols[i * 3 + 1] = tmp.g * swell * edge;
+    cols[i * 3 + 2] = tmp.b * swell * edge;
   }
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   const mat = waterize(
@@ -770,45 +794,53 @@ function addSquareWaterPlate(g: THREE.Group): void {
 /* Floating clouds — a signature of the reference miniature look       */
 /* ------------------------------------------------------------------ */
 
-let dioramaCloudMat: THREE.MeshStandardMaterial | null = null;
+let dioramaCloudMat: THREE.SpriteMaterial | null = null;
 
-function getDioramaCloudMat(): THREE.MeshStandardMaterial {
+/**
+ * One soft, shared sprite material for all cloud puffs. Tinted toward the
+ * current sky uniform and alpha-mapped with the shared radial texture, the
+ * puffs dissolve at their edges instead of reading as solid balloons.
+ */
+function getDioramaCloudMat(): THREE.SpriteMaterial {
   if (!dioramaCloudMat) {
-    dioramaCloudMat = new THREE.MeshStandardMaterial({
-      color: '#f8fbff',
-      roughness: 0.96,
-      metalness: 0,
+    const tint = new THREE.Color('#f4f8fc').lerp(WU.sky.value, 0.24);
+    dioramaCloudMat = new THREE.SpriteMaterial({
+      map: getSoftTexture(),
+      color: tint,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+      fog: true,
     });
     dioramaCloudMat.userData.sharedResource = true;
+    dioramaCloudMat.userData.noDissolve = true;
   }
   return dioramaCloudMat;
 }
 
 function addDioramaClouds(g: THREE.Group): Update[] {
   const updates: Update[] = [];
+  const mat = getDioramaCloudMat();
+  // Fewer but much larger puffs: two drifting banks of three overlapping
+  // sprites, no shadows and no geometry to merge.
   const specs: ReadonlyArray<readonly [number, number, number, number]> = [
-    [-4.6, 5.4, -3.8, 0.9],
-    [0.8, 6.1, -4.6, 1.15],
-    [4.4, 5.5, -3.4, 0.85],
+    [-4.4, 5.5, -3.9, 1],
+    [4.4, 5.6, -3.5, 1.15],
   ];
   specs.forEach(([bx, by, bz, s], i) => {
     const cluster = new THREE.Group();
-    for (let j = 0; j < 5; j++) {
-      const puff = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(s * (0.4 + R(i * 13 + j) * 0.24), 1),
-        getDioramaCloudMat()
-      );
+    for (let j = 0; j < 3; j++) {
+      const puff = new THREE.Sprite(mat);
+      const width = s * (2.5 + R(i * 13 + j) * 0.9);
+      puff.scale.set(width, width * (0.46 + R(i * 17 + j) * 0.12), 1);
       puff.position.set(
-        (R(i * 7 + j) - 0.5) * s * 1.9,
-        (R(i * 11 + j) - 0.5) * s * 0.6,
-        (R(i * 17 + j) - 0.5) * s * 0.9
+        (j - 1) * s * 1.05 + (R(i * 7 + j) - 0.5) * 0.3,
+        (R(i * 11 + j) - 0.5) * s * 0.34,
+        (R(i * 19 + j) - 0.5) * s * 0.4
       );
+      puff.userData.noShadow = true;
       cluster.add(puff);
     }
-    mergeByMaterial(cluster);
-    cluster.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.userData.noShadow = true;
-    });
     cluster.position.set(bx, by, bz);
     g.add(cluster);
     updates.push((t) => {
@@ -849,6 +881,24 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
         sy: (0.2 + R(i + 6) * 0.24) * size,
         sz: (0.3 + R(i + 7) * 0.38) * size,
       });
+    }
+    if (!hasWaterPlate) {
+      // Two faint crossing paths of flat stones, batched into the same rock
+      // instance draw. Urban sites get a denser plaza-like scattering.
+      const paving = profile.biome === 'urban' ? 16 : 9;
+      for (let i = 0; i < paving; i++) {
+        const along = (i / Math.max(1, paving - 1) - 0.5) * 6.2;
+        const cross = i % 2 === 0;
+        items.push({
+          x: cross ? along : (R(i + 23) - 0.5) * 0.5,
+          y: 0.205,
+          z: cross ? (R(i + 31) - 0.5) * 0.5 : along,
+          ry: R(i + 17) * 6.28,
+          sx: 0.34 + R(i + 19) * 0.16,
+          sy: 0.025 + R(i + 29) * 0.012,
+          sz: 0.3 + R(i + 37) * 0.14,
+        });
+      }
     }
     scatterRocks(detailGroup, items, profile.rock[0], profile.rock[1]);
   }
@@ -1199,6 +1249,196 @@ function addWeatherFx(g: THREE.Group, profile: SiteProfile): Update[] {
 }
 
 /* ------------------------------------------------------------------ */
+/* Site-specific micro motion                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Small, site-flavoured streams layered on top of the biome FX. All use the
+ * zero-allocation `stream()` helper: the fill callback receives WU.t and
+ * writes into a shared vector, wind comes from WU.wind, and particle counts
+ * follow the quality path selected by configureTextureQuality().
+ */
+function addSiteMotion(g: THREE.Group, key: string, profile: SiteProfile, angle: number): Update[] {
+  const updates: Update[] = [];
+  const detailed = normalMapsActive();
+
+  // Masonry landmarks with visible hearths get a slow wispy chimney plume.
+  if (key.includes('Union Buildings') || key.includes('Voortrekker') || key.includes('Constantia')) {
+    const sx = Math.cos(angle + 0.8) * 2.2;
+    const sz = Math.sin(angle + 0.8) * 2.2;
+    const s = stream(
+      g,
+      detailed ? 12 : 7,
+      '#e3e9ec',
+      0.14,
+      (i, t, o) => {
+        const u = (t * 0.085 + R(i * 5.3 + 1)) % 1;
+        o.set(
+          sx + WU.wind.value * u * 0.55 + Math.sin(t * 0.7 + i) * 0.06,
+          1.0 + u * 1.7,
+          sz + Math.sin(t * 0.5 + i * 1.7) * 0.05
+        );
+      },
+      0.17,
+      false
+    );
+    updates.push(s.update);
+  }
+
+  if (profile.biome === 'desert' || profile.biome === 'savannah') {
+    // Ground-hugging dust eddies that bend with the same wind as the trees.
+    const s = stream(
+      g,
+      detailed ? 18 : 10,
+      '#d9b98a',
+      0.07,
+      (i, t, o) => {
+        const a = R(i * 4.1 + 2) * 6.2832 + t * 0.12 * WU.wind.value;
+        const r = 3.2 + R(i * 2.7 + 5) * 3.1 + Math.sin(t * 0.5 + i) * 0.18;
+        o.set(
+          Math.cos(a) * r,
+          0.25 + R(i * 3.3) * 0.5 + Math.sin(t * 0.9 + i) * 0.08,
+          Math.sin(a) * r
+        );
+      },
+      0.26
+    );
+    updates.push(s.update);
+  }
+
+  if (profile.biome === 'waterfall' || profile.fx.includes('foam')) {
+    // Foam flecks fall away from the authored waterfall anchor (or the centre
+    // of a coastal cut) and fade out with the existing stream opacity curve.
+    const anchor = WATERFALL_ANCHORS[key] ?? [0, 1.2, 0];
+    const s = stream(
+      g,
+      detailed ? 16 : 9,
+      '#eafaff',
+      0.09,
+      (i, t, o) => {
+        const u = (t * 0.28 + R(i * 7.1)) % 1;
+        const a = R(i * 3.9 + 2) * 6.2832;
+        const spread = u * (0.5 + R(i * 5.3) * 0.7);
+        o.set(
+          anchor[0] + Math.cos(a) * spread + WU.wind.value * u * 0.3,
+          anchor[1] - u * 1.1 + Math.sin(t * 1.2 + i) * 0.04,
+          anchor[2] + Math.sin(a) * spread
+        );
+      },
+      0.34
+    );
+    updates.push(s.update);
+  }
+
+  return updates;
+}
+
+/* ------------------------------------------------------------------ */
+/* Facade kit — cheap reusable details for landmark builders           */
+/* ------------------------------------------------------------------ */
+
+export interface FacadeWindowSpec {
+  /** Window centre in the parent group's local space. */
+  x: number;
+  y: number;
+  z: number;
+  /** Nominal opening size (defaults: 0.42 x 0.6). */
+  width?: number;
+  height?: number;
+  /** Recess depth behind the wall plane (default 0.12). */
+  depth?: number;
+  frame?: THREE.ColorRepresentation;
+  glass?: THREE.ColorRepresentation;
+  rotationY?: number;
+}
+
+/**
+ * Recessed dark-glass window with a stone frame. Returns the detail group;
+ * several windows can be collapsed with `mergeByMaterial(parent)` because
+ * all helpers here use cached materials and cached rounded-box geometry.
+ */
+export function facadeWindow(g: THREE.Group, spec: FacadeWindowSpec): THREE.Group {
+  const grp = new THREE.Group();
+  grp.position.set(spec.x, spec.y, spec.z);
+  grp.rotation.y = spec.rotationY ?? 0;
+  g.add(grp);
+  const w = spec.width ?? 0.42;
+  const h = spec.height ?? 0.6;
+  const d = spec.depth ?? 0.12;
+  const frame = MStone(spec.frame ?? '#c2b69c', 0.86, 0.012);
+  const glass = MGlass(spec.glass ?? '#10242f', 0.82, 0.05);
+  const bar = 0.045;
+  add(grp, CB(w * 0.86, h * 0.88, 0.012, 0.004), glass, 0, 0, -d * 0.5);
+  add(grp, CB(w, bar, d + 0.02, 0.008), frame, 0, h * 0.5, 0);
+  add(grp, CB(w, bar, d + 0.02, 0.008), frame, 0, -h * 0.5, 0);
+  add(grp, CB(bar, h, d + 0.02, 0.008), frame, -w * 0.5, 0, 0);
+  add(grp, CB(bar, h, d + 0.02, 0.008), frame, w * 0.5, 0, 0);
+  add(grp, CB(w * 0.5, 0.018, d * 0.9, 0.006), frame, 0, -h * 0.5 - 0.028, d * 0.1);
+  return mergeByMaterial(grp);
+}
+
+export interface CorniceBandSpec {
+  /** Band centre in the parent group's local space. */
+  x: number;
+  y: number;
+  z: number;
+  width?: number;
+  depth?: number;
+  /** Total band height including the projecting lip (default 0.14). */
+  height?: number;
+  color?: THREE.ColorRepresentation;
+  rotationY?: number;
+}
+
+/** String course / cornice: one merged stone mesh with a projecting lip. */
+export function corniceBand(g: THREE.Group, spec: CorniceBandSpec): THREE.Group {
+  const grp = new THREE.Group();
+  grp.position.set(spec.x, spec.y, spec.z);
+  grp.rotation.y = spec.rotationY ?? 0;
+  g.add(grp);
+  const w = spec.width ?? 1.6;
+  const d = spec.depth ?? 0.3;
+  const h = spec.height ?? 0.14;
+  const stone = MStone(spec.color ?? '#cfc4aa', 0.88, 0.014);
+  add(grp, CB(w, h, d, 0.012), stone, 0, 0, 0);
+  add(grp, CB(w * 1.04, h * 0.3, d * 1.12, 0.01), stone, 0, h * 0.55, d * 0.04);
+  return mergeByMaterial(grp);
+}
+
+export interface DoorSurroundSpec {
+  /** Door centre in the parent group's local space. */
+  x: number;
+  y: number;
+  z: number;
+  width?: number;
+  height?: number;
+  depth?: number;
+  jamb?: THREE.ColorRepresentation;
+  panel?: THREE.ColorRepresentation;
+  rotationY?: number;
+}
+
+/** Jambs, lintel, threshold and a recessed dark door leaf (one merged mesh per material). */
+export function doorSurround(g: THREE.Group, spec: DoorSurroundSpec): THREE.Group {
+  const grp = new THREE.Group();
+  grp.position.set(spec.x, spec.y, spec.z);
+  grp.rotation.y = spec.rotationY ?? 0;
+  g.add(grp);
+  const w = spec.width ?? 0.72;
+  const h = spec.height ?? 1.12;
+  const d = spec.depth ?? 0.14;
+  const jamb = MStone(spec.jamb ?? '#b9ad94', 0.86, 0.014);
+  const panel = MWood(spec.panel ?? '#4a3424', 0.88);
+  const bar = 0.075;
+  add(grp, CB(w * 0.92, h * 0.97, 0.02, 0.005), panel, 0, 0, -d * 0.45);
+  add(grp, CB(bar, h + bar, d, 0.012), jamb, -w * 0.5, 0, 0);
+  add(grp, CB(bar, h + bar, d, 0.012), jamb, w * 0.5, 0, 0);
+  add(grp, CB(w + bar * 2, bar, d, 0.012), jamb, 0, h * 0.5 + bar * 0.5, 0);
+  add(grp, CB(w + bar * 2, 0.03, d * 1.2, 0.008), jamb, 0, -h * 0.5 - 0.015, d * 0.1);
+  return mergeByMaterial(grp);
+}
+
+/* ------------------------------------------------------------------ */
 /* Public entry point                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -1404,6 +1644,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
 
   const fx = addWeatherFx(group, profile);
   for (let i = 0; i < fx.length; i++) updates.push(fx[i]);
+  const motion = addSiteMotion(group, key, profile, angle);
+  for (let i = 0; i < motion.length; i++) updates.push(motion[i]);
   const birds = addSoaringBirds(group, profile, angle);
   for (let i = 0; i < birds.length; i++) updates.push(birds[i]);
 

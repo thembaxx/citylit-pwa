@@ -132,7 +132,14 @@ export function createGlobeScene(
       'position',
       new THREE.Float32BufferAttribute(buildStarPositions(starCountFor(detail)), 3)
     ),
-    new THREE.PointsMaterial({ color: '#9ab4e0', size: 0.14, transparent: true, opacity: 0.7 })
+    new THREE.PointsMaterial({
+      color: '#9ab4e0',
+      size: 0.14,
+      map: getSoftTexture(),
+      transparent: true,
+      opacity: 0.7,
+      depthWrite: false,
+    })
   );
   group.add(starField);
 
@@ -441,6 +448,7 @@ export function createGlobeScene(
   const open = (visited: Set<number>, province = 'All') => {
     controller.isOpen = true;
     group.visible = true;
+    reveal = 0;
     idleTime = 0;
     hoveredPinIdx = null;
     refreshPinColors(visited);
@@ -450,6 +458,12 @@ export function createGlobeScene(
 
   const close = () => {
     controller.isOpen = false;
+    // The engine stops calling update() as soon as isOpen flips, so the smooth
+    // conceal path below can never finish. Hide immediately or the globe keeps
+    // rendering through the shared scene behind Places and the landmarks.
+    reveal = 0;
+    group.visible = false;
+    group.scale.setScalar(0.86);
     hoveredPinIdx = null;
     cancelFly();
   };

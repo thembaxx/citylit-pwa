@@ -81,6 +81,9 @@ let textureAnisotropy = 1;
 let normalMapsEnabled = false;
 const trackedCanvasTextures = new Set<THREE.CanvasTexture>();
 const normalTextureCache: Record<string, THREE.CanvasTexture> = {};
+/** Surfaces that share the procedural height -> roughness pipeline. */
+export type RoughnessKind = 'stone' | 'plaster' | 'roof' | 'canvas' | 'wood';
+const roughnessTextureCache: Record<string, THREE.CanvasTexture> = {};
 
 function prepareCanvasTexture(tex: THREE.CanvasTexture): THREE.CanvasTexture {
   tex.anisotropy = textureAnisotropy;
@@ -159,6 +162,65 @@ function heightToNormalTexture(
   tex.repeat.copy(heightTex.repeat);
   normalTextureCache[key] = prepareCanvasTexture(tex);
   return tex;
+}
+
+/**
+ * Derive a low-contrast roughness map from the same height canvas used for
+ * bump/normal detail. Grayscale maps multiply material.roughness in Three, so
+ * values clustered near 0.9 keep the authored roughness while breaking up the
+ * perfectly uniform highlight that makes the miniatures look like plastic.
+ */
+function heightToRoughnessTexture(
+  kind: RoughnessKind,
+  heightTex: THREE.CanvasTexture
+): THREE.CanvasTexture | null {
+  const cached = roughnessTextureCache[kind];
+  if (cached) return cached;
+  const src = heightTex.image as HTMLCanvasElement | undefined;
+  const sctx = src?.getContext('2d', { willReadFrequently: true });
+  if (!src || !sctx) return null;
+  const w = src.width;
+  const h = src.height;
+  const srcData = sctx.getImageData(0, 0, w, h).data;
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const octx = out.getContext('2d');
+  if (!octx) return null;
+  const img = octx.createImageData(w, h);
+  const dst = img.data;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const height = srcData[i] / 255;
+      const variation = (hash2d(x * 0.37, y * 0.53) - 0.5) * 7;
+      const v = Math.max(204, Math.min(250, Math.round(232 + (height - 0.5) * 36 + variation)));
+      dst[i] = v;
+      dst[i + 1] = v;
+      dst[i + 2] = v;
+      dst[i + 3] = 255;
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(out);
+  tex.wrapS = heightTex.wrapS;
+  tex.wrapT = heightTex.wrapT;
+  tex.repeat.copy(heightTex.repeat);
+  roughnessTextureCache[kind] = prepareCanvasTexture(tex);
+  return tex;
+}
+
+const roughnessHeightByKind: Record<RoughnessKind, () => THREE.CanvasTexture> = {
+  stone: getStoneBumpTexture,
+  plaster: getPlasterBumpTexture,
+  roof: getRoofBumpTexture,
+  canvas: getCanvasBumpTexture,
+  wood: getWoodBumpTexture,
+};
+
+/** Shared, cached roughness companion for a procedural surface. */
+export function getSurfaceRoughnessTexture(kind: RoughnessKind): THREE.CanvasTexture | null {
+  return heightToRoughnessTexture(kind, roughnessHeightByKind[kind]());
 }
 
 export function getStoneNormalTexture(): THREE.CanvasTexture | null {

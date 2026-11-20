@@ -11,6 +11,7 @@ import {
   getRoofBumpTexture,
   getRoofNormalTexture,
   getSoftTexture,
+  getSurfaceRoughnessTexture,
   getStoneBumpTexture,
   getStoneNormalTexture,
   getWoodBumpTexture,
@@ -66,14 +67,17 @@ export function surfaceDetail(
   bumpScale: number
 ): Pick<
   THREE.MeshStandardMaterialParameters,
-  'bumpMap' | 'bumpScale' | 'normalMap' | 'normalScale'
+  'bumpMap' | 'bumpScale' | 'normalMap' | 'normalScale' | 'roughnessMap'
 > {
   const detail: Pick<
     THREE.MeshStandardMaterialParameters,
-    'bumpMap' | 'bumpScale' | 'normalMap' | 'normalScale'
+    'bumpMap' | 'bumpScale' | 'normalMap' | 'normalScale' | 'roughnessMap'
   > = {
     bumpMap: heightTextureByKind[kind](),
     bumpScale,
+    // Works alongside normalMap on hardware and keeps the height-map fallback
+    // useful on software GL — Three only treats bump/normal as exclusive.
+    roughnessMap: getSurfaceRoughnessTexture(kind),
   };
   const normalMap = normalMapsActive() ? normalTextureByKind[kind]() : null;
   if (normalMap) {
@@ -204,17 +208,21 @@ export function MCanvas(
 export function MGlass(
   c: THREE.ColorRepresentation,
   opacity = 0.62,
-  r = 0.09,
+  r = 0.055,
   m = 0.42
 ): THREE.MeshPhysicalMaterial {
   const colHex = tmpColor.set(c).getHexString();
   const key = `glass_${colHex}_${opacity.toFixed(2)}_${r.toFixed(2)}_${m.toFixed(2)}`;
   if (matCache[key]) return matCache[key] as THREE.MeshPhysicalMaterial;
   const refractive = opacity < 1;
+  // Tint the body darker than the emissive/lit layers so glass reads as a
+  // shaded void rather than a pale sheet in the miniature lighting.
+  const bodyColor = new THREE.Color(c).multiplyScalar(0.72);
   const mat = new THREE.MeshPhysicalMaterial({
-    color: c,
-    roughness: r,
+    color: bodyColor,
+    roughness: Math.min(r, 0.09),
     metalness: m,
+    envMapIntensity: 1.7,
     // Transmission handles the see-through look; plain alpha blending would
     // sort badly against the miniature plinth and the rain/dissolve layers.
     transparent: !refractive,
@@ -224,7 +232,7 @@ export function MGlass(
     ior: 1.46,
     thickness: 0.18,
     clearcoat: 0.85,
-    clearcoatRoughness: 0.06,
+    clearcoatRoughness: 0.04,
   });
   return cacheMat(key, mat) as THREE.MeshPhysicalMaterial;
 }
@@ -252,7 +260,7 @@ export function litWindowMaterial(opts: {
   const intensity = opts.intensity ?? 0.18;
   const wall = new THREE.Color(opts.wall).getHexString();
   const lit = new THREE.Color(opts.lit ?? '#ffd582').getHexString();
-  const dark = new THREE.Color(opts.dark ?? '#323844').getHexString();
+  const dark = new THREE.Color(opts.dark ?? '#202630').getHexString();
   const key = `${wall}_${lit}_${dark}_${cols}x${rows}_${opts.seed ?? 0}_${chance}_${intensity}`;
   const cached = litWindowCache.get(key);
   if (cached) {
@@ -301,7 +309,9 @@ export function litWindowMaterial(opts: {
     emissive: '#ffffff',
     emissiveMap,
     emissiveIntensity: intensity,
-    roughness: 0.72,
+    roughness: 0.58,
+    metalness: 0.1,
+    envMapIntensity: 1.4,
     ...surfaceDetail('plaster', 0.012),
     side: THREE.DoubleSide,
   });
@@ -462,12 +472,15 @@ export function MWet(
 }
 
 export function G(c: THREE.ColorRepresentation, intensity = 1): THREE.MeshStandardMaterial {
+  // Darker glazing body with the same emissive core: the lamp still glows, but
+  // the unlit glass no longer blows out to a flat saturated highlight.
   const mat = new THREE.MeshStandardMaterial({
-    color: c,
+    color: new THREE.Color(c).multiplyScalar(0.78),
     emissive: c,
     emissiveIntensity: 0.15,
-    roughness: 0.42,
-    metalness: 0.08,
+    roughness: 0.3,
+    metalness: 0.12,
+    envMapIntensity: 1.45,
   });
   mat.userData.i = intensity;
   glowMaterials.push(mat);
@@ -740,14 +753,21 @@ export function tint<T extends THREE.BufferGeometry>(
   fn: (k: THREE.Color, x: number, y: number, z: number) => void
 ): T {
   const p = geo.attributes.position;
+  if (!geo.attributes.normal) geo.computeVertexNormals();
+  const nrm = geo.attributes.normal;
   const c: number[] = [];
   const k = new THREE.Color();
   for (let i = 0; i < p.count; i++) {
     fn(k, p.getX(i), p.getY(i), p.getZ(i));
-    c.push(k.r, k.g, k.b);
+    // A very small normal-driven lift on bevel-ish faces (45°-ish slopes)
+    // reads as worn edges without adding geometry or a second material.
+    const up = nrm ? Math.abs(nrm.getY(i)) : 0;
+    const bevel = THREE.MathUtils.clamp(1 - Math.abs(up - 0.58) * 3.2, 0, 1);
+    const wear = 1 + 0.028 * bevel;
+    c.push(Math.min(1, k.r * wear), Math.min(1, k.g * wear), Math.min(1, k.b * wear));
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(c, 3));
-  geo.computeVertexNormals();
+  if (!nrm) geo.computeVertexNormals();
   return geo;
 }
 
@@ -760,6 +780,8 @@ export interface WeatheringOptions {
   grain?: number;
   /** World-Y span over which contact AO fades; auto-detected when omitted. */
   aoSpan?: number;
+  /** Subtle edge-wear highlight on bevel-ish faces (default 0.025). */
+  edgeWear?: number;
 }
 
 /**
@@ -784,6 +806,7 @@ export function weatherVertexColors<T extends THREE.BufferGeometry>(
   const ao = opts.ao ?? 0.3;
   const exposure = opts.exposure ?? 0.1;
   const grain = opts.grain ?? 0.06;
+  const edgeWear = opts.edgeWear ?? 0.025;
   let minY = Infinity;
   let maxY = -Infinity;
   for (let i = 0; i < p.count; i++) {
@@ -801,10 +824,15 @@ export function weatherVertexColors<T extends THREE.BufferGeometry>(
     const shelter = 1 - THREE.MathUtils.smoothstep(up, -0.4, 0.6);
     const groundAO = (1 - aoFade) * 0.72 + shelter * 0.28;
     const noise = Math.abs(Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453) % 1;
+    // Convex-ish bevels catch a little light; combine with noise so the wear
+    // breaks up instead of outlining every edge uniformly.
+    const bevel = THREE.MathUtils.clamp(1 - Math.abs(Math.abs(up) - 0.58) * 3.2, 0, 1);
+    const worn = 1 + edgeWear * bevel * (0.55 + noise * 0.45);
     const shade =
       (1 - ao * groundAO) *
       (1 + exposure * Math.max(0, up)) *
-      (1 - grain * 0.5 + grain * noise);
+      (1 - grain * 0.5 + grain * noise) *
+      worn;
     colors.setXYZ(i, colors.getX(i) * shade, colors.getY(i) * shade, colors.getZ(i) * shade);
   }
   colors.needsUpdate = true;
@@ -1039,15 +1067,21 @@ function mergeTreeParts(parts: readonly TreePart[]): THREE.BufferGeometry {
     geo.applyMatrix4(treeMergeMatrix);
     treeMergeColor.set(part.c);
     const posAttr = geo.attributes.position;
+    // crownGeo bakes per-lobe hue/value multipliers into a color attribute;
+    // keep them (trunks/branch parts simply have none).
+    const lobeColors = geo.attributes.color as THREE.BufferAttribute | undefined;
     const vertCount = posAttr.count;
     const arr = new Float32Array(vertCount * 3);
     for (let i = 0; i < vertCount; i++) {
       // Soft vertical AO & crown-top sun highlight baked per vertex.
       const vy = posAttr.getY(i);
       const ao = 0.78 + Math.min(1, Math.max(0, (vy - 0.08) / 1.35)) * 0.28;
-      arr[i * 3] = Math.min(1, treeMergeColor.r * ao);
-      arr[i * 3 + 1] = Math.min(1, treeMergeColor.g * ao);
-      arr[i * 3 + 2] = Math.min(1, treeMergeColor.b * ao);
+      const lr = lobeColors ? lobeColors.getX(i) : 1;
+      const lg = lobeColors ? lobeColors.getY(i) : 1;
+      const lb = lobeColors ? lobeColors.getZ(i) : 1;
+      arr[i * 3] = Math.min(1, treeMergeColor.r * ao * lr);
+      arr[i * 3 + 1] = Math.min(1, treeMergeColor.g * ao * lg);
+      arr[i * 3 + 2] = Math.min(1, treeMergeColor.b * ao * lb);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     geos.push(geo);
@@ -1063,23 +1097,56 @@ function mergeTreeParts(parts: readonly TreePart[]): THREE.BufferGeometry {
   return merged;
 }
 
+/**
+ * One canopy cluster = 2–3 asymmetric lobes with distinct value/hue multipliers
+ * baked into a vertex-color attribute. mergeTreeParts keeps those multipliers,
+ * so lobes stay legible inside the single merged, instanced tree geometry.
+ */
 function crownGeo(radius: number, seed: number): THREE.BufferGeometry {
-  const geo = new THREE.IcosahedronGeometry(radius, 1);
-  const p = geo.attributes.position;
-  const a = R(seed * 3 + 1);
-  const b = R(seed * 7 + 4);
-  for (let i = 0; i < p.count; i++) {
-    const X = p.getX(i);
-    const Y = p.getY(i);
-    const Z = p.getZ(i);
-    const d =
-      1 +
-      0.18 * Math.sin(X * (17 + a * 9) + seed) * Math.cos(Z * (13 + b * 7) + Y * 9) +
-      0.07 * Math.sin(Y * 23 + seed * 4);
-    p.setXYZ(i, X * d, Y * d, Z * d);
+  const lobeCount = 2 + Math.floor(R(seed * 5 + 19) * 2);
+  const lobes: THREE.BufferGeometry[] = [];
+  for (let l = 0; l < lobeCount; l++) {
+    const phase = seed * 1.7 + l * 4.3;
+    const rr = radius * (l === 0 ? 0.78 : 0.5 + R(phase * 3 + 1) * 0.2);
+    const geo = new THREE.IcosahedronGeometry(rr, 1);
+    const p = geo.attributes.position;
+    const a = R(phase * 3 + 2);
+    const b = R(phase * 7 + 4);
+    for (let i = 0; i < p.count; i++) {
+      const X = p.getX(i);
+      const Y = p.getY(i);
+      const Z = p.getZ(i);
+      const d =
+        1 +
+        0.2 * Math.sin(X * (15 + a * 8) + phase) * Math.cos(Z * (11 + b * 6) + Y * 8) +
+        0.08 * Math.sin(Y * 21 + phase * 3) +
+        0.05 * Math.cos(X * 7 - Z * 9);
+      p.setXYZ(i, X * d, Y * d * 0.92, Z * d);
+    }
+    const offsetAngle = phase * 2.2;
+    const spread = l === 0 ? 0.03 : radius * (0.22 + R(phase + 9) * 0.16);
+    geo.translate(
+      Math.cos(offsetAngle) * spread,
+      l === 0 ? 0.02 : (R(phase + 3) - 0.5) * radius * 0.34,
+      Math.sin(offsetAngle) * spread
+    );
+    geo.computeVertexNormals();
+    const value = l === 0 ? 1.04 : 0.86 + R(phase + 11) * 0.2;
+    const hue = (R(phase + 13) - 0.5) * 0.08;
+    const cols = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) {
+      cols[i * 3] = value * (1 - hue * 0.5);
+      cols[i * 3 + 1] = value * (1 + hue * 0.2);
+      cols[i * 3 + 2] = value * (1 + hue * 0.8);
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    lobes.push(geo);
   }
-  geo.computeVertexNormals();
-  return geo;
+  const merged = mergeGeometries(lobes, false);
+  lobes.forEach((geo) => geo.dispose());
+  if (!merged) throw new Error('Unable to merge canopy lobes');
+  merged.computeVertexNormals();
+  return merged;
 }
 
 function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
@@ -1129,18 +1196,20 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
   }
 
   const trunkCol = k === 2 ? '#4d3624' : '#4a3a2a';
+  // Taller, slightly thicker trunk and longer branches peek out between the
+  // lowered canopy lobes instead of vanishing completely inside them.
   parts.push({
-    g: new THREE.CylinderGeometry(0.038, 0.092, 0.94, 8),
+    g: new THREE.CylinderGeometry(0.05, 0.105, 1.04, 8),
     c: trunkCol,
-    p: [0, 0.46, 0],
+    p: [0, 0.52, 0],
   });
-  for (let i = 0; i < 3 + (variant > 0 ? 1 : 0); i++) {
-    const a = i * 2.1 + rs(i) * 0.5;
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.7 + rs(i) * 0.5;
     parts.push({
-      g: new THREE.CylinderGeometry(0.014, 0.034, 0.56, 6),
+      g: new THREE.CylinderGeometry(0.016, 0.038, 0.62, 6),
       c: trunkCol,
-      p: [Math.cos(a) * 0.13, 0.88, Math.sin(a) * 0.13],
-      r: [-Math.sin(a) * (k === 2 ? 0.92 : 0.68), 0, -Math.cos(a) * (k === 2 ? 0.92 : 0.68)],
+      p: [Math.cos(a) * 0.16, 0.9, Math.sin(a) * 0.16],
+      r: [-Math.sin(a) * (k === 2 ? 0.96 : 0.74), 0, -Math.cos(a) * (k === 2 ? 0.96 : 0.74)],
     });
   }
   const palettes: Record<number, readonly [string, string, string]> = {
@@ -1149,29 +1218,29 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
     2: ['#7e8d3b', '#98a64a', '#5f6e2d'],
   };
   const cs = palettes[k] ?? palettes[1];
-  const baseY = k === 2 ? 1.12 : 1.05;
-  const count = k === 2 ? 8 : 9 + variant;
+  const baseY = k === 2 ? 1.02 : 0.98;
+  const count = 3 + (variant === 1 ? 1 : 0);
   for (let i = 0; i < count; i++) {
-    const r = 0.19 + rs(i + 7) * 0.15 + (variant === 2 ? 0.03 : 0);
-    const q = (k === 2 ? 0.37 : 0.31) * (1 + (i % 3) * 0.28);
+    const r = 0.29 + rs(i + 7) * 0.09 + (variant === 2 ? 0.025 : 0);
+    const q = k === 2 ? 0.34 : 0.27 + (i % 2) * 0.06;
     const px = Math.cos(i * 2.39 + variant * 0.4) * q;
     const pz = Math.sin(i * 2.39 + variant * 0.4) * q;
-    const py = rs(i + 3) * (k === 2 ? 0.2 : 0.4) + (i > 5 && k !== 2 ? 0.24 : 0);
+    const py = rs(i + 3) * (k === 2 ? 0.12 : 0.2) + (i === count - 1 ? 0.12 : 0);
     parts.push({
       g: crownGeo(r, i + variant * 11 + k * 5),
       c: cs[i % 3],
       p: [px, baseY + py, pz],
-      s: k === 2 ? [1.55, 0.44, 1.55] : [1, 1, 1],
+      s: k === 2 ? [1.6, 0.42, 1.6] : [1, 0.94, 1],
       r: [0, rs(i + 5) * 2, 0],
     });
   }
-  // Fine outer leaflets break up the silhouette and add canopy depth.
-  for (let i = 0; i < 4; i++) {
+  // Small outer leaflets break up the silhouette and add canopy depth.
+  for (let i = 0; i < 3; i++) {
     const ang = rs(i + 40) * 6.2832;
     parts.push({
-      g: crownGeo(0.12 + rs(i + 44) * 0.06, i + variant * 5 + k * 9),
+      g: crownGeo(0.13 + rs(i + 44) * 0.06, i + variant * 5 + k * 9),
       c: cs[(i + 1) % 3],
-      p: [Math.cos(ang) * 0.34, baseY + 0.16 + rs(i + 48) * 0.3, Math.sin(ang) * 0.34],
+      p: [Math.cos(ang) * 0.35, baseY + 0.14 + rs(i + 48) * 0.26, Math.sin(ang) * 0.35],
       s: [1, 0.8, 1],
     });
   }
@@ -1232,9 +1301,9 @@ function buildTreeLodGeometry(k: number, level: 1 | 2): THREE.BufferGeometry {
 
   const trunkCol = k === 2 ? '#4d3624' : '#4a3a2a';
   parts.push({
-    g: new THREE.CylinderGeometry(0.038, 0.09, 0.94, trunkSegs),
+    g: new THREE.CylinderGeometry(0.05, 0.1, 1.02, trunkSegs),
     c: trunkCol,
-    p: [0, 0.46, 0],
+    p: [0, 0.51, 0],
   });
   const palettes: Record<number, readonly [string, string, string]> = {
     0: ['#8a5bc4', '#a77ae0', '#6d45a6'],
@@ -1242,7 +1311,7 @@ function buildTreeLodGeometry(k: number, level: 1 | 2): THREE.BufferGeometry {
     2: ['#7e8d3b', '#98a64a', '#5f6e2d'],
   };
   const cs = palettes[k] ?? palettes[1];
-  const baseY = k === 2 ? 1.12 : 1.15;
+  const baseY = k === 2 ? 1.02 : 1.04;
   if (level === 2) {
     parts.push({
       g: new THREE.IcosahedronGeometry(k === 2 ? 0.52 : 0.48, 0),
@@ -1251,13 +1320,13 @@ function buildTreeLodGeometry(k: number, level: 1 | 2): THREE.BufferGeometry {
       s: k === 2 ? [1.45, 0.46, 1.45] : [1.05, 0.95, 1.05],
     });
   } else {
-    for (let i = 0; i < 4; i++) {
-      const ang = i * 1.57;
-      const q = k === 2 ? 0.32 : 0.24;
+    for (let i = 0; i < 3; i++) {
+      const ang = i * 2.1;
+      const q = k === 2 ? 0.32 : 0.26;
       parts.push({
-        g: new THREE.IcosahedronGeometry(0.28, 0),
+        g: new THREE.IcosahedronGeometry(0.29, 0),
         c: cs[i % 3],
-        p: [Math.cos(ang) * q, baseY + (i === 0 ? 0.18 : 0.04), Math.sin(ang) * q],
+        p: [Math.cos(ang) * q, baseY + (i === 0 ? 0.16 : 0.04), Math.sin(ang) * q],
         s: k === 2 ? [1.5, 0.45, 1.5] : [1, 1, 1],
       });
     }
@@ -1321,8 +1390,15 @@ export function finalizeTreeBatch(g: THREE.Object3D): void {
       im0.setMatrixAt(i, treeMergeMatrix);
       im1.setMatrixAt(i, treeMergeMatrix);
       im2.setMatrixAt(i, treeMergeMatrix);
-      const warm = 0.9 + spec.tint * 0.14;
-      color.setRGB(warm, warm, warm * (0.94 + spec.tint * 0.06));
+      // Per-instance hue (red/green balance) and value jitter: the canopy
+      // colours baked into the geometry stay, but no two trees read identical.
+      const value = 0.92 + R(spec.x * 13.1 + spec.z * 7.7 + spec.s * 3.3) * 0.2;
+      const hueShift = (spec.tint - 0.5) * 0.16;
+      color.setRGB(
+        Math.max(0, value * (1 - hueShift * 0.7)),
+        Math.max(0, value * (1 + hueShift * 0.15)),
+        Math.max(0, value * (1 + hueShift * 0.9))
+      );
       im0.setColorAt(i, color);
       im1.setColorAt(i, color);
       im2.setColorAt(i, color);

@@ -20,7 +20,7 @@ export function configureDioramaShadow(light: THREE.DirectionalLight): void {
 
 /** Subtle cool back light that separates cliffs, domes and trees from the sky. */
 export function createRimLight(): THREE.DirectionalLight {
-  const rim = new THREE.DirectionalLight('#9ec6ff', 0.42);
+  const rim = new THREE.DirectionalLight('#9ec6ff', 0.5);
   rim.position.set(-9, 7, -11);
   rim.castShadow = false;
   rim.target.position.set(0, 0.8, 0);
@@ -28,5 +28,36 @@ export function createRimLight(): THREE.DirectionalLight {
 }
 
 export function updateRimLight(rim: THREE.DirectionalLight, night: number, sun: number): void {
-  rim.intensity = 0.24 + 0.58 * night + 0.08 * (1 - sun);
+  rim.intensity = 0.3 + 0.6 * night + 0.1 * (1 - sun);
+}
+
+/**
+ * Biome colour for the soft, shadowless bounce fill. Unknown/future biome keys
+ * fall back to a neutral cool white so new sites still read as lit miniatures.
+ */
+const BIOME_BOUNCE_COLORS: Record<string, string> = {
+  coastal: '#8fd9e8',
+  waterfall: '#9fe0f2',
+  mountain: '#b9cfe8',
+  savannah: '#f0c987',
+  urban: '#c8c6e0',
+  desert: '#f2b98c',
+  wetland: '#a9d8b2',
+  fynbos: '#e0b7cf',
+};
+
+const DEFAULT_BOUNCE_COLOR = '#dfe8f2';
+
+/** Low, non-shadow-casting bounce fill that carries the site's biome tint. */
+export function createBounceLight(): THREE.DirectionalLight {
+  const bounce = new THREE.DirectionalLight(DEFAULT_BOUNCE_COLOR, 0.22);
+  bounce.position.set(6, 1.5, 9);
+  bounce.castShadow = false;
+  bounce.target.position.set(0, 1, 0);
+  return bounce;
+}
+
+/** Re-tint the bounce fill when the active landmark's biome changes. */
+export function setBounceLightBiome(light: THREE.DirectionalLight, biome?: string): void {
+  light.color.set(BIOME_BOUNCE_COLORS[biome ?? ''] ?? DEFAULT_BOUNCE_COLOR);
 }
