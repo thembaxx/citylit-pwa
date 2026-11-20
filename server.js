@@ -20,7 +20,8 @@ app.use(
   })
 );
 
-app.get('*', (_req, res) => {
+// Express 5 no longer accepts the bare '*' wildcard path.
+app.use((_req, res) => {
   res.sendFile(path.join(distDir, 'index.html'));
 });
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
@@ -50,6 +50,9 @@ export interface EngineCallbacks {
 
 const audioRight = new THREE.Vector3();
 const audioForward = new THREE.Vector3();
+
+/** Default night sky. Shared by the background, fog and particles so they stay in sync. */
+const SKY_COLOR = new THREE.Color('#0e0f13');
 
 export class CitylitEngine {
   readonly container: HTMLElement;
@@ -145,6 +148,9 @@ export class CitylitEngine {
   private autoScaleTimer = 0;
   private autoScaleSamples = 0;
   private autoScaleAcc = 0;
+  /** Dynamic resolution scale used in auto mode to hold the 60fps target. */
+  private renderScale = 1;
+  private appliedRenderScale = -1;
   private isUserOrbiting = false;
   private baseTargetX = 0;
   private baseTargetY = 1.5;
@@ -196,8 +202,8 @@ export class CitylitEngine {
     this.container.appendChild(canvas);
 
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#0e0f13');
-    this.scene.fog = new THREE.FogExp2('#0e0f13', 0.01);
+    this.scene.background = SKY_COLOR.clone();
+    this.scene.fog = new THREE.FogExp2(SKY_COLOR.clone(), 0.01);
 
     this.camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.2, 200);
     this.camera.position.set(11.5, 6.2, 13);
@@ -219,7 +225,7 @@ export class CitylitEngine {
     this.scene.environment = this.envTex;
     this.scene.environmentIntensity = 0.48;
 
-    new HDRLoader().load(
+    new RGBELoader().load(
       '/assets/env/sky.hdr',
       (hdrTex) => {
         if (this.disposed) {
@@ -228,7 +234,7 @@ export class CitylitEngine {
         }
         // Physical sky HDRIs contain extreme >60k-nit sun spikes that clip diffuse PBR albedo under PMREM.
         // Compress luminance > 2.0 with a smooth log knee so specular reflections stay crisp while diffuse fill stays natural.
-        const raw = hdrTex.image?.data as Uint16Array | Float32Array | undefined;
+        const raw = hdrTex.image?.data as unknown as Uint16Array | Float32Array | undefined;
         if (raw) {
           const isFloat32 = raw instanceof Float32Array;
           for (let i = 0; i < raw.length; i += 4) {
@@ -399,13 +405,13 @@ export class CitylitEngine {
     this.dustPoints = new THREE.Points(
       this.dustGeo,
       new THREE.PointsMaterial({
-        color: '#ffd280',
+        color: SKY_COLOR.clone(),
         size: 0.28,
         map: getSoftTexture(),
         transparent: true,
         opacity: 0,
         depthWrite: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
       })
     );
     this.dustPoints.frustumCulled = false;
@@ -668,6 +674,7 @@ export class CitylitEngine {
 
   applyQuality(setting: QualitySetting): void {
     this.qualitySetting = setting;
+    this.renderScale = 1;
     const idx: QualityIndex =
       setting === 'low'
         ? 2
@@ -691,13 +698,8 @@ export class CitylitEngine {
 
   private setQualityIndex(idx: QualityIndex): void {
     this.qualityIndex = idx;
-    const rawPr = [Math.min(devicePixelRatio || 1, 2), Math.min(devicePixelRatio || 1, 1.4), 1][
-      idx
-    ];
-    const pr = this.isSoftwareGl ? 1 : rawPr;
-    this.renderer.setPixelRatio(pr);
-    this.composer.setPixelRatio(pr);
-    this.composer.setSize(window.innerWidth, window.innerHeight);
+    this.appliedRenderScale = -1;
+    this.applyRenderScale();
 
     const highFx = !this.isSoftwareGl && idx === 0;
     const midFx = !this.isSoftwareGl && idx === 1;
@@ -716,6 +718,20 @@ export class CitylitEngine {
       this.setShadowMapSize(idx === 0 ? 2048 : 1024);
       this.renderer.shadowMap.needsUpdate = true;
     }
+  }
+
+  /** Apply the current quality tier's pixel ratio scaled by the 60fps target. */
+  private applyRenderScale(): void {
+    if (this.isSoftwareGl) return;
+    const base = [Math.min(devicePixelRatio || 1, 2), Math.min(devicePixelRatio || 1, 1.4), 1][
+      this.qualityIndex
+    ];
+    const pr = Math.max(0.6, base * this.renderScale);
+    if (Math.abs(this.appliedRenderScale - pr) < 0.001) return;
+    this.appliedRenderScale = pr;
+    this.renderer.setPixelRatio(pr);
+    this.composer.setPixelRatio(pr);
+    this.composer.setSize(window.innerWidth, window.innerHeight);
   }
 
   private isStudio(): boolean {
@@ -1693,20 +1709,10 @@ export class CitylitEngine {
     }
   }
 
-  /** Asynchronously pre-compile common custom shader variants to avoid landmark switch stutters. */
+  /** Pre-compile common custom shader variants to avoid landmark switch stutters. */
   prewarmShaders(): void {
     if (this.warmupDone || this.disposed || this.isSoftwareGl) return;
     this.warmupDone = true;
-    const compileAsync = (
-      this.renderer as THREE.WebGLRenderer & {
-        compileAsync?: (
-          obj: THREE.Object3D,
-          cam: THREE.Camera,
-          targetScene?: THREE.Scene
-        ) => Promise<THREE.Object3D>;
-      }
-    ).compileAsync;
-    if (typeof compileAsync !== 'function') return;
 
     const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
     const warmupGroup = new THREE.Group();
@@ -1721,15 +1727,16 @@ export class CitylitEngine {
       warmupGroup.add(new THREE.Mesh(geo, mats[i]));
     }
     this.scene.add(warmupGroup);
-    void compileAsync
-      .call(this.renderer, warmupGroup, this.camera, this.scene)
-      .catch(() => {
-        // Ignore warmup failures on constrained drivers
-      })
-      .finally(() => {
-        this.scene.remove(warmupGroup);
-        geo.dispose();
-      });
+    try {
+      // r170's compileAsync polls material programs and throws when a shared
+      // material is disposed during boot; the synchronous path prewarms safely.
+      this.renderer.compile(warmupGroup, this.camera, this.scene);
+    } catch {
+      // Ignore warmup failures on constrained drivers
+    } finally {
+      this.scene.remove(warmupGroup);
+      geo.dispose();
+    }
   }
 
   private scheduleNextFrame(): void {
@@ -1786,15 +1793,22 @@ export class CitylitEngine {
     this.shaderTime += dt * this.motionScale;
     WU.t.value = this.shaderTime;
 
-    // Auto quality monitor when qualitySetting === 'auto'
+    // Auto quality monitor: drop a tier when clearly off target, then fine-tune
+    // resolution so the 60fps budget is met without losing shadows or post FX.
     if (this.qualitySetting === 'auto' && !this.isSoftwareGl) {
       this.autoScaleTimer += dt;
       this.autoScaleAcc += dt;
       this.autoScaleSamples++;
-      if (this.autoScaleTimer > 2 && this.autoScaleSamples > 10) {
-        const avgDt = this.autoScaleAcc / this.autoScaleSamples;
-        if (avgDt > 0.04 && this.qualityIndex < 2) {
-          this.setQualityIndex((this.qualityIndex + 1) as QualityIndex);
+      if (this.autoScaleTimer >= 1 && this.autoScaleSamples >= 8) {
+        const avgMs = (this.autoScaleAcc / this.autoScaleSamples) * 1000;
+        if (avgMs > 22 && this.qualityIndex === 0) {
+          this.setQualityIndex(1);
+        } else if (avgMs > 18.5 && this.renderScale > 0.75) {
+          this.renderScale = Math.max(0.75, this.renderScale - 0.1);
+          this.applyRenderScale();
+        } else if (avgMs < 13.5 && this.renderScale < 1) {
+          this.renderScale = Math.min(1, this.renderScale + 0.05);
+          this.applyRenderScale();
         }
         this.autoScaleTimer = 0;
         this.autoScaleAcc = 0;
@@ -1911,6 +1925,8 @@ export class CitylitEngine {
         setContactShadowFade(this.currentGroup, Math.max(0, 1 - Math.min(1, this.dissolveT)));
         this.dustPoints.visible = true;
         const dm = this.dustPoints.material as THREE.PointsMaterial;
+        // Keep the motes the same colour as the live sky/fog, whatever the theme or weather.
+        dm.color.copy(this.scene.background as THREE.Color);
         dm.opacity = Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
         for (let i = 0; i < 160; i++) {
           this.dustPositions[i * 3] = Math.cos(i * 2.1 + this.elapsed * 3) * (1 + (i % 7) * 0.9);
@@ -1937,6 +1953,8 @@ export class CitylitEngine {
         setContactShadowFade(this.currentGroup, progress);
         this.dustPoints.visible = true;
         const dm = this.dustPoints.material as THREE.PointsMaterial;
+        // Keep the motes the same colour as the live sky/fog, whatever the theme or weather.
+        dm.color.copy(this.scene.background as THREE.Color);
         dm.opacity = Math.sin(progress * Math.PI) * 0.85;
         for (let i = 0; i < 160; i++) {
           this.dustPositions[i * 3] = Math.cos(i * 2.1 + this.elapsed * 3) * (1 + (i % 7) * 0.9);

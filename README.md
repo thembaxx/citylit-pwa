@@ -16,5 +16,6 @@ Files: index.html, manifest.webmanifest, sw.js, icons/.
 - Install: Android/desktop Chrome shows an Install button in the search sheet; iPhone: Share > Add to Home Screen.
 - Live weather (Open-Meteo) only works online; offline it falls back to typical conditions.
 - Bump `V` in sw.js (e.g. citylit-v9) whenever you change index.html so users get the update.
-- three.js loads from cdn.jsdelivr.net (cached at runtime). For a fully self-contained build, install `three` with npm and bundle it.
+- three.js is pinned to the latest release (`three@0.187.0` / `@types/three@0.187.0`) and bundled at build time — no CDN dependency.
+- Rendering uses soft shadows only (`PCFSoftShadowMap`), exponential fog, ACES filmic tone mapping, and sky-matched dissolve particles.
 # citylit-pwa
