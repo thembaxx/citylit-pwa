@@ -42,6 +42,7 @@ class AmbientAudioController {
   private brownBuf: AudioBuffer | null = null;
   private whiteBuf: AudioBuffer | null = null;
   private windBand: FilterBand | null = null;
+  private gustBand: FilterBand | null = null;
   private waterBand: FilterBand | null = null;
   private hissBand: FilterBand | null = null;
   private trafficBand: FilterBand | null = null;
@@ -49,6 +50,17 @@ class AmbientAudioController {
   private volume = 0.8;
   private mixer = { wind: 0.8, birds: 0.75, traffic: 0.4 };
   private trafficPassTimer = 3.5;
+  private cricketTimer = 1.2;
+  private winterGustPhase = 0;
+  private seasonMonth = new Date().getMonth() + 1;
+  private tgtSummer = 0.5;
+  private tgtAutumn = 0;
+  private tgtWinter = 0.5;
+  private tgtSpring = 0;
+  private curSummer = 0.5;
+  private curAutumn = 0;
+  private curWinter = 0.5;
+  private curSpring = 0;
   private hapticsEnabled = true;
   private reducedMotion = false;
   private site: AmbientSiteProfile | null = null;
@@ -57,6 +69,31 @@ class AmbientAudioController {
   private spatialEmitters = new Map<string, SpatialEmitter>();
   private listener: SpatialListener | null = null;
   private spatialActive = true;
+
+  constructor() {
+    this.setSeasonMonth(this.seasonMonth, true);
+  }
+
+  /** Swap/morph seasonal audio profile from calendar month (1–12, Southern Hemisphere). */
+  setSeasonMonth(month: number, immediate = false): void {
+    const clamped = Math.max(1, Math.min(12, Math.round(month)));
+    this.seasonMonth = clamped;
+    const angle = ((clamped - 1) / 12) * Math.PI * 2;
+    this.tgtSummer = (Math.cos(angle) + 1) * 0.5;
+    this.tgtWinter = 1 - this.tgtSummer;
+    this.tgtAutumn = Math.max(0, Math.sin(angle));
+    this.tgtSpring = Math.max(0, -Math.sin(angle));
+    if (immediate) {
+      this.curSummer = this.tgtSummer;
+      this.curAutumn = this.tgtAutumn;
+      this.curWinter = this.tgtWinter;
+      this.curSpring = this.tgtSpring;
+    }
+  }
+
+  getSeasonMonth(): number {
+    return this.seasonMonth;
+  }
 
   /** Site-specific sound profile supplied by the diorama kit. */
   setSiteProfile(profile: AmbientSiteProfile | null): void {
@@ -188,6 +225,7 @@ class AmbientAudioController {
     this.brownBuf = makeNoiseBuffer(false);
     this.whiteBuf = makeNoiseBuffer(true);
     this.windBand = makeBand(this.brownBuf, 'bandpass', 500, 0.6);
+    this.gustBand = makeBand(this.whiteBuf, 'bandpass', 1100, 2.2);
     this.waterBand = makeBand(this.brownBuf, 'lowpass', 600, 0.4);
     this.hissBand = makeBand(this.whiteBuf, 'bandpass', 3000, 0.5);
     this.trafficBand = makeBand(this.brownBuf, 'bandpass', 155, 0.72);
@@ -345,11 +383,23 @@ class AmbientAudioController {
       if (emitter.def.kind === 'birds') {
         const clear = 1 - night * 0.7;
         const dry = 1 - rain * 0.85;
-        if (Math.random() < 0.8 * clear * dry) this.emitterChirp(emitter, biome);
-        emitter.timer = (1.5 + Math.random() * 3.1) / Math.max(0.2, this.mixer.birds);
+        const seasonBird =
+          0.55 + this.curSpring * 0.65 + this.curSummer * 0.35 + this.curAutumn * 0.25;
+        if (Math.random() < Math.min(0.95, 0.72 * clear * dry * seasonBird)) {
+          this.emitterChirp(emitter, biome);
+        }
+        emitter.timer = (1.5 + Math.random() * 3.1) / Math.max(0.2, this.mixer.birds * seasonBird);
       } else if (emitter.def.kind === 'insects') {
-        if (night > 0.35 && Math.random() < 1 - rain * 0.7) this.emitterCicada(emitter);
-        emitter.timer = 1.3 + Math.random() * 2.6;
+        const summerWarmth = Math.max(0, (this.curSummer - 0.18) / 0.82);
+        const dry = 1 - rain * 0.75;
+        if (summerWarmth > 0.08 && Math.random() < summerWarmth * dry) {
+          if (night > 0.25) {
+            this.emitterCricket(emitter, 0.6 + 0.5 * summerWarmth);
+          } else {
+            this.emitterCicada(emitter);
+          }
+        }
+        emitter.timer = (1.1 + Math.random() * 2.2) / Math.max(0.4, 0.6 + summerWarmth * 0.8);
       }
     }
   }
@@ -414,6 +464,31 @@ class AmbientAudioController {
       gain.disconnect();
       lfoGain.disconnect();
     };
+  }
+
+  private emitterCricket(emitter: SpatialEmitter, intensity = 1): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    const pulses = 3 + Math.floor(Math.random() * 2);
+    const baseFreq = 4200 + Math.random() * 550;
+    for (let i = 0; i < pulses; i++) {
+      const at = now + i * 0.058;
+      const dur = 0.036;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq, at);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.94, at + dur);
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.022 * intensity, at + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.001, at + dur);
+      osc.connect(gain);
+      gain.connect(emitter.gain);
+      osc.start(at);
+      osc.stop(at + dur + 0.015);
+      osc.onended = () => gain.disconnect();
+    }
   }
 
   toggle(): boolean {
@@ -618,6 +693,33 @@ class AmbientAudioController {
     }
   }
 
+  private cricket(intensity = 1): void {
+    if (!this.ctx || !this.masterGain || this.mixer.birds <= 0.001) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const pulses = 3 + Math.floor(Math.random() * 2);
+    const baseFreq = 4150 + Math.random() * 620;
+    const pan = this.eventPan((Math.random() - 0.5) * 0.72);
+    const peak = 0.02 * intensity * this.mixer.birds;
+    for (let i = 0; i < pulses; i++) {
+      const at = t + i * 0.058;
+      const dur = 0.036;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq, at);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.94, at + dur);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(peak, at + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+      osc.connect(g);
+      this.connectPanned(g, pan);
+      osc.start(at);
+      osc.stop(at + dur + 0.015);
+      osc.onended = () => g.disconnect();
+    }
+  }
+
   update(
     dt: number,
     elapsed: number,
@@ -628,19 +730,60 @@ class AmbientAudioController {
     night: number,
     lightning: number
   ): void {
-    if (!this.ctx || !this.windBand || !this.waterBand || !this.hissBand || !this.trafficBand) {
+    if (
+      !this.ctx ||
+      !this.windBand ||
+      !this.gustBand ||
+      !this.waterBand ||
+      !this.hissBand ||
+      !this.trafficBand
+    ) {
       return;
     }
     const t = this.ctx.currentTime;
 
+    const seasonLerp = Math.min(1, dt * 2.4);
+    this.curSummer += (this.tgtSummer - this.curSummer) * seasonLerp;
+    this.curAutumn += (this.tgtAutumn - this.curAutumn) * seasonLerp;
+    this.curWinter += (this.tgtWinter - this.curWinter) * seasonLerp;
+    this.curSpring += (this.tgtSpring - this.curSpring) * seasonLerp;
+
+    this.winterGustPhase += dt * (0.42 + wind * 0.22 + this.curWinter * 0.32);
+    const gustSwell =
+      0.5 + 0.5 * Math.sin(this.winterGustPhase) * Math.cos(this.winterGustPhase * 0.43 + 0.8);
+
     const mountainBoost = biome === 'mountain' || biome === 'desert' ? 1.25 : 1.0;
-    const windGain = (0.012 + (0.055 * wind) / 3.5) * mountainBoost * this.mixer.wind;
+    const windSeasonScale =
+      1 + this.curWinter * (0.48 + 0.36 * gustSwell) + this.curAutumn * 0.16 - this.curSummer * 0.1;
+    const windGain =
+      (0.012 + (0.055 * wind) / 3.5) * mountainBoost * windSeasonScale * this.mixer.wind;
     this.windBand.g.gain.setTargetAtTime(windGain, t, 0.25);
     this.windBand.fl.frequency.setTargetAtTime(
-      (biome === 'mountain' ? 380 : 300) + 260 * Math.sin(elapsed * 0.35) + wind * 120,
+      (biome === 'mountain' ? 380 : 300) +
+        260 * Math.sin(elapsed * 0.35) +
+        wind * 120 +
+        this.curWinter * (120 + gustSwell * 200) +
+        this.curAutumn * 60,
       t,
       0.3
     );
+    this.windBand.fl.Q.setTargetAtTime(
+      0.58 + this.curWinter * (0.6 + gustSwell * 0.6) + this.curAutumn * 0.18,
+      t,
+      0.35
+    );
+
+    const gustLevel =
+      (this.curWinter * (0.009 + 0.021 * gustSwell) * (0.55 + wind * 0.35) +
+        this.curAutumn * 0.007 * (0.5 + 0.5 * gustSwell) * (0.4 + wind * 0.3)) *
+      mountainBoost *
+      this.mixer.wind;
+    const gustFreq =
+      (980 + gustSwell * 480) * (1 - this.curAutumn * 0.25) +
+      this.curAutumn * (1250 + Math.sin(elapsed * 0.9) * 260);
+    this.gustBand.g.gain.setTargetAtTime(gustLevel, t, 0.28);
+    this.gustBand.fl.frequency.setTargetAtTime(gustFreq, t, 0.32);
+    this.gustBand.fl.Q.setTargetAtTime(0.9 + this.curWinter * 1.6, t, 0.35);
 
     const isSurf = biome === 'coastal' || biome === 'wetland' || kind === 's';
     const isCascade = biome === 'waterfall' || kind === 'f';
@@ -680,6 +823,8 @@ class AmbientAudioController {
       0.3
     );
 
+    const seasonBirdFactor =
+      0.55 + this.curSpring * 0.65 + this.curSummer * 0.35 + this.curAutumn * 0.25;
     if (this.enabled && this.mixer.birds > 0.01) {
       const hasSpatialBirds = this.spatialSources.some((source) => source.kind === 'birds');
       const birdSiteRate =
@@ -692,9 +837,37 @@ class AmbientAudioController {
               : 0.45;
       const spatialBed = hasSpatialBirds ? 0.45 : 1;
       const prob =
-        dt * (1 - night * 0.75) * (1 - rain * 0.8) * birdSiteRate * spatialBed * this.mixer.birds;
+        dt *
+        (1 - night * 0.75) *
+        (1 - rain * 0.8) *
+        birdSiteRate *
+        seasonBirdFactor *
+        spatialBed *
+        this.mixer.birds;
       if (Math.random() < prob) {
         this.chirp(biome);
+      }
+    }
+
+    const summerWarmth = Math.max(0, (this.curSummer - 0.18) / 0.82);
+    if (this.enabled && this.mixer.birds > 0.01 && summerWarmth > 0.05) {
+      this.cricketTimer -= dt;
+      if (this.cricketTimer <= 0) {
+        const biomeCricket = biome === 'desert' ? 0.45 : biome === 'urban' ? 0.55 : 1.0;
+        const cricketProb = summerWarmth * biomeCricket * (0.28 + night * 0.85) * (1 - rain * 0.85);
+        if (Math.random() < cricketProb) {
+          this.cricket(0.65 + 0.45 * summerWarmth);
+        }
+        this.cricketTimer =
+          (0.55 + Math.random() * 1.15) /
+          Math.max(0.35, (0.5 + summerWarmth * 0.8) * this.mixer.birds);
+      }
+      if (this.curSummer > 0.55 && night < 0.3 && biome !== 'urban') {
+        const summerCicadaProb =
+          dt * (this.curSummer - 0.55) * 0.32 * (1 - rain * 0.85) * this.mixer.birds;
+        if (Math.random() < summerCicadaProb) {
+          this.cicada();
+        }
       }
     }
 
@@ -712,9 +885,14 @@ class AmbientAudioController {
       for (let i = 0; i < site.events.length; i++) {
         const event = site.events[i];
         if (event === 'shorebird') {
-          if (Math.random() < density * 0.16 * this.mixer.birds) this.shorebird();
+          if (Math.random() < density * 0.16 * seasonBirdFactor * this.mixer.birds) {
+            this.shorebird();
+          }
         } else if (event === 'cicada') {
-          if (night < 0.35 && Math.random() < density * 0.1 * this.mixer.birds) this.cicada();
+          const cicadaSeason = 0.25 + this.curSummer * 1.25;
+          if (night < 0.35 && Math.random() < density * 0.1 * cicadaSeason * this.mixer.birds) {
+            this.cicada();
+          }
         } else if (night > 0.4 && Math.random() < density * 0.12 * this.mixer.birds) {
           this.frog();
         }

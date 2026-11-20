@@ -680,6 +680,7 @@ export class CitylitEngine {
 
   setSeasonMonth(month: number, immediate = false): void {
     this.weather.setSeasonMonth(month, immediate);
+    ambientAudio.setSeasonMonth(month, immediate);
   }
 
   setSunAltitudeFromSlider(val: number): void {

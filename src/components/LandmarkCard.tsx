@@ -12,10 +12,67 @@ import {
   ShareNetwork,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion, useMotionValue } from 'motion/react';
+import { AnimatePresence, motion, useMotionValue, type Variants } from 'motion/react';
 import { LANDMARKS } from '../data/landmarks';
 import { animate, DURATION, EASE_SMOOTH_OUT, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
+
+interface SlideCustom {
+  dir: number;
+  reduced: boolean;
+}
+
+const headerSlideVariants: Variants = {
+  initial: ({ dir, reduced }: SlideCustom) =>
+    reduced ? { opacity: 1, x: 0, y: 0 } : { opacity: 0, x: dir * 20, y: 4 },
+  animate: ({ reduced }: SlideCustom) => ({
+    opacity: 1,
+    x: 0,
+    y: 0,
+    transition: reduced
+      ? { duration: 0 }
+      : {
+          x: { ...SPRING.surface },
+          y: { ...SPRING.surface },
+          opacity: { duration: DURATION.medium, ease: EASE_SMOOTH_OUT },
+        },
+  }),
+  exit: ({ dir, reduced }: SlideCustom) =>
+    reduced
+      ? { opacity: 0, transition: { duration: 0 } }
+      : {
+          opacity: 0,
+          x: -dir * 14,
+          y: -2,
+          transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT },
+        },
+};
+
+const bodySlideVariants: Variants = {
+  initial: ({ dir, reduced }: SlideCustom) =>
+    reduced ? { opacity: 1, x: 0, y: 0 } : { opacity: 0, x: dir * 18, y: 4 },
+  animate: ({ reduced }: SlideCustom) => ({
+    opacity: 1,
+    x: 0,
+    y: 0,
+    transition: reduced
+      ? { duration: 0 }
+      : {
+          x: { ...SPRING.surface, delay: 0.03 },
+          y: { ...SPRING.surface, delay: 0.03 },
+          opacity: { duration: DURATION.medium, ease: EASE_SMOOTH_OUT, delay: 0.03 },
+        },
+  }),
+  exit: ({ dir, reduced }: SlideCustom) =>
+    reduced
+      ? { opacity: 0, transition: { duration: 0 } }
+      : {
+          opacity: 0,
+          x: -dir * 12,
+          y: -2,
+          transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT },
+        },
+};
 
 interface LandmarkCardProps {
   index: number;
@@ -53,6 +110,18 @@ export function LandmarkCard({
   onVibrate,
 }: LandmarkCardProps) {
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
+  const [{ current: trackedIndex, dir: direction }, setNavState] = useState({
+    current: index,
+    dir: 1,
+  });
+  if (index !== trackedIndex) {
+    const count = LANDMARKS.length;
+    let nextDir = index > trackedIndex ? 1 : -1;
+    if (trackedIndex === count - 1 && index === 0) nextDir = 1;
+    else if (trackedIndex === 0 && index === count - 1) nextDir = -1;
+    setNavState({ current: index, dir: nextDir });
+  }
+  const slideCustom: SlideCustom = { dir: direction, reduced: reducedMotion };
   const cardWrapRef = useRef<HTMLDivElement>(null);
   const holdTimer = useRef<number | null>(null);
   const dragX = useMotionValue(0);
@@ -162,10 +231,11 @@ export function LandmarkCard({
         className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
       >
         <motion.div
-          key={index}
-          initial={{ opacity: 0, y: 10, scale: 0.985 }}
+          initial={reducedMotion ? false : { opacity: 0, y: 12, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: reducedMotion ? 0 : DURATION.slow, ease: EASE_SMOOTH_OUT }}
+          transition={
+            reducedMotion ? { duration: 0 } : { duration: DURATION.slow, ease: EASE_SMOOTH_OUT }
+          }
           onContextMenu={(e) => {
             e.preventDefault();
             openRadial(e.clientX, e.clientY);
@@ -176,7 +246,7 @@ export function LandmarkCard({
             <motion.div
               {...headerDrag}
               style={{ x: dragX }}
-              className="min-w-0 flex-1 cursor-grab touch-none active:cursor-grabbing"
+              className="min-w-0 flex-1 overflow-hidden cursor-grab touch-none active:cursor-grabbing"
               onTouchStart={(e) => {
                 clearHold();
                 const t = e.touches[0];
@@ -185,16 +255,27 @@ export function LandmarkCard({
               onTouchEnd={clearHold}
               onTouchMove={() => clearHold()}
             >
-              <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[11px] [@media(max-width:374px)]:text-[10px] [@media(max-width:374px)]:tracking-[0.08em]">
-                {lm.c}
-              </small>
-              <motion.h1
-                layoutId="landmark-title"
-                transition={reducedMotion ? { duration: 0 } : SPRING.morph}
-                className="mt-1 mb-2.5 font-serif-display italic text-[27px] landscape:text-[21px] landscape:mb-2 [@media(max-height:700px)]:text-[23px] [@media(max-height:700px)]:mb-2 leading-[1.15] text-[#f3efe6] pr-2"
-              >
-                {lm.k}
-              </motion.h1>
+              <AnimatePresence mode="wait" initial={false} custom={slideCustom}>
+                <motion.div
+                  key={index}
+                  custom={slideCustom}
+                  variants={headerSlideVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                >
+                  <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[11px] [@media(max-width:374px)]:text-[10px] [@media(max-width:374px)]:tracking-[0.08em]">
+                    {lm.c}
+                  </small>
+                  <motion.h1
+                    layoutId="landmark-title"
+                    transition={reducedMotion ? { duration: 0 } : SPRING.morph}
+                    className="mt-1 mb-2.5 font-serif-display italic text-[27px] landscape:text-[21px] landscape:mb-2 [@media(max-height:700px)]:text-[23px] [@media(max-height:700px)]:mb-2 leading-[1.15] text-[#f3efe6] pr-2"
+                  >
+                    {lm.k}
+                  </motion.h1>
+                </motion.div>
+              </AnimatePresence>
             </motion.div>
             <div className="flex items-center gap-1.5 shrink-0">
               {[
@@ -233,9 +314,21 @@ export function LandmarkCard({
             </div>
           </div>
 
-          <p className="text-[13.5px] landscape:text-[12.5px] leading-relaxed text-[#a9a69e] m-0 landscape:line-clamp-2 [@media(max-height:700px)]:line-clamp-2">
-            {lm.f}
-          </p>
+          <div className="overflow-hidden">
+            <AnimatePresence mode="wait" initial={false} custom={slideCustom}>
+              <motion.p
+                key={index}
+                custom={slideCustom}
+                variants={bodySlideVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="text-[13.5px] landscape:text-[12.5px] leading-relaxed text-[#a9a69e] m-0 landscape:line-clamp-2 [@media(max-height:700px)]:line-clamp-2"
+              >
+                {lm.f}
+              </motion.p>
+            </AnimatePresence>
+          </div>
 
           <div className="flex items-center gap-2.5 mt-3.5 landscape:mt-2.5 [@media(max-height:700px)]:mt-2.5">
             <motion.button
