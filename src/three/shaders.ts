@@ -85,7 +85,7 @@ const normalTextureCache: Record<string, THREE.CanvasTexture> = {};
 export type RoughnessKind = 'stone' | 'plaster' | 'roof' | 'canvas' | 'wood';
 const roughnessTextureCache: Record<string, THREE.CanvasTexture> = {};
 
-function prepareCanvasTexture(tex: THREE.CanvasTexture): THREE.CanvasTexture {
+export function prepareCanvasTexture(tex: THREE.CanvasTexture): THREE.CanvasTexture {
   tex.anisotropy = textureAnisotropy;
   tex.generateMipmaps = true;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
@@ -407,6 +407,10 @@ export function getCanvasBumpTexture(): THREE.CanvasTexture {
   prepareCanvasTexture(tex);
   canvasBumpCache = tex;
   return tex;
+}
+
+export function getBrushedNormalTexture(): THREE.CanvasTexture | null {
+  return heightToNormalTexture('brushed', getBrushedRoughnessTexture(), 3);
 }
 
 export function getBrushedRoughnessTexture(): THREE.CanvasTexture {

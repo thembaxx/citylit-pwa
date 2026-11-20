@@ -418,6 +418,33 @@ body,
   background: rgba(255, 255, 255, 0.28);
 }
 
+/* Instrument-style compass on the left edge, vertically centered. Only the
+   needle rotates (via an SVG transform set by Compass.tsx); the bezel and
+   cardinal letters stay upright. */
+.compass {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  /* Center the 52px dial on the viewport: top is mid-screen, then pull up by half its height. */
+  margin-top: -26px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, rgba(38, 42, 52, 0.94), rgba(12, 14, 20, 0.9));
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+  backdrop-filter: blur(10px) saturate(1.15);
+  color: #fff;
+  pointer-events: none;
+}
+
 /* Weather island keeps clear of the landmark card, whatever height the card takes. */
 .weather-island {
   position: fixed;

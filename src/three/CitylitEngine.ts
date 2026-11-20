@@ -36,7 +36,12 @@ import {
 } from './builders/primitives';
 import { createGlobeScene, type GlobeController } from './globeScene';
 import { createPlacesScene, type PlacesController, type PlacesSelectionInfo } from './placesScene';
-import { createMiniaturePass, type MiniaturePass, type MiniatureTuning } from './postfx';
+import {
+  createDitherPass,
+  createMiniaturePass,
+  type MiniaturePass,
+  type MiniatureTuning,
+} from './postfx';
 import { configureTextureQuality, getSoftTexture, installDissolveShader, WU } from './shaders';
 import {
   configureDioramaShadow,
@@ -80,9 +85,9 @@ export class CitylitEngine {
 
   readonly miniatureTuning: MiniatureTuning = {
     focusY: 0.49,
-    focusRange: 0.2,
-    blur: 1.7,
-    vignette: 0.2,
+    focusRange: 0.24,
+    blur: 2.0,
+    vignette: 0.22,
     aperture: 1.0,
   };
 
@@ -94,6 +99,7 @@ export class CitylitEngine {
   private readonly bloomPass: UnrealBloomPass;
   private readonly miniaturePass: MiniaturePass;
   private readonly smaaPass: SMAAPass;
+  private readonly ditherPass: ReturnType<typeof createDitherPass>;
 
   private readonly keyLight: THREE.DirectionalLight;
   private readonly fillLight: THREE.DirectionalLight;
@@ -202,6 +208,8 @@ export class CitylitEngine {
     this.container = container;
     this.callbacks = callbacks;
     installDissolveShader();
+    // Handle for browser evals and perf measurements.
+    (window as { citylitEngine?: CitylitEngine }).citylitEngine = this;
 
     this.isSoftwareGl = CitylitEngine.detectSoftwareGl();
 
@@ -253,7 +261,7 @@ export class CitylitEngine {
     this.roomEnvTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.envTex = this.roomEnvTex;
     this.scene.environment = this.envTex;
-    this.scene.environmentIntensity = 0.48;
+    this.scene.environmentIntensity = 0.6;
 
     new HDRLoader().load(
       '/assets/env/sky.hdr',
@@ -345,14 +353,17 @@ export class CitylitEngine {
     this.n8aoPass.configuration.intensity = 2.4;
     this.n8aoPass.configuration.color.set('#000000');
     this.n8aoPass.setQualityMode('Performance');
+    // Depth-aware AO is the backstop for every landmark interior; hardware
+    // gets the much sharper pass. Software GL stays cheap for the main view.
+    if (!this.isSoftwareGl) this.n8aoPass.setQualityMode('High');
 
     this.bloomPass = new UnrealBloomPass(
       new THREE.Vector2(
         Math.max(1, Math.floor(window.innerWidth * 0.5)),
         Math.max(1, Math.floor(window.innerHeight * 0.5))
       ),
-      0.26,
-      0.5,
+      0.18,
+      0.62,
       0.9
     );
     const baseBloomSetSize = this.bloomPass.setSize.bind(this.bloomPass);
@@ -370,6 +381,8 @@ export class CitylitEngine {
     // linear HDR buffer that the earlier passes operate on.
     this.composer.addPass(this.miniaturePass);
     this.composer.addPass(this.smaaPass);
+    this.ditherPass = createDitherPass();
+    this.composer.addPass(this.ditherPass);
 
     // Plinth & glowing ring
     this.plinthGroup = new THREE.Group();
@@ -2074,7 +2087,7 @@ export class CitylitEngine {
     }
 
     if (this.globe.isOpen) {
-      this.globe.update(dt, this.elapsed, this.motionScale);
+      this.globe.update(dt, this.elapsed, this.motionScale, this.keyLight);
       this.renderer.render(this.globe.group, this.globe.camera);
     } else if (this.places.isOpen) {
       this.weather.update(dt, this.elapsed, {

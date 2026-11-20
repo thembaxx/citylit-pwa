@@ -116,6 +116,35 @@ export interface MiniaturePass extends ShaderPass {
   applyTuning(tuning: Partial<MiniatureTuning>): void;
 }
 
+const DitherShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    varying vec2 vUv;
+    void main() {
+      vec4 c = texture2D(tDiffuse, vUv);
+      // Ordered-value dither: kicks posterization bands of the 8-bit grid up
+      // by a half-step per pixel. Cheap at full resolution, visible only at 1/4.
+      float u = fract(sin(dot(vUv, vec2(127.1, 311.7))) * 43758.5453);
+      gl_FragColor = vec4(c.rgb + vec3(u * 0.0078 - 0.0039), c.a);
+    }
+  `,
+};
+
+/** Ordered-dither pass; runs last on the final sRGB pixels. */
+export function createDitherPass(): ShaderPass {
+  return new ShaderPass(DitherShader);
+}
+
 export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}): MiniaturePass {
   const pass = new ShaderPass(MiniatureShader) as MiniaturePass;
   pass.material.toneMapped = true;

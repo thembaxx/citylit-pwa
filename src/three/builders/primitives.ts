@@ -19,6 +19,8 @@ import {
   grassWindy,
   lights,
   normalMapsActive,
+  getBrushedNormalTexture,
+  prepareCanvasTexture,
   waterize,
   windy,
 } from '../shaders';
@@ -153,20 +155,74 @@ export function updateWetSurfaces(rain: number): void {
   }
 }
 
+let roofDirtCache: THREE.CanvasTexture | null = null;
+
+/**
+ * Procedural roof-face map: flat base tone plus a mix of dark grime and pale
+ * dust splatter with faint vertical streaks. Reused at 0.8 opacity by
+ * MRoof({ dirty: true }) so repeated landmarks share one variation-rich map.
+ */
+export function getRoofDirtMap(): THREE.CanvasTexture {
+  if (roofDirtCache) return roofDirtCache;
+  const size = 192;
+  const c = document.createElement('canvas');
+  c.width = size;
+  c.height = size;
+  const ctx = c.getContext('2d')!;
+  // Strength is baked in: there is no mapIntensity on materials in this
+  // Three version, so the map colors carry the dirt modulation directly.
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = '#5c4332';
+  ctx.fillRect(0, 0, size, size);
+  // Splatter patches: darker grime and lighter airborne dust.
+  ctx.globalAlpha = 0.62;
+  for (let i = 0; i < 420; i++) {
+    const r = (Math.random() * 3 + 1.2) * Math.max(size / 24, 1.5);
+    const x = Math.random() * size + r;
+    const y = Math.random() * size + r;
+    ctx.fillStyle = Math.random() < 0.45 ? '#322618' : '#f1e5ca';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Faint streaks where roof courses run diagonally.
+  ctx.globalAlpha = 0.1;
+  for (let i = 0; i < 260; i++) {
+    const x = Math.random() * size;
+    const t = Math.random();
+    ctx.strokeStyle = `rgba(0,0,0,${0.05 * (0.3 + 0.7 * t)})`;
+    ctx.lineWidth = Math.random() < 0.5 ? 1 : 2;
+    ctx.beginPath();
+    ctx.moveTo(x, -size * Math.random() * 0.6);
+    ctx.lineTo(x + size * Math.random() * 0.3, size + size * Math.random() * 0.4);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  const tex = prepareCanvasTexture(new THREE.CanvasTexture(c));
+  tex.colorSpace = THREE.SRGBColorSpace;
+  roofDirtCache = tex;
+  return tex;
+}
+
 export function MRoof(
   c: THREE.ColorRepresentation,
   r = 0.8,
-  bumpScale = 0.032
+  bumpScale = 0.032,
+  opts?: { dirty?: boolean }
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
-  const key = `roof_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
+  const key = `roof_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}${opts?.dirty ? '_d' : ''}`;
   if (matCache[key]) return matCache[key];
-  const mat = new THREE.MeshStandardMaterial({
+  // Thin gloss on the roof ridge so it separates from the dark thatch below.
+  const mat = new THREE.MeshPhysicalMaterial({
     color: c,
     roughness: r,
     metalness: 0.03,
+    clearcoat: 0.1,
+    clearcoatRoughness: 0.35,
     ...surfaceDetail('roof', bumpScale),
   });
+  if (opts?.dirty) mat.map = getRoofDirtMap();
   return cacheMat(key, mat);
 }
 
@@ -178,12 +234,16 @@ export function MSteel(
   const colHex = tmpColor.set(c).getHexString();
   const key = `steel_${colHex}_${r.toFixed(2)}_${m.toFixed(2)}`;
   if (matCache[key]) return matCache[key];
+  // Stronger specular than the earlier pass: steel reads as a true polished
+  // metal, with tangent-space normals for the swept strokes.
   const mat = new THREE.MeshStandardMaterial({
     color: c,
     roughness: r,
     metalness: m,
-    envMapIntensity: 1.15,
+    envMapIntensity: 1.35,
     roughnessMap: getBrushedRoughnessTexture(),
+    normalMap: getBrushedNormalTexture(),
+    normalScale: new THREE.Vector2(2.5, 2.5),
   });
   return cacheMat(key, mat);
 }
@@ -562,7 +622,7 @@ export function mergeByMaterial(g: THREE.Group): THREE.Group {
 export const B = (w: number, h: number, d: number): THREE.BoxGeometry =>
   new THREE.BoxGeometry(w, h, d);
 
-export function CB(w: number, h: number, d: number, r = 0.04, segs = 2): THREE.BufferGeometry {
+export function CB(w: number, h: number, d: number, r = 0.04, segs = 3): THREE.BufferGeometry {
   const cr = Math.min(r, Math.min(w, h, d) * 0.42);
   const key = `cb_${w.toFixed(3)}_${h.toFixed(3)}_${d.toFixed(3)}_${cr.toFixed(3)}_${segs}`;
   if (geoCache[key]) return geoCache[key];
@@ -677,7 +737,8 @@ export function gableRoofGeo(
     bevelEnabled: true,
     bevelSize: 0.015,
     bevelThickness: 0.015,
-    bevelSegments: 1,
+    bevelSegments: 2,
+    curveSegments: 16,
   }).translate(0, 0, -hd / 2);
   return cacheGeo(key, geo);
 }
@@ -700,8 +761,8 @@ export function capeDutchGableGeo(w = 0.8, h = 0.72, depth = 0.14): THREE.Buffer
     bevelEnabled: true,
     bevelSize: 0.014,
     bevelThickness: 0.014,
-    bevelSegments: 2,
-    curveSegments: 12,
+    bevelSegments: 3,
+    curveSegments: 14,
   }).translate(0, 0, -depth / 2);
   return cacheGeo(key, geo);
 }
@@ -724,8 +785,8 @@ export function archGeo(w: number, h: number, rArch: number, depth: number): THR
     bevelEnabled: true,
     bevelSize: 0.015,
     bevelThickness: 0.015,
-    bevelSegments: 1,
-    curveSegments: 14,
+    bevelSegments: 2,
+    curveSegments: 18,
   }).translate(0, 0, -depth / 2);
   return cacheGeo(key, geo);
 }
@@ -886,7 +947,7 @@ export function rock(
     const ao = Math.min(1, Math.max(0, (Y + h * 0.5) / Math.max(0.2, h * 0.28)));
     c.lerp(aoDark, (1 - ao) * 0.5);
   });
-  weatherVertexColors(gm, { ao: 0.22, exposure: 0.1, grain: 0.05 });
+  weatherVertexColors(gm, { ao: 0.3, exposure: 0.16, grain: 0.07 });
   return add(
     g,
     gm,
@@ -1542,12 +1603,19 @@ export function colonialHouse(
   add(
     grp,
     gableRoofGeo(w * 0.96, d * 0.96, h * 0.42, 0.06),
-    MRoof(roof, 0.82),
+    MRoof(roof, 0.82, 0.032, { dirty: true }),
     0,
     y0 + h + 0.06,
     0
   );
-  add(grp, CB(0.07, 0.06, d + 0.16, 0.02), MRoof(roof, 0.74), 0, y0 + h + h * 0.42 + 0.04, 0);
+  add(
+    grp,
+    CB(0.07, 0.06, d + 0.16, 0.02),
+    MRoof(roof, 0.74, 0.032, { dirty: true }),
+    0,
+    y0 + h + h * 0.42 + 0.04,
+    0
+  );
   const chimY = y0 + h + h * 0.22;
   add(grp, CB(0.16, 0.34, 0.16, 0.02), MStone('#8d7660', 0.9), w * 0.28, chimY, -d * 0.2);
   add(grp, CB(0.21, 0.05, 0.21, 0.01), stoneMat, w * 0.28, chimY + 0.19, -d * 0.2);

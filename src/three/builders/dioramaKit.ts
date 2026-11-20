@@ -1367,8 +1367,12 @@ export function facadeWindow(g: THREE.Group, spec: FacadeWindowSpec): THREE.Grou
   const d = spec.depth ?? 0.12;
   const frame = MStone(spec.frame ?? '#c2b69c', 0.86, 0.012);
   const glass = MGlass(spec.glass ?? '#10242f', 0.82, 0.05);
+  // Seal band behind the glass, slightly larger and darker than the glass so
+  // the panel-to-glass transition reads as a glass frame (a recessed rim).
+  const seal = MGlass(spec.glass ?? '#10242f', 0.55, 0.07);
   const bar = 0.045;
-  add(grp, CB(w * 0.86, h * 0.88, 0.012, 0.004), glass, 0, 0, -d * 0.5);
+  add(grp, CB(w * 0.86 + 0.006, h * 0.88 + 0.006, 0.012, 0.012), seal, 0, 0, -d * 0.5 + 0.004);
+  add(grp, CB(w * 0.86, h * 0.88, 0.012, 0.012), glass, 0, 0, -d * 0.5);
   add(grp, CB(w, bar, d + 0.02, 0.008), frame, 0, h * 0.5, 0);
   add(grp, CB(w, bar, d + 0.02, 0.008), frame, 0, -h * 0.5, 0);
   add(grp, CB(bar, h, d + 0.02, 0.008), frame, -w * 0.5, 0, 0);

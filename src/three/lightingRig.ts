@@ -5,7 +5,9 @@ export const DIORAMA_SHADOW_EXTENT = 3.6;
 
 /** Tight ortho shadow frustum and bias tuned for the 3x3 isometric slice. */
 export function configureDioramaShadow(light: THREE.DirectionalLight): void {
-  light.shadow.mapSize.set(2048, 2048);
+  // 4096 means real contact shadows under fine architectural detail; the
+  // depth bias keeps self-shadowing artifacts off the miniature scale.
+  light.shadow.mapSize.set(4096, 4096);
   const cam = light.shadow.camera;
   cam.left = -DIORAMA_SHADOW_EXTENT;
   cam.right = DIORAMA_SHADOW_EXTENT;
@@ -14,8 +16,8 @@ export function configureDioramaShadow(light: THREE.DirectionalLight): void {
   cam.near = 0.5;
   cam.far = 60;
   cam.updateProjectionMatrix();
-  light.shadow.bias = -0.0005;
-  light.shadow.normalBias = 0.02;
+  light.shadow.bias = -0.0004;
+  light.shadow.normalBias = 0.03;
 }
 
 /** Subtle cool back light that separates cliffs, domes and trees from the sky. */

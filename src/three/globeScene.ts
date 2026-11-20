@@ -30,6 +30,9 @@ const OVERVIEW_ZOOM = 9.7;
 const PROVINCE_ZOOM = 7.2;
 const UP = new THREE.Vector3(0, 1, 0);
 
+const globeDayRim = new THREE.Color('#7f95b2');
+const globeDuskRim = new THREE.Color('#ffb07a');
+
 type DimMaterial = THREE.PointsMaterial | THREE.LineBasicMaterial;
 
 export interface GlobeController {
@@ -44,7 +47,7 @@ export interface GlobeController {
   flyToProvince: (provinceName: string) => void;
   refreshPinColors: (visited: Set<number>) => void;
   setActiveProvince: (provinceName: string) => void;
-  update: (dt: number, elapsed: number, motionScale: number) => void;
+  update: (dt: number, elapsed: number, motionScale: number, keyLight?: THREE.DirectionalLight) => void;
   hoverPin: (ndcX: number, ndcY: number, radiusPx?: number) => number | null;
   clearHover: () => void;
   pickPin: (ndcX: number, ndcY: number, radiusPx?: number) => number | null;
@@ -98,19 +101,22 @@ export function createGlobeScene(
   );
   group.add(sphere);
 
-  // Tighter glow atmosphere rim
+  // Tighter glow atmosphere rim. The glow color is a uniform so the
+  // sunset/dawn tint can sweep it during the day (see update()).
+  const atmosphereMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uGlow: { value: new THREE.Vector3(0.28, 0.55, 0.95) } },
+    vertexShader:
+      'varying vec3 N,V;void main(){N=normalize(normalMatrix*normal);vec4 p=modelViewMatrix*vec4(position,1.);V=normalize(-p.xyz);gl_Position=projectionMatrix*p;}',
+    fragmentShader:
+      'uniform vec3 uGlow;varying vec3 N,V;void main(){float f=pow(1.-abs(dot(N,V)),4.);gl_FragColor=vec4(uGlow,f*.55);}',
+  });
   const atmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(GLOBE_RADIUS * 1.045, Math.max(20, Math.round(40 * detail)), Math.max(14, Math.round(28 * detail))),
-    new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-      vertexShader:
-        'varying vec3 N,V;void main(){N=normalize(normalMatrix*normal);vec4 p=modelViewMatrix*vec4(position,1.);V=normalize(-p.xyz);gl_Position=projectionMatrix*p;}',
-      fragmentShader:
-        'varying vec3 N,V;void main(){float f=pow(1.-abs(dot(N,V)),4.);gl_FragColor=vec4(.28,.55,.95,f*.55);}',
-    })
+    atmosphereMat
   );
   group.add(atmosphere);
 
@@ -468,7 +474,7 @@ export function createGlobeScene(
     cancelFly();
   };
 
-  const update = (dt: number, elapsed: number, motionScale: number) => {
+  const update = (dt: number, elapsed: number, motionScale: number, keyLight?: THREE.DirectionalLight) => {
     // Smooth reveal / conceal instead of a hard visibility toggle.
     const target = controller.isOpen ? 1 : 0;
     if (reveal !== target) {
@@ -529,6 +535,15 @@ export function createGlobeScene(
       );
       (pin.material as THREE.MeshBasicMaterial).opacity = suppressed ? 0.5 : 1;
     });
+
+    // Warm the globe's rim with the sun direction: cool at day, amber as the
+    // sun drops — the same key light weather drives, so the sweep shows up.
+    const sunAlt = keyLight ? THREE.MathUtils.clamp(keyLight.position.y / 34, -0.35, 0.9) : 0.5;
+    const duskBlend = THREE.MathUtils.clamp(THREE.MathUtils.mapLinear(sunAlt, 0.1, -0.3, 0, 1), 0, 1);
+    atmosphereMat.uniforms.uGlow.value
+      .copy(globeDayRim)
+      .lerp(globeDuskRim, duskBlend);
+
     controls.update();
   };
 

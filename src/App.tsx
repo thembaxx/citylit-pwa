@@ -12,6 +12,7 @@ import {
 import { ambientAudio } from './audio/ambientAudio';
 import { AudioVisualizerBar } from './components/AudioVisualizerBar';
 import { BootSplash } from './components/BootSplash';
+import { Compass } from './components/Compass';
 import { GalleryModal } from './components/GalleryModal';
 import { GlobeOverlay } from './components/GlobeOverlay';
 import { InfoDrawer } from './components/InfoDrawer';
@@ -933,6 +934,9 @@ export function App() {
           onTriggerRainbow={() => engineRef.current?.toggleRainRainbow()}
           onToggleGlobe={toggleGlobe}
         />
+
+        {/* Compass */}
+        <Compass getEngine={() => engineRef.current} />
 
         {/* Bottom Landmark Card */}
         <LandmarkCard

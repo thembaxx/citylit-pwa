@@ -331,6 +331,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const liveClearSky = new THREE.Color('#3b6490');
   const liveOvercastSky = new THREE.Color('#4d5560');
   const liveStormSky = new THREE.Color('#232733');
+  // Overcast shifts the ground-layer fog toward a warm ochre cast.
+  const overcastFogWarm = new THREE.Color('#908560');
 
   // Southern Hemisphere seasonal lighting palette helpers (zero-GC pre-allocated)
   const initialSeason = monthToSeasonWeights(new Date().getMonth() + 1);
@@ -546,6 +548,12 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
           sunGlowTmp,
           hor * (1 - wStudio) * (0.18 + 0.14 * seasonCurrent.warmth) * (1 - wDay * 0.65)
         );
+      // Warm the overcast fog: thick cloud bands give the ground layer a
+      // subtle ochre cast instead of the flat gray of clear-sky fog.
+      s.fog.color.lerp(
+        overcastFogWarm,
+        Math.min(1, Math.max(0, current.cover - 0.4) * 1.2)
+      );
     }
 
     starMat.opacity =
@@ -619,7 +627,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     seasonHemiGroundTmp.copy(winterHemiGround).lerp(summerHemiGround, seasonCurrent.warmth);
     hemiLight.color.copy(seasonHemiSkyTmp);
     hemiLight.groundColor.copy(seasonHemiGroundTmp);
-    hemiLight.intensity = (0.36 + 0.08 * seasonCurrent.warmth) * day + 0.34 * (1 - day);
+    hemiLight.intensity = (0.46 + 0.08 * seasonCurrent.warmth) * day + 0.34 * (1 - day);
 
     // Studio/catalog look: smoothly blend toward flat neutral catalog lighting.
     if (wStudio > 0.001) {
