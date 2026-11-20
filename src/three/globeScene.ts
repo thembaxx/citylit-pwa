@@ -48,6 +48,8 @@ export interface GlobeController {
   flyToProvince: (provinceName: string) => void;
   refreshPinColors: (visited: Set<number>) => void;
   update: (dt: number, elapsed: number, motionScale: number) => void;
+  hoverPin: (ndcX: number, ndcY: number) => number | null;
+  clearHover: () => void;
   pickPin: (ndcX: number, ndcY: number) => number | null;
   zoomBy: (factor: number) => void;
   setAspect: (aspect: number) => void;
@@ -308,6 +310,7 @@ export function createGlobeScene(
 
   let flyGoal: THREE.Vector3 | null = null;
   let isOpen = false;
+  let hoveredPinIdx: number | null = null;
 
   const flyTo = (lat: number, lon: number, zoom = 7.4) => {
     flyGoal = latLonToVec3(lat, lon, zoom);
@@ -327,6 +330,7 @@ export function createGlobeScene(
     controller.isOpen = true;
     group.visible = true;
     controls.enabled = true;
+    hoveredPinIdx = null;
     refreshPinColors(visited);
     flyTo(-28.9, 24.8, 9.7);
   };
@@ -336,6 +340,7 @@ export function createGlobeScene(
     controller.isOpen = false;
     group.visible = false;
     controls.enabled = false;
+    hoveredPinIdx = null;
   };
 
   const update = (dt: number, elapsed: number, motionScale: number) => {
@@ -346,14 +351,37 @@ export function createGlobeScene(
         flyGoal = null;
       }
     }
-    pins.forEach((pin) => {
+    pins.forEach((pin, idx) => {
       const phase = (pin.userData.p as number) + elapsed * 2.5 * motionScale;
-      pin.scale.setScalar(1 + 0.35 * Math.sin(phase));
+      const baseScale = 1 + 0.35 * Math.sin(phase);
+      pin.scale.setScalar(hoveredPinIdx === idx ? Math.max(baseScale, 1.55) : baseScale);
     });
     controls.update();
   };
 
   const raycaster = new THREE.Raycaster();
+  const hoverVec = new THREE.Vector2();
+  const hoverPin = (ndcX: number, ndcY: number): number | null => {
+    if (!isOpen) {
+      hoveredPinIdx = null;
+      return null;
+    }
+    hoverVec.set(ndcX, ndcY);
+    raycaster.setFromCamera(hoverVec, camera);
+    const hits = raycaster.intersectObjects(pins, false);
+    if (!hits.length) {
+      hoveredPinIdx = null;
+      return null;
+    }
+    const idx = hits[0].object.userData.i;
+    hoveredPinIdx = typeof idx === 'number' ? idx : null;
+    return hoveredPinIdx;
+  };
+
+  const clearHover = () => {
+    hoveredPinIdx = null;
+  };
+
   const pickPin = (ndcX: number, ndcY: number): number | null => {
     if (!isOpen) return null;
     raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
@@ -396,6 +424,8 @@ export function createGlobeScene(
     flyToProvince,
     refreshPinColors,
     update,
+    hoverPin,
+    clearHover,
     pickPin,
     zoomBy,
     setAspect,
