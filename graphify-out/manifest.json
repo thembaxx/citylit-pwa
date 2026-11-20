@@ -223,9 +223,9 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795200848.228941,
-    "seen": 1795200953.9621878,
-    "ast_hash": "5604c9229e795d3fa6d4f7dde1d86536",
+    "mtime": 1795204022.7692728,
+    "seen": 1795204055.0476687,
+    "ast_hash": "ce1f5d3903a8654956c41c2c5684a46f",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -295,10 +295,10 @@
     "semantic_hash": "16860da8295644f58d7b83c6bebf7bad"
   },
   "src/three/shaders.ts": {
-    "mtime": 1795187027.273702,
-    "seen": 1795194883.6610048,
-    "ast_hash": "5b85f63817db4f710662533b6aafdd23",
-    "semantic_hash": "5b85f63817db4f710662533b6aafdd23"
+    "mtime": 1795203944.1638188,
+    "seen": 1795204055.0476997,
+    "ast_hash": "0f77e7a294b20b18b8a979ddb6eb1504",
+    "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
     "mtime": 1795100018.3512716,
@@ -502,6 +502,12 @@
     "mtime": 1795200869.1985445,
     "seen": 1795200953.9622269,
     "ast_hash": "27ce5e343c0eb61b372f1b6bdfe370b6",
+    "semantic_hash": ""
+  },
+  "writing/the-naturalists-year.md": {
+    "mtime": 1795202280.9980206,
+    "seen": 1795204055.047743,
+    "ast_hash": "f368afa678455bb3a4ffb7069e59aead",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

@@ -144,12 +144,7 @@ export class CitylitEngine {
   private shadowFrameCounter = 0;
   private hasAnimatedShadowScene = false;
   private lastGlowLit = -1;
-  private lastGlowHover = -1;
-  private hoverValue = 0;
-  private isLandmarkHovered = false;
   private hoveredMarkerIndex = -1;
-  private readonly heroHoverBox = new THREE.Box3();
-  private heroHoverTargets: THREE.Object3D[] = [];
   private readonly hoverRaycaster = new THREE.Raycaster();
   private readonly hoverNdc = new THREE.Vector2();
   private readonly hoverHits: THREE.Intersection[] = [];
@@ -359,8 +354,6 @@ export class CitylitEngine {
     this.scene.add(this.plinthGroup);
 
     this.plinthTopMat = new THREE.MeshStandardMaterial({ color: '#1a1c24', roughness: 0.88 });
-    this.plinthTopMat.userData.noHover = true;
-    this.plinthTopMat.customProgramCacheKey = () => 'no_hover';
     const plinthTop = new THREE.Mesh(
       new THREE.CylinderGeometry(8.5, 9, 0.5, 72),
       this.plinthTopMat
@@ -370,8 +363,6 @@ export class CitylitEngine {
     this.plinthGroup.add(plinthTop);
 
     this.plinthBaseMat = new THREE.MeshStandardMaterial({ color: '#111218', roughness: 0.9 });
-    this.plinthBaseMat.userData.noHover = true;
-    this.plinthBaseMat.customProgramCacheKey = () => 'no_hover';
     const plinthBase = new THREE.Mesh(
       new THREE.CylinderGeometry(9.2, 9.6, 0.2, 72),
       this.plinthBaseMat
@@ -697,24 +688,17 @@ export class CitylitEngine {
       this.currentGroup = this.buildLandmarkGroup(index);
     }
     const lods: THREE.LOD[] = [];
-    const hoverTargets: THREE.Object3D[] = [];
     this.currentGroup.traverse((obj) => {
       if (obj instanceof THREE.LOD) {
         lods.push(obj);
-      } else if (obj instanceof THREE.Mesh && !obj.userData.noHover) {
-        if (obj instanceof THREE.InstancedMesh && obj.count > 200) return;
-        hoverTargets.push(obj);
       }
     });
     this.activeLods = lods;
-    this.heroHoverTargets = hoverTargets;
     this.hasAnimatedShadowScene = Boolean(this.currentGroup.userData.hasAnimatedShadowMeshes);
-    this.isLandmarkHovered = false;
     this.hoveredMarkerIndex = -1;
     this.lastLodCamPos.set(Infinity, Infinity, Infinity);
     this.lastShadowKeyPos.set(Infinity, Infinity, Infinity);
     this.lastGlowLit = -1;
-    this.lastGlowHover = -1;
     setContactShadowFade(this.currentGroup, 1);
     ambientAudio.setSiteProfile(
       (this.currentGroup.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
@@ -730,20 +714,9 @@ export class CitylitEngine {
     this.dustPoints.visible = false;
     if (this.isStudio()) this.frameCurrentLandmark();
     this.updateLods(this.camera, true);
-    this.heroHoverBox.setFromObject(this.currentGroup);
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
     }
-  }
-
-  private isObjectVisibleInHierarchy(obj: THREE.Object3D, stopAt: THREE.Object3D): boolean {
-    let cur: THREE.Object3D | null = obj;
-    while (cur) {
-      if (!cur.visible) return false;
-      if (cur === stopAt) return true;
-      cur = cur.parent;
-    }
-    return true;
   }
 
   transitionToLandmark(index: number): void {
@@ -1267,7 +1240,6 @@ export class CitylitEngine {
       const prevGlobeVisible = this.globe.group.visible;
       const prevPlacesVisible = this.places.group.visible;
       const prevDissolveY = WU.dy.value;
-      const prevHoverVal = WU.hover.value;
 
       const savedGroup = this.currentGroup;
       if (savedGroup) this.heroRoot.remove(savedGroup);
@@ -1281,7 +1253,6 @@ export class CitylitEngine {
       this.globe.group.visible = false;
       this.places.group.visible = false;
       WU.dy.value = 100;
-      WU.hover.value = 0;
       (this.scene.background as THREE.Color).set(
         this.theme === 'studio' ? '#f7f7f4' : this.theme === 'daylight' ? '#a8d8ec' : '#141721'
       );
@@ -1324,7 +1295,6 @@ export class CitylitEngine {
         this.globe.group.visible = prevGlobeVisible;
         this.places.group.visible = prevPlacesVisible;
         WU.dy.value = prevDissolveY;
-        WU.hover.value = prevHoverVal;
       }
 
       if (Object.keys(batch).length > 0) {
@@ -1428,8 +1398,6 @@ export class CitylitEngine {
     const savedTarget = this.controls.target.clone();
     const savedMarkers = this.markerGroup.visible;
     const prevQualityIndex = this.qualityIndex;
-    const prevHoverVal = WU.hover.value;
-    WU.hover.value = 0;
     this.markerGroup.visible = false;
     if (!this.isSoftwareGl) {
       if (prevQualityIndex !== 0) this.setQualityIndex(0);
@@ -1460,7 +1428,6 @@ export class CitylitEngine {
     if (prevQualityIndex !== this.qualityIndex) {
       this.setQualityIndex(prevQualityIndex);
     }
-    WU.hover.value = prevHoverVal;
     this.markerGroup.visible = savedMarkers;
     this.camera.position.copy(savedPos);
     this.controls.target.copy(savedTarget);
@@ -1471,8 +1438,6 @@ export class CitylitEngine {
     const lm = LANDMARKS[index];
     const wasMarkersVisible = this.markerGroup.visible;
     const prevQualityIndex = this.qualityIndex;
-    const prevHoverVal = WU.hover.value;
-    WU.hover.value = 0;
     this.markerGroup.visible = false;
     if (!this.isSoftwareGl) {
       if (prevQualityIndex !== 0) this.setQualityIndex(0);
@@ -1486,7 +1451,6 @@ export class CitylitEngine {
     if (prevQualityIndex !== this.qualityIndex) {
       this.setQualityIndex(prevQualityIndex);
     }
-    WU.hover.value = prevHoverVal;
     this.markerGroup.visible = wasMarkersVisible;
 
     const srcCanvas = this.renderer.domElement;
@@ -1635,7 +1599,6 @@ export class CitylitEngine {
       }
 
       if (this.isUserOrbiting || this.dissolvePhase > 0 || !this.currentGroup) {
-        this.isLandmarkHovered = false;
         this.hoveredMarkerIndex = -1;
         canvas.style.cursor = this.isUserOrbiting ? 'grabbing' : 'default';
         return;
@@ -1668,27 +1631,10 @@ export class CitylitEngine {
         }
       }
       this.hoveredMarkerIndex = markerIdx;
-
-      // Fast broad-phase bounding box check before early-exit mesh raycast on hero diorama
-      let landmarkHit = markerIdx >= 0;
-      if (!landmarkHit && this.hoverRaycaster.ray.intersectsBox(this.heroHoverBox)) {
-        for (let i = 0; i < this.heroHoverTargets.length; i++) {
-          const target = this.heroHoverTargets[i];
-          if (!this.isObjectVisibleInHierarchy(target, this.currentGroup)) continue;
-          this.hoverHits.length = 0;
-          this.hoverRaycaster.intersectObject(target, false, this.hoverHits);
-          if (this.hoverHits.length > 0) {
-            landmarkHit = true;
-            break;
-          }
-        }
-      }
-      this.isLandmarkHovered = landmarkHit;
       canvas.style.cursor = markerIdx >= 0 ? 'pointer' : 'default';
     };
 
     const onPointerLeave = () => {
-      this.isLandmarkHovered = false;
       this.hoveredMarkerIndex = -1;
       this.globe.clearHover();
       this.callbacks.onGlobePinHover?.(null);
@@ -2163,31 +2109,12 @@ export class CitylitEngine {
           sw.a *
           (0.6 + this.weather.current.wind * 0.35);
       }
-      // Smooth landmark hover highlight uniform (Fresnel rim + subtle glow lift)
-      const targetHover =
-        !this.globe.isOpen &&
-        !this.places.isOpen &&
-        this.dissolvePhase === 0 &&
-        !this.isUserOrbiting &&
-        this.isLandmarkHovered
-          ? 1
-          : 0;
-      const hoverLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 10);
-      this.hoverValue += (targetHover - this.hoverValue) * hoverLerp;
-      if (this.hoverValue < 0.001 && targetHover === 0) this.hoverValue = 0;
-      WU.hover.value = this.hoverValue;
-
       const litStrength = WU.lit.value;
-      if (
-        Math.abs(litStrength - this.lastGlowLit) >= 0.002 ||
-        Math.abs(this.hoverValue - this.lastGlowHover) >= 0.002
-      ) {
+      if (Math.abs(litStrength - this.lastGlowLit) >= 0.002) {
         this.lastGlowLit = litStrength;
-        this.lastGlowHover = this.hoverValue;
         for (const gm of glowMaterials) {
           const baseI = (gm.userData.i as number | undefined) ?? 1;
-          gm.emissiveIntensity =
-            baseI * (0.15 + litStrength * 1.45) + this.hoverValue * 0.32 * baseI;
+          gm.emissiveIntensity = baseI * (0.15 + litStrength * 1.45);
         }
       }
 
@@ -2222,8 +2149,7 @@ export class CitylitEngine {
       this.ringMat.color.lerp(this.targetRingCol, themeLerp);
       this.ringMat.emissive.lerp(this.targetRingCol, themeLerp);
       this.ringMat.emissiveIntensity +=
-        (this.targetRingEmissive + this.hoverValue * 0.24 - this.ringMat.emissiveIntensity) *
-        themeLerp;
+        (this.targetRingEmissive - this.ringMat.emissiveIntensity) * themeLerp;
       this.bloomPass.threshold +=
         (this.targetBloomThreshold - this.bloomPass.threshold) * themeLerp;
 

@@ -10,28 +10,17 @@ export const WU = {
   lit: { value: 0 },
   rain: { value: 0 },
   dy: { value: 100 },
-  hover: { value: 0 },
 };
 
-function applyDissolveToShader(
-  shader: THREE.WebGLProgramParametersWithUniforms,
-  allowHover = true
-): void {
+function applyDissolveToShader(shader: THREE.WebGLProgramParametersWithUniforms): void {
   if (
     !shader.vertexShader.includes('#include <begin_vertex>') ||
     !shader.fragmentShader.includes('#include <alphatest_fragment>')
   ) {
     return;
   }
-  const canHover =
-    allowHover &&
-    shader.fragmentShader.includes('#include <opaque_fragment>') &&
-    shader.fragmentShader.includes('#include <normal_fragment_begin>');
 
   shader.uniforms.uDY = WU.dy;
-  if (canHover) {
-    shader.uniforms.uHV = WU.hover;
-  }
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vWD;uniform float uDY;')
     .replace(
@@ -47,7 +36,7 @@ vWD=(modelMatrix*vec4(transformed,1.)).xyz;
     .replace(
       '#include <common>',
       `#include <common>
-varying vec3 vWD;uniform float uDY;${canHover ? 'uniform float uHV;' : ''}
+varying vec3 vWD;uniform float uDY;
 float dtHash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}`
     )
     .replace(
@@ -62,14 +51,6 @@ diffuseColor.rgb*=0.9+0.1*ao;
 }
 if(uDY<90.&&vWD.y>uDY&&dot(vWD.xz,vWD.xz)<110.&&vWD.y<14.)discard;diffuseColor.rgb+=vec3(1.,.75,.35)*smoothstep(uDY-.3,uDY,vWD.y)*step(vWD.y,uDY)*(uDY<90.?2.:0.);`
     );
-
-  if (canHover) {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <opaque_fragment>',
-      `if(uHV>0.001){float hRim=pow(1.-clamp(abs(dot(normalize(vViewPosition),normal)),0.,1.),2.6);outgoingLight+=vec3(1.,.82,.48)*uHV*(0.04+0.26*hRim);}
-#include <opaque_fragment>`
-    );
-  }
 }
 
 let dissolveInstalled = false;
@@ -87,7 +68,7 @@ export function installDissolveShader(): void {
     ) {
       return;
     }
-    applyDissolveToShader(shader, !this.userData?.noHover);
+    applyDissolveToShader(shader);
   };
 }
 
@@ -377,7 +358,7 @@ outgoingLight+=vec3(1.,.96,.84)*glint*.85*uSI;
 }
 #include <opaque_fragment>`
       );
-    applyDissolveToShader(shader, !mat.userData?.noHover);
+    applyDissolveToShader(shader);
   };
   mat.customProgramCacheKey = () => 'water_v3';
   return mat;
@@ -399,7 +380,7 @@ export function cascadeize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardM
         `{float streak=sin(vWU.x*38.)*.5+.5;float flow=sin(vWU.y*24.+uWT*9.+streak*3.)*.5+.5;float mist=smoothstep(0.,.25,vWU.y)*smoothstep(1.,.72,vWU.y);outgoingLight=mix(outgoingLight,vec3(.93,.98,1.),flow*.55+.22*streak);outgoingLight+=vec3(.12,.16,.2)*(1.-mist);}
 #include <opaque_fragment>`
       );
-    applyDissolveToShader(shader, !mat.userData?.noHover);
+    applyDissolveToShader(shader);
   };
   mat.customProgramCacheKey = () => 'cascade_v1';
   return mat;
@@ -469,7 +450,7 @@ transformed.z+=dir.y*(sway+flutter)+dir.x*flutter*.65;
 transformed.y-=rainFac*.042*k*${rainDroop};
 }`
       );
-    applyDissolveToShader(shader, !mat.userData?.noHover);
+    applyDissolveToShader(shader);
   };
   mat.customProgramCacheKey = () => fullKey;
   return mat;
@@ -509,7 +490,7 @@ vW=(modelMatrix*vec4(transformed,1.)).xyz;
         `#include <emissivemap_fragment>
 {vec3 cc=floor(vW*2.5);float hh=fract(sin(dot(cc,vec3(12.9898,78.233,37.719)))*43758.5453);float on=smoothstep(hh*.8,hh*.8+.2,uLit);totalEmissiveRadiance*=mix(.3,1.,on)*(.88+.12*sin(uWT*(3.+hh*5.)+hh*30.));}`
       );
-    applyDissolveToShader(shader, !mat.userData?.noHover);
+    applyDissolveToShader(shader);
   };
   mat.customProgramCacheKey = () => 'lights';
   return mat;
