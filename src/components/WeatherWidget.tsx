@@ -209,7 +209,7 @@ export function WeatherWidget({
               transition={{ duration: reducedMotion ? 0 : 0.4, ease: EASE_SMOOTH_OUT }}
               className="overflow-hidden"
             >
-              <div className="mt-3.5 pt-3 border-t border-white/10 space-y-3">
+              <div className="mt-3.5 pt-3 border-t border-white/10 space-y-3 max-h-[calc(100dvh-135px)] overflow-y-auto no-scrollbar">
                 <div className="weather-forecast grid grid-cols-5 gap-1 text-center">
                   {forecast.map((slot) => (
                     <motion.div

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { LANDMARKS } from '../data/landmarks';
 import { createCloudPuffMesh, createSliceCloudLayer } from './placesClouds';
-import { WU } from './shaders';
+import { grassWindy, windy, WU } from './shaders';
 import {
   createCutawayWaterTopMaterial,
   createCutawayWaterWallMaterial,
@@ -520,7 +520,11 @@ function addInstancedTrees(
 ): void {
   if (trees.length === 0) return;
   const barkMat = new THREE.MeshStandardMaterial({ color: '#6b533e', roughness: 0.92 });
-  const leafMat = new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.02 });
+  const leafMat = windy(
+    new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.02 }),
+    'places_foliage',
+    { heightScale: 0.38, swayScale: 0.55, flutterScale: 0.85 }
+  );
   matsToDispose.push(barkMat, leafMat);
 
   const trunkItems: Array<{ x: number; y: number; z: number; sx: number; sy: number; r: number }> =
@@ -713,7 +717,10 @@ function addInstancedFlowers(
   matsToDispose: THREE.Material[]
 ): void {
   if (tufts.length === 0) return;
-  const mat = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.0 });
+  const mat = grassWindy(
+    new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.0 }),
+    'places_flowers'
+  );
   matsToDispose.push(mat);
   const mesh = new THREE.InstancedMesh(shared.flowerGeo, mat, tufts.length);
   const dummy = new THREE.Object3D();

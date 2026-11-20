@@ -385,44 +385,86 @@ export function cascadeize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardM
   return mat;
 }
 
+export interface WindyShaderOptions {
+  /** Local Y height used to normalize flex curve (default 1.5). */
+  heightScale?: number;
+  /** Overall sway bend amplitude multiplier (default 1). */
+  swayScale?: number;
+  /** High-frequency outer foliage flutter multiplier (default 1). */
+  flutterScale?: number;
+  /** Rain weight vertical droop multiplier (default 1). */
+  rainDroop?: number;
+}
+
 export function windy(
   mat: THREE.MeshStandardMaterial,
-  cacheKey = 'wind'
+  cacheKey = 'wind',
+  opts: WindyShaderOptions = {}
 ): THREE.MeshStandardMaterial {
+  const heightScale = (opts.heightScale ?? 1.5).toFixed(3);
+  const swayScale = (opts.swayScale ?? 1.0).toFixed(3);
+  const flutterScale = (opts.flutterScale ?? 1.0).toFixed(3);
+  const rainDroop = (opts.rainDroop ?? 1.0).toFixed(3);
+  const fullKey = `${cacheKey}_v2_${heightScale}_${swayScale}_${flutterScale}_${rainDroop}`;
+
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
     shader.uniforms.uWd = WU.wind;
     shader.uniforms.uWindDir = WU.windDir;
+    shader.uniforms.uRain = WU.rain;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nuniform float uWT,uWd;uniform vec2 uWindDir;')
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform float uWT,uWd,uRain;uniform vec2 uWindDir;'
+      )
       .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
 {
 #ifdef USE_INSTANCING
-// Per-tree phase from the instance translation only, so a canopy bends as one piece.
+vec3 wp=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
 float seed=instanceMatrix[3].x*.73+instanceMatrix[3].z*1.17;
 #else
 vec3 wp=(modelMatrix*vec4(transformed,1.)).xyz;
 float seed=wp.x*.73+wp.z*1.17;
 #endif
-// Zero at the trunk base, eased towards the canopy: no ground sliding, no rigid lean.
-float h=clamp(position.y/1.2,0.,1.);float k=h*h*(3.-2.*h);
+// Smooth root-anchored flex curve extending cleanly across tall trunks & crowns.
+float h=clamp(position.y/${heightScale},0.,1.);
+float k=h*h*(2.4-1.4*h);
+float radial=clamp(length(position.xz)*1.45,0.,1.);
 float t=uWT;
-// Layered incommensurate frequencies plus a slow gust envelope replace the single pendulum sine.
-float slow=sin(t*.83+seed),mid=sin(t*1.71+seed*1.7+1.3),fast=sin(t*3.37+seed*2.9+.7);
-float gust=.6+.32*sin(t*.21+seed*.5)+.14*sin(t*.53+seed*1.3);
-float amp=.085*clamp(uWd,0.,4.)*k*gust;
-float sway=(slow*.62+mid*.26)*amp,flutter=fast*.16*amp;
+float windStrength=clamp(uWd,0.,4.);
+float rainFac=clamp(uRain,0.,1.);
+// Travelling world-space gust wave sweeps across groves & plains sequentially.
+float gustWave=.64+.26*sin(dot(wp.xz,uWindDir)*.48-t*1.35+seed*.35)+.14*sin(t*.41+seed*1.2);
+float slow=sin(t*.86+seed),mid=sin(t*1.78+seed*1.7+1.3);
+float leafRipple=sin(t*3.9+wp.x*4.7+wp.z*5.3+wp.y*2.9);
+float amp=.092*windStrength*k*gustWave*${swayScale};
+float sway=(slow*.62+mid*.28)*amp;
+float flutter=leafRipple*.024*windStrength*k*(.35+.65*radial)*mix(1.,.65,rainFac)*${flutterScale};
 vec2 dir=uWindDir;
-transformed.x+=dir.x*sway-dir.y*flutter;
-transformed.z+=dir.y*sway+dir.x*flutter;
+transformed.x+=dir.x*(sway+flutter)-dir.y*flutter*.65;
+transformed.z+=dir.y*(sway+flutter)+dir.x*flutter*.65;
+// Subtle canopy & grass blade droop under rain weight.
+transformed.y-=rainFac*.042*k*${rainDroop};
 }`
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => cacheKey;
+  mat.customProgramCacheKey = () => fullKey;
   return mat;
+}
+
+export function grassWindy(
+  mat: THREE.MeshStandardMaterial,
+  cacheKey = 'wind_grass'
+): THREE.MeshStandardMaterial {
+  return windy(mat, cacheKey, {
+    heightScale: 0.34,
+    swayScale: 1.35,
+    flutterScale: 0.75,
+    rainDroop: 1.3,
+  });
 }
 
 export function lights(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {

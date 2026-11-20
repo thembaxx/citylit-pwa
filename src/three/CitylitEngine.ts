@@ -129,6 +129,10 @@ export class CitylitEngine {
   private autoScaleTimer = 0;
   private autoScaleSamples = 0;
   private autoScaleAcc = 0;
+  private isUserOrbiting = false;
+  private baseTargetX = 0;
+  private baseTargetY = 1.5;
+  private readonly lodCamProxy = new THREE.PerspectiveCamera();
 
   private tiltEnabled = false;
   private tiltOffsetX = 0;
@@ -181,7 +185,8 @@ export class CitylitEngine {
     this.controls = new OrbitControls(this.camera, canvas);
     this.controls.enableDamping = !this.isSoftwareGl;
     this.controls.dampingFactor = 0.06;
-    this.controls.target.set(0, 1.5, 0);
+    this.computeResponsiveFraming();
+    this.controls.target.set(this.baseTargetX, this.baseTargetY, 0);
     this.controls.minDistance = 6;
     this.controls.maxDistance = 30;
     this.controls.maxPolarAngle = Math.PI * 0.485;
@@ -478,13 +483,62 @@ export class CitylitEngine {
     return group;
   }
 
+  private disposeTransientResources(root: THREE.Object3D): void {
+    root.traverse((obj) => {
+      if (obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.Line) {
+        const geo = obj.geometry;
+        if (geo && !geo.userData?.sharedResource) {
+          geo.dispose();
+        }
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (let i = 0; i < mats.length; i++) {
+          const mat = mats[i];
+          if (mat && !mat.userData?.sharedResource) {
+            mat.dispose();
+          }
+        }
+      }
+    });
+  }
+
+  private updateLods(cam: THREE.Camera): void {
+    if (!this.currentGroup) return;
+    const lodBias = this.qualityIndex === 2 ? 1.45 : this.qualityIndex === 1 ? 1.18 : 1.0;
+    if (lodBias === 1) {
+      this.currentGroup.traverse((obj) => {
+        if (obj instanceof THREE.LOD) obj.update(cam);
+      });
+      return;
+    }
+    this.lodCamProxy.copy(cam as THREE.PerspectiveCamera);
+    this.lodCamProxy.position.copy(cam.position).multiplyScalar(lodBias);
+    this.lodCamProxy.updateMatrixWorld(true);
+    this.currentGroup.traverse((obj) => {
+      if (obj instanceof THREE.LOD) obj.update(this.lodCamProxy);
+    });
+  }
+
+  private forceLodLevel0(root: THREE.Object3D): void {
+    root.traverse((obj) => {
+      if (obj instanceof THREE.LOD) {
+        for (let i = 0; i < obj.levels.length; i++) {
+          obj.levels[i].object.visible = i === 0;
+        }
+      }
+    });
+  }
+
   showLandmarkImmediate(index: number): void {
     this.activeIndex = index;
     if (this.currentGroup) {
-      this.heroRoot.remove(this.currentGroup);
+      const old = this.currentGroup;
+      this.heroRoot.remove(old);
+      this.disposeTransientResources(old);
     }
     if (this.outgoingGroup) {
-      this.heroRoot.remove(this.outgoingGroup);
+      const out = this.outgoingGroup;
+      this.heroRoot.remove(out);
+      this.disposeTransientResources(out);
       this.outgoingGroup = null;
     }
     resetSceneDynamicLists(this.ringMat);
@@ -503,6 +557,7 @@ export class CitylitEngine {
     WU.dy.value = 100;
     this.dustPoints.visible = false;
     if (this.isStudio()) this.frameCurrentLandmark();
+    this.updateLods(this.camera);
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
     }
@@ -515,7 +570,9 @@ export class CitylitEngine {
     }
     this.activeIndex = index;
     if (this.outgoingGroup) {
-      this.heroRoot.remove(this.outgoingGroup);
+      const out = this.outgoingGroup;
+      this.heroRoot.remove(out);
+      this.disposeTransientResources(out);
       this.outgoingGroup = null;
     }
     if (this.motionScale === 0) {
@@ -558,8 +615,10 @@ export class CitylitEngine {
     const highFx = !this.isSoftwareGl && idx === 0;
     const midFx = !this.isSoftwareGl && idx === 1;
     const postFx = highFx || midFx;
-    this.n8aoPass.enabled = highFx;
-    this.renderPass.enabled = midFx;
+    const suspendAoForDrag =
+      this.isUserOrbiting && this.qualitySetting === 'auto' && (window.devicePixelRatio || 1) > 1.5;
+    this.n8aoPass.enabled = highFx && !suspendAoForDrag;
+    this.renderPass.enabled = midFx || (highFx && suspendAoForDrag);
     this.bloomPass.enabled = postFx;
     this.miniaturePass.enabled = postFx;
     this.smaaPass.enabled = postFx;
@@ -837,9 +896,32 @@ export class CitylitEngine {
     this.camGoalT = 0;
   }
 
+  private computeResponsiveFraming(): void {
+    const w = window.innerWidth;
+    const h = Math.max(1, window.innerHeight);
+    const aspect = w / h;
+    if (aspect < 0.85) {
+      // Portrait mobile: lower controls target so landmark floats cleanly above bottom card.
+      this.baseTargetX = 0;
+      this.baseTargetY = 0.88;
+    } else if (h < 520 && aspect > 1.35) {
+      // Short landscape mobile: shift diorama right of the compact bottom-left card.
+      this.baseTargetX = -1.05;
+      this.baseTargetY = 1.4;
+    } else {
+      this.baseTargetX = 0;
+      this.baseTargetY = 1.5;
+    }
+  }
+
   resetCamera(isPortrait: boolean): void {
-    this.camera.position.set(isPortrait ? 13 : 11.5, 6.2, isPortrait ? 14.5 : 13);
-    this.controls.target.set(0, 1.5, 0);
+    this.computeResponsiveFraming();
+    this.camera.position.set(
+      isPortrait ? 13.4 : 11.5,
+      isPortrait ? 6.4 : 6.2,
+      isPortrait ? 14.8 : 13
+    );
+    this.controls.target.set(this.baseTargetX, this.baseTargetY, 0);
   }
 
   /** Fit the current diorama into a fixed isometric, near-orthographic hero shot. */
@@ -875,6 +957,153 @@ export class CitylitEngine {
     this.studioShadow.position.set(center.x, box.min.y - 0.03, center.z);
     const span = Math.max(size.x, size.z) * 1.35;
     this.studioShadow.scale.set(span / 9, span / 9, 1);
+  }
+
+  /**
+   * Non-blocking progressive thumbnail generator rendering into a small offscreen
+   * render target across idle slices so initial boot never freezes the UI.
+   */
+  generateThumbnailsAsync(
+    onBatch: (batch: Record<number, string>) => void,
+    onDone?: () => void
+  ): () => void {
+    const W = 210;
+    const H = 140;
+    const thumbCam = new THREE.PerspectiveCamera(36, W / H, 0.5, 60);
+    thumbCam.position.set(10.5, 5.8, 11.8);
+    thumbCam.lookAt(0, 1.4, 0);
+
+    const rt = new THREE.WebGLRenderTarget(W, H, {
+      type: THREE.UnsignedByteType,
+      colorSpace: THREE.SRGBColorSpace,
+    });
+    const pixels = new Uint8Array(W * H * 4);
+    const scratchCanvas = document.createElement('canvas');
+    scratchCanvas.width = W;
+    scratchCanvas.height = H;
+    const scratchCtx = scratchCanvas.getContext('2d');
+    const imgData = scratchCtx ? scratchCtx.createImageData(W, H) : null;
+
+    let cancelled = false;
+    let cursor = 0;
+    let handle = 0;
+    let usingIdle = false;
+
+    const cleanup = () => {
+      if (cancelled) return;
+      cancelled = true;
+      if (handle) {
+        if (usingIdle && typeof window.cancelIdleCallback === 'function') {
+          window.cancelIdleCallback(handle);
+        } else {
+          window.clearTimeout(handle);
+        }
+      }
+      rt.dispose();
+    };
+
+    const schedule = (fn: () => void) => {
+      if (cancelled || this.disposed) return;
+      if (typeof window.requestIdleCallback === 'function') {
+        usingIdle = true;
+        handle = window.requestIdleCallback(fn, { timeout: 120 });
+      } else {
+        usingIdle = false;
+        handle = window.setTimeout(fn, 24);
+      }
+    };
+
+    const step = () => {
+      if (cancelled || this.disposed) {
+        cleanup();
+        return;
+      }
+      if (this.contextLost || this.dissolvePhase > 0) {
+        schedule(step);
+        return;
+      }
+
+      const prevBg = (this.scene.background as THREE.Color).clone();
+      const prevFog = this.scene.fog;
+      const prevShowPlinth = this.plinthGroup.visible;
+      const prevShowMarkers = this.markerGroup.visible;
+      const prevShowHero = this.heroRoot.visible;
+      const prevWeatherVisible = this.weather.root.visible;
+      const prevAtmosphereVisible = this.atmosphere.root.visible;
+      const prevGlobeVisible = this.globe.group.visible;
+      const prevPlacesVisible = this.places.group.visible;
+      const prevDissolveY = WU.dy.value;
+
+      const savedGroup = this.currentGroup;
+      if (savedGroup) this.heroRoot.remove(savedGroup);
+
+      this.scene.fog = null;
+      this.weather.setHidden(true);
+      this.atmosphere.setHidden(true);
+      this.plinthGroup.visible = true;
+      this.markerGroup.visible = false;
+      this.heroRoot.visible = true;
+      this.globe.group.visible = false;
+      this.places.group.visible = false;
+      WU.dy.value = 100;
+      (this.scene.background as THREE.Color).set(
+        this.theme === 'studio' ? '#f7f7f4' : this.theme === 'daylight' ? '#a8d8ec' : '#141721'
+      );
+
+      const batch: Record<number, string> = {};
+      const batchEnd = Math.min(LANDMARKS.length, cursor + 2);
+      const prevTarget = this.renderer.getRenderTarget();
+
+      try {
+        this.renderer.setRenderTarget(rt);
+        for (; cursor < batchEnd; cursor++) {
+          const grp = this.buildLandmarkGroup(cursor);
+          this.forceLodLevel0(grp);
+          this.heroRoot.add(grp);
+          this.renderer.render(this.scene, thumbCam);
+          this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, pixels);
+          if (scratchCtx && imgData) {
+            const dst = imgData.data;
+            for (let row = 0; row < H; row++) {
+              const srcOff = (H - 1 - row) * W * 4;
+              const dstOff = row * W * 4;
+              dst.set(pixels.subarray(srcOff, srcOff + W * 4), dstOff);
+            }
+            scratchCtx.putImageData(imgData, 0, 0);
+            batch[cursor] = scratchCanvas.toDataURL('image/webp', 0.72);
+          }
+          this.heroRoot.remove(grp);
+          this.disposeTransientResources(grp);
+        }
+      } finally {
+        this.renderer.setRenderTarget(prevTarget);
+        if (savedGroup) this.heroRoot.add(savedGroup);
+        this.scene.fog = prevFog;
+        (this.scene.background as THREE.Color).copy(prevBg);
+        this.plinthGroup.visible = prevShowPlinth;
+        this.markerGroup.visible = prevShowMarkers;
+        this.heroRoot.visible = prevShowHero;
+        this.weather.setHidden(!prevWeatherVisible);
+        this.atmosphere.setHidden(!prevAtmosphereVisible);
+        this.globe.group.visible = prevGlobeVisible;
+        this.places.group.visible = prevPlacesVisible;
+        WU.dy.value = prevDissolveY;
+      }
+
+      if (Object.keys(batch).length > 0) {
+        onBatch(batch);
+      }
+
+      if (cursor < LANDMARKS.length) {
+        schedule(step);
+      } else {
+        cleanup();
+        onDone?.();
+      }
+    };
+
+    schedule(step);
+    return cleanup;
   }
 
   generateThumbnails(): Record<number, string> {
@@ -920,6 +1149,7 @@ export class CitylitEngine {
 
     LANDMARKS.forEach((_, idx) => {
       const grp = this.buildLandmarkGroup(idx);
+      this.forceLodLevel0(grp);
       this.heroRoot.add(grp);
       if (this.isSoftwareGl) {
         this.renderer.render(this.scene, thumbCam);
@@ -929,6 +1159,7 @@ export class CitylitEngine {
       }
       out[idx] = this.renderer.domElement.toDataURL('image/webp', 0.72);
       this.heroRoot.remove(grp);
+      this.disposeTransientResources(grp);
     });
 
     if (savedGroup) this.heroRoot.add(savedGroup);
@@ -1093,10 +1324,36 @@ export class CitylitEngine {
       this.places.setAspect(w / h);
       this.renderer.setSize(w, h);
       this.composer.setSize(w, h);
+      this.computeResponsiveFraming();
       if (this.isStudio()) this.frameCurrentLandmark();
     };
 
+    const onControlStart = () => {
+      this.isUserOrbiting = true;
+      if (
+        !this.isSoftwareGl &&
+        this.qualityIndex === 0 &&
+        this.qualitySetting === 'auto' &&
+        (window.devicePixelRatio || 1) > 1.5
+      ) {
+        this.n8aoPass.enabled = false;
+        this.renderPass.enabled = true;
+      }
+    };
+
+    const onControlEnd = () => {
+      this.isUserOrbiting = false;
+      if (!this.isSoftwareGl && this.qualityIndex === 0) {
+        this.n8aoPass.enabled = true;
+        this.renderPass.enabled = false;
+      }
+    };
+
+    this.controls.addEventListener('start', onControlStart);
+    this.controls.addEventListener('end', onControlEnd);
+
     const raycaster = new THREE.Raycaster();
+    const projPos = new THREE.Vector3();
     const onPointerDown = (e: PointerEvent) => {
       this.camGoal = null;
       this.tapDown = { x: e.clientX, y: e.clientY, t: performance.now() };
@@ -1150,13 +1407,30 @@ export class CitylitEngine {
         }
         raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
         const hits = raycaster.intersectObjects(this.markerSprites, false);
-        if (hits.length) {
-          const text = hits[0].object.userData.factText as string | undefined;
-          if (text) {
-            ambientAudio.playSfx('ping');
-            ambientAudio.vibrate(10);
-            this.callbacks.onFactDot?.(text);
+        let text = hits.length
+          ? (hits[0].object.userData.factText as string | undefined)
+          : undefined;
+        // Touch-friendly screen-space radius fallback so fingers never miss small pins.
+        if (!text && this.markerSprites.length > 0) {
+          const hitRadius = e.pointerType === 'touch' ? 28 : 16;
+          let bestDist = hitRadius;
+          for (let i = 0; i < this.markerSprites.length; i++) {
+            const sp = this.markerSprites[i];
+            projPos.copy(sp.position).project(this.camera);
+            if (projPos.z > 1) continue;
+            const sx = (projPos.x * 0.5 + 0.5) * window.innerWidth;
+            const sy = (-projPos.y * 0.5 + 0.5) * window.innerHeight;
+            const dist = Math.hypot(sx - e.clientX, sy - e.clientY);
+            if (dist < bestDist) {
+              bestDist = dist;
+              text = sp.userData.factText as string | undefined;
+            }
           }
+        }
+        if (text) {
+          ambientAudio.playSfx('ping');
+          ambientAudio.vibrate(10);
+          this.callbacks.onFactDot?.(text);
         }
       }
     };
@@ -1216,6 +1490,8 @@ export class CitylitEngine {
     canvas.addEventListener('webglcontextrestored', onContextRestored);
 
     this.unbindListeners = () => {
+      this.controls.removeEventListener('start', onControlStart);
+      this.controls.removeEventListener('end', onControlEnd);
       window.removeEventListener('resize', onResize);
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointermove', onPointerMove);
@@ -1527,9 +1803,16 @@ export class CitylitEngine {
         fogColor: fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color),
       });
 
-      // Gentle gyro tilt offset
-      this.controls.target.set(this.tiltOffsetX, 1.5 + this.tiltOffsetY, 0);
+      // Gentle gyro tilt offset + responsive viewport framing
+      if (!this.isStudio()) {
+        this.controls.target.set(
+          this.baseTargetX + this.tiltOffsetX,
+          this.baseTargetY + this.tiltOffsetY,
+          0
+        );
+      }
       this.controls.update();
+      this.updateLods(this.camera);
 
       // Update ambient audio synthesizer and position the listener in the diorama
       const lm = LANDMARKS[this.activeIndex];
@@ -1560,7 +1843,12 @@ export class CitylitEngine {
         this.weather.current.timeOfDay
       );
 
-      if (!this.isSoftwareGl && this.qualityIndex < 2 && (this.shadowFrameCounter++ & 1) === 0) {
+      const shadowStride = this.isUserOrbiting ? 3 : 2;
+      if (
+        !this.isSoftwareGl &&
+        this.qualityIndex < 2 &&
+        (this.dissolvePhase > 0 || this.shadowFrameCounter++ % shadowStride === 0)
+      ) {
         this.renderer.shadowMap.needsUpdate = true;
       }
       this.renderCurrentPass();
@@ -1574,6 +1862,8 @@ export class CitylitEngine {
     cancelAnimationFrame(this.rafId);
     window.clearTimeout(this.afterDrawTimer);
     this.unbindListeners();
+    if (this.currentGroup) this.disposeTransientResources(this.currentGroup);
+    if (this.outgoingGroup) this.disposeTransientResources(this.outgoingGroup);
     this.controls.dispose();
     this.globe.dispose();
     this.places.dispose();

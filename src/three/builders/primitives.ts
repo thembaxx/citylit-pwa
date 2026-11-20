@@ -10,6 +10,7 @@ import {
   getSoftTexture,
   getStoneBumpTexture,
   getWoodBumpTexture,
+  grassWindy,
   lights,
   waterize,
   windy,
@@ -49,6 +50,19 @@ export const wetMaterials: WetMaterialEntry[] = [];
 const matCache: Record<string, THREE.MeshStandardMaterial> = {};
 const foliageCache: Record<string, THREE.MeshStandardMaterial> = {};
 const geoCache: Record<string, THREE.BufferGeometry> = {};
+let grassMatShared: THREE.MeshStandardMaterial | null = null;
+
+function cacheMat(key: string, mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  mat.userData.sharedResource = true;
+  matCache[key] = mat;
+  return mat;
+}
+
+function cacheGeo<T extends THREE.BufferGeometry>(key: string, geo: T): T {
+  geo.userData.sharedResource = true;
+  geoCache[key] = geo;
+  return geo;
+}
 
 const tmpMatrix = new THREE.Matrix4();
 const tmpQuat = new THREE.Quaternion();
@@ -90,8 +104,7 @@ export function MRoof(
     bumpMap: getRoofBumpTexture(),
     bumpScale,
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MSteel(
@@ -108,8 +121,7 @@ export function MSteel(
     metalness: m,
     roughnessMap: getBrushedRoughnessTexture(),
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MCanvas(
@@ -127,8 +139,7 @@ export function MCanvas(
     bumpMap: getCanvasBumpTexture(),
     bumpScale,
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MGlass(
@@ -148,8 +159,7 @@ export function MGlass(
     opacity,
     depthWrite: opacity >= 0.9,
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MPatina(c: THREE.ColorRepresentation): THREE.MeshStandardMaterial {
@@ -162,8 +172,7 @@ export function M(c: THREE.ColorRepresentation, r = 0.7, m = 0): THREE.MeshStand
   if (matCache[key]) return matCache[key];
   const mat = new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m });
   const finalMat = r <= 0.16 && m >= 0.1 ? waterize(mat) : mat;
-  matCache[key] = finalMat;
-  return finalMat;
+  return cacheMat(key, finalMat);
 }
 
 export function MStone(
@@ -182,8 +191,7 @@ export function MStone(
     bumpMap: getStoneBumpTexture(),
     bumpScale,
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MPlaster(
@@ -202,8 +210,7 @@ export function MPlaster(
     bumpMap: getPlasterBumpTexture(),
     bumpScale,
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MWood(
@@ -221,8 +228,7 @@ export function MWood(
     bumpMap: getWoodBumpTexture(),
     bumpScale,
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MT(
@@ -244,8 +250,7 @@ export function MT(
     side: doubleSide ? THREE.DoubleSide : THREE.FrontSide,
     depthWrite: opacity >= 0.85,
   });
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MWater(
@@ -265,8 +270,7 @@ export function MWater(
     opacity,
   });
   waterize(mat);
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MCascade(
@@ -285,8 +289,7 @@ export function MCascade(
     side: THREE.DoubleSide,
   });
   cascadeize(mat);
-  matCache[key] = mat;
-  return mat;
+  return cacheMat(key, mat);
 }
 
 export function MWet(
@@ -328,12 +331,11 @@ export function G(c: THREE.ColorRepresentation, intensity = 1): THREE.MeshStanda
 }
 
 export function Mc(c: string): THREE.MeshStandardMaterial {
-  return (
-    foliageCache[c] ??
-    (foliageCache[c] = windy(
-      new THREE.MeshStandardMaterial({ color: c, roughness: 0.88, metalness: 0.02 })
-    ))
-  );
+  if (foliageCache[c]) return foliageCache[c];
+  const mat = windy(new THREE.MeshStandardMaterial({ color: c, roughness: 0.88, metalness: 0.02 }));
+  mat.userData.sharedResource = true;
+  foliageCache[c] = mat;
+  return mat;
 }
 
 export function add<T extends THREE.BufferGeometry, U extends THREE.Material>(
@@ -395,8 +397,7 @@ export function CB(w: number, h: number, d: number, r = 0.04, segs = 2): THREE.B
   const key = `cb_${w.toFixed(3)}_${h.toFixed(3)}_${d.toFixed(3)}_${cr.toFixed(3)}_${segs}`;
   if (geoCache[key]) return geoCache[key];
   const geo = new RoundedBoxGeometry(w, h, d, segs, cr);
-  geoCache[key] = geo;
-  return geo;
+  return cacheGeo(key, geo);
 }
 
 export const C = (
@@ -461,8 +462,7 @@ export function gableRoofGeo(
     bevelThickness: 0.015,
     bevelSegments: 1,
   }).translate(0, 0, -hd / 2);
-  geoCache[key] = geo;
-  return geo;
+  return cacheGeo(key, geo);
 }
 
 export function capeDutchGableGeo(w = 0.8, h = 0.72, depth = 0.14): THREE.BufferGeometry {
@@ -486,8 +486,7 @@ export function capeDutchGableGeo(w = 0.8, h = 0.72, depth = 0.14): THREE.Buffer
     bevelSegments: 2,
     curveSegments: 12,
   }).translate(0, 0, -depth / 2);
-  geoCache[key] = geo;
-  return geo;
+  return cacheGeo(key, geo);
 }
 
 export function archGeo(w: number, h: number, rArch: number, depth: number): THREE.BufferGeometry {
@@ -511,8 +510,7 @@ export function archGeo(w: number, h: number, rArch: number, depth: number): THR
     bevelSegments: 1,
     curveSegments: 14,
   }).translate(0, 0, -depth / 2);
-  geoCache[key] = geo;
-  return geo;
+  return cacheGeo(key, geo);
 }
 
 export const n = (x: number, z: number): number =>
@@ -631,6 +629,7 @@ export function scatterRocks(
       p.setXYZ(i, X * d, Y * (Y < 0 ? 0.68 : 0.92), Z * d);
     }
     ge.computeVertexNormals();
+    ge.userData.sharedResource = true;
     organicBoulderGeo = ge;
   }
   const colA = new THREE.Color(c1);
@@ -652,16 +651,67 @@ export function scatterRocks(
 
 let tuftGeoCache: THREE.BufferGeometry | null = null;
 
+function getGrassMaterial(): THREE.MeshStandardMaterial {
+  if (!grassMatShared) {
+    grassMatShared = grassWindy(
+      new THREE.MeshStandardMaterial({
+        color: '#ffffff',
+        vertexColors: true,
+        roughness: 0.84,
+        metalness: 0.02,
+      })
+    );
+    grassMatShared.userData.sharedResource = true;
+  }
+  return grassMatShared;
+}
+
 export function grassTufts(
   g: THREE.Object3D,
   items: readonly InstanceTransform[],
   palette: readonly string[] = ['#4c7a38', '#688f44', '#8b9342']
 ): void {
   if (!tuftGeoCache) {
-    const g1 = new THREE.ConeGeometry(0.08, 0.24, 5).translate(0, 0.12, 0);
-    tuftGeoCache = g1;
+    // 3-blade sculpted grass tuft with baked vertical root-to-tip ambient occlusion.
+    const blades: THREE.BufferGeometry[] = [];
+    const specs: ReadonlyArray<readonly [number, number, number, number, number]> = [
+      [0, 0.27, 0.045, 0.0, 0.14],
+      [-0.035, 0.22, 0.04, 2.15, 0.26],
+      [0.032, 0.19, 0.038, 4.25, -0.24],
+    ];
+    for (let b = 0; b < specs.length; b++) {
+      const [ox, h, r, ry, tilt] = specs[b];
+      const blade = new THREE.ConeGeometry(r, h, 4).translate(0, h * 0.5, 0);
+      blade.rotateZ(tilt);
+      blade.rotateY(ry);
+      blade.translate(ox, 0, ox * 0.6);
+      const nonIdx = blade.index ? blade.toNonIndexed() : blade;
+      if (nonIdx !== blade) blade.dispose();
+      const pos = nonIdx.attributes.position;
+      const vCols = new Float32Array(pos.count * 3);
+      for (let v = 0; v < pos.count; v++) {
+        const shade = 0.68 + Math.min(1, Math.max(0, pos.getY(v) / 0.27)) * 0.42;
+        vCols[v * 3] = shade;
+        vCols[v * 3 + 1] = shade;
+        vCols[v * 3 + 2] = shade;
+      }
+      nonIdx.setAttribute('color', new THREE.BufferAttribute(vCols, 3));
+      blades.push(nonIdx);
+    }
+    const merged = mergeGeometries(blades, false);
+    blades.forEach((b) => b.dispose());
+    if (merged) {
+      merged.computeVertexNormals();
+      merged.computeBoundingSphere();
+      merged.userData.sharedResource = true;
+      tuftGeoCache = merged;
+    } else {
+      const fallback = new THREE.ConeGeometry(0.08, 0.24, 5).translate(0, 0.12, 0);
+      fallback.userData.sharedResource = true;
+      tuftGeoCache = fallback;
+    }
   }
-  const mat = Mc(palette[0]);
+  const mat = getGrassMaterial();
   const cols = items.map((_, i) => palette[i % palette.length]);
   instancedMeshes(g, tuftGeoCache, mat, items, cols);
 }
@@ -701,8 +751,10 @@ function treeMaterial(): THREE.MeshStandardMaterial {
   if (!treeMat) {
     treeMat = windy(
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.02 }),
-      'wind_tree_vc'
+      'wind_tree_vc',
+      { heightScale: 1.75, swayScale: 1.0, flutterScale: 1.05 }
     );
+    treeMat.userData.sharedResource = true;
   }
   return treeMat;
 }
@@ -723,12 +775,16 @@ function mergeTreeParts(parts: readonly TreePart[]): THREE.BufferGeometry {
     treeMergeMatrix.compose(treeMergePos, treeMergeQuat, treeMergeScale);
     geo.applyMatrix4(treeMergeMatrix);
     treeMergeColor.set(part.c);
-    const vertCount = geo.attributes.position.count;
+    const posAttr = geo.attributes.position;
+    const vertCount = posAttr.count;
     const arr = new Float32Array(vertCount * 3);
     for (let i = 0; i < vertCount; i++) {
-      arr[i * 3] = treeMergeColor.r;
-      arr[i * 3 + 1] = treeMergeColor.g;
-      arr[i * 3 + 2] = treeMergeColor.b;
+      // Soft vertical AO & crown-top sun highlight baked per vertex.
+      const vy = posAttr.getY(i);
+      const ao = 0.78 + Math.min(1, Math.max(0, (vy - 0.08) / 1.35)) * 0.28;
+      arr[i * 3] = Math.min(1, treeMergeColor.r * ao);
+      arr[i * 3 + 1] = Math.min(1, treeMergeColor.g * ao);
+      arr[i * 3 + 2] = Math.min(1, treeMergeColor.b * ao);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(arr, 3));
     geos.push(geo);
@@ -740,6 +796,7 @@ function mergeTreeParts(parts: readonly TreePart[]): THREE.BufferGeometry {
   }
   merged.computeVertexNormals();
   merged.computeBoundingSphere();
+  merged.userData.sharedResource = true;
   return merged;
 }
 
@@ -858,11 +915,107 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
   return mergeTreeParts(parts);
 }
 
+function buildTreeLodGeometry(k: number, level: 1 | 2): THREE.BufferGeometry {
+  const parts: TreePart[] = [];
+  const trunkSegs = level === 1 ? 5 : 4;
+  if (k === 3) {
+    // Simplified Palm LOD
+    parts.push({
+      g: new THREE.CylinderGeometry(0.036, 0.056, 1.15, trunkSegs),
+      c: '#6e553e',
+      p: [0.1, 0.56, 0],
+      r: [0, 0, -0.18],
+    });
+    const frondCount = level === 1 ? 5 : 3;
+    for (let i = 0; i < frondCount; i++) {
+      parts.push({
+        g: new THREE.ConeGeometry(0.14, 0.78, 3),
+        c: i % 2 === 0 ? '#4f9146' : '#3c7b3b',
+        p: [0.22, 1.26, 0],
+        r: [0, (i * Math.PI * 2) / frondCount, -0.45],
+        s: [1, 1, 0.3],
+      });
+    }
+    return mergeTreeParts(parts);
+  }
+
+  if (k === 4) {
+    // Simplified Pine LOD
+    parts.push({
+      g: new THREE.CylinderGeometry(0.035, 0.075, 0.92, trunkSegs),
+      c: '#4e3826',
+      p: [0, 0.46, 0],
+    });
+    const tiers = level === 1 ? 3 : 1;
+    if (tiers === 1) {
+      parts.push({
+        g: new THREE.ConeGeometry(0.46, 1.18, 6),
+        c: '#36693a',
+        p: [0, 1.24, 0],
+      });
+    } else {
+      const pineCols = ['#2a5630', '#36693a', '#447943'];
+      for (let i = 0; i < tiers; i++) {
+        const rB = 0.45 - i * 0.1;
+        parts.push({
+          g: new THREE.CylinderGeometry(rB * 0.2, rB, 0.46, 6),
+          c: pineCols[i % 3],
+          p: [0, 0.88 + i * 0.34, 0],
+        });
+      }
+    }
+    return mergeTreeParts(parts);
+  }
+
+  const trunkCol = k === 2 ? '#4d3624' : '#4a3a2a';
+  parts.push({
+    g: new THREE.CylinderGeometry(0.038, 0.09, 0.94, trunkSegs),
+    c: trunkCol,
+    p: [0, 0.46, 0],
+  });
+  const palettes: Record<number, readonly [string, string, string]> = {
+    0: ['#8a5bc4', '#a77ae0', '#6d45a6'],
+    1: ['#3e7738', '#569143', '#2d5c2b'],
+    2: ['#7e8d3b', '#98a64a', '#5f6e2d'],
+  };
+  const cs = palettes[k] ?? palettes[1];
+  const baseY = k === 2 ? 1.12 : 1.15;
+  if (level === 2) {
+    parts.push({
+      g: new THREE.IcosahedronGeometry(k === 2 ? 0.52 : 0.48, 0),
+      c: cs[0],
+      p: [0, baseY + 0.08, 0],
+      s: k === 2 ? [1.45, 0.46, 1.45] : [1.05, 0.95, 1.05],
+    });
+  } else {
+    for (let i = 0; i < 4; i++) {
+      const ang = i * 1.57;
+      const q = k === 2 ? 0.32 : 0.24;
+      parts.push({
+        g: new THREE.IcosahedronGeometry(0.28, 0),
+        c: cs[i % 3],
+        p: [Math.cos(ang) * q, baseY + (i === 0 ? 0.18 : 0.04), Math.sin(ang) * q],
+        s: k === 2 ? [1.5, 0.45, 1.5] : [1, 1, 1],
+      });
+    }
+  }
+  return mergeTreeParts(parts);
+}
+
 function treeGeometry(k: number, variant: number): THREE.BufferGeometry {
   const key = `tree_${k}_${variant}`;
   const cached = treeGeoCache[key];
   if (cached) return cached;
   const geo = buildTreeGeometry(k, variant);
+  treeGeoCache[key] = geo;
+  return geo;
+}
+
+function treeLodGeometry(k: number, level: 1 | 2): THREE.BufferGeometry {
+  const key = `tree_${k}_lod${level}`;
+  const cached = treeGeoCache[key];
+  if (cached) return cached;
+  const geo = buildTreeLodGeometry(k, level);
   treeGeoCache[key] = geo;
   return geo;
 }
@@ -884,8 +1037,16 @@ export function finalizeTreeBatch(g: THREE.Object3D): void {
   const color = new THREE.Color();
   groups.forEach((list, key) => {
     const [kText, vText] = key.split('_');
-    const geo = treeGeometry(Number(kText), Number(vText));
-    const im = new THREE.InstancedMesh(geo, mat, list.length);
+    const kNum = Number(kText);
+    const vNum = Number(vText);
+    const geo0 = treeGeometry(kNum, vNum);
+    const geo1 = treeLodGeometry(kNum, 1);
+    const geo2 = treeLodGeometry(kNum, 2);
+
+    const im0 = new THREE.InstancedMesh(geo0, mat, list.length);
+    const im1 = new THREE.InstancedMesh(geo1, mat, list.length);
+    const im2 = new THREE.InstancedMesh(geo2, mat, list.length);
+
     for (let i = 0; i < list.length; i++) {
       const spec = list[i];
       const spread = 0.9 + spec.tint * 0.2;
@@ -894,16 +1055,30 @@ export function finalizeTreeBatch(g: THREE.Object3D): void {
       treeMergeQuat.setFromEuler(treeMergeEuler);
       treeMergeScale.set(spec.s * spread, spec.s, spec.s * (1.9 - spread));
       treeMergeMatrix.compose(treeMergePos, treeMergeQuat, treeMergeScale);
-      im.setMatrixAt(i, treeMergeMatrix);
+      im0.setMatrixAt(i, treeMergeMatrix);
+      im1.setMatrixAt(i, treeMergeMatrix);
+      im2.setMatrixAt(i, treeMergeMatrix);
       const warm = 0.9 + spec.tint * 0.14;
       color.setRGB(warm, warm, warm * (0.94 + spec.tint * 0.06));
-      im.setColorAt(i, color);
+      im0.setColorAt(i, color);
+      im1.setColorAt(i, color);
+      im2.setColorAt(i, color);
       stampContactShadow(g, spec.x, spec.z, 0.3 * spec.s, 0.24, spec.y + 0.012);
     }
-    im.instanceMatrix.needsUpdate = true;
-    if (im.instanceColor) im.instanceColor.needsUpdate = true;
-    im.computeBoundingSphere();
-    g.add(im);
+
+    for (const im of [im0, im1, im2]) {
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.computeBoundingSphere();
+    }
+    im2.userData.noShadow = true;
+    im2.castShadow = false;
+
+    const lod = new THREE.LOD();
+    lod.addLevel(im0, 0);
+    lod.addLevel(im1, 21.5);
+    lod.addLevel(im2, 28.5);
+    g.add(lod);
   });
 }
 

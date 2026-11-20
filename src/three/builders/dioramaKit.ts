@@ -794,6 +794,9 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
   const [baseRocks, basePlants] = profile.count;
   const rockCount = Math.round(baseRocks * 1.3);
   const plantCount = Math.round(basePlants * 1.25);
+  if (rockCount <= 0 && plantCount <= 0) return;
+
+  const detailGroup = new THREE.Group();
   if (rockCount > 0) {
     const items: InstanceTransform[] = [];
     for (let i = 0; i < rockCount; i++) {
@@ -809,7 +812,7 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
         sz: 0.3 + R(i + 7) * 0.38,
       });
     }
-    scatterRocks(g, items, profile.rock[0], profile.rock[1]);
+    scatterRocks(detailGroup, items, profile.rock[0], profile.rock[1]);
   }
 
   const plants = profile.plants;
@@ -828,8 +831,13 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
         sz: 0.7 + R(i + 5) * 0.55,
       });
     }
-    grassTufts(g, items, plants);
+    grassTufts(detailGroup, items, plants);
   }
+
+  const lod = new THREE.LOD();
+  lod.addLevel(detailGroup, 0);
+  lod.addLevel(new THREE.Group(), 24.5);
+  g.add(lod);
 }
 
 function addTreeRing(g: THREE.Group, profile: SiteProfile, angle: number): void {
@@ -1244,6 +1252,81 @@ function buildSpatialSources(
   return sources;
 }
 
+function addSoaringBirds(g: THREE.Group, profile: SiteProfile, seedAngle: number): Update[] {
+  const { biome } = profile;
+  if (
+    biome !== 'mountain' &&
+    biome !== 'coastal' &&
+    biome !== 'waterfall' &&
+    biome !== 'savannah' &&
+    biome !== 'wetland'
+  ) {
+    return [];
+  }
+
+  const count = biome === 'coastal' || biome === 'wetland' ? 4 : 3;
+  const birdCol = biome === 'coastal' ? '#eef3f8' : '#2f2924';
+  const mat = new THREE.MeshBasicMaterial({ color: birdCol, side: THREE.DoubleSide });
+  const wingGeo = new THREE.BufferGeometry();
+  const verts = new Float32Array([0, 0, 0.04, 0.16, 0.03, -0.04, 0.04, 0, -0.05]);
+  wingGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  wingGeo.computeVertexNormals();
+
+  const birdsGroup = new THREE.Group();
+  const lod = new THREE.LOD();
+  lod.addLevel(birdsGroup, 0);
+  lod.addLevel(new THREE.Group(), 25.5);
+  g.add(lod);
+
+  const specs: Array<{
+    root: THREE.Group;
+    left: THREE.Mesh;
+    right: THREE.Mesh;
+    radius: number;
+    baseY: number;
+    speed: number;
+    phase: number;
+  }> = [];
+
+  for (let i = 0; i < count; i++) {
+    const root = new THREE.Group();
+    const left = new THREE.Mesh(wingGeo, mat);
+    const right = new THREE.Mesh(wingGeo, mat);
+    right.scale.x = -1;
+    left.userData.noShadow = true;
+    right.userData.noShadow = true;
+    root.add(left, right);
+    birdsGroup.add(root);
+    specs.push({
+      root,
+      left,
+      right,
+      radius: 2.6 + R(i * 5.1 + seedAngle) * 3.1,
+      baseY: 4.5 + R(i * 3.7 + 2) * 1.9,
+      speed: 0.22 + R(i * 2.9 + 1) * 0.14,
+      phase: seedAngle + i * 2.1,
+    });
+  }
+
+  return [
+    (t: number) => {
+      for (let i = 0; i < specs.length; i++) {
+        const b = specs[i];
+        const ang = b.phase + t * b.speed;
+        b.root.position.set(
+          Math.cos(ang) * b.radius,
+          b.baseY + Math.sin(t * 0.9 + b.phase) * 0.22,
+          Math.sin(ang) * b.radius
+        );
+        b.root.rotation.y = -ang;
+        const flap = Math.sin(t * 5.2 + b.phase * 3) * 0.42;
+        b.left.rotation.z = flap;
+        b.right.rotation.z = -flap;
+      }
+    },
+  ];
+}
+
 /**
  * Applies the shared crafted-diorama layer to a landmark group: stratified
  * base rim, biome ground cover, a secondary anchor prop, micro-weather and
@@ -1272,6 +1355,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
 
   const fx = addWeatherFx(group, profile);
   for (let i = 0; i < fx.length; i++) updates.push(fx[i]);
+  const birds = addSoaringBirds(group, profile, angle);
+  for (let i = 0; i < birds.length; i++) updates.push(birds[i]);
 
   const prev = group.userData.tick as Tick | undefined;
   group.userData.tick = (t: number, dt: number) => {

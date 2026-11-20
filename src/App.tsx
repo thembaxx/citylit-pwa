@@ -277,12 +277,14 @@ export function App() {
     engine.setTheme(initialTheme, true);
     engine.setSeasonMonth(new Date().getMonth() + 1, true);
     engine.showLandmarkImmediate(initialIdx);
+    setBooted(true);
 
+    let cancelThumbs: (() => void) | null = null;
     const thumbTimer = window.setTimeout(() => {
-      const generated = engine.generateThumbnails();
-      setThumbnails(generated);
-      setBooted(true);
-    }, 60);
+      cancelThumbs = engine.generateThumbnailsAsync((batch) => {
+        setThumbnails((prev) => ({ ...prev, ...batch }));
+      });
+    }, 80);
 
     const onVisibility = () => {
       ambientAudio.handleVisibilityChange(document.hidden);
@@ -291,6 +293,7 @@ export function App() {
 
     return () => {
       window.clearTimeout(thumbTimer);
+      cancelThumbs?.();
       document.removeEventListener('visibilitychange', onVisibility);
       engine.dispose();
       engineRef.current = null;

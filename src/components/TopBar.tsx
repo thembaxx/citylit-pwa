@@ -54,7 +54,7 @@ function IconButton({
       onClick={onClick}
       aria-label={label}
       title={title ?? label}
-      className={`w-10 h-10 rounded-full grid place-items-center border cursor-pointer focus-visible:outline-2 focus-visible:outline-[#e8b04a] ${
+      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full grid place-items-center border cursor-pointer focus-visible:outline-2 focus-visible:outline-[#e8b04a] ${
         accent
           ? 'bg-[#e8b04a] border-[#e8b04a] text-[#1a1405]'
           : `bg-[#121319]/90 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] ${
@@ -112,7 +112,7 @@ export function TopBar({
           >
             cıtylit
           </div>
-          <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="flex items-center gap-1.5 sm:gap-2 pointer-events-auto">
             <IconButton
               label={soundOn ? 'Mute ambient sound' : 'Unmute ambient sound'}
               title="Ambient sound"
