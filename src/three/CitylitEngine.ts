@@ -27,8 +27,11 @@ import {
   MWater,
   resetSceneDynamicLists,
   setContactShadowFade,
+  SwayItem,
   swayItems,
   updateWetSurfaces,
+  WetMaterialEntry,
+  wetMaterials,
 } from './builders/primitives';
 import { createGlobeScene, type GlobeController } from './globeScene';
 import { createPlacesScene, type PlacesController, type PlacesSelectionInfo } from './placesScene';
@@ -151,6 +154,13 @@ export class CitylitEngine {
   /** Dynamic resolution scale used in auto mode to hold the 60fps target. */
   private renderScale = 1;
   private appliedRenderScale = -1;
+  private bootPrewarmDone = false;
+  private cachedGroup: THREE.Group | null = null;
+  private cachedIndex = -1;
+  private cachedGlow: THREE.MeshStandardMaterial[] = [];
+  private cachedSway: SwayItem[] = [];
+  private cachedWet: WetMaterialEntry[] = [];
+  private lastSwitchAt = -10;
   private isUserOrbiting = false;
   private baseTargetX = 0;
   private baseTargetY = 1.5;
@@ -187,6 +197,10 @@ export class CitylitEngine {
       powerPreference: 'high-performance',
       preserveDrawingBuffer: false,
     });
+    // three's shader diagnostics call getProgramInfoLog on first link, which
+    // synchronously stalls the frame that first draws a landmark. Keep them in
+    // development, drop them in production (all shaders are exercised in dev).
+    if (import.meta.env.PROD) this.renderer.debug.checkShaderErrors = false;
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.isSoftwareGl ? 1 : 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -529,6 +543,64 @@ export class CitylitEngine {
     return group;
   }
 
+  /**
+   * Build and compile the next landmark while idle, then cache the whole group
+   * so a switch costs neither a rebuild nor a shader link. The group's dynamic
+   * animation entries are captured separately and restored when it becomes live.
+   */
+  private prewarmNextLandmark(): void {
+    if (this.disposed || this.isSoftwareGl || this.globe.isOpen || this.places.isOpen) return;
+    const next = (this.activeIndex + 1) % LANDMARKS.length;
+    if (next === this.cachedIndex || next === this.activeIndex) return;
+
+    const savedGlow = glowMaterials.slice();
+    const savedSway = swayItems.slice();
+    const savedWet = wetMaterials.slice();
+    const group = this.buildLandmarkGroup(next);
+    this.cachedGlow = glowMaterials.slice(savedGlow.length);
+    this.cachedSway = swayItems.slice(savedSway.length);
+    this.cachedWet = wetMaterials.slice(savedWet.length);
+    glowMaterials.length = 0;
+    for (const m of savedGlow) glowMaterials.push(m);
+    swayItems.length = 0;
+    for (const s of savedSway) swayItems.push(s);
+    wetMaterials.length = 0;
+    for (const w of savedWet) wetMaterials.push(w);
+
+    if (this.cachedGroup) this.disposeTransientResources(this.cachedGroup);
+    this.cachedGroup = group;
+    this.cachedIndex = next;
+
+    if (!this.bootPrewarmDone) {
+      // Boot is hidden behind the splash, so a full synchronous warm-up there
+      // costs the user nothing and makes the very first switch smooth too.
+      this.bootPrewarmDone = true;
+      try {
+        this.renderer.compile(group, this.camera, this.scene);
+        const rt = new THREE.WebGLRenderTarget(1, 1);
+        const prevTarget = this.renderer.getRenderTarget();
+        const prevHero = this.heroRoot.visible;
+        this.heroRoot.visible = false;
+        this.scene.add(group);
+        try {
+          this.renderer.setRenderTarget(rt);
+          this.renderer.render(this.scene, this.camera);
+        } finally {
+          this.renderer.setRenderTarget(prevTarget);
+          this.scene.remove(group);
+          this.heroRoot.visible = prevHero;
+          rt.dispose();
+        }
+      } catch {
+        // Fall back to first-use compilation if the driver rejects the warm-up.
+      }
+      return;
+    }
+
+    // KHR_parallel_shader_compile lets later links finish between frames.
+    void this.renderer.compileAsync(group, this.camera, this.scene).catch(() => {});
+  }
+
   private disposeTransientResources(root: THREE.Object3D): void {
     root.traverse((obj) => {
       if (obj instanceof THREE.Mesh || obj instanceof THREE.Points || obj instanceof THREE.Line) {
@@ -585,6 +657,7 @@ export class CitylitEngine {
 
   showLandmarkImmediate(index: number): void {
     this.activeIndex = index;
+    this.lastSwitchAt = this.elapsed;
     if (this.currentGroup) {
       const old = this.currentGroup;
       this.heroRoot.remove(old);
@@ -597,7 +670,25 @@ export class CitylitEngine {
       this.outgoingGroup = null;
     }
     resetSceneDynamicLists(this.ringMat);
-    this.currentGroup = this.buildLandmarkGroup(index);
+    if (this.cachedGroup && this.cachedIndex === index) {
+      this.currentGroup = this.cachedGroup;
+      for (const m of this.cachedGlow) glowMaterials.push(m);
+      for (const s of this.cachedSway) swayItems.push(s);
+      for (const w of this.cachedWet) wetMaterials.push(w);
+      this.cachedGroup = null;
+      this.cachedIndex = -1;
+      this.cachedGlow = [];
+      this.cachedSway = [];
+      this.cachedWet = [];
+    } else {
+      if (this.cachedGroup) this.disposeTransientResources(this.cachedGroup);
+      this.cachedGroup = null;
+      this.cachedIndex = -1;
+      this.cachedGlow = [];
+      this.cachedSway = [];
+      this.cachedWet = [];
+      this.currentGroup = this.buildLandmarkGroup(index);
+    }
     const lods: THREE.LOD[] = [];
     const hoverTargets: THREE.Object3D[] = [];
     this.currentGroup.traverse((obj) => {
@@ -667,6 +758,7 @@ export class CitylitEngine {
     this.pendingIndex = index;
     this.dissolvePhase = 1;
     this.dissolveT = 0;
+    this.lastSwitchAt = this.elapsed;
     const lm = LANDMARKS[index];
     ambientAudio.playSfx('whoosh');
     ambientAudio.vibrateForLandmark(lm.biome, lm.c);
@@ -715,7 +807,7 @@ export class CitylitEngine {
     const shadowsOn = !this.isSoftwareGl && idx < 2;
     this.renderer.shadowMap.enabled = shadowsOn;
     if (shadowsOn) {
-      this.setShadowMapSize(idx === 0 ? 2048 : 1024);
+      this.setShadowMapSize(1024);
       this.renderer.shadowMap.needsUpdate = true;
     }
   }
@@ -1971,6 +2063,16 @@ export class CitylitEngine {
         }
       }
 
+      // Warm the upcoming landmark's programs between transitions so the
+      // first frame of a switch never pays the shader compile cost.
+      if (
+        this.dissolvePhase === 0 &&
+        this.elapsed - this.lastSwitchAt > 2.5 &&
+        this.cachedIndex !== (this.activeIndex + 1) % LANDMARKS.length
+      ) {
+        this.prewarmNextLandmark();
+      }
+
       // Landmark tick + sway + glowing windows
       const tickFn = this.currentGroup?.userData.tick as
         | ((t: number, dt: number) => void)
@@ -2139,6 +2241,8 @@ export class CitylitEngine {
     this.unbindListeners();
     if (this.currentGroup) this.disposeTransientResources(this.currentGroup);
     if (this.outgoingGroup) this.disposeTransientResources(this.outgoingGroup);
+    if (this.cachedGroup) this.disposeTransientResources(this.cachedGroup);
+    this.cachedGroup = null;
     this.controls.dispose();
     this.globe.dispose();
     this.places.dispose();
