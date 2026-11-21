@@ -52,8 +52,25 @@ export function createRimLight(): THREE.DirectionalLight {
   return rim;
 }
 
-export function updateRimLight(rim: THREE.DirectionalLight, night: number, sun: number): void {
-  rim.intensity = 0.3 + 0.6 * night + 0.1 * (1 - sun);
+const rimBaseCol = new THREE.Color('#b9d4ff');
+const rimWarmCol = new THREE.Color('#ffd3a6');
+
+export function updateRimLight(
+  rim: THREE.DirectionalLight,
+  night: number,
+  sun: number,
+  hor = 0,
+  dt = 0.016,
+  motionScale = 1,
+  boost = 0
+): void {
+  const k = motionScale === 0 ? 1 : 1 - Math.exp(-Math.max(0, dt) * 2.8);
+  const prevBase = (rim.userData.baseIntensity as number | undefined) ?? rim.intensity;
+  const targetIntensity = 0.3 + 0.6 * night + 0.1 * (1 - sun) + 0.14 * hor;
+  const nextBase = prevBase + (targetIntensity - prevBase) * k;
+  rim.userData.baseIntensity = nextBase;
+  rim.intensity = nextBase + boost;
+  rim.color.lerpColors(rimBaseCol, rimWarmCol, hor * 0.65);
 }
 
 /**

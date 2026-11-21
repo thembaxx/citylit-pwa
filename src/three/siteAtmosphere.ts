@@ -525,6 +525,7 @@ export function createAtmosphereScene(scene: THREE.Scene): AtmosphereSceneContro
   const tintTmp = new THREE.Color();
 
   let hidden = false;
+  let animTime = 0;
 
   const setSite = (site: AtmosphereSite | null) => {
     const profile = resolveProfile(site);
@@ -538,11 +539,14 @@ export function createAtmosphereScene(scene: THREE.Scene): AtmosphereSceneContro
     root.visible = !next;
   };
 
-  const update: AtmosphereSceneController['update'] = (dt, elapsed, options) => {
+  const update: AtmosphereSceneController['update'] = (dt, _elapsed, options) => {
     if (hidden) return;
 
-    const fade = 1 - Math.exp(-dt * 1.6);
+    const safeDt = Math.max(0, dt);
     const motion = options.motionScale;
+    animTime += safeDt * motion;
+    const fade = motion === 0 ? 1 : 1 - Math.exp(-safeDt * 1.6);
+    const atmoLerp = motion === 0 ? 1 : 1 - Math.exp(-safeDt * 2.2);
     const lowQuality = options.qualityIndex >= 2;
 
     for (const key of Object.keys(currentWeights) as AtmosphereEffect[]) {
@@ -557,24 +561,29 @@ export function createAtmosphereScene(scene: THREE.Scene): AtmosphereSceneContro
       layer.mesh.visible = visible;
       if (!visible) continue;
 
-      const opacity = layer.spec.base * weight * effectOpacity(layer.effect, options);
-      const density = layer.spec.density * (0.75 + options.fog * 0.5);
+      const targetOpacity = Math.min(
+        0.85,
+        layer.spec.base * weight * effectOpacity(layer.effect, options)
+      );
+      const targetDensity = layer.spec.density * (0.75 + options.fog * 0.5);
 
       tintTmp.copy(layer.tint).lerp(options.fogColor, layer.effect === 'heatHaze' ? 0.14 : 0.52);
 
-      layer.mat.uniforms.uTime.value = elapsed;
-      layer.mat.uniforms.uOpacity.value = Math.min(0.85, opacity);
-      layer.mat.uniforms.uDensity.value = density;
-      layer.mat.uniforms.uWind.value = options.wind;
-      layer.mat.uniforms.uColor.value.copy(tintTmp);
+      layer.mat.uniforms.uTime.value = animTime;
+      layer.mat.uniforms.uOpacity.value +=
+        (targetOpacity - layer.mat.uniforms.uOpacity.value) * atmoLerp;
+      layer.mat.uniforms.uDensity.value +=
+        (targetDensity - layer.mat.uniforms.uDensity.value) * atmoLerp;
+      layer.mat.uniforms.uWind.value += (options.wind - layer.mat.uniforms.uWind.value) * atmoLerp;
+      layer.mat.uniforms.uColor.value.lerp(tintTmp, atmoLerp);
 
       if (layer.effect === 'tableCloth') {
-        layer.mesh.rotation.y = elapsed * layer.spec.spin * motion;
-        const drift = Math.sin(elapsed * 0.07 * motion) * 0.35;
+        layer.mesh.rotation.y = animTime * layer.spec.spin;
+        const drift = Math.sin(animTime * 0.07) * 0.35;
         layer.mesh.position.x = drift;
-        layer.mesh.position.z = Math.cos(elapsed * 0.05 * motion) * 0.25;
+        layer.mesh.position.z = Math.cos(animTime * 0.05) * 0.25;
       } else {
-        layer.mesh.rotation.y = elapsed * layer.spec.spin * motion;
+        layer.mesh.rotation.y = animTime * layer.spec.spin;
       }
     }
   };

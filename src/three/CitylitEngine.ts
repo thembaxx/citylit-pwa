@@ -2641,21 +2641,32 @@ export class CitylitEngine {
           this.callbacks.onThunder?.();
         },
       });
-      updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
+      updateRimLight(
+        this.rimLight,
+        this.weather.current.night,
+        WU.sun.value,
+        WU.sunHor.value,
+        dt,
+        this.motionScale,
+        0
+      );
       this.weather.clouds.visible = false;
       this.weather.groundShadow.visible = false;
       this.weather.rainLines.visible = false;
       this.weather.stormCurtain.visible = false;
+      const placesEnvLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
       if (this.isStudio()) {
-        this.scene.environmentIntensity = 0.55;
+        this.scene.environmentIntensity += (0.55 - this.scene.environmentIntensity) * placesEnvLerp;
       } else {
         const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
         const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
-        this.scene.environmentIntensity =
+        const targetPlacesEnv =
           envFloor +
           (envCeiling - envFloor) *
             (1 - this.weather.current.night) *
             (1 - this.weather.current.cover * 0.35);
+        this.scene.environmentIntensity +=
+          (targetPlacesEnv - this.scene.environmentIntensity) * placesEnvLerp;
       }
       updateWetSurfaces(
         Math.max(this.weather.current.rain, this.places.getWeatherMode() === 'rain' ? 0.85 : 0)
@@ -2879,10 +2890,18 @@ export class CitylitEngine {
       this.hoverRimBoost += ((this.hoveredHero ? 1 : 0) - this.hoverRimBoost) * hoverLerp;
       this.rackFocusBlend +=
         ((this.hasCustomFocus ? 1 : 0) - this.rackFocusBlend) * Math.min(1, dt * 5);
-      updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
-      this.rimLight.intensity += this.hoverRimBoost * 0.32;
+      updateRimLight(
+        this.rimLight,
+        this.weather.current.night,
+        WU.sun.value,
+        WU.sunHor.value,
+        dt,
+        this.motionScale,
+        this.hoverRimBoost * 0.32
+      );
 
       const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
+      const envLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
       this.studioWeight += ((this.isStudio() ? 1 : 0) - this.studioWeight) * themeLerp;
       if (!this.isSoftwareGl && this.qualityIndex < 2) {
         this.bloomPass.enabled = this.studioWeight < 0.99;
@@ -2904,8 +2923,9 @@ export class CitylitEngine {
         (envCeiling - envFloor) *
           (1 - this.weather.current.night) *
           (1 - this.weather.current.cover * 0.35);
-      this.scene.environmentIntensity =
-        skyEnvIntensity + (0.55 - skyEnvIntensity) * this.studioWeight;
+      const targetEnvIntensity = skyEnvIntensity + (0.55 - skyEnvIntensity) * this.studioWeight;
+      this.scene.environmentIntensity +=
+        (targetEnvIntensity - this.scene.environmentIntensity) * envLerp;
       updateWetSurfaces(this.weather.current.rain);
 
       // Localized atmosphere shell: ridge fog, heat shimmer, sea and spray mist

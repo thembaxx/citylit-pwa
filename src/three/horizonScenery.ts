@@ -216,22 +216,28 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
     nearRidge.mat.uniforms.uBaseCol.value.lerp(tmpBase, k);
     nearRidge.mat.uniforms.uHorizonCol.value.lerp(tmpHorizon, k);
     nearRidge.mat.uniforms.uGlowCol.value.lerp(opts.sunGlow, k);
-    nearRidge.mat.uniforms.uHor.value = opts.hor;
-    nearRidge.mat.uniforms.uAlpha.value = (0.44 - opts.night * 0.1) * studioFade;
+    nearRidge.mat.uniforms.uHor.value += (opts.hor - nearRidge.mat.uniforms.uHor.value) * k;
+    const nearTargetAlpha = (0.44 - opts.night * 0.1) * studioFade;
+    nearRidge.mat.uniforms.uAlpha.value +=
+      (nearTargetAlpha - nearRidge.mat.uniforms.uAlpha.value) * k;
 
     farRidge.mat.uniforms.uWeights.value.copy(nearRidge.mat.uniforms.uWeights.value);
     farRidge.mat.uniforms.uBaseCol.value.lerp(tmpHorizon, k);
     farRidge.mat.uniforms.uHorizonCol.value.lerp(opts.fogColor, k);
     farRidge.mat.uniforms.uGlowCol.value.lerp(opts.sunGlow, k);
-    farRidge.mat.uniforms.uHor.value = opts.hor * 0.8;
-    farRidge.mat.uniforms.uAlpha.value = (0.28 - opts.night * 0.06) * studioFade;
+    farRidge.mat.uniforms.uHor.value += (opts.hor * 0.8 - farRidge.mat.uniforms.uHor.value) * k;
+    const farTargetAlpha = (0.28 - opts.night * 0.06) * studioFade;
+    farRidge.mat.uniforms.uAlpha.value += (farTargetAlpha - farRidge.mat.uniforms.uAlpha.value) * k;
 
     // Ground catcher takes subtle rain wetness sheen & ambient sky bounce under the plinth.
     tmpGround.copy(opts.fogColor).multiplyScalar(0.32 + (1 - opts.night) * 0.18);
     groundMat.color.lerp(tmpGround, k);
-    groundMat.roughness = THREE.MathUtils.lerp(0.88, 0.18, opts.rain);
-    groundMat.metalness = THREE.MathUtils.lerp(0.06, 0.24, opts.rain);
-    groundMat.opacity = (0.36 + opts.rain * 0.16) * studioFade;
+    const targetRoughness = THREE.MathUtils.lerp(0.88, 0.18, opts.rain);
+    const targetMetalness = THREE.MathUtils.lerp(0.06, 0.24, opts.rain);
+    const targetOpacity = (0.36 + opts.rain * 0.16) * studioFade;
+    groundMat.roughness += (targetRoughness - groundMat.roughness) * k;
+    groundMat.metalness += (targetMetalness - groundMat.metalness) * k;
+    groundMat.opacity += (targetOpacity - groundMat.opacity) * k;
   };
 
   const dispose = () => {

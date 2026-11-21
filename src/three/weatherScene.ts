@@ -243,16 +243,24 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const starPoints = new THREE.Points(starGeo, starMat);
   root.add(starPoints);
 
-  const sunDisc = new THREE.Mesh(
-    new THREE.SphereGeometry(2.1, 16, 12),
-    new THREE.MeshBasicMaterial({ color: '#fff4c8', fog: false })
-  );
+  const sunMat = new THREE.MeshBasicMaterial({
+    color: '#fff4c8',
+    fog: false,
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+  });
+  const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(2.1, 16, 12), sunMat);
   root.add(sunDisc);
 
-  const moonDisc = new THREE.Mesh(
-    new THREE.SphereGeometry(1.1, 16, 12),
-    new THREE.MeshBasicMaterial({ color: '#dde7ff', fog: false })
-  );
+  const moonMat = new THREE.MeshBasicMaterial({
+    color: '#dde7ff',
+    fog: false,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const moonDisc = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 12), moonMat);
   root.add(moonDisc);
 
   const cloudMat = new THREE.MeshStandardMaterial({
@@ -450,14 +458,19 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const windDirTmp = new THREE.Vector2(1, 0);
   const sunDirTargetTmp = new THREE.Vector3(0.5, 0.8, 0.3);
   const cloudTargetCol = new THREE.Color('#ffffff');
+  const dayKeyPosTmp = new THREE.Vector3(12, 18, 10);
   const keyPosTarget = new THREE.Vector3(12, 18, 10);
   const keyColorTarget = new THREE.Color('#fff5dd');
   const nightKeyCol = new THREE.Color('#b8d0ff');
   const nightKeyPos = new THREE.Vector3(-10, 14, -8);
+  const rainDayCol = new THREE.Color('#c7dcff');
+  const rainNightCol = new THREE.Color('#7c94bf');
+  const rainTargetCol = new THREE.Color('#c7dcff');
   const bgTargetCol = new THREE.Color('#0c0e16');
   const fogTargetCol = new THREE.Color('#97a5b7');
   const sunShaftTargetCol = new THREE.Color('#ffd49c');
   let windDirectionDeg = 0;
+  let animTime = 0;
 
   const applyCondition = (key: WeatherConditionKey, night: boolean, timeOfDay?: number) => {
     const cond = WEATHER_CONDITIONS[key] ?? WEATHER_CONDITIONS.sun;
@@ -526,6 +539,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     { qualityIndex, motionScale, keyLight, fillLight, hemiLight, scene: s, renderer, onThunder }
   ) => {
     const safeDt = Math.max(0, dt);
+    animTime += safeDt * motionScale;
     const tk = motionScale === 0 ? 1 : 1 - Math.exp(-safeDt * 4.5);
     const skyLerp = motionScale === 0 ? 1 : 1 - Math.exp(-safeDt * 2.2);
     const lightLerp = motionScale === 0 ? 1 : 1 - Math.exp(-safeDt * 2.8);
@@ -564,9 +578,16 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const day = Math.max(0, Math.min(1, alt * 2.5 + 0.35));
 
     sunDisc.position.set(sx, sy, sz);
-    sunDisc.visible = wStudio < 0.99 && sy > -2 && !renderer.xr.isPresenting;
+    const sunTargetOpacity =
+      THREE.MathUtils.smoothstep(sy, -3.5, 2.5) * (1 - current.cover * 0.72) * (1 - wStudio);
+    sunMat.opacity += (sunTargetOpacity - sunMat.opacity) * skyLerp;
+    sunDisc.visible = wStudio < 0.99 && sunMat.opacity > 0.005 && !renderer.xr.isPresenting;
+
     moonDisc.position.set(-sx * 0.85, Math.max(12, -sy * 0.7 + 14), -16);
-    moonDisc.visible = wStudio < 0.99 && day < 0.7;
+    const moonTargetOpacity =
+      THREE.MathUtils.smoothstep(day, 0.72, 0.18) * (1 - current.cover * 0.75) * (1 - wStudio);
+    moonMat.opacity += (moonTargetOpacity - moonMat.opacity) * skyLerp;
+    moonDisc.visible = wStudio < 0.99 && moonMat.opacity > 0.005;
 
     if (current.storm > 0.4) {
       thunderTimer -= safeDt;
@@ -606,7 +627,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .lerp(botNightTmp, 1 - day)
       .lerp(studioBgCol, wStudio);
     skyMat.uniforms.bot.value.lerp(botTmp, skyLerp);
-    skyMat.uniforms.t.value = elapsed * motionScale;
+    skyMat.uniforms.t.value = animTime;
 
     const targetCover = current.cover * (1 - wStudio);
     const targetCirrus =
@@ -641,15 +662,16 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
 
     // Volumetric sun shafts aligned with sun direction during golden hour / misty sunrise
     const shaftOpacity =
+      THREE.MathUtils.smoothstep(sy, -2.0, 2.0) *
       (hor * 0.08 + current.fog * hor * 0.07) *
       (1 - current.storm * 0.85) *
       (1 - current.cover * 0.55) *
       (1 - wStudio);
-    sunShaftGroup.visible = wStudio < 0.98 && shaftOpacity > 0.004 && sy > -1;
+    sunShaftMat.opacity += (shaftOpacity - sunShaftMat.opacity) * skyLerp;
+    sunShaftGroup.visible = wStudio < 0.98 && sunShaftMat.opacity > 0.003;
     if (sunShaftGroup.visible) {
       sunShaftTargetCol.copy(sunGlowTmp).lerp(dayColTmp, 0.38);
       sunShaftMat.color.lerp(sunShaftTargetCol, skyLerp);
-      sunShaftMat.opacity += (shaftOpacity - sunShaftMat.opacity) * skyLerp;
       sunShaftGroup.rotation.y = Math.atan2(sx, sz);
       sunShaftGroup.rotation.x = THREE.MathUtils.clamp((1 - alt) * 0.35, 0.08, 0.42);
     }
@@ -743,65 +765,73 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .lerp(autumnKeyTint, seasonCurrent.autumn * 0.22);
     sunColTmp.copy(dayColTmp).lerp(sunGlowTmp, hor * (0.75 + 0.2 * seasonCurrent.warmth));
     const seasonalIntensityScale = 0.88 + 0.22 * seasonCurrent.warmth;
-    let keyIntensityTarget: number;
-    if (day > 0.15) {
-      keyPosTarget.set(sx * 0.45, Math.max(3, sy * 0.45), sz * 0.55);
-      keyColorTarget.copy(sunColTmp);
-      keyIntensityTarget =
-        3.05 * seasonalIntensityScale * day * (1 - current.cover * 0.5) * (0.68 + 0.32 * (1 - hor));
-    } else {
-      keyPosTarget.copy(nightKeyPos);
-      keyColorTarget.copy(nightKeyCol);
-      keyIntensityTarget = 1.45;
-    }
-
-    // Smoothly interpolate light colors/positions/intensities; lightning bursts overlay cleanly.
-    keyLight.position.lerp(keyPosTarget, lightLerp);
-    keyLight.color.lerp(keyColorTarget, lightLerp);
-    const baseKeyIntensity = keyLight.intensity;
-    const smoothedKeyBase = baseKeyIntensity + (keyIntensityTarget - baseKeyIntensity) * lightLerp;
-    keyLight.intensity = smoothedKeyBase + lightningFlash * 4.2;
+    const dayBlend = THREE.MathUtils.smoothstep(day, 0.05, 0.45);
+    dayKeyPosTmp.set(sx * 0.45, Math.max(3, sy * 0.45), sz * 0.55);
+    keyPosTarget.copy(nightKeyPos).lerp(dayKeyPosTmp, dayBlend);
+    keyColorTarget.copy(nightKeyCol).lerp(sunColTmp, dayBlend);
+    const dayKeyIntensity =
+      3.05 * seasonalIntensityScale * day * (1 - current.cover * 0.5) * (0.68 + 0.32 * (1 - hor));
+    let keyIntensityTarget = THREE.MathUtils.lerp(1.45, dayKeyIntensity, dayBlend);
 
     seasonFillTmp.copy(winterFillCol).lerp(summerFillCol, seasonCurrent.warmth);
-    fillLight.color.lerp(seasonFillTmp, lightLerp);
-    const fillTarget = (1.35 + 0.12 * seasonCurrent.warmth) * day + 0.85 * (1 - day) + hor * 0.3;
-    fillLight.intensity += (fillTarget - fillLight.intensity) * lightLerp;
+    let fillTarget = (1.35 + 0.12 * seasonCurrent.warmth) * day + 0.85 * (1 - day) + hor * 0.3;
 
     seasonHemiSkyTmp.copy(winterHemiSky).lerp(summerHemiSky, seasonCurrent.warmth);
     seasonHemiGroundTmp.copy(winterHemiGround).lerp(summerHemiGround, seasonCurrent.warmth);
+    let hemiTarget = (1.05 + 0.12 * seasonCurrent.warmth) * day + 0.7 * (1 - day);
+
+    // Fold studio preset continuously into light targets before exponential smoothing.
+    if (wStudio > 0.001) {
+      keyPosTarget.lerp(studioKeyPos, wStudio);
+      keyColorTarget.lerp(studioKeyCol, wStudio);
+      keyIntensityTarget = THREE.MathUtils.lerp(keyIntensityTarget, 3.1, wStudio);
+      seasonFillTmp.lerp(studioFillCol, wStudio);
+      fillTarget = THREE.MathUtils.lerp(fillTarget, 1.3, wStudio);
+      seasonHemiSkyTmp.lerp(studioHemiSky, wStudio);
+      seasonHemiGroundTmp.lerp(studioHemiGround, wStudio);
+      hemiTarget = THREE.MathUtils.lerp(hemiTarget, 0.95, wStudio);
+    }
+
+    keyLight.position.lerp(keyPosTarget, lightLerp);
+    keyLight.color.lerp(keyColorTarget, lightLerp);
+    const prevKeyBase = Math.max(0, keyLight.intensity - lightningFlash * 4.2);
+    const smoothedKeyBase = prevKeyBase + (keyIntensityTarget - prevKeyBase) * lightLerp;
+    keyLight.intensity = smoothedKeyBase + lightningFlash * 4.2;
+
+    fillLight.color.lerp(seasonFillTmp, lightLerp);
+    fillLight.intensity += (fillTarget - fillLight.intensity) * lightLerp;
+
     hemiLight.color.lerp(seasonHemiSkyTmp, lightLerp);
     hemiLight.groundColor.lerp(seasonHemiGroundTmp, lightLerp);
-    const hemiTarget = (1.05 + 0.12 * seasonCurrent.warmth) * day + 0.7 * (1 - day);
     hemiLight.intensity += (hemiTarget - hemiLight.intensity) * lightLerp;
-
-    // Studio/catalog look: smoothly blend toward flat neutral catalog lighting.
-    if (wStudio > 0.001) {
-      keyLight.position.lerp(studioKeyPos, wStudio);
-      keyLight.color.lerp(studioKeyCol, wStudio);
-      keyLight.intensity += (3.1 - keyLight.intensity) * wStudio;
-      fillLight.color.lerp(studioFillCol, wStudio);
-      fillLight.intensity += (1.3 - fillLight.intensity) * wStudio;
-      hemiLight.color.lerp(studioHemiSky, wStudio);
-      hemiLight.groundColor.lerp(studioHemiGround, wStudio);
-      hemiLight.intensity += (0.95 - hemiLight.intensity) * wStudio;
-    }
 
     const rainCount = Math.floor((qualityIndex > 1 ? 150 : RN) * current.rain);
     rainGeo.setDrawRange(0, rainCount * 2);
-    rainLines.visible = wStudio < 0.995 && current.rain > 0.03;
-    rainMat.uniforms.uOpacity.value = current.rain * 0.42 * (1 - wStudio);
+    const rainTargetOpacity = current.rain * 0.42 * (1 - wStudio);
+    rainMat.uniforms.uOpacity.value +=
+      (rainTargetOpacity - rainMat.uniforms.uOpacity.value) * skyLerp;
+    rainMat.uniforms.uWind.value += (current.wind - rainMat.uniforms.uWind.value) * skyLerp;
+    rainTargetCol
+      .copy(rainNightCol)
+      .lerp(rainDayCol, day)
+      .lerp(sunGlowTmp, hor * 0.25 * (1 - wStudio));
+    rainMat.uniforms.uColor.value.lerp(rainTargetCol, skyLerp);
+    rainLines.visible = wStudio < 0.995 && rainMat.uniforms.uOpacity.value > 0.008;
     if (rainLines.visible) {
-      rainMat.uniforms.uTime.value = elapsed * motionScale;
-      rainMat.uniforms.uWind.value = current.wind;
+      rainMat.uniforms.uTime.value = animTime;
     }
 
-    stMat.uniforms.t.value = elapsed * motionScale;
-    stMat.uniforms.st.value = current.storm * (1 - wStudio);
-    stMat.uniforms.fl.value = lightningFlash;
-    stormCurtain.visible = wStudio < 0.995 && current.storm > 0.03;
+    stMat.uniforms.t.value = animTime;
+    const stormCurtainTarget = current.storm * (1 - wStudio);
+    stMat.uniforms.st.value += (stormCurtainTarget - stMat.uniforms.st.value) * skyLerp;
+    stMat.uniforms.fl.value = lightningFlash * (1 - wStudio);
+    stormCurtain.visible = wStudio < 0.995 && stMat.uniforms.st.value > 0.02;
 
-    WU.sun.value = day * (1 - current.cover * 0.65);
-    WU.sunHor.value = hor * (1 - wStudio);
+    const targetSun = day * (1 - current.cover * 0.65);
+    const targetSunHor = hor * (1 - wStudio);
+    const targetLit = Math.min(1, Math.max(0, (1 - day) * 1.4 + current.cover * 0.3));
+    WU.sun.value += (targetSun - WU.sun.value) * lightLerp;
+    WU.sunHor.value += (targetSunHor - WU.sunHor.value) * skyLerp;
     WU.season.value = seasonCurrent.warmth;
     WU.sky.value.copy(skyMat.uniforms.top.value);
     WU.wind.value = current.wind;
@@ -810,7 +840,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     windDirTmp.set(Math.sin(windRad), -Math.cos(windRad));
     WU.windDir.value.lerp(windDirTmp, sk).normalize();
     WU.rain.value = current.rain;
-    WU.lit.value = Math.min(1, Math.max(0, (1 - day) * 1.4 + current.cover * 0.3));
+    WU.lit.value += (targetLit - WU.lit.value) * lightLerp;
   };
 
   return {
