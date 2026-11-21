@@ -519,6 +519,7 @@ export function waterize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMat
     shader.uniforms.uHorW = WU.sunHor;
     shader.uniforms.uSky = WU.sky;
     shader.uniforms.uRN = WU.rain;
+    shader.uniforms.uWdW = WU.wind;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vW;')
       .replace(
@@ -534,14 +535,28 @@ vW=(modelMatrix*vec4(transformed,1.)).xyz;
       .replace(
         '#include <common>',
         `#include <common>
-varying vec3 vW;uniform float uWT,uSI,uHorW,uRN;uniform vec3 uSky;
+varying vec3 vW;uniform float uWT,uSI,uHorW,uRN,uWdW;uniform vec3 uSky;
 float wHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float wNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wHash(i),wHash(i+vec2(1.,0.)),f.x),mix(wHash(i+vec2(0.,1.)),wHash(i+vec2(1.,1.)),f.x),f.y);}
 float wFbm(vec2 p){float a=.5,s=0.;for(int i=0;i<3;i++){s+=a*wNoise(p);p=p*2.07+vec2(13.,7.);a*=.5;}return s;}
+float wCaustic(vec2 p,float t){
+  float c1=abs(sin(p.x*5.2+t*1.4+sin(p.y*4.1-t*1.1)));
+  float c2=abs(sin(p.y*5.7-t*1.3+cos(p.x*4.6+t*0.9)));
+  return pow(1.0-min(c1,c2),4.5);
+}
+float wRainRing(vec2 q,float t){
+  vec2 cell=floor(q*3.2),f=fract(q*3.2)-0.5;
+  float h=wHash(cell);
+  float phase=fract(t*1.35+h);
+  float d=length(f-(vec2(h,fract(h*13.7))-0.5)*0.4);
+  float ring=smoothstep(0.055,0.0,abs(d-phase*0.42))*(1.0-phase);
+  return ring*step(0.28,h);
+}
 float wHeight(vec2 p,float t){
-float h=sin(p.x*1.9+t*1.25)*.5+sin(p.y*1.45-t*.95)*.42+sin((p.x+p.y)*2.6+t*1.7)*.2;
+float chop=1.0+min(1.5,uWdW)*0.22;
+float h=(sin(p.x*1.9+t*1.25)*.5+sin(p.y*1.45-t*.95)*.42+sin((p.x+p.y)*2.6+t*1.7)*.2)*chop;
 h+=(wFbm(p*2.1+vec2(t*.22,-t*.16))-.5)*.42;
-h+=uRN*.16*sin((p.x*11.+p.y*9.)+t*9.)*sin((p.x*5.-p.y*13.)-t*7.);
+h+=uRN*.18*sin((p.x*11.+p.y*9.)+t*9.)*sin((p.x*5.-p.y*13.)-t*7.);
 return h;
 }`
       )
@@ -551,7 +566,8 @@ return h;
 {
 vec2 q=vW.xz;float t=uWT;float e=.075;
 float h=wHeight(q,t),hx=wHeight(q+vec2(e,0.),t),hy=wHeight(q+vec2(0.,e),t);
-vec3 dev=vec3(-(hx-h)/e,0.,-(hy-h)/e)*.07;
+float rSplash=uRN>0.05?wRainRing(q,t)*uRN*0.14:0.0;
+vec3 dev=vec3(-(hx-h)/e+rSplash,0.,-(hy-h)/e+rSplash)*.07;
 normal=normalize(normal+(viewMatrix*vec4(dev,0.)).xyz);
 }`
       )
@@ -562,8 +578,19 @@ vec2 q=vW.xz;float t=uWT;float h=wHeight(q,t);
 float fr=pow(1.-max(dot(normalize(vViewPosition),normal),0.),3.2);
 vec3 skyWash=mix(uSky*1.1,vec3(1.,.68,.38),uHorW*.48);
 outgoingLight=mix(outgoingLight,skyWash,fr*.62);
-float crest=smoothstep(.60,.96,h*.5+.5);
-outgoingLight+=vec3(.84,.95,1.)*crest*.18;
+// Subsurface sunlit caustics in clear/shallow water
+float caustic=wCaustic(q*0.85,t)*smoothstep(0.15,0.95,uSI);
+outgoingLight+=mix(vec3(0.42,0.88,0.95),vec3(1.0,0.84,0.52),uHorW*0.6)*caustic*0.24;
+// Crest foam + shoreline rim foam near the cut wall
+float rEdge=max(abs(vW.x),abs(vW.z));
+float shoreNoise=wNoise(q*4.5+vec2(t*0.6,-t*0.45));
+float shoreFoam=smoothstep(6.7,8.05,rEdge)*smoothstep(0.32,0.75,shoreNoise+sin(t*1.8)*0.12);
+float crest=smoothstep(.58,.95,h*.5+.5);
+outgoingLight+=vec3(.88,.97,1.)*(crest*.20+shoreFoam*.34);
+// Expanding raindrop splash rings on water surface
+if(uRN>0.05){
+  outgoingLight+=vec3(.82,.92,1.)*wRainRing(q,t)*uRN*0.28;
+}
 float glint=pow(wNoise(q*7.+vec2(t*1.4,-t*1.1)),16.);
 vec3 glintCol=mix(vec3(1.,.96,.84),vec3(1.,.74,.36),uHorW*.72);
 outgoingLight+=glintCol*glint*(.85+.45*uHorW)*uSI;
@@ -572,7 +599,34 @@ outgoingLight+=glintCol*glint*(.85+.45*uHorW)*uSI;
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'water_v4';
+  mat.customProgramCacheKey = () => 'water_v5';
+  return mat;
+}
+
+export function flagWindy(
+  mat: THREE.MeshStandardMaterial,
+  cacheKey = 'flag_wind'
+): THREE.MeshStandardMaterial {
+  mat.side = THREE.DoubleSide;
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWT = WU.t;
+    shader.uniforms.uWd = WU.wind;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWT,uWd;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+{
+  float pin=smoothstep(0.0,0.32,max(0.0,position.x));
+  float wAmp=0.04+clamp(uWd,0.0,3.5)*0.045;
+  float wave=sin(position.x*16.0-uWT*(5.5+uWd*2.6)+position.y*4.0);
+  transformed.z+=wave*wAmp*pin;
+  transformed.y+=cos(position.x*10.0-uWT*4.2)*wAmp*0.32*pin;
+}`
+      );
+    applyDissolveToShader(shader);
+  };
+  mat.customProgramCacheKey = () => `${cacheKey}_v1`;
   return mat;
 }
 

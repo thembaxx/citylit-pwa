@@ -521,6 +521,22 @@ export function App() {
     timeHourRef.current = timeHour;
   }, [timeHour]);
 
+  useEffect(() => {
+    engineRef.current?.setTimeLapsePlaying(
+      timeLapseActive && !docHidden && !globeOpen && !placesOpen
+    );
+  }, [timeLapseActive, docHidden, globeOpen, placesOpen]);
+
+  useEffect(() => {
+    if (!globeOpen && !placesOpen && !fullscreen) {
+      const id = window.requestAnimationFrame(() => {
+        engineRef.current?.refreshFraming();
+      });
+      return () => window.cancelAnimationFrame(id);
+    }
+    return undefined;
+  }, [fullscreen, globeOpen, placesOpen]);
+
   // 24-hour atmospheric Time Lapse cycle
   useEffect(() => {
     if (!timeLapseActive || docHidden || globeOpen || placesOpen) return undefined;
@@ -990,7 +1006,10 @@ export function App() {
           visible={!fullscreen}
           globeOpen={globeOpen || placesOpen}
           reducedMotion={reducedMotion}
-          onToggleExpand={() => setWeatherExpanded((v) => !v)}
+          onToggleExpand={() => {
+            setWeatherExpanded((v) => !v);
+            window.requestAnimationFrame(() => engineRef.current?.refreshFraming());
+          }}
           onSelectTimePreset={(h) => {
             setTimeLapseActive(false);
             setTimeHour(h);
@@ -1037,6 +1056,7 @@ export function App() {
             ambientAudio.playUi('expand');
             ambientAudio.vibrate(18);
           }}
+          onDragParallax={(dx) => engineRef.current?.setCardDragParallax(dx)}
         />
 
         {/* Desktop Orbit Hint */}

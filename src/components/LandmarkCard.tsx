@@ -93,6 +93,7 @@ interface LandmarkCardProps {
   onOpenGlobe: () => void;
   onShare: () => void;
   onVibrate: () => void;
+  onDragParallax?: (dx: number) => void;
 }
 
 const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
@@ -135,6 +136,7 @@ export function LandmarkCard({
   onOpenGlobe,
   onShare,
   onVibrate,
+  onDragParallax,
 }: LandmarkCardProps) {
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
   const [{ current: trackedIndex, dir: direction }, setNavState] = useState({
@@ -180,10 +182,15 @@ export function LandmarkCard({
       dragX.stop();
       dragOrigin.current = dragX.get();
     },
-    onMove: (delta) => dragX.set(dragOrigin.current + delta.x * 0.7),
+    onMove: (delta) => {
+      const nextX = dragOrigin.current + delta.x * 0.7;
+      dragX.set(nextX);
+      onDragParallax?.(nextX);
+    },
     onEnd: (velocity) => {
       const landing = dragX.get() + project(velocity.x * 0.5);
       animate(dragX, 0, { ...SPRING.surface, velocity: velocity.x });
+      onDragParallax?.(0);
       if (landing < -64) onNext();
       else if (landing > 64) onPrev();
     },

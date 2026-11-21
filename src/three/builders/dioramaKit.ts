@@ -6,7 +6,7 @@ import type {
   LandmarkBiome,
   SpatialAudioSource,
 } from '../../types/citylit';
-import { WU, getSoftTexture, normalMapsActive, waterize } from '../shaders';
+import { WU, flagWindy, getSoftTexture, normalMapsActive, waterize } from '../shaders';
 import {
   add,
   C,
@@ -968,7 +968,36 @@ function addJetty(g: THREE.Group, angle: number): Update[] {
   add(grp, C(0.03, 0.038, 0.5, 6), dark, 7.78, 0.36, 0.24);
   add(grp, new THREE.SphereGeometry(0.055, 10, 8), G('#ffd9a0', 1.2), 7.78, 0.63, 0.24);
   mergeByMaterial(grp);
-  return [];
+
+  // Miniature moored rowing dinghy bobbing gently beside the pier
+  const boat = new THREE.Group();
+  boat.position.set(7.45, -0.09, -0.78);
+  boat.rotation.y = 0.28;
+  const hullMat = MWood('#c7b9a2', 0.72);
+  const trimMat = MWood('#7c4c2f', 0.85);
+  add(
+    boat,
+    new THREE.CylinderGeometry(0.14, 0.1, 0.52, 8).rotateZ(Math.PI / 2),
+    hullMat,
+    0,
+    0.05,
+    0
+  );
+  add(boat, CB(0.05, 0.025, 0.22, 0.005), trimMat, -0.06, 0.09, 0);
+  add(boat, CB(0.05, 0.025, 0.22, 0.005), trimMat, 0.08, 0.09, 0);
+  add(boat, C(0.009, 0.014, 0.16, 6), trimMat, 0.25, 0.11, 0).rotation.z = -0.35;
+  add(boat, CB(0.38, 0.012, 0.024, 0.004), wood, -0.02, 0.115, 0.11).rotation.y = 0.12;
+  mergeByMaterial(boat);
+  grp.add(boat);
+
+  return [
+    (t) => {
+      const wave = 1 + Math.min(1.4, WU.wind.value) * 0.25;
+      boat.position.y = -0.09 + Math.sin(t * 1.65) * 0.022 * wave;
+      boat.rotation.x = Math.sin(t * 1.9 + 0.6) * 0.065 * wave;
+      boat.rotation.z = Math.cos(t * 1.35) * 0.045 * wave;
+    },
+  ];
 }
 
 function addWindpump(g: THREE.Group, angle: number): Update[] {
@@ -990,12 +1019,19 @@ function addWindpump(g: THREE.Group, angle: number): Update[] {
   }
   add(grp, CB(0.26, 0.02, 0.02, 0.005), steel, 0, 0.5, 0).rotation.y = 0.78;
   add(grp, CB(0.02, 0.02, 0.26, 0.005), steel, 0, 0.5, 0).rotation.y = 0.78;
-  add(grp, CB(0.16, 0.1, 0.12, 0.02), steel, 0, 0.92, 0);
-  add(grp, CB(0.03, 0.16, 0.46, 0.01), steel, 0, 0.97, 0.2);
   mergeByMaterial(grp);
+
+  // Pivoting head turns gently into the prevailing wind vector
+  const head = new THREE.Group();
+  head.position.set(0, 0.92, 0);
+  grp.add(head);
+  add(head, CB(0.16, 0.1, 0.12, 0.02), steel, 0, 0, 0);
+  add(head, CB(0.03, 0.16, 0.46, 0.01), steel, 0, 0.05, 0.2);
+  mergeByMaterial(head);
+
   const wheel = new THREE.Group();
-  wheel.position.set(0, 0.94, -0.06);
-  grp.add(wheel);
+  wheel.position.set(0, 0.02, -0.06);
+  head.add(wheel);
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * Math.PI * 2;
     const blade = add(
@@ -1009,9 +1045,21 @@ function addWindpump(g: THREE.Group, angle: number): Update[] {
     blade.rotation.z = a + Math.PI / 2;
   }
   mergeByMaterial(wheel);
+
+  let spinPhase = 0;
+  let lastT = 0;
   return [
     (t) => {
-      wheel.rotation.z = t * 2.4;
+      const dt = Math.min(0.1, Math.max(0, t - lastT));
+      lastT = t;
+      spinPhase += dt * (1.2 + WU.wind.value * 2.1);
+      wheel.rotation.z = spinPhase;
+      const targetYaw = Math.atan2(WU.windDir.value.x, WU.windDir.value.y) + angle;
+      const diff = Math.atan2(
+        Math.sin(targetYaw - head.rotation.y),
+        Math.cos(targetYaw - head.rotation.y)
+      );
+      head.rotation.y += diff * Math.min(1, dt * 2.5 + 0.05);
     },
   ];
 }
@@ -1030,18 +1078,49 @@ function addBollards(g: THREE.Group, angle: number): Update[] {
   return [];
 }
 
+let pennantGeoShared: THREE.PlaneGeometry | null = null;
+let pennantMatShared: THREE.MeshStandardMaterial | null = null;
+
 function addDeck(g: THREE.Group, angle: number): Update[] {
   const grp = anchorGroup(g, angle, 0);
   const st = MStone('#8a8274', 0.92);
   const wood = MWood('#6b5138', 0.88);
+  const brass = MSteel('#c89c4c', 0.32, 0.88);
   add(grp, CB(1.0, 0.1, 0.7, 0.02), wood, 7.1, 0.24, 0);
   for (const x of [6.7, 7.5]) {
     for (const z of [-0.3, 0.3]) add(grp, C(0.03, 0.04, 0.2, 6), st, x, 0.13, z);
   }
   for (let i = 0; i < 3; i++) add(grp, C(0.012, 0.012, 0.34, 5), st, 6.68 + i * 0.42, 0.46, 0.33);
   add(grp, CB(0.86, 0.02, 0.02, 0.005), st, 7.1, 0.56, 0.33);
+  // Miniature brass scenic viewfinder / wind mast
+  add(grp, C(0.014, 0.022, 0.36, 8), brass, 7.42, 0.47, -0.22);
+  add(grp, C(0.022, 0.018, 0.14, 8), brass, 7.42, 0.65, -0.22).rotation.z = Math.PI * 0.42;
+  // Wind-fluttering reserve pennant on corner post
+  add(grp, C(0.008, 0.01, 0.56, 6), st, 6.72, 0.56, -0.26);
   mergeByMaterial(grp);
-  return [];
+
+  if (!pennantGeoShared) {
+    pennantGeoShared = new THREE.PlaneGeometry(0.28, 0.11, 8, 2);
+    pennantGeoShared.translate(0.14, 0, 0);
+    pennantGeoShared.userData.sharedResource = true;
+  }
+  if (!pennantMatShared) {
+    pennantMatShared = flagWindy(
+      new THREE.MeshStandardMaterial({ color: '#d87a3b', roughness: 0.78 }),
+      'deck_pennant'
+    );
+    pennantMatShared.userData.sharedResource = true;
+  }
+  const flagMesh = new THREE.Mesh(pennantGeoShared, pennantMatShared);
+  flagMesh.position.set(6.72, 0.78, -0.26);
+  flagMesh.userData.noShadow = true;
+  grp.add(flagMesh);
+
+  return [
+    () => {
+      flagMesh.rotation.y = Math.atan2(-WU.windDir.value.y, WU.windDir.value.x) + angle;
+    },
+  ];
 }
 
 function addReedbed(g: THREE.Group, angle: number): Update[] {
@@ -1075,7 +1154,32 @@ function addReedbed(g: THREE.Group, angle: number): Update[] {
   }
   grassTufts(g, tufts, ['#5f7c3f', '#7c8c49', '#8f8c52']);
   instancedMeshes(g, C(0.008, 0.016, 0.8, 5, 1, false).translate(0, 0.4, 0), Mc('#6e8144'), reeds);
-  return [];
+
+  // Subtle concentric water ripple ring around the reedbed
+  const rippleMat = new THREE.MeshBasicMaterial({
+    color: '#d8f4ff',
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  rippleMat.userData.noDissolve = true;
+  const ripple = new THREE.Mesh(
+    new THREE.RingGeometry(0.18, 0.24, 24).rotateX(-Math.PI / 2),
+    rippleMat
+  );
+  ripple.position.set(Math.cos(angle) * 6.3, 0.075, Math.sin(angle) * 6.3);
+  ripple.userData.noShadow = true;
+  ripple.userData.cannotReceiveAO = true;
+  g.add(ripple);
+
+  return [
+    (t) => {
+      const p = (t * 0.45) % 1;
+      ripple.scale.setScalar(0.65 + p * 2.2);
+      rippleMat.opacity = (1 - p) * 0.3;
+    },
+  ];
 }
 
 function addAnchor(g: THREE.Group, profile: SiteProfile, angle: number): Update[] {
@@ -1312,8 +1416,7 @@ function addSiteMotion(g: THREE.Group, key: string, profile: SiteProfile, angle:
   }
 
   if (profile.biome === 'waterfall' || profile.fx.includes('foam')) {
-    // Foam flecks fall away from the authored waterfall anchor (or the centre
-    // of a coastal cut) and fade out with the existing stream opacity curve.
+    // Foam flecks & wind-bent rising mist plumes at waterfall anchors
     const anchor = WATERFALL_ANCHORS[key] ?? [0, 1.2, 0];
     const s = stream(
       g,
@@ -1325,14 +1428,90 @@ function addSiteMotion(g: THREE.Group, key: string, profile: SiteProfile, angle:
         const a = R(i * 3.9 + 2) * 6.2832;
         const spread = u * (0.5 + R(i * 5.3) * 0.7);
         o.set(
-          anchor[0] + Math.cos(a) * spread + WU.wind.value * u * 0.3,
+          anchor[0] + Math.cos(a) * spread + WU.windDir.value.x * WU.wind.value * u * 0.35,
           anchor[1] - u * 1.1 + Math.sin(t * 1.2 + i) * 0.04,
-          anchor[2] + Math.sin(a) * spread
+          anchor[2] + Math.sin(a) * spread + WU.windDir.value.y * WU.wind.value * u * 0.35
         );
       },
       0.34
     );
     updates.push(s.update);
+
+    const plume = stream(
+      g,
+      detailed ? 14 : 7,
+      '#eefaff',
+      0.24,
+      (i, t, o) => {
+        const u = (t * 0.19 + R(i * 9.3 + 4)) % 1;
+        const a = R(i * 4.1 + 1) * 6.2832;
+        const rad = 0.25 + u * 0.95;
+        o.set(
+          anchor[0] + Math.cos(a) * rad + WU.windDir.value.x * u * (0.4 + WU.wind.value * 0.7),
+          Math.max(0.22, anchor[1] - 0.85 + u * 1.35),
+          anchor[2] + Math.sin(a) * rad + WU.windDir.value.y * u * (0.4 + WU.wind.value * 0.7)
+        );
+      },
+      0.22,
+      false
+    );
+    updates.push(plume.update);
+  }
+
+  // Nocturnal fireflies drifting warmly in wetland, savannah, and forest clearings
+  if (
+    profile.biome === 'wetland' ||
+    profile.biome === 'savannah' ||
+    key.includes('Kirstenbosch') ||
+    key.includes('Storms River')
+  ) {
+    const fireflies = stream(
+      g,
+      detailed ? 18 : 10,
+      '#ffe57f',
+      0.06,
+      (i, t, o) => {
+        const a = R(i * 6.3 + 2) * 6.2832 + Math.sin(t * 0.3 + i) * 0.45;
+        const r = 2.6 + R(i * 4.1 + 3) * 3.8;
+        o.set(
+          Math.cos(a) * r + Math.sin(t * 0.8 + i * 2.1) * 0.25,
+          0.35 + R(i * 5.7) * 1.45 + Math.sin(t * 1.3 + i) * 0.18,
+          Math.sin(a) * r + Math.cos(t * 0.7 + i * 1.7) * 0.25
+        );
+      },
+      0.0
+    );
+    updates.push(fireflies.update);
+    const ffMat = fireflies.material;
+    updates.push((t) => {
+      const nightGlow = Math.max(0, (WU.lit.value - 0.35) / 0.65);
+      const blink = 0.6 + 0.4 * Math.sin(t * 2.8);
+      ffMat.opacity = nightGlow * 0.78 * blink;
+    });
+  }
+
+  // Hermanus Whale Watching: surfacing Southern Right whale fluke & splash ring in the cove
+  if (key.includes('Hermanus')) {
+    const whale = new THREE.Group();
+    const whaleMat = new THREE.MeshStandardMaterial({
+      color: '#2d3744',
+      roughness: 0.42,
+      metalness: 0.08,
+    });
+    add(whale, new THREE.SphereGeometry(0.24, 10, 8).scale(1.6, 0.55, 0.72), whaleMat, 0, 0, 0);
+    add(whale, CB(0.18, 0.03, 0.42, 0.01), whaleMat, -0.42, 0.14, 0).rotation.z = 0.45;
+    mergeByMaterial(whale);
+    whale.position.set(-4.2, -0.25, 4.4);
+    whale.rotation.y = 0.85;
+    g.add(whale);
+
+    updates.push((t) => {
+      const cycle = (t * 0.12) % 1;
+      const arch = Math.max(0, Math.sin(cycle * Math.PI * 2.2));
+      whale.position.y = -0.32 + arch * 0.48;
+      whale.rotation.z = Math.cos(cycle * Math.PI * 2.2) * 0.38;
+      whale.visible = arch > 0.02;
+    });
   }
 
   if (
@@ -1663,13 +1842,21 @@ function addSoaringBirds(g: THREE.Group, profile: SiteProfile, seedAngle: number
       for (let i = 0; i < specs.length; i++) {
         const b = specs[i];
         const ang = b.phase + t * b.speed;
+        const thermalClimb = Math.sin(t * 0.65 + b.phase * 1.4);
         b.root.position.set(
           Math.cos(ang) * b.radius,
-          b.baseY + Math.sin(t * 0.9 + b.phase) * 0.22,
+          b.baseY + thermalClimb * 0.26,
           Math.sin(ang) * b.radius
         );
         b.root.rotation.y = -ang;
-        const flap = Math.sin(t * 5.2 + b.phase * 3) * 0.42;
+        // Gentle inward banking roll into circular turns + subtle pitch along climb
+        b.root.rotation.z = -0.22 - Math.sin(t * 0.4 + i) * 0.06;
+        b.root.rotation.x = Math.cos(t * 0.65 + b.phase * 1.4) * 0.08;
+
+        // Realistic flap-burst -> thermal soar-glide wing cycle
+        const burstCycle = Math.sin(t * 0.85 + b.phase * 2.3);
+        const flapWeight = THREE.MathUtils.smoothstep(burstCycle, -0.2, 0.35);
+        const flap = flapWeight * Math.sin(t * 8.6 + b.phase * 3) * 0.44 + (1 - flapWeight) * 0.12;
         b.left.rotation.z = flap;
         b.right.rotation.z = -flap;
       }

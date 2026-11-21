@@ -122,7 +122,7 @@ const MiniatureShader = {
 export interface MiniaturePass extends ShaderPass {
   setResolution(width: number, height: number): void;
   setDepth(texture: THREE.Texture | null, near: number, far: number): void;
-  setFocus(distance: number): void;
+  setFocus(distance: number, depthRange?: number, aperture?: number): void;
   setExposure(exposure: number): void;
   applyTuning(tuning: Partial<MiniatureTuning>): void;
 }
@@ -178,10 +178,14 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
     pass.uniforms.uFar.value = far;
   };
 
-  pass.setFocus = (distance) => {
+  pass.setFocus = (distance, depthRange, aperture) => {
     const d = Math.max(0.1, distance);
     pass.uniforms.uFocusDistance.value = d;
-    pass.uniforms.uDepthRange.value = THREE.MathUtils.clamp(d * 0.24, 0.8, 3.4);
+    pass.uniforms.uDepthRange.value =
+      depthRange !== undefined ? depthRange : THREE.MathUtils.clamp(d * 0.24, 0.8, 3.4);
+    if (aperture !== undefined) {
+      pass.uniforms.uAperture.value = aperture;
+    }
   };
 
   pass.setExposure = (exposure) => {

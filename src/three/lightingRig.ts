@@ -24,6 +24,25 @@ export function configureDioramaShadow(light: THREE.DirectionalLight): void {
   light.shadow.intensity = 0.6;
 }
 
+const tmpShadowSize = new THREE.Vector3();
+
+/** Fit the shadow frustum tightly around the active landmark bounds for sharper shadows. */
+export function fitDioramaShadowBounds(light: THREE.DirectionalLight, box: THREE.Box3): void {
+  if (box.isEmpty()) return;
+  box.getSize(tmpShadowSize);
+  const extent = THREE.MathUtils.clamp(
+    Math.max(tmpShadowSize.x, tmpShadowSize.z, tmpShadowSize.y) * 0.56,
+    3.4,
+    8.8
+  );
+  const cam = light.shadow.camera;
+  cam.left = -extent;
+  cam.right = extent;
+  cam.top = extent;
+  cam.bottom = -extent;
+  cam.updateProjectionMatrix();
+}
+
 /** Subtle cool back light that separates cliffs, domes and trees from the sky. */
 export function createRimLight(): THREE.DirectionalLight {
   const rim = new THREE.DirectionalLight('#b9d4ff', 0.6);

@@ -54,11 +54,14 @@ import {
   configureDioramaShadow,
   createBounceLight,
   createRimLight,
+  fitDioramaShadowBounds,
   setBounceLightBiome,
   updateRimLight,
 } from './lightingRig';
+import { createHorizonScenery, type HorizonSceneryController } from './horizonScenery';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
+import { createWindParticles, type WindParticlesController } from './windParticles';
 import { attachEquirect, installGI } from './globalIllumination';
 
 export interface EngineCallbacks {
@@ -87,6 +90,8 @@ export class CitylitEngine {
   readonly controls: OrbitControls;
   readonly isSoftwareGl: boolean;
   readonly weather: WeatherSceneController;
+  readonly windParticles: WindParticlesController;
+  readonly horizon: HorizonSceneryController;
   readonly globe: GlobeController;
   readonly places: PlacesController;
   readonly atmosphere: AtmosphereSceneController;
@@ -128,17 +133,15 @@ export class CitylitEngine {
   private readonly heroRoot: THREE.Group;
   private readonly markerGroup: THREE.Group;
   private readonly directionGroup: THREE.Group;
-  private readonly directionPositions: Float32Array;
-  private readonly directionColors: Float32Array;
   private readonly directionGeo: THREE.BufferGeometry;
-  private readonly directionPointsMat: THREE.PointsMaterial;
+  private readonly directionPointsMat: THREE.ShaderMaterial;
   private readonly directionChevron: THREE.Mesh;
   private readonly directionChevronMat: THREE.MeshBasicMaterial;
   private readonly directionPulse: THREE.Mesh;
   private readonly directionPulseMat: THREE.MeshBasicMaterial;
   private readonly dustPoints: THREE.Points;
-  private readonly dustPositions: Float32Array;
   private readonly dustGeo: THREE.BufferGeometry;
+  private readonly dustMat: THREE.ShaderMaterial;
 
   private currentGroup: THREE.Group | null = null;
   private outgoingGroup: THREE.Group | null = null;
@@ -178,6 +181,8 @@ export class CitylitEngine {
   private hasAnimatedShadowScene = false;
   private lastGlowLit = -1;
   private hoveredMarkerIndex = -1;
+  private hoveredHero = false;
+  private hoverRimBoost = 0;
   private readonly hoverRaycaster = new THREE.Raycaster();
   private readonly hoverNdc = new THREE.Vector2();
   private readonly hoverHits: THREE.Intersection[] = [];
@@ -188,13 +193,25 @@ export class CitylitEngine {
   private renderScale = 1;
   private appliedRenderScale = -1;
   private bootPrewarmDone = false;
-  private cachedGroup: THREE.Group | null = null;
-  private cachedIndex = -1;
-  private cachedGlow: THREE.MeshStandardMaterial[] = [];
-  private cachedSway: SwayItem[] = [];
-  private cachedWet: WetMaterialEntry[] = [];
+  private readonly landmarkCache = new Map<
+    number,
+    {
+      group: THREE.Group;
+      glow: THREE.MeshStandardMaterial[];
+      sway: SwayItem[];
+      wet: WetMaterialEntry[];
+    }
+  >();
+  private readonly prewarmInFlight = new Set<number>();
   private lastSwitchAt = -10;
   private isUserOrbiting = false;
+  private timeLapsePlaying = false;
+  private baseAperture = 0.78;
+  private rackFocusBlend = 0;
+  private switchDir: 1 | -1 = 1;
+  private switchSettle = 0;
+  private cardParallaxTarget = 0;
+  private cardParallaxCurrent = 0;
   private baseTargetX = 0;
   private baseTargetY = 1.5;
   /** Per-landmark hero framing, recomputed only on switch/reset/resize/theme change. */
@@ -206,6 +223,8 @@ export class CitylitEngine {
   private lastLodQuality = -1;
   private readonly lastShadowKeyPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private readonly tmpCasterSize = new THREE.Vector3();
+  private readonly fitSizeTmp = new THREE.Vector3();
+  private readonly fitCenterTmp = new THREE.Vector3();
 
   private tiltEnabled = false;
   private tiltOffsetX = 0;
@@ -233,6 +252,7 @@ export class CitylitEngine {
   private lastGlobeTap = 0;
   private lastPlaceSliceIndex = -1;
   private lastHoverCheck = 0;
+  private lastHeroHoverCheck = 0;
   private pinchDist = 0;
 
   private callbacks: EngineCallbacks;
@@ -485,29 +505,67 @@ export class CitylitEngine {
     this.markerGroup = new THREE.Group();
     this.scene.add(this.markerGroup);
 
-    // Next-landmark geographic direction indicator (soft particle stream + ground chevron)
+    // Next-landmark geographic direction indicator (GPU-driven soft particle stream + ground chevron)
     const DIR_COUNT = 36;
     this.directionGroup = new THREE.Group();
     this.directionGroup.visible = false;
     this.scene.add(this.directionGroup);
 
-    this.directionPositions = new Float32Array(DIR_COUNT * 3);
-    this.directionColors = new Float32Array(DIR_COUNT * 3);
+    const dirSeedData = new Float32Array(DIR_COUNT * 3);
+    for (let i = 0; i < DIR_COUNT; i++) {
+      dirSeedData[i * 3] = i / DIR_COUNT;
+      dirSeedData[i * 3 + 1] = i;
+      dirSeedData[i * 3 + 2] = Math.sin(i * 2.31);
+    }
     this.directionGeo = new THREE.BufferGeometry();
     this.directionGeo.setAttribute(
       'position',
-      new THREE.BufferAttribute(this.directionPositions, 3)
+      new THREE.BufferAttribute(new Float32Array(DIR_COUNT * 3), 3)
     );
-    this.directionGeo.setAttribute('color', new THREE.BufferAttribute(this.directionColors, 3));
-    this.directionPointsMat = new THREE.PointsMaterial({
-      size: 0.44,
-      map: getSoftTexture(),
-      vertexColors: true,
+    this.directionGeo.setAttribute('aSeed', new THREE.BufferAttribute(dirSeedData, 3));
+    this.directionPointsMat = new THREE.ShaderMaterial({
       transparent: true,
-      opacity: 0,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+      uniforms: {
+        uMap: { value: getSoftTexture() },
+        uAnimTime: { value: 0 },
+        uOpacity: { value: 0 },
+        uDayWarmth: { value: 1 },
+        uPointScale: { value: 180 },
+      },
+      vertexShader: /* glsl */ `
+        attribute vec3 aSeed;
+        uniform float uAnimTime;
+        uniform float uPointScale;
+        varying float vGlow;
+        void main() {
+          float phase = aSeed.x;
+          float u = fract(phase + uAnimTime);
+          float fade = sin(u * 3.14159265);
+          float dist = 4.2 + u * 6.4;
+          float arcY = 0.22 + sin(u * 3.14159265) * 1.18 + sin(phase * 18.0 + uAnimTime * 3.46) * 0.06;
+          float spreadZ = sin(aSeed.y * 2.31 + uAnimTime * 1.73) * (0.28 - u * 0.14);
+          vGlow = fade * (0.62 + 0.38 * sin(phase * 12.0 - uAnimTime * 6.15));
+          vec4 mvPosition = modelViewMatrix * vec4(dist, arcY, spreadZ, 1.0);
+          gl_PointSize = clamp((0.44 * uPointScale) / max(1.0, -mvPosition.z), 4.0, 26.0);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D uMap;
+        uniform float uOpacity;
+        uniform float uDayWarmth;
+        varying float vGlow;
+        void main() {
+          vec4 tex = texture2D(uMap, gl_PointCoord);
+          if (tex.a < 0.02) discard;
+          vec3 col = vec3(1.0, 0.78, 0.36) * (vGlow * uDayWarmth);
+          gl_FragColor = vec4(col, tex.a * uOpacity);
+        }
+      `,
     });
+    this.directionPointsMat.userData.noDissolve = true;
     const directionPoints = new THREE.Points(this.directionGeo, this.directionPointsMat);
     directionPoints.frustumCulled = false;
     directionPoints.userData.noDissolve = true;
@@ -558,30 +616,70 @@ export class CitylitEngine {
     this.directionPulse.renderOrder = 3;
     this.directionGroup.add(this.directionPulse);
 
-    // Dissolve dust particles
+    // Dissolve dust particles (100% GPU shader animation)
     const DN = 160;
-    this.dustPositions = new Float32Array(DN * 3);
-    this.dustGeo = new THREE.BufferGeometry().setAttribute(
-      'position',
-      new THREE.BufferAttribute(this.dustPositions, 3)
-    );
-    this.dustPoints = new THREE.Points(
-      this.dustGeo,
-      new THREE.PointsMaterial({
-        color: SKY_COLOR.clone(),
-        size: 0.28,
-        map: getSoftTexture(),
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        blending: THREE.NormalBlending,
-      })
-    );
+    const dustData = new Float32Array(DN * 3);
+    for (let i = 0; i < DN; i++) {
+      dustData[i * 3] = i;
+      dustData[i * 3 + 1] = 1 + (i % 7) * 0.9;
+      dustData[i * 3 + 2] = ((i % 9) - 4) * 0.16;
+    }
+    this.dustGeo = new THREE.BufferGeometry()
+      .setAttribute('position', new THREE.BufferAttribute(new Float32Array(DN * 3), 3))
+      .setAttribute('aDust', new THREE.BufferAttribute(dustData, 3));
+    this.dustMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+      uniforms: {
+        uMap: { value: getSoftTexture() },
+        uColor: { value: SKY_COLOR.clone() },
+        uOpacity: { value: 0 },
+        uElapsed: { value: 0 },
+        uCutY: { value: 100 },
+        uPointScale: { value: 180 },
+      },
+      vertexShader: /* glsl */ `
+        attribute vec3 aDust;
+        uniform float uElapsed;
+        uniform float uCutY;
+        uniform float uPointScale;
+        void main() {
+          float i = aDust.x;
+          float r = aDust.y;
+          vec3 wp = vec3(
+            cos(i * 2.1 + uElapsed * 3.0) * r,
+            uCutY + aDust.z,
+            sin(i * 1.7 + uElapsed * 2.0) * r
+          );
+          vec4 mvPosition = modelViewMatrix * vec4(wp, 1.0);
+          gl_PointSize = clamp((0.28 * uPointScale) / max(1.0, -mvPosition.z), 3.0, 20.0);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D uMap;
+        uniform vec3 uColor;
+        uniform float uOpacity;
+        void main() {
+          vec4 tex = texture2D(uMap, gl_PointCoord);
+          if (tex.a < 0.02) discard;
+          gl_FragColor = vec4(uColor, tex.a * uOpacity);
+        }
+      `,
+    });
+    this.dustMat.userData.noDissolve = true;
+    this.dustPoints = new THREE.Points(this.dustGeo, this.dustMat);
     this.dustPoints.frustumCulled = false;
+    this.dustPoints.visible = false;
+    this.dustPoints.userData.noShadow = true;
+    this.dustPoints.userData.cannotReceiveAO = true;
     this.scene.add(this.dustPoints);
 
-    // Weather & Globe sub-controllers
+    // Weather, Wind Particles, Horizon Scenery & Globe sub-controllers
     this.weather = createWeatherScene(this.scene);
+    this.windParticles = createWindParticles(this.scene);
+    this.horizon = createHorizonScenery(this.scene);
     this.atmosphere = createAtmosphereScene(this.scene);
     this.globe = createGlobeScene(
       canvas,
@@ -694,22 +792,32 @@ export class CitylitEngine {
   }
 
   /**
-   * Build and compile the next landmark while idle, then cache the whole group
-   * so a switch costs neither a rebuild nor a shader link. The group's dynamic
-   * animation entries are captured separately and restored when it becomes live.
+   * Build and compile a single upcoming/previous landmark while idle and hold up
+   * to 4 entries in an LRU pool so switches cost neither a rebuild nor a shader link.
    */
-  private prewarmNextLandmark(): void {
-    if (this.disposed || this.isSoftwareGl || this.globe.isOpen || this.places.isOpen) return;
-    const next = (this.activeIndex + 1) % LANDMARKS.length;
-    if (next === this.cachedIndex || next === this.activeIndex) return;
+  private prewarmLandmarkIndex(targetIndex: number): void {
+    if (
+      this.disposed ||
+      this.isSoftwareGl ||
+      this.globe.isOpen ||
+      this.places.isOpen ||
+      targetIndex === this.activeIndex ||
+      this.landmarkCache.has(targetIndex) ||
+      this.prewarmInFlight.has(targetIndex)
+    ) {
+      return;
+    }
 
     const savedGlow = glowMaterials.slice();
     const savedSway = swayItems.slice();
     const savedWet = wetMaterials.slice();
-    const group = this.buildLandmarkGroup(next);
-    this.cachedGlow = glowMaterials.slice(savedGlow.length);
-    this.cachedSway = swayItems.slice(savedSway.length);
-    this.cachedWet = wetMaterials.slice(savedWet.length);
+    const group = this.buildLandmarkGroup(targetIndex);
+    const entry = {
+      group,
+      glow: glowMaterials.slice(savedGlow.length),
+      sway: swayItems.slice(savedSway.length),
+      wet: wetMaterials.slice(savedWet.length),
+    };
     glowMaterials.length = 0;
     for (const m of savedGlow) glowMaterials.push(m);
     swayItems.length = 0;
@@ -717,13 +825,16 @@ export class CitylitEngine {
     wetMaterials.length = 0;
     for (const w of savedWet) wetMaterials.push(w);
 
-    if (this.cachedGroup) this.disposeTransientResources(this.cachedGroup);
-    this.cachedGroup = group;
-    this.cachedIndex = next;
+    while (this.landmarkCache.size >= 4) {
+      const oldestKey = this.landmarkCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      const evicted = this.landmarkCache.get(oldestKey);
+      this.landmarkCache.delete(oldestKey);
+      if (evicted) this.disposeTransientResources(evicted.group);
+    }
+    this.landmarkCache.set(targetIndex, entry);
 
     if (!this.bootPrewarmDone) {
-      // Boot is hidden behind the splash, so a full synchronous warm-up there
-      // costs the user nothing and makes the very first switch smooth too.
       this.bootPrewarmDone = true;
       try {
         this.renderer.compile(group, this.camera, this.scene);
@@ -747,8 +858,27 @@ export class CitylitEngine {
       return;
     }
 
-    // KHR_parallel_shader_compile lets later links finish between frames.
-    void this.renderer.compileAsync(group, this.camera, this.scene).catch(() => {});
+    if (typeof this.renderer.compileAsync === 'function') {
+      this.prewarmInFlight.add(targetIndex);
+      void this.renderer
+        .compileAsync(group, this.camera, this.scene)
+        .catch(() => {})
+        .finally(() => {
+          this.prewarmInFlight.delete(targetIndex);
+        });
+    }
+  }
+
+  private prewarmNextLandmark(): void {
+    const next = (this.activeIndex + 1) % LANDMARKS.length;
+    if (!this.landmarkCache.has(next)) {
+      this.prewarmLandmarkIndex(next);
+      return;
+    }
+    const prev = (this.activeIndex - 1 + LANDMARKS.length) % LANDMARKS.length;
+    if (!this.landmarkCache.has(prev)) {
+      this.prewarmLandmarkIndex(prev);
+    }
   }
 
   private disposeTransientResources(root: THREE.Object3D): void {
@@ -820,23 +950,14 @@ export class CitylitEngine {
       this.outgoingGroup = null;
     }
     resetSceneDynamicLists(this.ringMat);
-    if (this.cachedGroup && this.cachedIndex === index) {
-      this.currentGroup = this.cachedGroup;
-      for (const m of this.cachedGlow) glowMaterials.push(m);
-      for (const s of this.cachedSway) swayItems.push(s);
-      for (const w of this.cachedWet) wetMaterials.push(w);
-      this.cachedGroup = null;
-      this.cachedIndex = -1;
-      this.cachedGlow = [];
-      this.cachedSway = [];
-      this.cachedWet = [];
+    const cached = this.landmarkCache.get(index);
+    if (cached) {
+      this.landmarkCache.delete(index);
+      this.currentGroup = cached.group;
+      for (const m of cached.glow) glowMaterials.push(m);
+      for (const s of cached.sway) swayItems.push(s);
+      for (const w of cached.wet) wetMaterials.push(w);
     } else {
-      if (this.cachedGroup) this.disposeTransientResources(this.cachedGroup);
-      this.cachedGroup = null;
-      this.cachedIndex = -1;
-      this.cachedGlow = [];
-      this.cachedSway = [];
-      this.cachedWet = [];
       this.currentGroup = this.buildLandmarkGroup(index);
     }
     const lods: THREE.LOD[] = [];
@@ -848,6 +969,7 @@ export class CitylitEngine {
     this.activeLods = lods;
     this.hasAnimatedShadowScene = Boolean(this.currentGroup.userData.hasAnimatedShadowMeshes);
     this.hoveredMarkerIndex = -1;
+    this.hoveredHero = false;
     this.lastLodCamPos.set(Infinity, Infinity, Infinity);
     this.lastShadowKeyPos.set(Infinity, Infinity, Infinity);
     this.lastGlowLit = -1;
@@ -859,23 +981,33 @@ export class CitylitEngine {
       key: LANDMARKS[index].k,
       biome: LANDMARKS[index].biome,
     });
+    this.windParticles.setBiome(LANDMARKS[index].biome, LANDMARKS[index].k);
+    this.horizon.setBiome(LANDMARKS[index].biome);
     // Re-tint the soft bounce fill to the newly loaded site's biome.
     setBounceLightBiome(
       this.bounceLight,
       (this.currentGroup.userData.biome as string | undefined) ?? LANDMARKS[index].biome
     );
     this.heroRoot.add(this.currentGroup);
+    this.heroRoot.rotation.y = 0;
+    this.heroRoot.scale.setScalar(1);
+    this.switchSettle = 0;
     this.rebuildMarkers(index);
     this.dissolvePhase = 0;
     this.camGoal = null;
     this.targetGoalActive = false;
     this.hasCustomFocus = false;
+    this.rackFocusBlend = 0;
     this.cursorStrengthTarget = 0;
     this.lastInteractAt = this.elapsed;
     WU.dy.value = 100;
     this.dustPoints.visible = false;
     // Reframes for the active theme (Studio keeps its fixed isometric shot).
     this.frameCurrentLandmark();
+    if (!this.isSoftwareGl && !this.isStudio()) {
+      const box = this.computeDioramaBounds(this.currentGroup);
+      fitDioramaShadowBounds(this.keyLight, box);
+    }
     this.updateLods(this.camera, true);
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.needsUpdate = true;
@@ -887,6 +1019,13 @@ export class CitylitEngine {
       this.showLandmarkImmediate(index);
       return;
     }
+    const prevIdx = this.activeIndex;
+    const count = LANDMARKS.length;
+    let dir: 1 | -1 = index >= prevIdx ? 1 : -1;
+    if (prevIdx === count - 1 && index === 0) dir = 1;
+    else if (prevIdx === 0 && index === count - 1) dir = -1;
+    this.switchDir = dir;
+
     this.activeIndex = index;
     if (this.outgoingGroup) {
       const out = this.outgoingGroup;
@@ -991,6 +1130,7 @@ export class CitylitEngine {
   private applyPostGrade(): void {
     if (this.theme === 'studio') {
       // Preserved verbatim from the original Studio preset.
+      this.baseAperture = 0.7;
       this.miniaturePass.applyTuning({
         blur: 0.7,
         vignette: 0.03,
@@ -1000,6 +1140,7 @@ export class CitylitEngine {
       });
     } else if (this.theme === 'daylight') {
       // Clean, bright tabletop: light blur and a shallow vignette.
+      this.baseAperture = 0.78;
       this.miniaturePass.applyTuning({
         blur: 1.05,
         vignette: 0.1,
@@ -1010,6 +1151,7 @@ export class CitylitEngine {
     } else {
       // Dark: a wider focus band and much lighter vignette keep shaded detail
       // legible instead of crushing the diorama into a silhouette.
+      this.baseAperture = 0.82;
       this.miniaturePass.applyTuning({
         blur: 1.2,
         vignette: 0.08,
@@ -1023,6 +1165,57 @@ export class CitylitEngine {
     this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
   }
 
+  private updateDynamicAoState(): void {
+    if (this.isSoftwareGl || this.qualityIndex !== 0) return;
+    if (this.cinematic) {
+      this.n8aoPass.enabled = true;
+      this.renderPass.enabled = false;
+      return;
+    }
+    const suspendAo =
+      (this.isUserOrbiting || this.timeLapsePlaying) &&
+      this.qualitySetting === 'auto' &&
+      (window.devicePixelRatio || 1) > 1.5;
+    this.n8aoPass.enabled = !suspendAo;
+    this.renderPass.enabled = suspendAo;
+  }
+
+  setTimeLapsePlaying(active: boolean): void {
+    if (this.timeLapsePlaying === active) return;
+    this.timeLapsePlaying = active;
+    this.updateDynamicAoState();
+  }
+
+  setCardDragParallax(deltaX: number): void {
+    if (this.motionScale === 0) {
+      this.cardParallaxTarget = 0;
+      return;
+    }
+    this.cardParallaxTarget = THREE.MathUtils.clamp(deltaX / 240, -1, 1) * 0.11;
+  }
+
+  refreshFraming(): void {
+    if (this.globe.isOpen || this.places.isOpen || this.isStudio()) return;
+    this.computeResponsiveFraming();
+    if (!this.hasCustomFocus && this.currentGroup) {
+      const box = this.computeDioramaBounds(this.currentGroup);
+      if (!box.isEmpty()) {
+        box.getCenter(this.fitCenterTmp);
+        const targetY = THREE.MathUtils.clamp(
+          this.fitCenterTmp.y + (this.baseTargetY - 1.5),
+          0.6,
+          2.8
+        );
+        this.heroFitCenter.set(
+          this.fitCenterTmp.x + this.baseTargetX,
+          targetY,
+          this.fitCenterTmp.z
+        );
+        this.hasHeroFit = true;
+      }
+    }
+  }
+
   private setQualityIndex(idx: QualityIndex): void {
     this.qualityIndex = idx;
     this.globe.setQuality(idx);
@@ -1032,10 +1225,12 @@ export class CitylitEngine {
     const highFx = !this.isSoftwareGl && idx === 0;
     const midFx = !this.isSoftwareGl && idx === 1;
     const postFx = highFx || midFx;
-    const suspendAoForDrag =
-      this.isUserOrbiting && this.qualitySetting === 'auto' && (window.devicePixelRatio || 1) > 1.5;
-    this.n8aoPass.enabled = highFx && !suspendAoForDrag;
-    this.renderPass.enabled = midFx || (highFx && suspendAoForDrag);
+    const suspendAoForMotion =
+      (this.isUserOrbiting || this.timeLapsePlaying) &&
+      this.qualitySetting === 'auto' &&
+      (window.devicePixelRatio || 1) > 1.5;
+    this.n8aoPass.enabled = highFx && !suspendAoForMotion;
+    this.renderPass.enabled = midFx || (highFx && suspendAoForMotion);
     this.bloomPass.enabled = postFx && this.studioWeight < 0.99;
     this.miniaturePass.enabled = postFx;
     this.smaaPass.enabled = postFx;
@@ -1242,10 +1437,14 @@ export class CitylitEngine {
       this.atmosphere.root.position.set(0, 0, 0);
     }
     this.heroRoot.visible = false;
+    this.heroRoot.rotation.y = 0;
+    this.heroRoot.scale.setScalar(1);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
     this.weather.setHidden(true);
+    this.windParticles.setHidden(true);
+    this.horizon.setHidden(true);
     this.atmosphere.setHidden(true);
     ambientAudio.setSpatialActive(false);
     this.controls.enabled = false;
@@ -1261,6 +1460,8 @@ export class CitylitEngine {
     this.updatePlinthVisibility();
     this.markerGroup.visible = true;
     this.weather.setHidden(false);
+    this.windParticles.setHidden(false);
+    this.horizon.setHidden(false);
     this.atmosphere.setHidden(false);
     ambientAudio.setSpatialActive(true);
     this.controls.enabled = true;
@@ -1283,6 +1484,8 @@ export class CitylitEngine {
       this.globe.close();
     }
     this.heroRoot.visible = false;
+    this.heroRoot.rotation.y = 0;
+    this.heroRoot.scale.setScalar(1);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
@@ -1291,6 +1494,8 @@ export class CitylitEngine {
     this.weather.clouds.visible = false;
     this.weather.rainLines.visible = false;
     this.weather.stormCurtain.visible = false;
+    this.windParticles.setHidden(true);
+    this.horizon.setHidden(true);
     this.atmosphere.setHidden(true);
     ambientAudio.setSpatialActive(true);
     this.controls.enabled = false;
@@ -1332,6 +1537,8 @@ export class CitylitEngine {
     this.updatePlinthVisibility();
     this.markerGroup.visible = true;
     this.weather.setHidden(false);
+    this.windParticles.setHidden(false);
+    this.horizon.setHidden(false);
     this.atmosphere.setHidden(false);
     const lm = LANDMARKS[this.activeIndex];
     this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
@@ -1538,9 +1745,10 @@ export class CitylitEngine {
     this.computeResponsiveFraming();
     const box = this.computeDioramaBounds(group);
     if (box.isEmpty()) return;
+    if (!this.isSoftwareGl) fitDioramaShadowBounds(this.keyLight, box);
 
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(this.fitSizeTmp);
+    const center = box.getCenter(this.fitCenterTmp);
     const radius = size.length() * 0.5;
     const vFov = THREE.MathUtils.degToRad(this.camera.fov);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
@@ -1640,6 +1848,8 @@ export class CitylitEngine {
       const prevShowMarkers = this.markerGroup.visible;
       const prevShowHero = this.heroRoot.visible;
       const prevWeatherVisible = this.weather.root.visible;
+      const prevWindVisible = this.windParticles.points.visible;
+      const prevHorizonVisible = this.horizon.root.visible;
       const prevAtmosphereVisible = this.atmosphere.root.visible;
       const prevGlobeVisible = this.globe.group.visible;
       const prevPlacesVisible = this.places.group.visible;
@@ -1650,6 +1860,8 @@ export class CitylitEngine {
 
       this.scene.fog = null;
       this.weather.setHidden(true);
+      this.windParticles.setHidden(true);
+      this.horizon.setHidden(true);
       this.atmosphere.setHidden(true);
       this.plinthGroup.visible = true;
       this.markerGroup.visible = false;
@@ -1695,6 +1907,8 @@ export class CitylitEngine {
         this.markerGroup.visible = prevShowMarkers;
         this.heroRoot.visible = prevShowHero;
         this.weather.setHidden(!prevWeatherVisible);
+        this.windParticles.setHidden(!prevWindVisible);
+        this.horizon.setHidden(!prevHorizonVisible);
         this.atmosphere.setHidden(!prevAtmosphereVisible);
         this.globe.group.visible = prevGlobeVisible;
         this.places.group.visible = prevPlacesVisible;
@@ -1730,10 +1944,14 @@ export class CitylitEngine {
     const prevShowMarkers = this.markerGroup.visible;
     const prevShowHero = this.heroRoot.visible;
     const prevWeatherVisible = this.weather.root.visible;
+    const prevWindVisible = this.windParticles.points.visible;
+    const prevHorizonVisible = this.horizon.root.visible;
     const prevAtmosphereVisible = this.atmosphere.root.visible;
 
     this.scene.fog = null;
     this.weather.setHidden(true);
+    this.windParticles.setHidden(true);
+    this.horizon.setHidden(true);
     this.atmosphere.setHidden(true);
     this.plinthGroup.visible = true;
     this.markerGroup.visible = false;
@@ -1785,6 +2003,8 @@ export class CitylitEngine {
     this.markerGroup.visible = prevShowMarkers;
     this.heroRoot.visible = prevShowHero;
     this.weather.setHidden(!prevWeatherVisible);
+    this.windParticles.setHidden(!prevWindVisible);
+    this.horizon.setHidden(!prevHorizonVisible);
     this.atmosphere.setHidden(!prevAtmosphereVisible);
     this.showLandmarkImmediate(this.activeIndex);
     return out;
@@ -1906,7 +2126,16 @@ export class CitylitEngine {
   }
 
   private syncMiniatureDepth(camera: THREE.PerspectiveCamera, target: THREE.Vector3): void {
-    this.miniaturePass.setFocus(camera.position.distanceTo(target));
+    const dist = camera.position.distanceTo(target);
+    if (this.places.isOpen || this.isStudio()) {
+      this.miniaturePass.setFocus(dist);
+    } else {
+      const baseRange = THREE.MathUtils.clamp(dist * 0.24, 0.8, 3.4);
+      const macroRange = THREE.MathUtils.clamp(dist * 0.14, 0.55, 1.8);
+      const depthRange = THREE.MathUtils.lerp(baseRange, macroRange, this.rackFocusBlend);
+      const aperture = this.baseAperture + this.rackFocusBlend * 0.28;
+      this.miniaturePass.setFocus(dist, depthRange, aperture);
+    }
     this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
     const depth = this.n8aoPass.enabled
       ? this.n8aoPass.beautyRenderTarget.depthTexture
@@ -1957,25 +2186,15 @@ export class CitylitEngine {
 
     const onControlStart = () => {
       this.isUserOrbiting = true;
+      this.hoveredHero = false;
       this.lastInteractAt = this.elapsed;
-      if (
-        !this.isSoftwareGl &&
-        this.qualityIndex === 0 &&
-        this.qualitySetting === 'auto' &&
-        (window.devicePixelRatio || 1) > 1.5
-      ) {
-        this.n8aoPass.enabled = false;
-        this.renderPass.enabled = true;
-      }
+      this.updateDynamicAoState();
     };
 
     const onControlEnd = () => {
       this.isUserOrbiting = false;
       this.lastInteractAt = this.elapsed;
-      if (!this.isSoftwareGl && this.qualityIndex === 0) {
-        this.n8aoPass.enabled = true;
-        this.renderPass.enabled = false;
-      }
+      this.updateDynamicAoState();
     };
 
     this.controls.addEventListener('start', onControlStart);
@@ -2003,6 +2222,7 @@ export class CitylitEngine {
 
       if (this.globe.isOpen) {
         this.cursorStrengthTarget = 0;
+        this.hoveredHero = false;
         const hoveredPin = this.globe.hoverPin(ndcX, ndcY, 14);
         canvas.style.cursor = hoveredPin !== null ? 'pointer' : 'grab';
         this.callbacks.onGlobePinHover?.(hoveredPin, e.clientX, e.clientY);
@@ -2011,6 +2231,7 @@ export class CitylitEngine {
 
       if (this.places.isOpen) {
         this.cursorStrengthTarget = 0;
+        this.hoveredHero = false;
         const hovered = this.places.hoverAt(ndcX, ndcY);
         canvas.style.cursor = hovered !== null ? 'pointer' : 'grab';
         return;
@@ -2018,6 +2239,7 @@ export class CitylitEngine {
 
       if (this.isUserOrbiting || this.dissolvePhase > 0 || !this.currentGroup) {
         this.hoveredMarkerIndex = -1;
+        this.hoveredHero = false;
         this.cursorStrengthTarget = 0;
         canvas.style.cursor = this.isUserOrbiting ? 'grabbing' : 'default';
         return;
@@ -2064,11 +2286,20 @@ export class CitylitEngine {
         }
       }
       this.hoveredMarkerIndex = markerIdx;
+      if (markerIdx >= 0) {
+        this.hoveredHero = false;
+      } else if (now - this.lastHeroHoverCheck >= 48) {
+        this.lastHeroHoverCheck = now;
+        this.hoverHits.length = 0;
+        this.hoverRaycaster.intersectObject(this.currentGroup, true, this.hoverHits);
+        this.hoveredHero = this.hoverHits.length > 0;
+      }
       canvas.style.cursor = markerIdx >= 0 ? 'pointer' : 'default';
     };
 
     const onPointerLeave = () => {
       this.hoveredMarkerIndex = -1;
+      this.hoveredHero = false;
       this.cursorStrengthTarget = 0;
       this.globe.clearHover();
       this.callbacks.onGlobePinHover?.(null);
@@ -2502,30 +2733,29 @@ export class CitylitEngine {
         }
       }
 
-      // Dust-dissolve landmark switch
+      // Dust-dissolve landmark switch + choreographed orbital settle (GPU uniforms)
       if (this.dissolvePhase === 1) {
         this.dissolveT += dt * 2.2;
         const cutY = Math.max(-0.5, 9 * (1 - this.dissolveT));
         WU.dy.value = cutY;
         setContactShadowFade(this.currentGroup, Math.max(0, 1 - Math.min(1, this.dissolveT)));
         this.dustPoints.visible = true;
-        const dm = this.dustPoints.material as THREE.PointsMaterial;
-        // Keep the motes the same colour as the live sky/fog, whatever the theme or weather.
-        dm.color.copy(this.scene.background as THREE.Color);
-        dm.opacity = Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
-        for (let i = 0; i < 160; i++) {
-          this.dustPositions[i * 3] = Math.cos(i * 2.1 + this.elapsed * 3) * (1 + (i % 7) * 0.9);
-          this.dustPositions[i * 3 + 1] = cutY + ((i % 9) - 4) * 0.16;
-          this.dustPositions[i * 3 + 2] =
-            Math.sin(i * 1.7 + this.elapsed * 2) * (1 + (i % 7) * 0.9);
-        }
-        this.dustGeo.attributes.position.needsUpdate = true;
+        this.dustMat.uniforms.uColor.value.copy(this.scene.background as THREE.Color);
+        this.dustMat.uniforms.uOpacity.value =
+          Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
+        this.dustMat.uniforms.uElapsed.value = this.elapsed;
+        this.dustMat.uniforms.uCutY.value = cutY;
+        this.dustMat.uniforms.uPointScale.value = Math.min(
+          260,
+          Math.max(100, window.innerHeight * 0.22)
+        );
         if (this.dissolveT >= 1) {
           if (this.pendingIndex !== null) {
             this.showLandmarkImmediate(this.pendingIndex);
             this.pendingIndex = null;
             this.dissolvePhase = 2;
             this.dissolveT = 0;
+            this.switchSettle = 1;
             WU.dy.value = -0.5;
             setContactShadowFade(this.currentGroup, 0);
           }
@@ -2537,17 +2767,14 @@ export class CitylitEngine {
         WU.dy.value = cutY;
         setContactShadowFade(this.currentGroup, progress);
         this.dustPoints.visible = true;
-        const dm = this.dustPoints.material as THREE.PointsMaterial;
-        // Keep the motes the same colour as the live sky/fog, whatever the theme or weather.
-        dm.color.copy(this.scene.background as THREE.Color);
-        dm.opacity = Math.sin(progress * Math.PI) * 0.85;
-        for (let i = 0; i < 160; i++) {
-          this.dustPositions[i * 3] = Math.cos(i * 2.1 + this.elapsed * 3) * (1 + (i % 7) * 0.9);
-          this.dustPositions[i * 3 + 1] = cutY + ((i % 9) - 4) * 0.16;
-          this.dustPositions[i * 3 + 2] =
-            Math.sin(i * 1.7 + this.elapsed * 2) * (1 + (i % 7) * 0.9);
-        }
-        this.dustGeo.attributes.position.needsUpdate = true;
+        this.dustMat.uniforms.uColor.value.copy(this.scene.background as THREE.Color);
+        this.dustMat.uniforms.uOpacity.value = Math.sin(progress * Math.PI) * 0.85;
+        this.dustMat.uniforms.uElapsed.value = this.elapsed;
+        this.dustMat.uniforms.uCutY.value = cutY;
+        this.dustMat.uniforms.uPointScale.value = Math.min(
+          260,
+          Math.max(100, window.innerHeight * 0.22)
+        );
         if (this.dissolveT >= 1) {
           this.dissolvePhase = 0;
           WU.dy.value = 100;
@@ -2556,13 +2783,18 @@ export class CitylitEngine {
         }
       }
 
-      // Warm the upcoming landmark's programs between transitions so the
-      // first frame of a switch never pays the shader compile cost.
-      if (
-        this.dissolvePhase === 0 &&
-        this.elapsed - this.lastSwitchAt > 2.5 &&
-        this.cachedIndex !== (this.activeIndex + 1) % LANDMARKS.length
-      ) {
+      // Smooth choreographed switch settle + card drag swipe parallax
+      const paraLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 10);
+      this.cardParallaxCurrent += (this.cardParallaxTarget - this.cardParallaxCurrent) * paraLerp;
+      if (this.switchSettle > 0.001) {
+        this.switchSettle = Math.max(0, this.switchSettle - dt * 2.1);
+      }
+      const settleEase = this.motionScale > 0 ? this.switchSettle * this.switchSettle : 0;
+      this.heroRoot.rotation.y = this.cardParallaxCurrent + this.switchDir * 0.06 * settleEase;
+      this.heroRoot.scale.setScalar(1 - 0.025 * settleEase);
+
+      // Warm upcoming & previous landmarks in the LRU pool between transitions
+      if (this.dissolvePhase === 0 && this.elapsed - this.lastSwitchAt > 2.5) {
         this.prewarmNextLandmark();
       }
 
@@ -2594,7 +2826,7 @@ export class CitylitEngine {
         sp.scale.setScalar(i === this.hoveredMarkerIndex ? base * 1.24 : base);
       });
 
-      // Next-landmark soft directional trail & ground pulse
+      // Next-landmark soft directional trail & ground pulse (GPU vertex animation)
       const dirGoal = this.directionActive && !this.globe.isOpen && !this.places.isOpen ? 1 : 0;
       const dirRate = this.motionScale === 0 ? Math.min(1, dt * 10) : Math.min(1, dt * 5.5);
       this.directionStrength += (dirGoal - this.directionStrength) * dirRate;
@@ -2608,31 +2840,14 @@ export class CitylitEngine {
         this.directionGroup.rotation.y = this.directionCurrentYaw;
 
         const dayWarmth = this.theme === 'daylight' || this.isStudio() ? 0.88 : 1.0;
-        const tAnim = this.elapsed * (this.motionScale > 0 ? 0.52 : 0);
-        const N = this.directionPositions.length / 3;
-        for (let i = 0; i < N; i++) {
-          const phase = i / N;
-          const u = (phase + tAnim) % 1;
-          const fade = Math.sin(u * Math.PI);
-          const dist = 4.2 + u * 6.4;
-          const arcY =
-            0.22 +
-            Math.sin(u * Math.PI) * 1.18 +
-            Math.sin(phase * 18 + this.elapsed * 1.8 * this.motionScale) * 0.06;
-          const spreadZ =
-            Math.sin(i * 2.31 + this.elapsed * 0.9 * this.motionScale) * (0.28 - u * 0.14);
-          this.directionPositions[i * 3] = dist;
-          this.directionPositions[i * 3 + 1] = arcY;
-          this.directionPositions[i * 3 + 2] = spreadZ;
-          const glow =
-            fade * (0.62 + 0.38 * Math.sin(phase * 12 - this.elapsed * 3.2 * this.motionScale));
-          this.directionColors[i * 3] = 1.0 * glow * dayWarmth;
-          this.directionColors[i * 3 + 1] = 0.78 * glow * dayWarmth;
-          this.directionColors[i * 3 + 2] = 0.36 * glow * dayWarmth;
-        }
-        this.directionGeo.attributes.position.needsUpdate = true;
-        this.directionGeo.attributes.color.needsUpdate = true;
-        this.directionPointsMat.opacity = 0.92 * this.directionStrength;
+        this.directionPointsMat.uniforms.uAnimTime.value =
+          this.elapsed * (this.motionScale > 0 ? 0.52 : 0);
+        this.directionPointsMat.uniforms.uDayWarmth.value = dayWarmth;
+        this.directionPointsMat.uniforms.uOpacity.value = 0.92 * this.directionStrength;
+        this.directionPointsMat.uniforms.uPointScale.value = Math.min(
+          260,
+          Math.max(100, window.innerHeight * 0.22)
+        );
 
         const pulsePhase = this.motionScale > 0 ? (this.elapsed * 0.72) % 1 : 0.35;
         this.directionChevronMat.opacity =
@@ -2660,7 +2875,13 @@ export class CitylitEngine {
           this.callbacks.onThunder?.();
         },
       });
+      const hoverLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 7);
+      this.hoverRimBoost += ((this.hoveredHero ? 1 : 0) - this.hoverRimBoost) * hoverLerp;
+      this.rackFocusBlend +=
+        ((this.hasCustomFocus ? 1 : 0) - this.rackFocusBlend) * Math.min(1, dt * 5);
       updateRimLight(this.rimLight, this.weather.current.night, WU.sun.value);
+      this.rimLight.intensity += this.hoverRimBoost * 0.32;
+
       const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
       this.studioWeight += ((this.isStudio() ? 1 : 0) - this.studioWeight) * themeLerp;
       if (!this.isSoftwareGl && this.qualityIndex < 2) {
@@ -2671,7 +2892,8 @@ export class CitylitEngine {
       this.ringMat.color.lerp(this.targetRingCol, themeLerp);
       this.ringMat.emissive.lerp(this.targetRingCol, themeLerp);
       this.ringMat.emissiveIntensity +=
-        (this.targetRingEmissive - this.ringMat.emissiveIntensity) * themeLerp;
+        (this.targetRingEmissive + this.hoverRimBoost * 0.18 - this.ringMat.emissiveIntensity) *
+        themeLerp;
       this.bloomPass.threshold +=
         (this.targetBloomThreshold - this.bloomPass.threshold) * themeLerp;
 
@@ -2688,6 +2910,8 @@ export class CitylitEngine {
 
       // Localized atmosphere shell: ridge fog, heat shimmer, sea and spray mist
       const fog = this.scene.fog;
+      const fogColor =
+        fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color);
       this.atmosphere.update(dt, this.elapsed, {
         qualityIndex: this.qualityIndex,
         motionScale: this.motionScale,
@@ -2696,7 +2920,33 @@ export class CitylitEngine {
         fog: this.weather.current.fog,
         cover: this.weather.current.cover,
         wind: this.weather.current.wind,
-        fogColor: fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color),
+        fogColor,
+      });
+
+      // Wind-driven leaves & grass wisps + distant biome horizon relief
+      this.windParticles.update(dt, this.elapsed, {
+        qualityIndex: this.qualityIndex,
+        motionScale: this.motionScale,
+        wind: this.weather.current.wind,
+        rain: this.weather.current.rain,
+        fog: this.weather.current.fog,
+        storm: this.weather.current.storm,
+        cover: this.weather.current.cover,
+        night: this.weather.current.night,
+        season: WU.season.value,
+        windDir: WU.windDir.value,
+      });
+      if (this.studioWeight >= 0.96) {
+        this.windParticles.points.visible = false;
+      }
+      this.horizon.update(dt, this.motionScale, {
+        fogColor,
+        skyColor: this.weather.skyTopColor,
+        sunGlow: this.weather.sunGlowColor,
+        hor: WU.sunHor.value,
+        night: this.weather.current.night,
+        rain: this.weather.current.rain,
+        studioWeight: this.studioWeight,
       });
 
       // Gentle gyro tilt offset + responsive viewport framing. When inspecting a fact pin,
@@ -2798,17 +3048,23 @@ export class CitylitEngine {
     this.unbindListeners();
     if (this.currentGroup) this.disposeTransientResources(this.currentGroup);
     if (this.outgoingGroup) this.disposeTransientResources(this.outgoingGroup);
-    if (this.cachedGroup) this.disposeTransientResources(this.cachedGroup);
-    this.cachedGroup = null;
+    for (const cached of this.landmarkCache.values()) {
+      this.disposeTransientResources(cached.group);
+    }
+    this.landmarkCache.clear();
     this.directionGeo.dispose();
     this.directionPointsMat.dispose();
     this.directionChevron.geometry.dispose();
     this.directionChevronMat.dispose();
     this.directionPulse.geometry.dispose();
     this.directionPulseMat.dispose();
+    this.dustGeo.dispose();
+    this.dustMat.dispose();
     this.controls.dispose();
     this.globe.dispose();
     this.places.dispose();
+    this.windParticles.dispose();
+    this.horizon.dispose();
     this.atmosphere.dispose();
     this.pmrem.dispose();
     this.envTex.dispose();

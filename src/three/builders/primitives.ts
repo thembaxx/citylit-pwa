@@ -891,12 +891,15 @@ export function weatherVertexColors<T extends THREE.BufferGeometry>(
     // Convex-ish bevels catch a little light; combine with noise so the wear
     // breaks up instead of outlining every edge uniformly.
     const bevel = THREE.MathUtils.clamp(1 - Math.abs(Math.abs(up) - 0.58) * 3.2, 0, 1);
-    const worn = 1 + edgeWear * bevel * (0.55 + noise * 0.45);
+    const ridgeLift = up > 0.72 ? (up - 0.72) * 0.14 : 0;
+    const creviceShade = up < -0.15 ? 0.92 : 1;
+    const worn = 1 + edgeWear * bevel * (0.55 + noise * 0.45) + ridgeLift;
     const shade =
       (1 - ao * groundAO) *
       (1 + exposure * Math.max(0, up)) *
       (1 - grain * 0.5 + grain * noise) *
-      worn;
+      worn *
+      creviceShade;
     colors.setXYZ(i, colors.getX(i) * shade, colors.getY(i) * shade, colors.getZ(i) * shade);
   }
   colors.needsUpdate = true;
