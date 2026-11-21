@@ -667,7 +667,7 @@ function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: 
 }
 
 /** Square cutaway block with layered earth walls, used for the estate dioramas. */
-function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
+export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   const [top, edge, band, wall] = profile.rim;
   // Subdivided so the carved lip and the two small ledges are real geometry,
   // not just painted bands — still one mesh and one material.

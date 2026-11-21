@@ -1,24 +1,24 @@
 # Graph Report - citylit-pwa  (2026-11-21)
 
 ## Corpus Check
-- 83 files · ~197,207 words
+- 83 files · ~197,199 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: .woff2 4, (none) 2, .css 2)
 
 ## Summary
-- 1015 nodes · 3134 edges · 49 communities (38 shown, 11 thin omitted)
+- 1015 nodes · 3139 edges · 49 communities (39 shown, 10 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 74 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8773213e`
+- Built from commit: `9b78c5de`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - landmarksB.ts
 - siteAtmosphere.ts
-- PlacesOverlay.tsx
+- citylit.ts
 - primitives.ts
 - SettingsModal.tsx
 - App.tsx
@@ -54,9 +54,9 @@
 - weatherData.ts
 - waterize
 - overrides
-- PlacesShaderEnvironment
-- placesClouds.ts
 - nativeHost.ts
+- placesScene.ts
+- placesClouds.ts
 - .showLandmarkImmediate
 - recharts
 - oxfmt@0.79.0
@@ -84,15 +84,15 @@
   src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
 - `addSquareRim()` --calls--> `weatherVertexColors()`  [EXTRACTED]
   src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
+- `createPlacesScene()` --calls--> `addSquareRim()`  [EXTRACTED]
+  src/three/placesScene.ts → src/three/builders/dioramaKit.ts
 - `getUndersideMaterial()` --calls--> `surfaceDetail()`  [EXTRACTED]
-  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
-- `addStandUnderside()` --calls--> `R()`  [EXTRACTED]
   src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (49 total, 11 thin omitted)
+## Communities (49 total, 10 thin omitted)
 
 ### Community 0 - "landmarksB.ts"
 Cohesion: 0.16
@@ -102,7 +102,7 @@ Nodes (106): addAnchor(), addBaseScatter(), addBollards(), addDeck(), addJetty()
 Cohesion: 0.15
 Nodes (17): AtmosphereEffect, AtmosphereLayer, AtmosphereProfile, AtmosphereSceneController, AtmosphereUpdateOptions, BIOME_EFFECTS, createAtmosphereScene(), createClothMaterial() (+9 more)
 
-### Community 2 - "PlacesOverlay.tsx"
+### Community 2 - "citylit.ts"
 Cohesion: 0.13
 Nodes (18): placeCardCondition(), PlacesOverlay(), PlacesOverlayProps, QUICK_TIMES, WEATHER_MODES, ANIMATED_BY_CONDITION, WeatherIconCondition, WeatherIconProps (+10 more)
 
@@ -120,11 +120,11 @@ Nodes (33): App(), INITIAL_GLOBE, readInitialLandmarkIndex(), readSettings(), re
 
 ### Community 6 - "placesSliceBuilders.ts"
 Cohesion: 0.13
-Nodes (30): getGrassMaterial(), createCutawayWaterTopMaterial(), createCutawayWaterWallMaterial(), createSliceMistMaterial(), CutawayWaterOptions, getOrlandoMuralTexture(), addInstancedFlowers(), addInstancedRocks() (+22 more)
+Nodes (30): getGrassMaterial(), createCloudPuffMesh(), createSliceCloudLayer(), createCutawayWaterTopMaterial(), createCutawayWaterWallMaterial(), createSliceMistMaterial(), CutawayWaterOptions, getOrlandoMuralTexture() (+22 more)
 
 ### Community 7 - "placesShaders.ts"
-Cohesion: 0.16
-Nodes (18): bindVolumetricFogUniforms(), createStrataTerrainMaterial(), patchPlacesVolumetricFog(), PlacesSliceEmitterSpec, CLOUD_FRAGMENT, CLOUD_VERTEX, NOISE_GLSL, STRATA_COLOR_FRAGMENT (+10 more)
+Cohesion: 0.19
+Nodes (15): PlacesSliceEmitterSpec, CLOUD_FRAGMENT, CLOUD_VERTEX, NOISE_GLSL, STRATA_COLOR_FRAGMENT, STRATA_FRAG_COMMON, STRATA_ROUGHNESS_FRAGMENT, STRATA_VERT_BEGIN (+7 more)
 
 ### Community 8 - "LandmarkCard.tsx"
 Cohesion: 0.13
@@ -132,7 +132,7 @@ Nodes (16): bodySlideVariants, CAMERA_PRESETS, CARDINALS, getCategoryMeta(), hea
 
 ### Community 9 - "dioramaKit.ts"
 Cohesion: 0.09
-Nodes (35): addCraftedRim(), addDioramaClouds(), addEdgeWaterfall(), addSoaringBirds(), addSquareRim(), addStandUnderside(), addTreeRing(), addWeatherFx() (+27 more)
+Nodes (36): addCraftedRim(), addDioramaClouds(), addEdgeWaterfall(), addSoaringBirds(), addSquareRim(), addSquareWaterPlate(), addStandUnderside(), addTreeRing() (+28 more)
 
 ### Community 10 - "CitylitEngine.ts"
 Cohesion: 0.08
@@ -155,8 +155,8 @@ Cohesion: 0.13
 Nodes (18): cacheKey(), fallbackPatch(), formatCoordinates(), GEO_CACHE, loadElevation(), loadOsmPlace(), LocalPoint, MEMORY_CACHE (+10 more)
 
 ### Community 16 - "osmSlice.ts"
-Cohesion: 0.17
-Nodes (19): OsmPlaceData, centroid(), clamp(), createOsmSlice(), createRibbon(), OsmSliceResult, polygonShape(), createPlacesScene() (+11 more)
+Cohesion: 0.21
+Nodes (13): OsmPlaceData, centroid(), clamp(), createOsmSlice(), createRibbon(), OsmSliceResult, polygonShape(), PlacesController (+5 more)
 
 ### Community 17 - "SearchSheet.tsx"
 Cohesion: 0.10
@@ -227,41 +227,45 @@ Cohesion: 0.08
 Nodes (35): PillNavigation(), WeatherIcon(), PresetKey, TIME_PRESETS, WARNING_STYLE, WeatherWidget(), WeatherWidgetProps, buildLiveForecast() (+27 more)
 
 ### Community 36 - "waterize"
-Cohesion: 0.29
-Nodes (7): addSquareWaterPlate(), applyDissolveToShader(), cascadeize(), flagWindy(), installDissolveShader(), lights(), waterize()
+Cohesion: 0.40
+Nodes (5): applyDissolveToShader(), cascadeize(), flagWindy(), installDissolveShader(), lights()
 
 ### Community 37 - "overrides"
 Cohesion: 0.50
 Nodes (3): overrides, three, workbox-build>glob
 
-### Community 40 - "placesClouds.ts"
-Cohesion: 0.38
-Nodes (6): CloudAssets, CloudPuffInstance, createCloudPuffMesh(), createSliceCloudLayer(), SliceCloudLayer, getSoftTexture()
-
-### Community 41 - "nativeHost.ts"
+### Community 38 - "nativeHost.ts"
 Cohesion: 0.31
 Nodes (6): detectNativeHost(), hasCinematicHost(), isHost(), NativeCinematicHost, nativeHostUrl(), Window
+
+### Community 39 - "placesScene.ts"
+Cohesion: 0.19
+Nodes (15): getSiteProfile(), createPlacesScene(), ExplorerInfo, HERO_CAM, HERO_TARGET, bindVolumetricFogUniforms(), createPlacesShaderEnv(), createPlacesVolumetricFogLayer() (+7 more)
+
+### Community 40 - "placesClouds.ts"
+Cohesion: 0.50
+Nodes (3): CloudAssets, CloudPuffInstance, SliceCloudLayer
 
 ### Community 42 - ".showLandmarkImmediate"
 Cohesion: 0.15
 Nodes (4): resetSceneDynamicLists(), setContactShadowFade(), updateWetSurfaces(), updateRimLight()
 
 ## Knowledge Gaps
-- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **10 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `siteAtmosphere.ts`, `primitives.ts`, `weatherData.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `placesClouds.ts`, `dioramaKit.ts`, `CitylitEngine.ts`, `osmSlice.ts`, `shaders.ts`, `package.json`, `dependencies`, `windParticles.ts`, `.constructor`?**
-  _High betweenness centrality (0.129) - this node is a cross-community bridge._
-- **Should `PlacesOverlay.tsx` be split into smaller, more focused modules?**
+- **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `siteAtmosphere.ts`, `primitives.ts`, `weatherData.ts`, `placesSliceBuilders.ts`, `placesScene.ts`, `placesClouds.ts`, `dioramaKit.ts`, `CitylitEngine.ts`, `placesShaders.ts`, `osmSlice.ts`, `shaders.ts`, `package.json`, `dependencies`, `windParticles.ts`, `.constructor`?**
+  _High betweenness centrality (0.133) - this node is a cross-community bridge._
+- **Should `citylit.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.12648221343873517 - nodes in this community are weakly interconnected._
-- **Why does `CitylitEngine` connect `CitylitEngine` to `contact-sheet.ts`, `siteAtmosphere.ts`, `MiniaturePass`, `PlacesOverlay.tsx`, `weatherData.ts`, `App.tsx`, `placesSliceBuilders.ts`, `CitylitEngine.ts`, `motion.ts`, `.showLandmarkImmediate`, `osmSlice.ts`, `TopBar.tsx`, `windParticles.ts`, `.isStudio`?**
-  _High betweenness centrality (0.092) - this node is a cross-community bridge._
+- **Why does `CitylitEngine` connect `CitylitEngine` to `contact-sheet.ts`, `siteAtmosphere.ts`, `MiniaturePass`, `citylit.ts`, `weatherData.ts`, `App.tsx`, `placesSliceBuilders.ts`, `CitylitEngine.ts`, `motion.ts`, `.showLandmarkImmediate`, `osmSlice.ts`, `TopBar.tsx`, `windParticles.ts`, `.isStudio`?**
+  _High betweenness centrality (0.110) - this node is a cross-community bridge._
 - **Should `primitives.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.05230496453900709 - nodes in this community are weakly interconnected._
 - **Why does `AmbientAudioController` connect `AmbientAudioController` to `SearchSheet.tsx`?**
-  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+  _High betweenness centrality (0.065) - this node is a cross-community bridge._
 - **Should `SettingsModal.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.12 - nodes in this community are weakly interconnected._
 - **Should `App.tsx` be split into smaller, more focused modules?**

@@ -15,6 +15,7 @@ import {
   type PlaceSliceSpec,
 } from './placesSliceBuilders';
 import { getSoftTexture, WU } from './shaders';
+import { addSquareRim, getSiteProfile } from './builders/dioramaKit';
 import type { OsmPlaceData } from '../services/osmService';
 import { createOsmSlice } from './osmSlice';
 
@@ -126,53 +127,30 @@ export function createPlacesScene(
   shadowDisc.userData.cannotReceiveAO = true;
   cartoGroup.add(shadowDisc);
 
-  // Square cartographic frame instead of the old circular compass rings.
-  const squareFrame = (outer: number, inner: number) => {
-    const shape = new THREE.Shape();
-    shape.moveTo(-outer, -outer);
-    shape.lineTo(outer, -outer);
-    shape.lineTo(outer, outer);
-    shape.lineTo(-outer, outer);
-    shape.closePath();
-    const hole = new THREE.Path();
-    hole.moveTo(-inner, -inner);
-    hole.lineTo(-inner, inner);
-    hole.lineTo(inner, inner);
-    hole.lineTo(inner, -inner);
-    hole.closePath();
-    shape.holes.push(hole);
-    return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+  // Reuse the landmark model's own stratified stand as the stage base. It is
+  // scaled to the slice footprint and rebuilt per slice so its earth/rock
+  // palette matches the landmark exactly — no separate square geometry.
+  const STAND_SCALE = 2.47 / 8.4;
+  let standGroup: THREE.Group | null = null;
+  const setStandFor = (landmarkName: string): void => {
+    if (standGroup) {
+      standGroup.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) obj.geometry.dispose();
+      });
+      cartoGroup.remove(standGroup);
+    }
+    standGroup = new THREE.Group();
+    addSquareRim(standGroup, getSiteProfile(landmarkName));
+    standGroup.scale.setScalar(STAND_SCALE);
+    standGroup.position.y = 0.005 - 0.04 * STAND_SCALE;
+    standGroup.traverse((obj) => {
+      if (obj instanceof THREE.Mesh) {
+        obj.userData.noShadow = true;
+        obj.userData.cannotReceiveAO = true;
+      }
+    });
+    cartoGroup.add(standGroup);
   };
-
-  const ringGeo = squareFrame(2.47, 2.42);
-  const ringMat = new THREE.MeshBasicMaterial({
-    color: '#e8b04a',
-    transparent: true,
-    opacity: 0.28,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const outerRing = new THREE.Mesh(ringGeo, ringMat);
-  outerRing.position.y = 0.005;
-  outerRing.renderOrder = 1;
-  outerRing.userData.noShadow = true;
-  outerRing.userData.cannotReceiveAO = true;
-  cartoGroup.add(outerRing);
-
-  const innerRingGeo = squareFrame(1.97, 1.94);
-  const innerRingMat = new THREE.MeshBasicMaterial({
-    color: '#88a4cc',
-    transparent: true,
-    opacity: 0.16,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  });
-  const innerRing = new THREE.Mesh(innerRingGeo, innerRingMat);
-  innerRing.position.y = 0.002;
-  innerRing.renderOrder = 1;
-  innerRing.userData.noShadow = true;
-  innerRing.userData.cannotReceiveAO = true;
-  cartoGroup.add(innerRing);
 
   // Build all 24 sculpted isometric geological slices centered at (0, 0, 0); only 1 is visible at a time
   const slices: BuiltPlaceSlice[] = PLACE_SLICE_SPECS.map((spec, idx) => {
@@ -234,6 +212,7 @@ export function createPlacesScene(
     selectedSliceIndex = nextIndex;
     env.activeSliceIndex.value = nextIndex;
     hoveredSliceIndex = null;
+    setStandFor(slices[nextIndex].spec.landmarkName);
     for (let i = 0; i < slices.length; i++) {
       const s = slices[i];
       const active = i === nextIndex;
@@ -592,10 +571,13 @@ export function createPlacesScene(
     cloudMat.dispose();
     shadowDiscGeo.dispose();
     shadowDiscMat.dispose();
-    ringGeo.dispose();
-    ringMat.dispose();
-    innerRingGeo.dispose();
-    innerRingMat.dispose();
+    if (standGroup) {
+      standGroup.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) obj.geometry.dispose();
+      });
+      cartoGroup.remove(standGroup);
+      standGroup = null;
+    }
   };
 
   const controller: PlacesController = {

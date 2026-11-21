@@ -229,9 +229,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795278451.6751318,
-    "seen": 1795278479.1084993,
-    "ast_hash": "1e250c1decb320e85c93fcdad16f9036",
+    "mtime": 1795279938.418054,
+    "seen": 1795280050.1217105,
+    "ast_hash": "551374c2f8308ae178ea4cc12bfb01ec",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
@@ -271,9 +271,9 @@
     "semantic_hash": ""
   },
   "src/three/placesScene.ts": {
-    "mtime": 1795259775.4860623,
-    "seen": 1795270207.9621527,
-    "ast_hash": "64790d5690401f3128a76d3b871e4419",
+    "mtime": 1795280020.30469,
+    "seen": 1795280050.1217432,
+    "ast_hash": "7d26dc18012c8f6ba6cb33b929c5b17d",
     "semantic_hash": ""
   },
   "src/three/placesShaders.ts": {
@@ -283,10 +283,10 @@
     "semantic_hash": ""
   },
   "src/three/placesSliceBuilders.ts": {
-    "mtime": 1795187027.273702,
-    "seen": 1795270207.9621575,
+    "mtime": 1795279558.859261,
+    "seen": 1795279700.6728387,
     "ast_hash": "bad2059d5ce8882712b774dfc112ef23",
-    "semantic_hash": "bad2059d5ce8882712b774dfc112ef23"
+    "semantic_hash": ""
   },
   "src/three/postfx.ts": {
     "mtime": 1795265253.7126043,
