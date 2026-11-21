@@ -1,30 +1,30 @@
 # Graph Report - citylit-pwa  (2026-11-21)
 
 ## Corpus Check
-- 83 files · ~195,601 words
+- 83 files · ~197,207 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: .woff2 4, (none) 2, .css 2)
 
 ## Summary
-- 1012 nodes · 3125 edges · 52 communities (40 shown, 12 thin omitted)
+- 1015 nodes · 3134 edges · 49 communities (38 shown, 11 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 74 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `842507b2`
+- Built from commit: `8773213e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - landmarksB.ts
 - siteAtmosphere.ts
-- WeatherWidget.tsx
+- PlacesOverlay.tsx
 - primitives.ts
-- citylit.ts
+- SettingsModal.tsx
 - App.tsx
 - placesSliceBuilders.ts
 - placesShaders.ts
-- GalleryModal.tsx
+- LandmarkCard.tsx
 - dioramaKit.ts
 - CitylitEngine.ts
 - motion.ts
@@ -34,7 +34,7 @@
 - osmService.ts
 - osmSlice.ts
 - SearchSheet.tsx
-- ambientAudio.ts
+- TopBar.tsx
 - shaders.ts
 - PassportModal.tsx
 - package.json
@@ -42,6 +42,7 @@
 - globeScene.ts
 - windParticles.ts
 - server.js
+- .isStudio
 - .oxfmtrc.json
 - .oxlintrc.json
 - vite.config.ts
@@ -51,25 +52,23 @@
 - with
 - MiniaturePass
 - weatherData.ts
-- MiniaturePass
+- waterize
 - overrides
-- .updateSpatial
+- PlacesShaderEnvironment
 - placesClouds.ts
 - nativeHost.ts
-- LandmarkBiome
+- .showLandmarkImmediate
 - recharts
-- horizonScenery.ts
-- placesScene.ts
-- oxlint@1.94.0
-- react-dom
-- @types/react@19.3.0
-- @types/react-dom@19.3.0
-- @ui-sdk/core@0.1.0-beta.13
+- oxfmt@0.79.0
+- tailwindcss@4.3.5
+- @types/three@0.187.0
+- typescript@7.0.2
+- @ui-sdk/react
 
 ## God Nodes (most connected - your core abstractions)
 1. `CitylitEngine` - 99 edges
 2. `add()` - 70 edges
-3. `R()` - 57 edges
+3. `R()` - 59 edges
 4. `C()` - 50 edges
 5. `M()` - 50 edges
 6. `MStone()` - 50 edges
@@ -81,19 +80,19 @@
 ## Surprising Connections (you probably didn't know these)
 - `CompassProps` --references--> `CitylitEngine`  [EXTRACTED]
   src/components/Compass.tsx → src/three/CitylitEngine.ts
-- `AudioVisualizerBarProps` --references--> `ThemeSetting`  [EXTRACTED]
-  src/components/AudioVisualizerBar.tsx → src/types/citylit.ts
-- `groot()` --calls--> `capeDutchGableGeo()`  [EXTRACTED]
-  src/three/builders/landmarksB.ts → src/three/builders/primitives.ts
-- `AmbientAudioController` --references--> `AmbientSiteProfile`  [EXTRACTED]
-  src/audio/ambientAudio.ts → src/types/citylit.ts
-- `AmbientAudioController` --references--> `SpatialAudioSource`  [EXTRACTED]
-  src/audio/ambientAudio.ts → src/types/citylit.ts
+- `getRimMaterial()` --calls--> `surfaceDetail()`  [EXTRACTED]
+  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
+- `addSquareRim()` --calls--> `weatherVertexColors()`  [EXTRACTED]
+  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
+- `getUndersideMaterial()` --calls--> `surfaceDetail()`  [EXTRACTED]
+  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
+- `addStandUnderside()` --calls--> `R()`  [EXTRACTED]
+  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (52 total, 12 thin omitted)
+## Communities (49 total, 11 thin omitted)
 
 ### Community 0 - "landmarksB.ts"
 Cohesion: 0.16
@@ -103,85 +102,85 @@ Nodes (106): addAnchor(), addBaseScatter(), addBollards(), addDeck(), addJetty()
 Cohesion: 0.15
 Nodes (17): AtmosphereEffect, AtmosphereLayer, AtmosphereProfile, AtmosphereSceneController, AtmosphereUpdateOptions, BIOME_EFFECTS, createAtmosphereScene(), createClothMaterial() (+9 more)
 
-### Community 2 - "WeatherWidget.tsx"
-Cohesion: 0.11
-Nodes (26): @phosphor-icons/react, placeCardCondition(), PlacesOverlay(), PlacesOverlayProps, QUICK_TIMES, WEATHER_MODES, AnimatedNumber(), AnimatedNumberProps (+18 more)
+### Community 2 - "PlacesOverlay.tsx"
+Cohesion: 0.13
+Nodes (18): placeCardCondition(), PlacesOverlay(), PlacesOverlayProps, QUICK_TIMES, WEATHER_MODES, ANIMATED_BY_CONDITION, WeatherIconCondition, WeatherIconProps (+10 more)
 
 ### Community 3 - "primitives.ts"
 Cohesion: 0.05
 Nodes (47): archGeo(), buildTreeGeometry(), buildTreeLodGeometry(), cacheGeo(), capeDutchGableGeo(), contactShadowBatches, contactShadowMaterials, contactShadowMeshes (+39 more)
 
-### Community 4 - "citylit.ts"
+### Community 4 - "SettingsModal.tsx"
 Cohesion: 0.12
-Nodes (21): BUILTIN_MIXER_PRESETS, DEFAULT_MIXER, MIXER_CHANNELS, MOTION_OPTIONS, QUALITY_OPTIONS, readCustomPresets(), SettingsModal(), SettingsModalProps (+13 more)
+Nodes (22): motion@14.14.0, motion, ambientAudio, BUILTIN_MIXER_PRESETS, DEFAULT_MIXER, MIXER_CHANNELS, MOTION_OPTIONS, QUALITY_OPTIONS (+14 more)
 
 ### Community 5 - "App.tsx"
-Cohesion: 0.10
-Nodes (32): App(), INITIAL_GLOBE, readInitialLandmarkIndex(), readSettings(), readStoredNotes(), readStoredSavedPlaces(), readStoredSet(), AudioVisualizerBar() (+24 more)
+Cohesion: 0.09
+Nodes (33): App(), INITIAL_GLOBE, readInitialLandmarkIndex(), readSettings(), readStoredNotes(), readStoredSavedPlaces(), readStoredSet(), BootSplash() (+25 more)
 
 ### Community 6 - "placesSliceBuilders.ts"
-Cohesion: 0.14
-Nodes (27): getGrassMaterial(), createCutawayWaterTopMaterial(), createCutawayWaterWallMaterial(), createSliceMistMaterial(), CutawayWaterOptions, getOrlandoMuralTexture(), addInstancedFlowers(), addInstancedRocks() (+19 more)
+Cohesion: 0.13
+Nodes (30): getGrassMaterial(), createCutawayWaterTopMaterial(), createCutawayWaterWallMaterial(), createSliceMistMaterial(), CutawayWaterOptions, getOrlandoMuralTexture(), addInstancedFlowers(), addInstancedRocks() (+22 more)
 
 ### Community 7 - "placesShaders.ts"
-Cohesion: 0.15
-Nodes (19): bindVolumetricFogUniforms(), patchPlacesVolumetricFog(), PlacesSliceEmitterSpec, CLOUD_FRAGMENT, CLOUD_VERTEX, NOISE_GLSL, SEASON_MORPH_GLSL, SEASON_UNIFORMS_GLSL (+11 more)
+Cohesion: 0.16
+Nodes (18): bindVolumetricFogUniforms(), createStrataTerrainMaterial(), patchPlacesVolumetricFog(), PlacesSliceEmitterSpec, CLOUD_FRAGMENT, CLOUD_VERTEX, NOISE_GLSL, STRATA_COLOR_FRAGMENT (+10 more)
 
-### Community 8 - "GalleryModal.tsx"
-Cohesion: 0.08
-Nodes (30): GalleryDialog(), GalleryModalProps, bodySlideVariants, CAMERA_PRESETS, CARDINALS, getCategoryMeta(), headerSlideVariants, LandmarkCard() (+22 more)
+### Community 8 - "LandmarkCard.tsx"
+Cohesion: 0.13
+Nodes (16): bodySlideVariants, CAMERA_PRESETS, CARDINALS, getCategoryMeta(), headerSlideVariants, LandmarkCard(), LandmarkCardProps, nextBearingSummary() (+8 more)
 
 ### Community 9 - "dioramaKit.ts"
 Cohesion: 0.09
-Nodes (34): addCraftedRim(), addDioramaClouds(), addSoaringBirds(), addSquareRim(), addSquareWaterPlate(), addTreeRing(), addWeatherFx(), AnchorKind (+26 more)
+Nodes (35): addCraftedRim(), addDioramaClouds(), addEdgeWaterfall(), addSoaringBirds(), addSquareRim(), addStandUnderside(), addTreeRing(), addWeatherFx() (+27 more)
 
 ### Community 10 - "CitylitEngine.ts"
 Cohesion: 0.08
-Nodes (30): LANDMARK_BUILDERS, glowMaterials, SwayItem, WetMaterialEntry, wetMaterials, audioForward, audioRight, compassDir (+22 more)
+Nodes (32): LANDMARK_BUILDERS, glowMaterials, SwayItem, WetMaterialEntry, wetMaterials, audioForward, audioRight, compassDir (+24 more)
 
 ### Community 11 - "motion.ts"
 Cohesion: 0.07
-Nodes (44): motion, react, ambientAudio, AudioVisualizerBarProps, DARK_PALETTE, LIGHT_PALETTE, CARDINAL_TARGETS, CARDINALS_8 (+36 more)
-
-### Community 12 - "CitylitEngine"
-Cohesion: 0.09
-Nodes (3): CitylitEngine, NoteCategory, QualitySetting
+Nodes (29): CARDINAL_TARGETS, CARDINALS_8, Compass(), CompassProps, formatBearing(), TICKS, GalleryDialog(), GalleryModal() (+21 more)
 
 ### Community 13 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleDetection, moduleResolution (+10 more)
 
+### Community 14 - "AmbientAudioController"
+Cohesion: 0.07
+Nodes (21): AmbientAudioController, BIOME_HAPTIC_PATTERNS, clamp01(), equalPower(), extractRegionName(), FilterBand, REGION_HAPTIC_ACCENTS, smoothBell() (+13 more)
+
 ### Community 15 - "osmService.ts"
-Cohesion: 0.15
-Nodes (16): cacheKey(), fallbackPatch(), formatCoordinates(), GEO_CACHE, loadElevation(), loadOsmPlace(), MEMORY_CACHE, OsmBuilding (+8 more)
+Cohesion: 0.13
+Nodes (18): cacheKey(), fallbackPatch(), formatCoordinates(), GEO_CACHE, loadElevation(), loadOsmPlace(), LocalPoint, MEMORY_CACHE (+10 more)
 
 ### Community 16 - "osmSlice.ts"
-Cohesion: 0.20
-Nodes (13): LocalPoint, OsmArea, centroid(), clamp(), createOsmSlice(), createRibbon(), OsmSliceResult, polygonShape() (+5 more)
+Cohesion: 0.17
+Nodes (19): OsmPlaceData, centroid(), clamp(), createOsmSlice(), createRibbon(), OsmSliceResult, polygonShape(), createPlacesScene() (+11 more)
 
 ### Community 17 - "SearchSheet.tsx"
-Cohesion: 0.23
-Nodes (10): parseSearch(), SearchSheet(), SearchSheetProps, TIME_PHRASES, BeforeInstallPromptEvent, usePWAInstall(), swapTransition, geocodePlace() (+2 more)
+Cohesion: 0.10
+Nodes (28): @phosphor-icons/react@2.1.10, @phosphor-icons/react, react, formatCoords(), InfoDrawer(), InfoDrawerProps, parseSearch(), SearchSheet() (+20 more)
 
-### Community 18 - "ambientAudio.ts"
-Cohesion: 0.17
-Nodes (11): BIOME_HAPTIC_PATTERNS, FilterBand, REGION_HAPTIC_ACCENTS, SpatialEmitter, SpatialListener, UI_CUE_CATEGORY, UiCueCategory, UiCueKind (+3 more)
+### Community 18 - "TopBar.tsx"
+Cohesion: 0.21
+Nodes (11): AudioVisualizerBar(), AudioVisualizerBarProps, DARK_PALETTE, LIGHT_PALETTE, IconButton(), IconButtonProps, TopBar(), TopBarProps (+3 more)
 
 ### Community 19 - "shaders.ts"
-Cohesion: 0.13
-Nodes (31): getRoofDirtMap(), MSteel(), applyDissolveToShader(), cascadeize(), flagWindy(), getBrushedNormalTexture(), getBrushedRoughnessTexture(), getCanvasBumpTexture() (+23 more)
+Cohesion: 0.14
+Nodes (28): getRoofDirtMap(), MSteel(), getBrushedNormalTexture(), getBrushedRoughnessTexture(), getCanvasBumpTexture(), getCanvasNormalTexture(), getPlasterBumpTexture(), getPlasterNormalTexture() (+20 more)
 
 ### Community 20 - "PassportModal.tsx"
 Cohesion: 0.11
-Nodes (24): GlobeOverlayProps, CATEGORY_COLORS, PASSPORT_TABS, PassportModal(), PassportModalProps, PassportTab, ProvinceRing(), ProvinceRingProps (+16 more)
+Nodes (24): CATEGORY_COLORS, PASSPORT_TABS, PassportModal(), PassportModalProps, PassportTab, ProvinceRing(), ProvinceRingProps, ProvinceStatRow (+16 more)
 
 ### Community 21 - "package.json"
 Cohesion: 0.14
-Nodes (13): goeist@0.1.0, oxfmt@0.79.0, typescript@7.0.2, workbox-window@7.4.1, description, name, private, type (+5 more)
+Nodes (13): goeist@0.1.0, n8ao@2.1.0, oxlint@1.94.0, @types/node@^24.0.0, description, name, private, type (+5 more)
 
 ### Community 22 - "dependencies"
-Cohesion: 0.13
-Nodes (15): dependencies, motion@14.14.0, n8ao@2.1.0, @phosphor-icons/react@2.1.10, react@19.3.1, tailwindcss@4.3.5, three@0.187.0, @types/node@^24.0.0 (+7 more)
+Cohesion: 0.15
+Nodes (13): dependencies, react@19.3.1, react-dom@19.3.1, three@0.187.0, @types/react@19.3.0, @types/react-dom@19.3.0, @ui-sdk/core@0.1.0-beta.13, workbox-window@7.4.1 (+5 more)
 
 ### Community 23 - "globeScene.ts"
 Cohesion: 0.11
@@ -208,32 +207,32 @@ Cohesion: 0.20
 Nodes (8): @tailwindcss/vite@4.3.5, vite@8.3.8, vite-plugin-pwa@2.0.0, @vitejs/plugin-react@6.3.0, @tailwindcss/vite, vite, vite-plugin-pwa, @vitejs/plugin-react
 
 ### Community 30 - ".constructor"
-Cohesion: 0.28
-Nodes (8): attachEquirect(), buildProbeData(), Equirect, HORIZ_DIRS, probeGrid, probeOrigin, probeSize, sampleEquirect()
+Cohesion: 0.24
+Nodes (9): attachEquirect(), buildProbeData(), Equirect, HORIZ_DIRS, installGI(), probeGrid, probeOrigin, probeSize (+1 more)
 
 ### Community 31 - "scripts"
 Cohesion: 0.22
 Nodes (9): scripts, build, dev, format, format:check, lint, preview, start (+1 more)
 
 ### Community 32 - "contact-sheet.ts"
-Cohesion: 0.15
-Nodes (9): build(), engine, grid, hour, params, stage, status, syncButtons() (+1 more)
+Cohesion: 0.22
+Nodes (8): build(), engine, grid, hour, params, stage, status, syncButtons()
 
 ### Community 33 - "with"
 Cohesion: 0.11
 Nodes (17): jobs, verify, name, on, pull_request, push, branches, name (+9 more)
 
 ### Community 35 - "weatherData.ts"
-Cohesion: 0.11
-Nodes (23): buildLiveForecast(), clamp01(), conditionFromCode(), ExtremeWeatherWarning, ExtremeWeatherWarningKind, fetchLiveWeather(), getClimateRegime(), HourlyWeather (+15 more)
+Cohesion: 0.08
+Nodes (35): PillNavigation(), WeatherIcon(), PresetKey, TIME_PRESETS, WARNING_STYLE, WeatherWidget(), WeatherWidgetProps, buildLiveForecast() (+27 more)
+
+### Community 36 - "waterize"
+Cohesion: 0.29
+Nodes (7): addSquareWaterPlate(), applyDissolveToShader(), cascadeize(), flagWindy(), installDissolveShader(), lights(), waterize()
 
 ### Community 37 - "overrides"
 Cohesion: 0.50
 Nodes (3): overrides, three, workbox-build>glob
-
-### Community 38 - ".updateSpatial"
-Cohesion: 0.27
-Nodes (4): clamp01(), equalPower(), smoothBell(), smoothstep()
 
 ### Community 40 - "placesClouds.ts"
 Cohesion: 0.38
@@ -243,35 +242,27 @@ Nodes (6): CloudAssets, CloudPuffInstance, createCloudPuffMesh(), createSliceClo
 Cohesion: 0.31
 Nodes (6): detectNativeHost(), hasCinematicHost(), isHost(), NativeCinematicHost, nativeHostUrl(), Window
 
-### Community 42 - "LandmarkBiome"
-Cohesion: 0.33
-Nodes (5): extractRegionName(), SiteProfile, AtmosphereSite, AmbientSiteProfile, LandmarkBiome
-
-### Community 45 - "horizonScenery.ts"
-Cohesion: 0.38
-Nodes (6): BiomeWeights, createHorizonRing(), createHorizonScenery(), HorizonSceneryController, HorizonUpdateOptions, weightsForBiome()
-
-### Community 46 - "placesScene.ts"
-Cohesion: 0.16
-Nodes (16): OsmPlaceData, EngineCallbacks, createPlacesScene(), ExplorerInfo, HERO_CAM, HERO_TARGET, PlacesController, PlacesSelectionInfo (+8 more)
+### Community 42 - ".showLandmarkImmediate"
+Cohesion: 0.15
+Nodes (4): resetSceneDynamicLists(), setContactShadowFade(), updateWetSurfaces(), updateRimLight()
 
 ## Knowledge Gaps
-- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `siteAtmosphere.ts`, `primitives.ts`, `weatherData.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `placesClouds.ts`, `dioramaKit.ts`, `CitylitEngine.ts`, `horizonScenery.ts`, `placesScene.ts`, `osmSlice.ts`, `shaders.ts`, `package.json`, `dependencies`, `windParticles.ts`, `.constructor`?**
-  _High betweenness centrality (0.102) - this node is a cross-community bridge._
-- **Should `WeatherWidget.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.10967741935483871 - nodes in this community are weakly interconnected._
-- **Why does `CitylitEngine` connect `CitylitEngine` to `contact-sheet.ts`, `siteAtmosphere.ts`, `MiniaturePass`, `weatherData.ts`, `MiniaturePass`, `App.tsx`, `placesSliceBuilders.ts`, `citylit.ts`, `CitylitEngine.ts`, `motion.ts`, `horizonScenery.ts`, `placesScene.ts`, `windParticles.ts`, `.isStudio`?**
-  _High betweenness centrality (0.101) - this node is a cross-community bridge._
+- **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `siteAtmosphere.ts`, `primitives.ts`, `weatherData.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `placesClouds.ts`, `dioramaKit.ts`, `CitylitEngine.ts`, `osmSlice.ts`, `shaders.ts`, `package.json`, `dependencies`, `windParticles.ts`, `.constructor`?**
+  _High betweenness centrality (0.129) - this node is a cross-community bridge._
+- **Should `PlacesOverlay.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.12648221343873517 - nodes in this community are weakly interconnected._
+- **Why does `CitylitEngine` connect `CitylitEngine` to `contact-sheet.ts`, `siteAtmosphere.ts`, `MiniaturePass`, `PlacesOverlay.tsx`, `weatherData.ts`, `App.tsx`, `placesSliceBuilders.ts`, `CitylitEngine.ts`, `motion.ts`, `.showLandmarkImmediate`, `osmSlice.ts`, `TopBar.tsx`, `windParticles.ts`, `.isStudio`?**
+  _High betweenness centrality (0.092) - this node is a cross-community bridge._
 - **Should `primitives.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.05230496453900709 - nodes in this community are weakly interconnected._
-- **Why does `AmbientAudioController` connect `AmbientAudioController` to `ambientAudio.ts`, `LandmarkBiome`, `.updateSpatial`, `.update`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
-- **Should `citylit.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.11956521739130435 - nodes in this community are weakly interconnected._
+- **Why does `AmbientAudioController` connect `AmbientAudioController` to `SearchSheet.tsx`?**
+  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+- **Should `SettingsModal.tsx` be split into smaller, more focused modules?**
+  _Cohesion score 0.12 - nodes in this community are weakly interconnected._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.1048780487804878 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0927536231884058 - nodes in this community are weakly interconnected._

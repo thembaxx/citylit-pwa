@@ -229,9 +229,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795265253.7051556,
-    "seen": 1795270207.9621258,
-    "ast_hash": "d7096843df96f4826cc8f8f6815eaee4",
+    "mtime": 1795278451.6751318,
+    "seen": 1795278479.1084993,
+    "ast_hash": "1e250c1decb320e85c93fcdad16f9036",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {

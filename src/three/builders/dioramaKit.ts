@@ -760,6 +760,256 @@ function addCraftedRim(g: THREE.Group, profile: SiteProfile): void {
   g.add(mesh);
 }
 
+/* ------------------------------------------------------------------ */
+/* Floating-stand underside: low-poly strata rock + hanging roots       */
+/* ------------------------------------------------------------------ */
+
+let undersideMaterial: THREE.MeshStandardMaterial | null = null;
+
+function getUndersideMaterial(): THREE.MeshStandardMaterial {
+  if (!undersideMaterial) {
+    undersideMaterial = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.88,
+      metalness: 0.02,
+      flatShading: true,
+      side: THREE.DoubleSide,
+      ...surfaceDetail('stone', 0.015),
+    });
+    undersideMaterial.userData.sharedResource = true;
+  }
+  return undersideMaterial;
+}
+
+/**
+ * Grows the floating-island underside beneath the cut block: a tall, chunky,
+ * dark rock mass of many offset strata layers, thin roots and fallen chips.
+ * All of it is baked into one non-indexed, vertex-coloured geometry (one draw
+ * call) with a flat-shaded material so the low-poly facets read at any scale.
+ */
+function addStandUnderside(g: THREE.Group, profile: SiteProfile): void {
+  const [, edge, band, wall] = profile.rim;
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const cWall = new THREE.Color(wall);
+  const cEdge = new THREE.Color(edge);
+  const cBand = new THREE.Color(band);
+  // Reuse each landmark's own rock palette (the colours of the scattered
+  // rocks in its 3D model), lifted a little so the underside stays readable.
+  const rockDark = new THREE.Color(profile.rock[0]).multiplyScalar(1.12);
+  const rockLight = new THREE.Color(profile.rock[1]).multiplyScalar(1.08);
+  const soil = new THREE.Color('#3b2a1d').lerp(rockDark, 0.3);
+  const cream = new THREE.Color('#efe6d4');
+  const rootBase = new THREE.Color('#4a3524');
+  const rootDark = new THREE.Color('#1c130c');
+  const tmp = new THREE.Color();
+
+  // Alternating earth/stone bands with a dark soil crust at the top edge.
+  // One band per ring so every layer stands out.
+  const rockBands = Array.from({ length: 14 }, (_, i) => {
+    if (i === 0) return soil.clone();
+    if (i === 1) return soil.clone().lerp(rockDark, 0.65);
+    const t = i / 13;
+    const c = i % 3 === 0
+      ? rockLight.clone().lerp(cWall, 0.22)
+      : rockDark.clone().lerp(i % 2 ? cEdge : cBand, 0.18 + (1 - t) * 0.14);
+    return c.multiplyScalar(1 - t * 0.18 + (R(i + 200) - 0.5) * 0.1).lerp(cream, 0.06);
+  });
+  const strata = (t: number): THREE.Color =>
+    rockBands[Math.min(rockBands.length - 1, Math.floor(t * rockBands.length))];
+
+  const pushTri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, col: THREE.Color): void => {
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    for (let k = 0; k < 3; k++) colors.push(col.r, col.g, col.b);
+  };
+  const pushQuad = (
+    a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3,
+    colA: THREE.Color, colB: THREE.Color
+  ): void => {
+    pushTri(a, b, d, colA);
+    pushTri(b, c, d, colB);
+  };
+
+  // --- layered rock mass -------------------------------------------------
+  // A deep, stepped stack roughly half the stand's width, like the reference:
+  // the radius widens at rings 4, 8 and 11 so craggy ledges overhang the
+  // layers above them instead of reading as one smooth cone.
+  const ringY = [-1.08, -1.46, -1.86, -2.28, -2.72, -3.18, -3.66, -4.16, -4.68, -5.22, -5.78, -6.36, -6.96, -7.6];
+  const ringR = [8.2, 7.8, 7.3, 7.05, 7.4, 6.5, 6.1, 6.35, 5.2, 4.6, 4.85, 3.4, 2.2, 1.0];
+  const SEG = 10;
+  const ringPos: THREE.Vector3[][] = ringY.map((yy, k) => {
+    const rot = R(k + 13.3) * Math.PI;
+    const y = yy + (R(k + 2.1) - 0.5) * 0.1;
+    const radius = ringR[k] + (R(k + 7.7) - 0.5) * 0.4;
+    const row: THREE.Vector3[] = [];
+    for (let j = 0; j < SEG; j++) {
+      const a = (j / SEG) * Math.PI * 2 + rot + (R(k * SEG + j + 21) - 0.5) * 0.26;
+      const rr = radius * (0.86 + R(k * SEG + j + 41) * 0.28);
+      row.push(
+        new THREE.Vector3(Math.cos(a) * rr, y + (R(k * SEG + j + 61) - 0.5) * 0.22, Math.sin(a) * rr)
+      );
+    }
+    return row;
+  });
+  for (let k = 0; k < ringY.length - 1; k++) {
+    const base = strata((k + 0.5) / ringY.length);
+    for (let j = 0; j < SEG; j++) {
+      const j2 = (j + 1) % SEG;
+      tmp.copy(base).multiplyScalar(0.78 + R(k * SEG * 2 + j * 3 + 1) * 0.34);
+      const a = tmp.clone();
+      tmp.copy(base).multiplyScalar(0.78 + R(k * SEG * 2 + j * 3 + 2) * 0.34);
+      pushQuad(ringPos[k][j], ringPos[k][j2], ringPos[k + 1][j2], ringPos[k + 1][j], a, tmp);
+    }
+  }
+  // Ragged point that closes the last ring.
+  const last = ringPos[ringPos.length - 1];
+  const tip = new THREE.Vector3(0, -8.7, 0);
+  const tipCol = strata(0.99);
+  for (let j = 0; j < SEG; j++) {
+    tmp.copy(tipCol).multiplyScalar(0.72 + R(j + 81) * 0.28);
+    pushTri(last[j], last[(j + 1) % SEG], tip, tmp);
+  }
+
+  // --- thin hanging roots ------------------------------------------------
+  const ROOTS = 16;
+  const RS = 3;
+  const growRoot = (x: number, y: number, z: number, angle: number, steps: number, r0: number, seed: number): void => {
+    const rings: THREE.Vector3[][] = [];
+    let cx = x, cy = y, cz = z;
+    for (let s = 0; s <= steps; s++) {
+      const rr = r0 * (1 - (s / steps) * 0.88);
+      const row: THREE.Vector3[] = [];
+      for (let j = 0; j < RS; j++) {
+        const ang = (j / RS) * Math.PI * 2 + seed * 0.7;
+        row.push(new THREE.Vector3(cx + Math.cos(ang) * rr, cy, cz + Math.sin(ang) * rr));
+      }
+      rings.push(row);
+      cy -= 0.42 + R(seed * 7 + s) * 0.32;
+      const drift = 0.16 + R(seed * 11 + s) * 0.3;
+      cx += (R(seed * 13 + s) - 0.5) * drift + Math.cos(angle) * 0.05;
+      cz += (R(seed * 17 + s) - 0.5) * drift + Math.sin(angle) * 0.05;
+    }
+    for (let s = 0; s < steps; s++) {
+      for (let j = 0; j < RS; j++) {
+        const j2 = (j + 1) % RS;
+        tmp.copy(rootBase).lerp(rootDark, (s / steps) * 0.85 + R(seed * 19 + s) * 0.1);
+        const a = tmp.clone();
+        tmp.copy(rootBase).lerp(rootDark, (s / steps) * 0.9);
+        pushQuad(rings[s][j], rings[s][j2], rings[s + 1][j2], rings[s + 1][j], a, tmp);
+      }
+    }
+  };
+  for (let n = 0; n < ROOTS; n++) {
+    // Start on the surface of a rock ring, not under the block, so the roots
+    // look like they have grown out of the rock itself.
+    const k = 1 + Math.floor(R(n * 3 + 0.3) * 7);
+    const j = Math.floor(R(n * 3 + 1.7) * SEG);
+    const start = ringPos[k][j];
+    const a = Math.atan2(start.z, start.x);
+    const x = start.x * 1.02;
+    const z = start.z * 1.02;
+    const y = start.y;
+    const targetY = -9.2 - R(n + 33) * 1.4;
+    const steps = Math.max(5, Math.round((y - targetY) / 0.58));
+    growRoot(x, y, z, a, steps, 0.04 + R(n + 15.5) * 0.05, n + 1);
+    if (n % 4 === 0) {
+      growRoot(x * 0.98, y - steps * 0.3, z * 0.98, a + 1.1, 4, 0.022, n + 40);
+    }
+  }
+
+  // --- scattered chips ----------------------------------------------------
+  for (let n = 0; n < 6; n++) {
+    const a = R(n + 101) * Math.PI * 2;
+    const d = 8.6 + R(n + 111) * 3.0;
+    const cx = Math.cos(a) * d;
+    const cy = -1.5 - R(n + 121) * 6.0;
+    const cz = Math.sin(a) * d;
+    const sx = 0.12 + R(n + 131) * 0.22;
+    const sy = 0.1 + R(n + 141) * 0.2;
+    const sz = 0.12 + R(n + 151) * 0.22;
+    const v = [
+      new THREE.Vector3(cx, cy + sy, cz),
+      new THREE.Vector3(cx + sx, cy, cz),
+      new THREE.Vector3(cx, cy, cz + sz),
+      new THREE.Vector3(cx - sx, cy, cz),
+      new THREE.Vector3(cx, cy, cz - sz),
+      new THREE.Vector3(cx, cy - sy, cz),
+    ];
+    const faces = [[0, 1, 2], [0, 2, 3], [0, 3, 4], [0, 4, 1], [5, 2, 1], [5, 3, 2], [5, 4, 3], [5, 1, 4]];
+    const col = strata(0.2 + R(n + 161) * 0.6);
+    for (const [i, j, k] of faces) {
+      tmp.copy(col).multiplyScalar(0.8 + R(n * 8 + i) * 0.3);
+      pushTri(v[i], v[j], v[k], tmp);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, getUndersideMaterial());
+  mesh.receiveShadow = true;
+  mesh.userData.noShadow = true; // below the ground plane; skip contact-shadow stamping
+  g.add(mesh);
+}
+
+/** A thin low-poly stream spilling over one edge, as on the reference island. */
+function addEdgeWaterfall(g: THREE.Group, angle: number): void {
+  const rows = 10;
+  const cols = 2;
+  const width = 1.7;
+  const topY = 0.05;
+  const bottomY = -4.6;
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  const cTop = new THREE.Color('#c3eff0');
+  const cBottom = new THREE.Color('#2a86ad');
+  const tmp = new THREE.Color();
+
+  for (let r = 0; r <= rows; r++) {
+    const t = r / rows;
+    const y = topY + (bottomY - topY) * t;
+    for (let k = 0; k <= cols; k++) {
+      const u = k / cols;
+      const x = 8.1 + Math.sin(t * 7 + u * 2) * 0.14 * t;
+      const z = (u - 0.5) * width + Math.sin(t * 5 + u * 3) * 0.12 * t;
+      positions.push(x, y, z);
+      tmp.copy(cTop).lerp(cBottom, t * 0.9 + R(r * 3 + k) * 0.08);
+      colors.push(tmp.r, tmp.g, tmp.b);
+    }
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let k = 0; k < cols; k++) {
+      const a = r * (cols + 1) + k;
+      const b = a + 1;
+      const c = a + cols + 1;
+      const d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  geo.rotateY(angle);
+  geo.computeBoundingSphere();
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.76,
+    roughness: 0.18,
+    metalness: 0.1,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.noShadow = true;
+  g.add(mesh);
+}
+
 /** Fill the corners of the square block with sea so coastal scenes read as water-filled cuts. */
 function addSquareWaterPlate(g: THREE.Group): void {
   const geo = new THREE.PlaneGeometry(16.2, 16.2, 32, 32).rotateX(-Math.PI / 2);
@@ -1878,8 +2128,10 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   const angle = keyAngle(key) + 0.6;
 
   addCraftedRim(group, profile);
+  addStandUnderside(group, profile);
   if (profile.biome === 'coastal' || profile.biome === 'wetland') {
     addSquareWaterPlate(group);
+    addEdgeWaterfall(group, angle);
   }
   addBaseScatter(group, profile);
   addTreeRing(group, profile, angle);
