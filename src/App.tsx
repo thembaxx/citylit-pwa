@@ -235,6 +235,41 @@ export function App() {
   const [docHidden, setDocHidden] = useState(() =>
     typeof document !== 'undefined' ? document.hidden : false
   );
+
+  // Enter/exit the cinematic view: hide the in-app chrome and, where the
+  // browser permits it, take the whole document fullscreen as well.
+  const enterFullscreen = useCallback(() => {
+    setFullscreen(true);
+    if (typeof document === 'undefined' || document.fullscreenElement) return;
+    try {
+      const request = document.documentElement.requestFullscreen?.();
+      if (request && typeof request.catch === 'function') {
+        // Blocked when embedded without the fullscreen permission; the
+        // cinematic UI mode still applies as a graceful fallback.
+        void request.catch(() => undefined);
+      }
+    } catch {
+      // Ignore: fall back to the cinematic UI mode.
+    }
+  }, []);
+
+  const exitFullscreen = useCallback(() => {
+    setFullscreen(false);
+    if (typeof document === 'undefined' || !document.fullscreenElement) return;
+    try {
+      const result = document.exitFullscreen?.();
+      if (result && typeof result.catch === 'function') {
+        void result.catch(() => undefined);
+      }
+    } catch {
+      // Ignore: native fullscreen was already released.
+    }
+  }, []);
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (fullscreen) exitFullscreen();
+    else enterFullscreen();
+  }, [fullscreen, enterFullscreen, exitFullscreen]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [instantOpen, setInstantOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -732,6 +767,17 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [tourActive, index, selectLandmark]);
 
+  // Mirror native fullscreen changes (Esc, browser UI, permission loss) into
+  // app state so the in-app chrome follows the real fullscreen state.
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    const onChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
   // Fullscreen idle timer
   useEffect(() => {
     if (!fullscreen) return undefined;
@@ -871,7 +917,7 @@ export function App() {
           setGlobeOpen(false);
         } else if (activeNoteCallout) {
           setActiveNoteCallout(null);
-        } else if (fullscreen) setFullscreen(false);
+        } else if (fullscreen) exitFullscreen();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -890,6 +936,7 @@ export function App() {
     postcardOpen,
     activeNoteCallout,
     fullscreen,
+    exitFullscreen,
     selectLandmark,
     showFact,
     showUserNoteCallout,
@@ -1367,7 +1414,7 @@ export function App() {
             ambientAudio.playUi(todOpen ? 'close' : 'open');
             setTodOpen((v) => !v);
           }}
-          onToggleFullscreen={() => setFullscreen((v) => !v)}
+          onToggleFullscreen={handleToggleFullscreen}
           onHeroView={() => {
             ambientAudio.playUi('tap', { intensity: 0.7 });
             engineRef.current?.frameCurrentLandmark();

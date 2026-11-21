@@ -159,8 +159,11 @@ export function TopBar({
           whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           onClick={onToggleFullscreen}
           aria-label="Exit fullscreen"
-          animate={{ opacity: idleInFullscreen ? 0 : 0.8 }}
-          style={{ pointerEvents: idleInFullscreen ? 'none' : 'auto' }}
+          title="Exit fullscreen"
+          // Keep the control reachable when idle: fading it out with
+          // pointer-events disabled left no way to leave fullscreen without
+          // first waking the UI with a pointer move (impossible on touch).
+          animate={{ opacity: idleInFullscreen ? 0.45 : 0.8 }}
           transition={{ duration: reducedMotion ? 0 : 0.3 }}
           className="fixed right-4 top-[calc(14px+env(safe-area-inset-top,0px))] z-20 w-10 h-10 rounded-full grid place-items-center bg-[#121319]/90 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
         >

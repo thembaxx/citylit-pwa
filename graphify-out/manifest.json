@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795269576.2171059,
-    "seen": 1795270207.9620166,
-    "ast_hash": "82cda0c93f4bf5483b1d9441f364e2c1",
+    "mtime": 1795274814.6693816,
+    "seen": 1795274934.2543087,
+    "ast_hash": "c05954d4f027b9bbd54cf04b2e09a4bd",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -115,9 +115,9 @@
     "semantic_hash": ""
   },
   "src/components/TopBar.tsx": {
-    "mtime": 1795270166.9855103,
-    "seen": 1795270207.9620512,
-    "ast_hash": "627193882b8815919a2913c35d6bd3b4",
+    "mtime": 1795274448.350249,
+    "seen": 1795274578.644598,
+    "ast_hash": "b54a8997b4cec32d0fd235d50753c6da",
     "semantic_hash": ""
   },
   "src/components/WeatherIcon.tsx": {
