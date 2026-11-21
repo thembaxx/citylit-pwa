@@ -1,4 +1,4 @@
-import { Sparkle } from '@phosphor-icons/react';
+import { MapPin, Sparkle, Trash, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { toastVariants } from './lib/motion';
@@ -43,6 +43,7 @@ import type { PlacesSelectionInfo, PlacesWeatherMode } from './three/placesScene
 import type {
   CitylitSettings,
   ForecastSlot,
+  LandmarkNote,
   LiveWeatherSample,
   WeatherConditionKey,
   WeatherDisplayState,
@@ -68,6 +69,41 @@ function readStoredSet(key: string): Set<number> {
     );
   } catch {
     return new Set();
+  }
+}
+
+const NOTES_STORAGE_KEY = 'cl-notes';
+
+function readStoredNotes(): Record<number, LandmarkNote[]> {
+  try {
+    const raw = localStorage.getItem(NOTES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const out: Record<number, LandmarkNote[]> = {};
+    for (const [key, val] of Object.entries(parsed)) {
+      const idx = Number(key);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= LANDMARKS.length || !Array.isArray(val)) {
+        continue;
+      }
+      const clean = val.filter((item): item is LandmarkNote => {
+        if (!item || typeof item !== 'object') return false;
+        const n = item as Partial<LandmarkNote>;
+        return (
+          typeof n.id === 'string' &&
+          typeof n.text === 'string' &&
+          n.text.trim().length > 0 &&
+          Array.isArray(n.position) &&
+          n.position.length === 3 &&
+          n.position.every((c) => typeof c === 'number' && Number.isFinite(c)) &&
+          typeof n.createdAt === 'number'
+        );
+      });
+      if (clean.length > 0) out[idx] = clean;
+    }
+    return out;
+  } catch {
+    return {};
   }
 }
 
@@ -190,6 +226,14 @@ export function App() {
 
   const [tourActive, setTourActive] = useState(false);
   const [showDirection, setShowDirection] = useState(false);
+  const [notesByLandmark, setNotesByLandmark] =
+    useState<Record<number, LandmarkNote[]>>(readStoredNotes);
+  const notesByLandmarkRef = useRef(notesByLandmark);
+  const indexRef = useRef(index);
+  const [activeNoteCallout, setActiveNoteCallout] = useState<{
+    landmarkIndex: number;
+    noteId: string;
+  } | null>(null);
   const [factText, setFactText] = useState<string | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [hintVisible, setHintVisible] = useState(true);
@@ -197,10 +241,19 @@ export function App() {
   const [stampBanner, setStampBanner] = useState<string | null>(null);
 
   const factTimerRef = useRef<number | null>(null);
+  const noteTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const cineTimerRef = useRef<number | null>(null);
   const stampTimerRef = useRef<number | null>(null);
   const idleTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    notesByLandmarkRef.current = notesByLandmark;
+  }, [notesByLandmark]);
+
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
 
   const reducedMotion = useMemo(() => {
     if (settings.motion === 'reduce') return true;
@@ -218,9 +271,18 @@ export function App() {
 
   const showFact = useCallback((text: string) => {
     ambientAudio.playUi('subtle', { intensity: 0.7 });
+    setActiveNoteCallout(null);
     setFactText(text);
     if (factTimerRef.current) window.clearTimeout(factTimerRef.current);
     factTimerRef.current = window.setTimeout(() => setFactText(null), 5200);
+  }, []);
+
+  const showUserNoteCallout = useCallback((landmarkIndex: number, noteId: string) => {
+    ambientAudio.playUi('subtle', { intensity: 0.8 });
+    setFactText(null);
+    setActiveNoteCallout({ landmarkIndex, noteId });
+    if (noteTimerRef.current) window.clearTimeout(noteTimerRef.current);
+    noteTimerRef.current = window.setTimeout(() => setActiveNoteCallout(null), 8500);
   }, []);
 
   const launchConfetti = useCallback(() => {
@@ -273,7 +335,9 @@ export function App() {
       const wrapped = ((nextIndex % LANDMARKS.length) + LANDMARKS.length) % LANDMARKS.length;
       setIndex(wrapped);
       setFactText(null);
+      setActiveNoteCallout(null);
       setUrlForLandmark(slugifyLandmark(LANDMARKS[wrapped].k));
+      engineRef.current?.setUserNotes(wrapped, notesByLandmarkRef.current[wrapped] ?? []);
       engineRef.current?.transitionToLandmark(wrapped);
       if (opts.cinematic && !reducedMotion) {
         setCineKey(Date.now());
@@ -308,6 +372,7 @@ export function App() {
         const instance = new Engine(host, {
           onFirstInteract: () => setHintVisible(false),
           onFactDot: (text) => showFact(text),
+          onUserNotePin: (noteId) => showUserNoteCallout(indexRef.current, noteId),
           onGlobePinHover: (pinIndex, x, y) => {
             setGlobeHover((prev) => {
               if (pinIndex === null) return prev === null ? prev : null;
@@ -348,6 +413,9 @@ export function App() {
         document.documentElement.dataset.theme = initialTheme;
         instance.setTheme(initialTheme, true);
         instance.setSeasonMonth(new Date().getMonth() + 1, true);
+        for (const [lmKey, lmNotes] of Object.entries(notesByLandmarkRef.current)) {
+          instance.setUserNotes(Number(lmKey), lmNotes);
+        }
         const initialCoord = readInitialCoordinate();
         if (initialCoord) {
           void loadOsmPlace(initialCoord).then((data) => {
@@ -411,7 +479,7 @@ export function App() {
       engine?.dispose();
       engineRef.current = null;
     };
-  }, [selectLandmark, showFact]);
+  }, [selectLandmark, showFact, showUserNoteCallout]);
 
   // Pause WebGL render loop while tab is hidden or full-screen opaque gallery covers viewport
   useEffect(() => {
@@ -633,7 +701,13 @@ export function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || galleryOpen) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        galleryOpen
+      ) {
+        return;
+      }
       if (placesOpen) {
         if (e.key === 'ArrowRight') {
           const next = engineRef.current?.places.stepSlice(1, activeProvince);
@@ -702,6 +776,8 @@ export function App() {
           ambientAudio.playUi('close');
           engineRef.current?.closeGlobe();
           setGlobeOpen(false);
+        } else if (activeNoteCallout) {
+          setActiveNoteCallout(null);
         } else if (fullscreen) setFullscreen(false);
       }
     };
@@ -719,6 +795,7 @@ export function App() {
     passportOpen,
     settingsOpen,
     postcardOpen,
+    activeNoteCallout,
     fullscreen,
     selectLandmark,
   ]);
@@ -750,6 +827,84 @@ export function App() {
       ambientAudio.vibrate(10);
     },
     [favorites]
+  );
+
+  const persistNotes = useCallback((next: Record<number, LandmarkNote[]>) => {
+    try {
+      localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Ignore storage quota / privacy mode errors
+    }
+  }, []);
+
+  const handleAddNote = useCallback(
+    (text: string) => {
+      const existing = notesByLandmarkRef.current[index] ?? [];
+      const position = engineRef.current?.computeDefaultNotePosition(index, existing.length) ?? [
+        Number((Math.cos(existing.length * 2.4) * 2.4).toFixed(2)),
+        2.2,
+        Number((Math.sin(existing.length * 2.4) * 2.4).toFixed(2)),
+      ];
+      const newNote: LandmarkNote = {
+        id:
+          typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        text,
+        position,
+        createdAt: Date.now(),
+      };
+      const updatedList = [...existing, newNote];
+      const next = { ...notesByLandmarkRef.current, [index]: updatedList };
+      setNotesByLandmark(next);
+      persistNotes(next);
+      engineRef.current?.setUserNotes(index, updatedList, newNote.id);
+      ambientAudio.playUi('success', { intensity: 0.72 });
+      ambientAudio.vibrate(10);
+      showToast('Pinned private note in 3D');
+    },
+    [index, persistNotes, showToast]
+  );
+
+  const handleUpdateNote = useCallback(
+    (noteId: string, text: string) => {
+      const existing = notesByLandmarkRef.current[index] ?? [];
+      const updatedList = existing.map((n) => (n.id === noteId ? { ...n, text } : n));
+      const next = { ...notesByLandmarkRef.current, [index]: updatedList };
+      setNotesByLandmark(next);
+      persistNotes(next);
+      engineRef.current?.setUserNotes(index, updatedList);
+      ambientAudio.playUi('tap', { intensity: 0.65 });
+      showToast('Note updated');
+    },
+    [index, persistNotes, showToast]
+  );
+
+  const handleDeleteNote = useCallback(
+    (noteId: string) => {
+      const existing = notesByLandmarkRef.current[index] ?? [];
+      const updatedList = existing.filter((n) => n.id !== noteId);
+      const next = { ...notesByLandmarkRef.current };
+      if (updatedList.length > 0) next[index] = updatedList;
+      else delete next[index];
+      setNotesByLandmark(next);
+      persistNotes(next);
+      engineRef.current?.setUserNotes(index, updatedList);
+      setActiveNoteCallout((prev) =>
+        prev && prev.landmarkIndex === index && prev.noteId === noteId ? null : prev
+      );
+      ambientAudio.playUi('toggle');
+      showToast('Note removed');
+    },
+    [index, persistNotes, showToast]
+  );
+
+  const handleFocusNote = useCallback(
+    (noteId: string) => {
+      engineRef.current?.focusUserNote(noteId);
+      showUserNoteCallout(index, noteId);
+    },
+    [index, showUserNoteCallout]
   );
 
   const handleToggleSound = useCallback(() => {
@@ -1026,7 +1181,12 @@ export function App() {
         />
 
         {/* Compass */}
-        <Compass getEngine={() => engineRef.current} reducedMotion={reducedMotion} />
+        <Compass
+          getEngine={() => engineRef.current}
+          visible={!fullscreen || !idleInFullscreen}
+          directionActive={showDirection}
+          reducedMotion={reducedMotion}
+        />
 
         {/* Bottom Landmark Card */}
         <LandmarkCard
@@ -1034,6 +1194,10 @@ export function App() {
           isFavorite={favorites.has(index)}
           tourActive={tourActive}
           directionActive={showDirection}
+          notes={notesByLandmark[index] ?? []}
+          activeNoteId={
+            activeNoteCallout?.landmarkIndex === index ? activeNoteCallout.noteId : null
+          }
           visible={!fullscreen && !globeOpen && !placesOpen}
           reducedMotion={reducedMotion}
           onPrev={() => selectLandmark(index - 1)}
@@ -1047,6 +1211,10 @@ export function App() {
             ambientAudio.playUi('toggle');
             setShowDirection((v) => !v);
           }}
+          onAddNote={handleAddNote}
+          onUpdateNote={handleUpdateNote}
+          onDeleteNote={handleDeleteNote}
+          onFocusNote={handleFocusNote}
           onOpenInfo={() => setInfoOpen(true)}
           onOpenGallery={() => setGalleryOpen(true)}
           onOpenPostcard={handleOpenPostcard}
@@ -1160,7 +1328,7 @@ export function App() {
           onClose={closePlaces}
         />
 
-        {/* Fact Callout */}
+        {/* Fact & Private User Pin Callouts */}
         <AnimatePresence>
           {factText && (
             <motion.div
@@ -1178,6 +1346,59 @@ export function App() {
               <span>{factText}</span>
             </motion.div>
           )}
+          {!factText &&
+            activeNoteCallout &&
+            (() => {
+              const pinnedNote = (notesByLandmark[activeNoteCallout.landmarkIndex] ?? []).find(
+                (n) => n.id === activeNoteCallout.noteId
+              );
+              if (!pinnedNote) return null;
+              return (
+                <motion.div
+                  key={`user-note-${pinnedNote.id}`}
+                  role="status"
+                  variants={toastVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  transition={reducedMotion ? { duration: 0 } : undefined}
+                  className="fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#5cd6a9]/55 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl"
+                >
+                  <MapPin size={17} weight="fill" className="text-[#5cd6a9] shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.12em] text-[#5cd6a9] mb-0.5">
+                      <span>Private User Pin</span>
+                      <span aria-hidden="true" className="text-white/30">
+                        ·
+                      </span>
+                      <span className="font-mono tabular-nums text-[#a9a69e] normal-case tracking-normal">
+                        {new Date(pinnedNote.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="m-0 leading-snug break-words text-[#f3efe6]">{pinnedNote.text}</p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(pinnedNote.id)}
+                      aria-label="Delete this private note"
+                      title="Delete note"
+                      className="w-7 h-7 rounded-lg grid place-items-center text-[#a9a69e] hover:text-[#ff7a8a] hover:bg-white/[0.08] cursor-pointer"
+                    >
+                      <Trash size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveNoteCallout(null)}
+                      aria-label="Dismiss note callout"
+                      className="w-7 h-7 rounded-lg grid place-items-center text-[#a9a69e] hover:text-[#f3efe6] hover:bg-white/[0.08] cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })()}
         </AnimatePresence>
 
         {/* Toast Notification */}

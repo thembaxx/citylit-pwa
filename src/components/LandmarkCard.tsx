@@ -3,20 +3,27 @@ import {
   Camera,
   CaretLeft,
   CaretRight,
+  Check,
   GlobeHemisphereEast,
   Heart,
   Images,
   Info,
+  MapPin,
   NavigationArrow,
+  NotePencil,
   Pause,
+  PencilSimple,
   Play,
   ShareNetwork,
+  Trash,
+  X,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, type Variants } from 'motion/react';
 import { LANDMARKS } from '../data/landmarks';
 import { animate, DURATION, EASE_SMOOTH_OUT, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
+import type { LandmarkNote } from '../types/citylit';
 
 interface SlideCustom {
   dir: number;
@@ -80,6 +87,8 @@ interface LandmarkCardProps {
   isFavorite: boolean;
   tourActive: boolean;
   directionActive: boolean;
+  notes: readonly LandmarkNote[];
+  activeNoteId?: string | null;
   visible: boolean;
   reducedMotion?: boolean;
   onPrev: () => void;
@@ -87,6 +96,10 @@ interface LandmarkCardProps {
   onToggleFavorite: () => void;
   onToggleTour: () => void;
   onToggleDirection: () => void;
+  onAddNote: (text: string) => void;
+  onUpdateNote: (noteId: string, text: string) => void;
+  onDeleteNote: (noteId: string) => void;
+  onFocusNote: (noteId: string) => void;
   onOpenInfo: () => void;
   onOpenGallery: () => void;
   onOpenPostcard: () => void;
@@ -123,6 +136,8 @@ export function LandmarkCard({
   isFavorite,
   tourActive,
   directionActive,
+  notes,
+  activeNoteId = null,
   visible,
   reducedMotion = false,
   onPrev,
@@ -130,6 +145,10 @@ export function LandmarkCard({
   onToggleFavorite,
   onToggleTour,
   onToggleDirection,
+  onAddNote,
+  onUpdateNote,
+  onDeleteNote,
+  onFocusNote,
   onOpenInfo,
   onOpenGallery,
   onOpenPostcard,
@@ -139,6 +158,10 @@ export function LandmarkCard({
   onDragParallax,
 }: LandmarkCardProps) {
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [draftNote, setDraftNote] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState('');
   const [{ current: trackedIndex, dir: direction }, setNavState] = useState({
     current: index,
     dir: 1,
@@ -149,12 +172,24 @@ export function LandmarkCard({
     if (trackedIndex === count - 1 && index === 0) nextDir = 1;
     else if (trackedIndex === 0 && index === count - 1) nextDir = -1;
     setNavState({ current: index, dir: nextDir });
+    setDraftNote('');
+    setEditingNoteId(null);
+    setEditingDraft('');
   }
   const slideCustom: SlideCustom = { dir: direction, reduced: reducedMotion };
   const cardWrapRef = useRef<HTMLDivElement>(null);
+  const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const holdTimer = useRef<number | null>(null);
   const dragX = useMotionValue(0);
   const dragOrigin = useRef(0);
+
+  useEffect(() => {
+    if (notesOpen) {
+      const id = window.requestAnimationFrame(() => noteInputRef.current?.focus());
+      return () => window.cancelAnimationFrame(id);
+    }
+    return undefined;
+  }, [notesOpen]);
 
   // Publish the card height so fixed overlays can stack above it instead of guessing.
   useEffect(() => {
@@ -383,12 +418,216 @@ export function LandmarkCard({
               <NavigationArrow size={13} weight={directionActive ? 'fill' : 'regular'} />
               {directionActive ? 'Hide Direction' : 'Show Direction'}
             </motion.button>
+            <motion.button
+              type="button"
+              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+              onClick={() => setNotesOpen((v) => !v)}
+              aria-expanded={notesOpen}
+              aria-label={
+                notes.length > 0
+                  ? `Private notes for ${lm.k} (${notes.length})`
+                  : `Add private note to ${lm.k}`
+              }
+              title="Save a private note pinned in 3D when you revisit"
+              className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 tabular-nums ${
+                notesOpen
+                  ? 'bg-[#38c793]/18 border-[#5cd6a9]/75 text-[#5cd6a9]'
+                  : notes.length > 0
+                    ? 'bg-[#38c793]/10 border-[#5cd6a9]/40 text-[#9cebd0] hover:border-[#5cd6a9]/75 hover:text-[#5cd6a9]'
+                    : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#5cd6a9]/65 hover:text-[#5cd6a9]'
+              }`}
+            >
+              <NotePencil size={13} weight={notesOpen || notes.length > 0 ? 'fill' : 'regular'} />
+              {notes.length > 0 ? `Add Note (${notes.length})` : 'Add Note'}
+            </motion.button>
             <span className="text-[11px] text-[#a9a69e] truncate">
               {directionActive
                 ? `${cardinal} · ${km.toLocaleString()} km → ${nextLm.k}`
                 : `Next: ${nextLm.k}`}
             </span>
           </div>
+
+          <AnimatePresence initial={false}>
+            {notesOpen && (
+              <motion.div
+                key="notes-drawer"
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, height: 'auto' }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, height: 0 }}
+                transition={{ duration: reducedMotion ? 0 : DURATION.quick, ease: EASE_SMOOTH_OUT }}
+                className="overflow-hidden"
+              >
+                <div className="mt-2.5 pt-2.5 border-t border-white/12 space-y-2">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const clean = draftNote.trim();
+                      if (!clean) return;
+                      onAddNote(clean);
+                      setDraftNote('');
+                    }}
+                    className="space-y-1.5"
+                  >
+                    <textarea
+                      ref={noteInputRef}
+                      value={draftNote}
+                      onChange={(e) => setDraftNote(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                          e.preventDefault();
+                          const clean = draftNote.trim();
+                          if (clean) {
+                            onAddNote(clean);
+                            setDraftNote('');
+                          }
+                        } else if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          setNotesOpen(false);
+                        }
+                      }}
+                      rows={2}
+                      maxLength={240}
+                      placeholder={`Pin a private thought on ${lm.k}…`}
+                      aria-label={`Private note for ${lm.k}`}
+                      className="w-full rounded-xl bg-white/[0.05] border border-white/15 focus:border-[#5cd6a9] focus:outline-none px-3 py-2 text-[12.5px] leading-snug text-[#f3efe6] placeholder:text-[#a9a69e]/70 resize-none"
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10.5px] font-mono tabular-nums text-[#a9a69e]">
+                        {draftNote.trim().length}/240 · Saved locally as 3D pin
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraftNote('');
+                            setNotesOpen(false);
+                          }}
+                          className="h-7 px-2.5 rounded-lg border border-white/12 bg-white/[0.04] text-[11.5px] text-[#a9a69e] hover:text-[#f3efe6] transition-colors cursor-pointer"
+                        >
+                          Close
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={draftNote.trim().length === 0}
+                          className="h-7 px-3 rounded-lg bg-[#38c793] text-[#0c1d16] text-[11.5px] font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#4cd5a3] transition-colors cursor-pointer"
+                        >
+                          Pin Note
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+
+                  {notes.length > 0 && (
+                    <ul className="space-y-1.5 max-h-[136px] overflow-y-auto pr-0.5">
+                      {notes.map((note) => {
+                        const isEditing = editingNoteId === note.id;
+                        const isHighlighted = activeNoteId === note.id;
+                        return (
+                          <li
+                            key={note.id}
+                            className={`rounded-xl border px-2.5 py-2 transition-colors ${
+                              isHighlighted
+                                ? 'bg-[#38c793]/14 border-[#5cd6a9]/65'
+                                : 'bg-white/[0.035] border-white/10 hover:border-white/22'
+                            }`}
+                          >
+                            {isEditing ? (
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={editingDraft}
+                                  maxLength={240}
+                                  onChange={(e) => setEditingDraft(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.preventDefault();
+                                      const clean = editingDraft.trim();
+                                      if (clean) {
+                                        onUpdateNote(note.id, clean);
+                                        setEditingNoteId(null);
+                                      }
+                                    } else if (e.key === 'Escape') {
+                                      e.stopPropagation();
+                                      setEditingNoteId(null);
+                                    }
+                                  }}
+                                  className="flex-1 min-w-0 rounded-lg bg-black/35 border border-[#5cd6a9]/60 px-2 py-1 text-[12px] text-[#f3efe6] focus:outline-none"
+                                  aria-label="Edit note text"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const clean = editingDraft.trim();
+                                    if (clean) {
+                                      onUpdateNote(note.id, clean);
+                                      setEditingNoteId(null);
+                                    }
+                                  }}
+                                  aria-label="Save edited note"
+                                  className="w-7 h-7 rounded-lg grid place-items-center bg-[#38c793]/20 text-[#5cd6a9] hover:bg-[#38c793]/35 cursor-pointer"
+                                >
+                                  <Check size={14} weight="bold" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingNoteId(null)}
+                                  aria-label="Cancel edit"
+                                  className="w-7 h-7 rounded-lg grid place-items-center bg-white/[0.06] text-[#a9a69e] hover:text-[#f3efe6] cursor-pointer"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-start gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => onFocusNote(note.id)}
+                                  className="flex-1 min-w-0 text-left flex items-start gap-2 cursor-pointer group"
+                                  title="Focus camera on 3D User Pin"
+                                >
+                                  <MapPin
+                                    size={14}
+                                    weight="fill"
+                                    className="text-[#5cd6a9] shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
+                                  />
+                                  <span className="text-[12px] leading-snug text-[#e9e4d9] break-words">
+                                    {note.text}
+                                  </span>
+                                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingNoteId(note.id);
+                                      setEditingDraft(note.text);
+                                    }}
+                                    aria-label="Edit private note"
+                                    title="Edit"
+                                    className="w-6 h-6 rounded-md grid place-items-center text-[#a9a69e] hover:text-[#f3efe6] hover:bg-white/[0.08] cursor-pointer"
+                                  >
+                                    <PencilSimple size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteNote(note.id)}
+                                    aria-label="Delete private note"
+                                    title="Delete"
+                                    className="w-6 h-6 rounded-md grid place-items-center text-[#a9a69e] hover:text-[#ff7a8a] hover:bg-white/[0.08] cursor-pointer"
+                                  >
+                                    <Trash size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div className="flex items-center gap-2.5 mt-3 landscape:mt-2 [@media(max-height:700px)]:mt-2">
             <motion.button

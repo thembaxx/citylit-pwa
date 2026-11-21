@@ -158,3 +158,24 @@ export interface ForecastSlot {
   night: boolean;
   temp: number;
 }
+
+export interface LandmarkNote {
+  id: string;
+  text: string;
+  /** Position in 3D diorama space relative to heroRoot. */
+  position: readonly [x: number, y: number, z: number];
+  createdAt: number;
+}
+
+export interface CompassState {
+  /** Camera azimuth heading in degrees [0, 360), where 0 = True North (-Z in diorama). */
+  bearingDeg: number;
+  /** Screen-space needle rotation angle in degrees pointing toward North. */
+  needleDeg: number;
+  /** Camera pitch tilt angle in degrees (0 = horizon, 90 = zenith). */
+  tiltDeg: number;
+  /** Active 3D viewport stage. */
+  mode: 'diorama' | 'places' | 'globe';
+  /** Geographic bearing in degrees [0, 360) toward the next landmark, or null. */
+  nextBearingDeg: number | null;
+}

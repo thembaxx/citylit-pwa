@@ -12,6 +12,8 @@ import { LANDMARKS } from '../data/landmarks';
 import type { OsmPlaceData } from '../services/osmService';
 import type {
   AmbientSiteProfile,
+  CompassState,
+  LandmarkNote,
   LiveWeatherSample,
   MediaItem,
   QualityIndex,
@@ -71,6 +73,7 @@ export interface EngineCallbacks {
   onSelectPlaceSlice?: (info: PlacesSelectionInfo) => void;
   onOpenLandmarkFromPlaces?: (index: number) => void;
   onFactDot?: (text: string) => void;
+  onUserNotePin?: (noteId: string) => void;
   onFirstInteract?: () => void;
   onThunder?: () => void;
   onSwipeLandmark?: (dir: 1 | -1) => void;
@@ -78,6 +81,8 @@ export interface EngineCallbacks {
 
 const audioRight = new THREE.Vector3();
 const audioForward = new THREE.Vector3();
+const compassOffset = new THREE.Vector3();
+const compassDir = new THREE.Vector3();
 
 /** Default night sky. Shared by the background, fog and particles so they stay in sync. */
 const SKY_COLOR = new THREE.Color('#0e0f13');
@@ -233,6 +238,11 @@ export class CitylitEngine {
   private camStart = new THREE.Vector3();
   private camTargetPos = new THREE.Vector3();
   private camGoalT = 1;
+  private camGoalOrbital = false;
+  private camStartAzimuth = 0;
+  private camTargetAzimuth = 0;
+  private camGoalHorizDist = 0;
+  private camGoalHeightOffset = 0;
   private targetStart = new THREE.Vector3();
   private targetEnd = new THREE.Vector3();
   private targetGoalActive = false;
@@ -736,13 +746,143 @@ export class CitylitEngine {
       ctx.strokeStyle = '#fff';
       ctx.stroke();
     }
-    return new THREE.CanvasTexture(c);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  private createUserPinTexture(): THREE.CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const ctx = c.getContext('2d');
+    if (ctx) {
+      // Soft emerald outer halo so private user pins stand apart from amber fact pins
+      ctx.beginPath();
+      ctx.arc(32, 30, 23, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(92, 214, 169, 0.24)';
+      ctx.fill();
+
+      // Teardrop / bookmark badge silhouette
+      ctx.beginPath();
+      ctx.arc(32, 27, 14, Math.PI * 0.85, Math.PI * 0.15, false);
+      ctx.quadraticCurveTo(42, 41, 32, 50);
+      ctx.quadraticCurveTo(22, 41, 19.3, 33.4);
+      ctx.closePath();
+      ctx.fillStyle = '#38c793';
+      ctx.fill();
+      ctx.lineWidth = 2.6;
+      ctx.strokeStyle = '#f6f3eb';
+      ctx.stroke();
+
+      // Crisp miniature note-lines glyph inside the badge
+      ctx.strokeStyle = '#0e1f18';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(26, 23.5);
+      ctx.lineTo(38, 23.5);
+      ctx.moveTo(26, 28);
+      ctx.lineTo(38, 28);
+      ctx.moveTo(26, 32.5);
+      ctx.lineTo(34, 32.5);
+      ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
   }
 
   private markerTexture: THREE.CanvasTexture | null = null;
+  private userPinTexture: THREE.CanvasTexture | null = null;
+  private readonly userNotesByIndex = new Map<number, LandmarkNote[]>();
+  private readonly userPinPopTimers = new Map<string, number>();
+
+  computeDefaultNotePosition(
+    landmarkIndex: number,
+    existingCount: number
+  ): [number, number, number] {
+    const existingNotes = this.userNotesByIndex.get(landmarkIndex) ?? [];
+    const factDots = LANDMARKS[landmarkIndex]?.dots ?? [];
+    let cx = 0;
+    let cz = 0;
+    let baseMinY = 0.2;
+    let heightSpan = 3.0;
+    let radiusX = 2.4;
+    let radiusZ = 2.4;
+
+    if (landmarkIndex === this.activeIndex && this.currentGroup) {
+      const box = this.computeDioramaBounds(this.currentGroup);
+      if (!box.isEmpty()) {
+        const size = box.getSize(this.fitSizeTmp);
+        const center = box.getCenter(this.fitCenterTmp);
+        cx = center.x;
+        cz = center.z;
+        baseMinY = box.min.y;
+        heightSpan = Math.max(1.2, size.y);
+        radiusX = THREE.MathUtils.clamp(size.x * 0.34, 1.35, 4.4);
+        radiusZ = THREE.MathUtils.clamp(size.z * 0.34, 1.35, 4.4);
+      }
+    }
+
+    const baseAngle = existingCount * 2.39996 + 0.65;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const angle = baseAngle + attempt * 0.42;
+      const radialBoost = 1 + (attempt > 0 ? 0.12 * attempt : 0);
+      const px = Number((cx + Math.cos(angle) * radiusX * radialBoost).toFixed(2));
+      const pz = Number((cz + Math.sin(angle) * radiusZ * radialBoost).toFixed(2));
+      const py = Number(
+        THREE.MathUtils.clamp(
+          baseMinY + heightSpan * 0.54 + ((existingCount + attempt) % 2) * 0.55,
+          1.45,
+          5.2
+        ).toFixed(2)
+      );
+
+      const collidesFact = factDots.some(
+        ([fx, fy, fz]) => Math.hypot(px - fx, py - fy, pz - fz) < 1.05
+      );
+      const collidesNote = existingNotes.some(
+        (n) => Math.hypot(px - n.position[0], py - n.position[1], pz - n.position[2]) < 1.05
+      );
+      if (!collidesFact && !collidesNote) {
+        return [px, py, pz];
+      }
+    }
+
+    return [
+      Number((cx + Math.cos(baseAngle) * radiusX).toFixed(2)),
+      Number(THREE.MathUtils.clamp(baseMinY + heightSpan * 0.62, 1.6, 5.2).toFixed(2)),
+      Number((cz + Math.sin(baseAngle) * radiusZ).toFixed(2)),
+    ];
+  }
+
+  setUserNotes(
+    landmarkIndex: number,
+    notes: readonly LandmarkNote[],
+    highlightNewId?: string
+  ): void {
+    this.userNotesByIndex.set(landmarkIndex, [...notes]);
+    if (highlightNewId) {
+      this.userPinPopTimers.set(highlightNewId, 1);
+    }
+    if (landmarkIndex === this.activeIndex) {
+      this.rebuildMarkers(landmarkIndex);
+    }
+  }
+
+  focusUserNote(noteId: string): void {
+    const targetSprite = this.markerSprites.find((s) => s.userData.noteId === noteId);
+    if (!targetSprite) return;
+    this.userPinPopTimers.set(noteId, 0.85);
+    this.focusOnFactPoint(targetSprite.position);
+  }
 
   private rebuildMarkers(index: number): void {
-    this.markerSprites.forEach((s) => this.markerGroup.remove(s));
+    this.markerSprites.forEach((s) => {
+      this.markerGroup.remove(s);
+      s.material.dispose();
+    });
     this.markerSprites = [];
     if (!this.markerTexture) {
       this.markerTexture = this.createMarkerTexture();
@@ -759,9 +899,35 @@ export class CitylitEngine {
       );
       sprite.position.set(x, y, z);
       sprite.scale.setScalar(0.6);
+      sprite.userData.pinKind = 'fact';
       sprite.userData.factText = text;
       sprite.userData.cannotReceiveAO = true;
       sprite.renderOrder = 2;
+      this.markerGroup.add(sprite);
+      this.markerSprites.push(sprite);
+    });
+
+    const userNotes = this.userNotesByIndex.get(index) ?? [];
+    if (userNotes.length > 0 && !this.userPinTexture) {
+      this.userPinTexture = this.createUserPinTexture();
+    }
+    userNotes.forEach((note) => {
+      const sprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: this.userPinTexture!,
+          depthTest: false,
+          depthWrite: false,
+          transparent: true,
+        })
+      );
+      sprite.position.set(note.position[0], note.position[1], note.position[2]);
+      sprite.scale.setScalar(0.68);
+      sprite.userData.pinKind = 'note';
+      sprite.userData.noteId = note.id;
+      sprite.userData.noteText = note.text;
+      sprite.userData.baseY = note.position[1];
+      sprite.userData.cannotReceiveAO = true;
+      sprite.renderOrder = 3;
       this.markerGroup.add(sprite);
       this.markerSprites.push(sprite);
     });
@@ -1563,12 +1729,153 @@ export class CitylitEngine {
 
   flyCameraPreset(pos: [number, number, number]): void {
     this.lastInteractAt = this.elapsed;
+    this.camGoalOrbital = false;
     this.camStart.copy(this.camera.position);
     this.camTargetPos.set(pos[0], pos[1], pos[2]);
     this.camGoal = this.camTargetPos;
     this.camGoalT = 0;
     this.targetGoalActive = false;
     this.hasCustomFocus = false;
+  }
+
+  getCompassState(): CompassState {
+    if (this.globe.isOpen) {
+      const m = this.globe.camera.matrixWorld.elements;
+      const fx = -m[8];
+      const fy = -m[9];
+      const fz = -m[10];
+      const rx = m[0];
+      const ry = m[1];
+      const rz = m[2];
+      const ux = m[4];
+      const uy = m[5];
+      const uz = m[6];
+      const alongF = fy;
+      const nx = -fx * alongF;
+      const ny = 1 - fy * alongF;
+      const nz = -fz * alongF;
+      let needleDeg = 0;
+      if (nx * nx + ny * ny + nz * nz > 1e-6) {
+        needleDeg =
+          (Math.atan2(nx * rx + ny * ry + nz * rz, nx * ux + ny * uy + nz * uz) * 180) / Math.PI;
+      }
+      const bearingDeg = ((-needleDeg % 360) + 360) % 360;
+      return {
+        bearingDeg,
+        needleDeg,
+        tiltDeg: Math.round(
+          Math.abs(Math.asin(THREE.MathUtils.clamp(-fy, -1, 1)) * (180 / Math.PI))
+        ),
+        mode: 'globe',
+        nextBearingDeg: null,
+      };
+    }
+
+    const cam = this.places.isOpen ? this.places.camera : this.camera;
+    const target = this.places.isOpen ? this.places.controls.target : this.controls.target;
+    compassDir.copy(target).sub(cam.position);
+    const len = compassDir.length();
+    const tiltDeg =
+      len > 1e-5
+        ? Math.round(
+            Math.max(
+              0,
+              Math.asin(THREE.MathUtils.clamp(-compassDir.y / len, -1, 1)) * (180 / Math.PI)
+            )
+          )
+        : 0;
+    const bearingDeg = ((Math.atan2(compassDir.x, -compassDir.z) * 180) / Math.PI + 360) % 360;
+    const needleDeg = -bearingDeg;
+
+    let nextBearingDeg: number | null = null;
+    if (!this.places.isOpen) {
+      const from = LANDMARKS[this.activeIndex];
+      const to = LANDMARKS[(this.activeIndex + 1) % LANDMARKS.length];
+      if (from && to) {
+        const avgLatRad = ((from.coords[0] + to.coords[0]) * 0.5 * Math.PI) / 180;
+        const dNorth = to.coords[0] - from.coords[0];
+        const dEast = (to.coords[1] - from.coords[1]) * Math.cos(avgLatRad);
+        nextBearingDeg = ((Math.atan2(dEast, dNorth) * 180) / Math.PI + 360) % 360;
+      }
+    }
+
+    return {
+      bearingDeg,
+      needleDeg,
+      tiltDeg,
+      mode: this.places.isOpen ? 'places' : 'diorama',
+      nextBearingDeg,
+    };
+  }
+
+  snapCompassHeading(headingDeg: number): void {
+    this.lastInteractAt = this.elapsed;
+    if (this.globe.isOpen) {
+      this.globe.resetView();
+      return;
+    }
+    const targetRad = THREE.MathUtils.degToRad(headingDeg);
+    if (this.places.isOpen) {
+      const cam = this.places.camera;
+      const target = this.places.controls.target;
+      compassOffset.copy(cam.position).sub(target);
+      const horiz = Math.max(0.5, Math.hypot(compassOffset.x, compassOffset.z));
+      cam.position.set(
+        target.x - Math.sin(targetRad) * horiz,
+        cam.position.y,
+        target.z + Math.cos(targetRad) * horiz
+      );
+      this.places.controls.update();
+      return;
+    }
+
+    compassOffset.copy(this.camera.position).sub(this.controls.target);
+    const horiz = Math.max(0.5, Math.hypot(compassOffset.x, compassOffset.z));
+    const currentHeadingRad = Math.atan2(-compassOffset.x, compassOffset.z);
+    const delta = Math.atan2(
+      Math.sin(targetRad - currentHeadingRad),
+      Math.cos(targetRad - currentHeadingRad)
+    );
+    this.camStartAzimuth = currentHeadingRad;
+    this.camTargetAzimuth = currentHeadingRad + delta;
+    this.camGoalHorizDist = horiz;
+    this.camGoalHeightOffset = compassOffset.y;
+    this.camGoalOrbital = true;
+    this.camStart.copy(this.camera.position);
+    this.camTargetPos.set(
+      this.controls.target.x - Math.sin(targetRad) * horiz,
+      this.controls.target.y + compassOffset.y,
+      this.controls.target.z + Math.cos(targetRad) * horiz
+    );
+    this.camGoal = this.camTargetPos;
+    this.camGoalT = 0;
+    this.targetGoalActive = false;
+  }
+
+  rotateCameraAzimuth(deltaRad: number): void {
+    this.lastInteractAt = this.elapsed;
+    this.camGoal = null;
+    this.camGoalOrbital = false;
+    this.targetGoalActive = false;
+
+    const cam = this.globe.isOpen
+      ? this.globe.camera
+      : this.places.isOpen
+        ? this.places.camera
+        : this.camera;
+    const ctrl = this.globe.isOpen
+      ? this.globe.controls
+      : this.places.isOpen
+        ? this.places.controls
+        : this.controls;
+
+    compassOffset.copy(cam.position).sub(ctrl.target);
+    const cos = Math.cos(deltaRad);
+    const sin = Math.sin(deltaRad);
+    const nextX = compassOffset.x * cos - compassOffset.z * sin;
+    const nextZ = compassOffset.x * sin + compassOffset.z * cos;
+    cam.position.set(ctrl.target.x + nextX, ctrl.target.y + compassOffset.y, ctrl.target.z + nextZ);
+    ctrl.update();
   }
 
   /**
@@ -1611,6 +1918,7 @@ export class CitylitEngine {
   private focusOnFactPoint(pt: THREE.Vector3): void {
     if (this.isStudio() || this.globe.isOpen || this.places.isOpen) return;
     this.lastInteractAt = this.elapsed;
+    this.camGoalOrbital = false;
     this.targetStart.copy(this.controls.target);
     const anchor = this.hasHeroFit
       ? this.heroFitCenter
@@ -2375,12 +2683,24 @@ export class CitylitEngine {
             }
           }
         }
-        const text = hitSprite?.userData.factText as string | undefined;
-        if (text && hitSprite) {
-          ambientAudio.playSfx('ping');
-          ambientAudio.vibrate(10);
-          this.focusOnFactPoint(hitSprite.position);
-          this.callbacks.onFactDot?.(text);
+        const pinKind = hitSprite?.userData.pinKind as 'fact' | 'note' | undefined;
+        if (pinKind === 'note' && hitSprite) {
+          const noteId = hitSprite.userData.noteId as string | undefined;
+          if (noteId) {
+            ambientAudio.playSfx('ping');
+            ambientAudio.vibrate(10);
+            this.userPinPopTimers.set(noteId, 0.85);
+            this.focusOnFactPoint(hitSprite.position);
+            this.callbacks.onUserNotePin?.(noteId);
+          }
+        } else {
+          const text = hitSprite?.userData.factText as string | undefined;
+          if (text && hitSprite) {
+            ambientAudio.playSfx('ping');
+            ambientAudio.vibrate(10);
+            this.focusOnFactPoint(hitSprite.position);
+            this.callbacks.onFactDot?.(text);
+          }
         }
       }
     };
@@ -2730,16 +3050,26 @@ export class CitylitEngine {
       }
       this.renderCurrentPass();
     } else {
-      // Camera fly preset & fact-pin focus interpolation
+      // Camera fly preset, compass heading sweep & fact-pin focus interpolation
       if (this.camGoal) {
         this.camGoalT = Math.min(1, this.camGoalT + dt * 1.4);
         const s = this.camGoalT * this.camGoalT * (3 - 2 * this.camGoalT);
-        this.camera.position.lerpVectors(this.camStart, this.camTargetPos, s);
+        if (this.camGoalOrbital) {
+          const az = THREE.MathUtils.lerp(this.camStartAzimuth, this.camTargetAzimuth, s);
+          this.camera.position.set(
+            this.controls.target.x - Math.sin(az) * this.camGoalHorizDist,
+            this.controls.target.y + this.camGoalHeightOffset,
+            this.controls.target.z + Math.cos(az) * this.camGoalHorizDist
+          );
+        } else {
+          this.camera.position.lerpVectors(this.camStart, this.camTargetPos, s);
+        }
         if (this.targetGoalActive) {
           this.controls.target.lerpVectors(this.targetStart, this.targetEnd, s);
         }
         if (this.camGoalT >= 1) {
           this.camGoal = null;
+          this.camGoalOrbital = false;
           this.targetGoalActive = false;
         }
       }
@@ -2831,10 +3161,29 @@ export class CitylitEngine {
         }
       }
 
-      // Marker sprite pulse + hover scale boost
+      // Fact pin & private User Pin sprite pulse + float + pop-in + hover boost
       this.markerSprites.forEach((sp, i) => {
-        const base = 0.56 + 0.08 * Math.sin(this.elapsed * 3 * this.motionScale + i);
-        sp.scale.setScalar(i === this.hoveredMarkerIndex ? base * 1.24 : base);
+        const isUserNote = sp.userData.pinKind === 'note';
+        if (isUserNote) {
+          const baseY = (sp.userData.baseY as number | undefined) ?? sp.position.y;
+          sp.position.y = baseY + Math.sin(this.elapsed * 2.1 * this.motionScale + i * 1.3) * 0.05;
+          let popMul = 1;
+          const noteId = sp.userData.noteId as string | undefined;
+          if (noteId) {
+            const pop = this.userPinPopTimers.get(noteId);
+            if (pop !== undefined) {
+              const nextPop = Math.max(0, pop - dt * 2.2);
+              if (nextPop <= 0) this.userPinPopTimers.delete(noteId);
+              else this.userPinPopTimers.set(noteId, nextPop);
+              popMul = 1 + Math.sin(nextPop * Math.PI) * 0.42;
+            }
+          }
+          const base = 0.66 + 0.065 * Math.sin(this.elapsed * 2.6 * this.motionScale + i);
+          sp.scale.setScalar((i === this.hoveredMarkerIndex ? base * 1.28 : base) * popMul);
+        } else {
+          const base = 0.56 + 0.08 * Math.sin(this.elapsed * 3 * this.motionScale + i);
+          sp.scale.setScalar(i === this.hoveredMarkerIndex ? base * 1.24 : base);
+        }
       });
 
       // Next-landmark soft directional trail & ground pulse (GPU vertex animation)
@@ -3072,6 +3421,15 @@ export class CitylitEngine {
       this.disposeTransientResources(cached.group);
     }
     this.landmarkCache.clear();
+    this.markerSprites.forEach((s) => {
+      this.markerGroup.remove(s);
+      s.material.dispose();
+    });
+    this.markerSprites = [];
+    this.markerTexture?.dispose();
+    this.markerTexture = null;
+    this.userPinTexture?.dispose();
+    this.userPinTexture = null;
     this.directionGeo.dispose();
     this.directionPointsMat.dispose();
     this.directionChevron.geometry.dispose();
