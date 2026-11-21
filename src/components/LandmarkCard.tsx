@@ -273,12 +273,24 @@ export function LandmarkCard({
       root.style.removeProperty('--cl-card-h');
       return;
     }
-    const sync = () => root.style.setProperty('--cl-card-h', `${el.offsetHeight}px`);
+    let frame = 0;
+    let lastHeight = -1;
+    const sync = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const h = el.offsetHeight; // read first
+        if (h === lastHeight) return;
+        lastHeight = h;
+        root.style.setProperty('--cl-card-h', `${h}px`); // then write
+      });
+    };
     sync();
     const ro = new ResizeObserver(sync);
     ro.observe(el);
     return () => {
       ro.disconnect();
+      cancelAnimationFrame(frame);
       root.style.removeProperty('--cl-card-h');
     };
   }, [visible]);
@@ -838,21 +850,21 @@ export function LandmarkCard({
                                       size={14}
                                       weight="fill"
                                       style={{ color: catMeta.textColor }}
-                                      className="shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
+                                      className="shrink-0 mt-0.5 [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-110 transition-transform"
                                     />
                                   ) : note.category === 'history' ? (
                                     <Clock
                                       size={14}
                                       weight="fill"
                                       style={{ color: catMeta.textColor }}
-                                      className="shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
+                                      className="shrink-0 mt-0.5 [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-110 transition-transform"
                                     />
                                   ) : (
                                     <MapPin
                                       size={14}
                                       weight="fill"
                                       style={{ color: catMeta.textColor }}
-                                      className="shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
+                                      className="shrink-0 mt-0.5 [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-110 transition-transform"
                                     />
                                   )}
                                   <span className="text-[12px] leading-snug text-[#e9e4d9] break-words">
@@ -916,10 +928,10 @@ export function LandmarkCard({
             </motion.button>
             <div className="flex-1 h-[3px] rounded-full bg-white/15 overflow-hidden">
               <motion.div
-                className="h-full bg-[#e8b04a]"
+                className="h-full w-full origin-left bg-[#e8b04a]"
                 initial={false}
-                animate={{ width: `${progressPct}%` }}
-                transition={{ duration: reducedMotion ? 0 : 0.5, ease: EASE_SMOOTH_OUT }}
+                animate={{ scaleX: progressPct / 100 }}
+                transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_SMOOTH_OUT }}
               />
             </div>
             <span className="text-[11px] font-mono tabular-nums text-[#a9a69e]">
@@ -966,9 +978,10 @@ export function LandmarkCard({
                   <motion.button
                     key={act.label}
                     type="button"
-                    initial={{ opacity: 0, scale: 0.3, x: 0, y: 0 }}
+                    style={{ transformOrigin: 'bottom right' }}
+                    initial={{ opacity: 0, scale: 0.92, x: 0, y: 0 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.4 }}
+                    exit={{ opacity: 0, scale: 0.92 }}
                     transition={{ ...SPRING.pop, delay: reducedMotion ? 0 : idx * 0.03 }}
                     onClick={(e) => {
                       e.stopPropagation();

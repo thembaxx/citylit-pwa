@@ -6,7 +6,7 @@ import { animate, type PanInfo, type Transition, type Variants } from 'motion/re
  * transitions, these drive the spring-powered ones.
  */
 export const EASE_SMOOTH_OUT = [0.22, 1, 0.36, 1] as const;
-export const EASE_IN_OUT = 'easeInOut' as const;
+export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
 
 export const DURATION = {
   stagger: 0.04,

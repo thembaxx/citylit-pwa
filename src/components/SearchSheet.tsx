@@ -28,6 +28,7 @@ interface SearchSheetProps {
   visited: Set<number>;
   favorites: Set<number>;
   reducedMotion: boolean;
+  instantOpen?: boolean;
   onClose: () => void;
   onSelectLandmark: (index: number) => void;
   onSelectTime: (hour: number) => void;
@@ -82,6 +83,7 @@ export function SearchSheet({
   visited,
   favorites,
   reducedMotion,
+  instantOpen = false,
   onClose,
   onSelectLandmark,
   onSelectTime,
@@ -175,6 +177,7 @@ export function SearchSheet({
       onClose={onClose}
       side="bottom"
       reducedMotion={reducedMotion}
+      instant={instantOpen}
       label="Browse all landmarks"
       className="px-3.5 pt-1 pb-[calc(14px+env(safe-area-inset-bottom,0px))]"
     >
@@ -197,10 +200,10 @@ export function SearchSheet({
                 type="button"
                 onClick={() => setQuery('')}
                 aria-label="Clear search"
-                initial={{ opacity: 0, scale: 0.8, filter: 'blur(2px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.8, filter: 'blur(2px)' }}
-                transition={swapTransition}
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }}
+                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }}
+                transition={reducedMotion ? { duration: 0 } : swapTransition}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full grid place-items-center text-[#a9a69e] hover:text-[#f3efe6] cursor-pointer"
               >
                 <X size={14} />
@@ -261,9 +264,9 @@ export function SearchSheet({
       <AnimatePresence initial={false}>
         {!isInstalled && !installDismissed && (isInstallable || isIOS) && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6 }}
+            animate={reducedMotion ? { opacity: 1 } : { opacity: 1, clipPath: 'inset(0 0 0% 0)', y: 0 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6 }}
             className="overflow-hidden"
           >
             <div className="mb-3 px-3.5 py-3 rounded-2xl bg-[#e8b04a]/10 border border-[#e8b04a]/30 flex items-center justify-between gap-2.5">

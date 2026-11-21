@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import type { ComponentType } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { SPRING, swapTransition } from '../lib/motion';
+import { DURATION, EASE_SMOOTH_OUT, SPRING, swapTransition } from '../lib/motion';
 import type { ThemeSetting } from '../types/citylit';
 
 interface TopBarProps {
@@ -66,10 +66,10 @@ function IconButton({
         <motion.span
           key={label + String(active)}
           initial={
-            reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.25, filter: 'blur(2px)' }
+            reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }
           }
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.25, filter: 'blur(2px)' }}
+          exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }}
           transition={reducedMotion ? { duration: 0 } : swapTransition}
           className="grid place-items-center"
         >
@@ -102,7 +102,7 @@ export function TopBar({
         <motion.header
           initial={reducedMotion ? false : { opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: reducedMotion ? 0 : 0.4, ease: [0.22, 1, 0.36, 1] }}
+          transition={reducedMotion ? { duration: 0 } : { duration: DURATION.slow, ease: EASE_SMOOTH_OUT }}
           className="fixed inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[calc(14px+env(safe-area-inset-top,0px))] pointer-events-none"
         >
           <div

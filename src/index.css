@@ -71,8 +71,8 @@ body,
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition:
-    background-color 650ms cubic-bezier(0.22, 1, 0.36, 1),
-    color 450ms cubic-bezier(0.22, 1, 0.36, 1);
+    background-color var(--duration-slow) var(--ease-smooth-out),
+    color var(--duration-slow) var(--ease-smooth-out);
 }
 
 .font-serif-display {
@@ -116,7 +116,7 @@ body,
 }
 
 .animate-title-cine {
-  animation: titleCine 2.2s ease both;
+  animation: titleCine 2.2s var(--ease-out) both;
 }
 
 @keyframes stampGo {
@@ -371,27 +371,29 @@ body,
 }
 
 /* Province pills settle with a small squash when they take the filter. */
-@keyframes pillJelly {
-  0% {
-    transform: scale(1);
-  }
-  35% {
-    transform: scale(0.93, 1.07);
-  }
-  70% {
-    transform: scale(1.05, 0.96);
-  }
-  100% {
-    transform: scale(1);
-  }
+.province-pill {
+  transition: transform 180ms var(--ease-out), background-color 180ms var(--ease-out);
 }
 
 .province-pill[aria-pressed='true'] {
-  animation: pillJelly 0.42s cubic-bezier(0.33, 1.4, 0.55, 1);
+  transform: scale(0.96);
 }
 
-[data-motion='reduce'] .province-pill[aria-pressed='true'] {
-  animation: none;
+.province-pill:active {
+  transform: scale(0.94);
+  transition-duration: 100ms;
+}
+
+[data-motion='reduce'] .province-pill[aria-pressed='true'],
+[data-motion='reduce'] .province-pill:active {
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .province-pill[aria-pressed='true'],
+  .province-pill:active {
+    transform: none;
+  }
 }
 
 /* Thin scrollbars keep long overlays from fighting the dark chrome. */
@@ -453,7 +455,7 @@ body,
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease,
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform 180ms var(--ease-smooth-out);
 }
 
 .compass__dial:hover,
@@ -565,7 +567,7 @@ body,
   z-index: 50;
   background: rgb(0 0 0 / 70%);
   backdrop-filter: blur(4px);
-  transition: opacity 200ms ease;
+  transition: opacity 200ms var(--ease-out);
 }
 
 [data-slot='dialog-content'] {
@@ -576,8 +578,8 @@ body,
   height: fit-content;
   color: #f3efe6;
   transition:
-    opacity 250ms ease,
-    transform 250ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 250ms var(--ease-out),
+    transform 250ms var(--ease-smooth-out);
 }
 
 [data-slot='dialog-backdrop'][data-starting-style],
@@ -592,14 +594,33 @@ body,
   transform: scale(0.96) translateY(4px);
 }
 
-body.rm * {
-  animation: none !important;
-  transition: none !important;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity, color, background-color, border-color, fill, stroke !important;
+    transition-duration: 200ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Keep the comprehension fade; the higher-specificity selector wins over `*`. */
+  .compass,
+  .compass--reduced {
+    animation: compass-enter-reduced 200ms ease-out both !important;
+  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation: none !important;
-    transition: none !important;
-  }
+/* Settings-driven "reduced motion" must behave identically. */
+body.rm *,
+body.rm *::before,
+body.rm *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-property: opacity, color, background-color, border-color, fill, stroke !important;
+  transition-duration: 200ms !important;
+}
+body.rm .compass {
+  animation: compass-enter-reduced 200ms ease-out both !important;
 }

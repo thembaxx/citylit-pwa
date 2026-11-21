@@ -88,7 +88,8 @@ export function LiquidToggle({
     return () => window.clearInterval(timer);
   }, [stretch, reducedMotion]);
 
-  const path = useTransform([progressSpring, stretchSpring], ([t, s]) =>
+  const track = reducedMotion ? progress : progressSpring;
+  const path = useTransform([track, stretchSpring], ([t, s]) =>
     blobPath(width, height, t as number, s as number)
   );
 

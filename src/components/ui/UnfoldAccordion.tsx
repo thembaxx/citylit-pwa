@@ -65,10 +65,10 @@ export function UnfoldAccordion({
               {isOpen && (
                 <motion.div
                   key="content"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={reducedMotion ? { duration: 0.15 } : SPRING.morph}
+                  initial={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                  animate={reducedMotion ? { opacity: 1 } : { height: 'auto', opacity: 1 }}
+                  exit={reducedMotion ? { opacity: 0 } : { height: 0, opacity: 0 }}
+                  transition={reducedMotion ? { duration: 0.2, ease: EASE_SMOOTH_OUT } : SPRING.morph}
                   className="overflow-hidden"
                 >
                   <motion.div

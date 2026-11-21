@@ -7,6 +7,7 @@ import {
 import { motion } from 'motion/react';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { ambientAudio } from '../../audio/ambientAudio';
+import { EASE_SMOOTH_OUT } from '../../lib/motion';
 
 /**
  * SettleModal, adapted from EasyUI. The panel scales 0.96 → 1 with a short
@@ -31,7 +32,7 @@ const inner = {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.3, ease: [0.22, 1, 0.36, 1] as const, delay: 0.05 },
+    transition: { duration: 0.3, ease: EASE_SMOOTH_OUT, delay: 0.05 },
   },
 };
 

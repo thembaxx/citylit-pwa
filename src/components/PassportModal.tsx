@@ -260,7 +260,7 @@ export function PassportModal({
           </div>
           <motion.div
             key={totalVisited}
-            initial={reducedMotion ? false : { scale: 0.7, opacity: 0 }}
+            initial={reducedMotion ? false : { scale: 0.94, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={SPRING.pop}
             className="text-[22px] font-serif-display italic text-[#e8b04a]"

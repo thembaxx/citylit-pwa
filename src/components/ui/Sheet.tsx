@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { ambientAudio } from '../../audio/ambientAudio';
 import { useFocusTrap } from '../../lib/focusTrap';
-import { SPRING, shouldDismiss } from '../../lib/motion';
+import { EASE_SMOOTH_OUT, SPRING, shouldDismiss } from '../../lib/motion';
 
 /**
  * Draggable sheet, adapted from EasyUI's Sheet component.
@@ -18,6 +18,7 @@ interface SheetProps {
   onClose: () => void;
   side?: SheetSide;
   reducedMotion?: boolean;
+  instant?: boolean;
   className?: string;
   label: string;
   showClose?: boolean;
@@ -31,6 +32,7 @@ export function Sheet({
   onClose,
   side = 'bottom',
   reducedMotion = false,
+  instant = false,
   className = '',
   label,
   showClose = false,
@@ -92,10 +94,16 @@ export function Sheet({
                 ? 'inset-y-0 right-0 w-full sm:max-w-[460px] border-l'
                 : 'inset-x-0 bottom-0 mx-auto h-[80%] w-full rounded-t-[28px] border-x border-t'
             } ${className}`}
-            initial={from}
-            animate={to}
-            exit={from}
-            transition={reducedMotion ? { duration: 0.2 } : SHEET_SPRING}
+            initial={instant ? { opacity: 0 } : reducedMotion ? { opacity: 0 } : from}
+            animate={instant ? { opacity: 1 } : reducedMotion ? { opacity: 1 } : to}
+            exit={instant ? { opacity: 0 } : reducedMotion ? { opacity: 0 } : from}
+            transition={
+              instant
+                ? { duration: 0 }
+                : reducedMotion
+                  ? { duration: 0.2, ease: EASE_SMOOTH_OUT }
+                  : SHEET_SPRING
+            }
             drag={axis}
             dragControls={controls}
             dragListener={false}

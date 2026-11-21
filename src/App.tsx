@@ -1,7 +1,7 @@
 import { MapPin, Sparkle, Trash, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
-import { toastVariants } from './lib/motion';
+import { DURATION, EASE_SMOOTH_OUT, SPRING, toastVariants } from './lib/motion';
 import {
   readInitialCoordinate,
   readInitialGlobeState,
@@ -236,6 +236,7 @@ export function App() {
     typeof document !== 'undefined' ? document.hidden : false
   );
   const [searchOpen, setSearchOpen] = useState(false);
+  const [instantOpen, setInstantOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const galleryOpenRef = useRef(galleryOpen);
@@ -852,6 +853,7 @@ export function App() {
         }
       } else if (e.key === '/') {
         e.preventDefault();
+        setInstantOpen(true);
         setSearchOpen(true);
       } else if (e.key === 'Escape') {
         if (settingsOpen) setSettingsOpen(false);
@@ -1370,7 +1372,10 @@ export function App() {
             ambientAudio.playUi('tap', { intensity: 0.7 });
             engineRef.current?.frameCurrentLandmark();
           }}
-          onOpenSearch={() => setSearchOpen(true)}
+          onOpenSearch={() => {
+            setInstantOpen(false);
+            setSearchOpen(true);
+          }}
         />
 
         {/* Quick Time-of-Day Scrubber */}
@@ -1733,17 +1738,41 @@ export function App() {
         </AnimatePresence>
 
         {/* Offline Status Pill */}
-        {!isOnline && (
-          <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] z-50 px-3.5 py-1 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[11.5px] text-[#e8b04a]">
-            Offline mode · 3D models & cached photos ready
-          </div>
-        )}
+        <AnimatePresence>
+          {!isOnline && (
+            <motion.div
+              key="offline-pill"
+              variants={toastVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={reducedMotion ? { duration: 0 } : undefined}
+              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] z-50 px-3.5 py-1 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[11.5px] text-[#e8b04a]"
+            >
+              Offline mode · 3D models & cached photos ready
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Cinematic Tour Letterbox & Title */}
         {cineKey && (
           <>
-            <div className="fixed inset-x-0 top-0 h-[6vh] bg-black z-30 pointer-events-none" />
-            <div className="fixed inset-x-0 bottom-0 h-[6vh] bg-black z-30 pointer-events-none" />
+            <motion.div
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+              animate={{ opacity: 1, scaleY: 1 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+              transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
+              style={{ transformOrigin: 'top' }}
+              className="fixed inset-x-0 top-0 h-[6vh] bg-black z-30 pointer-events-none"
+            />
+            <motion.div
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+              animate={{ opacity: 1, scaleY: 1 }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+              transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
+              style={{ transformOrigin: 'bottom' }}
+              className="fixed inset-x-0 bottom-0 h-[6vh] bg-black z-30 pointer-events-none"
+            />
             <motion.div
               key={cineKey}
               initial={{ opacity: 0, y: 14, letterSpacing: '0.3em' }}
@@ -1783,7 +1812,7 @@ export function App() {
                 initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 2.4, rotate: -14 }}
                 animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: -14 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ type: 'spring', stiffness: 260, damping: 18, mass: 0.7 }}
+                transition={SPRING.pop}
                 className="px-6 py-4 rounded-2xl border-2 border-[#e8b04a] bg-[#121319]/95 text-center shadow-2xl"
               >
                 <div className="text-[11px] tracking-[0.22em] uppercase text-[#e8b04a]">
@@ -1808,6 +1837,7 @@ export function App() {
           visited={visited}
           favorites={favorites}
           reducedMotion={reducedMotion}
+          instantOpen={instantOpen}
           onClose={() => setSearchOpen(false)}
           onSelectLandmark={(i) => selectLandmark(i)}
           onSelectTime={(h) => {

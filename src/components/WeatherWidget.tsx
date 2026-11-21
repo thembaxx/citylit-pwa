@@ -22,6 +22,7 @@ import {
 } from '../data/weatherData';
 import type { ForecastSlot, WeatherDisplayState } from '../types/citylit';
 import { EASE_SMOOTH_OUT, SPRING, swapTransition } from '../lib/motion';
+import { useFinePointer } from '../hooks/useFinePointer';
 import { WeatherIcon } from './WeatherIcon';
 import { AnimatedNumber } from './ui/AnimatedNumber';
 import { PillNavigation } from './ui/PillNavigation';
@@ -108,6 +109,7 @@ export function WeatherWidget({
   onTriggerRainbow,
   onToggleGlobe,
 }: WeatherWidgetProps) {
+  const finePointer = useFinePointer();
   if (!visible || globeOpen) return null;
 
   const activePreset = TIME_PRESETS.find((p) => Math.abs(activeTimeHour - p.hour) < 1.5)?.value;
@@ -155,12 +157,12 @@ export function WeatherWidget({
                       return (
                         <motion.span
                           key={w.kind}
-                          initial={reducedMotion ? false : { opacity: 0, scale: 0.75 }}
+                          initial={reducedMotion ? false : { opacity: 0, scale: 0.94 }}
                           animate={{ opacity: 1, scale: 1 }}
                           exit={
                             reducedMotion
                               ? { opacity: 0, transition: { duration: 0 } }
-                              : { opacity: 0, scale: 0.75 }
+                              : { opacity: 0, scale: 0.94 }
                           }
                           transition={reducedMotion ? { duration: 0 } : SPRING.snappy}
                           title={`${w.label}: ${w.detail}`}
@@ -177,10 +179,10 @@ export function WeatherWidget({
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={weather.label}
-                  initial={{ opacity: 0, y: 4, filter: 'blur(2px)' }}
-                  animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                  exit={{ opacity: 0, y: -4, filter: 'blur(2px)' }}
-                  transition={swapTransition}
+                  initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 4, filter: 'blur(2px)' }}
+                  animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: 'blur(0px)' }}
+                  exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4, filter: 'blur(2px)' }}
+                  transition={reducedMotion ? { duration: 0 } : swapTransition}
                   className="text-[12px] text-[#e8b04a] truncate"
                 >
                   {weather.label}
@@ -201,10 +203,10 @@ export function WeatherWidget({
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={weather.timeText}
-                initial={{ opacity: 0, filter: 'blur(2px)' }}
-                animate={{ opacity: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, filter: 'blur(2px)' }}
-                transition={swapTransition}
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 4, filter: 'blur(2px)' }}
+                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4, filter: 'blur(2px)' }}
+                transition={reducedMotion ? { duration: 0 } : swapTransition}
                 className="text-[11px] font-mono tabular-nums text-[#a9a69e] truncate"
               >
                 {weather.timeText} · {weather.city}
@@ -217,9 +219,9 @@ export function WeatherWidget({
           {expanded && (
             <motion.div
               key="weather-details"
-              initial={{ opacity: 0, height: 0, filter: 'blur(2px)' }}
-              animate={{ opacity: 1, height: 'auto', filter: 'blur(0px)' }}
-              exit={{ opacity: 0, height: 0, filter: 'blur(0px)' }}
+              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6, filter: 'blur(2px)' }}
+              animate={reducedMotion ? { opacity: 1 } : { opacity: 1, clipPath: 'inset(0 0 0% 0)', y: 0, filter: 'blur(0px)' }}
+              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6, filter: 'blur(2px)' }}
               transition={{ duration: reducedMotion ? 0 : 0.4, ease: EASE_SMOOTH_OUT }}
               className="overflow-hidden"
             >
@@ -228,7 +230,7 @@ export function WeatherWidget({
                   {forecast.map((slot) => (
                     <motion.div
                       key={slot.label}
-                      whileHover={reducedMotion ? undefined : { y: -2 }}
+                      whileHover={reducedMotion || !finePointer ? undefined : { y: -2 }}
                       className="flex flex-col items-center py-1.5 rounded-lg bg-white/[0.03]"
                     >
                       <span className="text-[10px] text-[#a9a69e]">{slot.label}</span>

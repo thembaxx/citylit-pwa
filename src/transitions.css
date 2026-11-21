@@ -21,7 +21,7 @@
     0.36,
     1
   ); /* modal/dropdown/panel open + close, page slide, resize, position change */
-  --ease-in-out: ease-in-out; /* icon swap, text swap, text reveal, skeleton reveal */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* icon swap, text swap, text reveal, skeleton reveal */
   --ease-out: ease-out; /* tooltip open / close */
   --ease-linear: linear; /* shimmer, skeleton pulse, spinner */
   --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1); /* badge pop open */
@@ -72,7 +72,7 @@
   --text-swap-dur: 150ms;
   --text-swap-translate-y: 4px;
   --text-swap-blur: 2px;
-  --text-swap-ease: ease-in-out;
+  --text-swap-ease: var(--ease-in-out);
   /* Menu dropdown */
   --dropdown-open-dur: 250ms;
   --dropdown-close-dur: 150ms;
@@ -104,7 +104,7 @@
   --icon-swap-dur: 250ms;
   --icon-swap-blur: 2px;
   --icon-swap-start-scale: 0.25;
-  --icon-swap-ease: ease-in-out;
+  --icon-swap-ease: var(--ease-in-out);
   /* Success check */
   --check-opacity-dur: 500ms;
   --check-rotate-dur: 500ms;
@@ -154,7 +154,7 @@
   --pulse-min: 0.5;
   --reveal-dur: 400ms;
   --reveal-blur: 2px;
-  --reveal-ease: ease-in-out;
+  --reveal-ease: var(--ease-in-out);
   /* Shimmer text */
   --shimmer-dur: 2000ms;
   --shimmer-base: #7c7c7c;
@@ -276,7 +276,7 @@
   --think-shimmer: 2000ms;
   --think-base: #7c7c7c;
   --think-highlight: #0d0d0d;
-  --think-ease: ease-in-out;
+  --think-ease: var(--ease-in-out);
   /* Reasoning stream */
   --reason-hold: 840ms;
   --reason-step: 500ms;
@@ -292,7 +292,7 @@
   --matrix-cycle: 1200ms;
   --matrix-base: #d9d9d9;
   --matrix-active: #85858f;
-  --matrix-ease: ease-in-out;
+  --matrix-ease: var(--ease-in-out);
   /* Banner stacking */
   --stack-open: 350ms;
   --stack-close: 250ms;
