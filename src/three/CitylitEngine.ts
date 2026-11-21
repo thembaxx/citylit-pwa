@@ -1958,6 +1958,67 @@ export class CitylitEngine {
     }
   }
 
+  /** Smoothly animate camera and orbit target back to the default landmark orientation. */
+  resetToDefaultOrientation(): void {
+    this.lastInteractAt = this.elapsed;
+    if (this.globe.isOpen) {
+      this.globe.resetView();
+      return;
+    }
+    if (this.places.isOpen) {
+      this.places.resetOverview();
+      return;
+    }
+    const group = this.currentGroup;
+    if (!group) return;
+    if (this.isStudio()) {
+      this.frameStudioLandmark();
+      return;
+    }
+
+    this.computeResponsiveFraming();
+    const box = this.computeDioramaBounds(group);
+    if (box.isEmpty()) return;
+    if (!this.isSoftwareGl) fitDioramaShadowBounds(this.keyLight, box);
+
+    const size = box.getSize(this.fitSizeTmp);
+    const center = box.getCenter(this.fitCenterTmp);
+    const radius = size.length() * 0.5;
+    const vFov = THREE.MathUtils.degToRad(this.camera.fov);
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
+    const fit = Math.max(radius / Math.tan(vFov / 2), radius / Math.tan(hFov / 2));
+    const compactScreen = window.innerHeight < 680 || this.camera.aspect < 0.72;
+    const distance = THREE.MathUtils.clamp(
+      fit * (compactScreen ? 1.18 : 1.11),
+      this.controls.minDistance + 0.2,
+      this.controls.maxDistance - 0.2
+    );
+
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const defaultPosX = isPortrait ? 13.4 : 11.5;
+    const defaultPosY = isPortrait ? 6.4 : 6.2;
+    const defaultPosZ = isPortrait ? 14.8 : 13;
+
+    this.heroFitDirection
+      .set(defaultPosX - this.baseTargetX, defaultPosY - this.baseTargetY, defaultPosZ)
+      .normalize();
+
+    const targetY = THREE.MathUtils.clamp(center.y + (this.baseTargetY - 1.5), 0.6, 2.8);
+    this.heroFitCenter.set(center.x + this.baseTargetX, targetY, center.z);
+    this.hasHeroFit = true;
+
+    this.camGoalOrbital = false;
+    this.targetStart.copy(this.controls.target);
+    this.targetEnd.copy(this.heroFitCenter);
+    this.camStart.copy(this.camera.position);
+    this.camTargetPos.copy(this.heroFitCenter).addScaledVector(this.heroFitDirection, distance);
+    this.camGoal = this.camTargetPos;
+    this.camGoalT = 0;
+    this.targetGoalActive = true;
+    this.hasCustomFocus = false;
+    this.miniaturePass.setFocus(distance);
+  }
+
   resetCamera(isPortrait: boolean): void {
     this.lastInteractAt = this.elapsed;
     this.computeResponsiveFraming();

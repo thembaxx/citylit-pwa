@@ -1183,6 +1183,7 @@ export function App() {
         {/* Compass */}
         <Compass
           getEngine={() => engineRef.current}
+          landmarkIndex={index}
           visible={!fullscreen || !idleInFullscreen}
           directionActive={showDirection}
           reducedMotion={reducedMotion}

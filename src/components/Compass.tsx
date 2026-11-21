@@ -8,6 +8,10 @@ import type { CompassState } from '../types/citylit';
 interface CompassProps {
   /** Resolve the engine each frame; polled until it exists. */
   getEngine: () => CitylitEngine | null;
+  /** Active landmark index; triggers a subtle one-shot pulse on switch. */
+  landmarkIndex?: number;
+  /** Optional callback fired when the user clicks the compass to reset camera orientation. */
+  onResetCamera?: () => void;
   /** Whether compass HUD is visible (hidden during idle fullscreen). */
   visible?: boolean;
   /** Highlights next-landmark bearing pip on the rotating compass ring. */
@@ -54,12 +58,15 @@ function formatBearing(deg: number): { padded: string; cardinal: string } {
 /**
  * Interactive architectural compass on the left edge.
  * - Live needle & rose spring smoothly toward True North (-Z in diorama/places, +Y pole in globe).
+ * - Clicking the compass resets the 3D scene camera back to its default landmark orientation.
  * - Dragging the dial smoothly orbits the 3D scene camera around its active landmark.
- * - Tapping any cardinal sector (N/E/S/W) or the center hub aligns camera azimuth smoothly.
- * - Hovering or focusing reveals numeric degree telemetry and quick cardinal align triggers.
+ * - Emits a brief one-shot pulse ring whenever a new landmark is loaded.
+ * - Hovering or focusing reveals numeric degree telemetry and cardinal/reset triggers.
  */
 export function Compass({
   getEngine,
+  landmarkIndex = 0,
+  onResetCamera,
   visible = true,
   directionActive = false,
   reducedMotion = false,
@@ -73,7 +80,11 @@ export function Compass({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [pulseState, setPulseState] = useState({ lastIdx: landmarkIndex, seq: 0 });
+  if (landmarkIndex !== pulseState.lastIdx) {
+    setPulseState({ lastIdx: landmarkIndex, seq: pulseState.seq + 1 });
+  }
+  const [resetPulseSeq, setResetPulseSeq] = useState(0);
   const [telemetry, setTelemetry] = useState<{
     bearing: number;
     tilt: number;
@@ -86,7 +97,7 @@ export function Compass({
     nextBearing: null,
   });
 
-  const showReadout = hovered || focused || dragging || pinnedOpen;
+  const showReadout = hovered || focused || dragging;
   const showReadoutRef = useRef(showReadout);
   useEffect(() => {
     showReadoutRef.current = showReadout;
@@ -183,6 +194,16 @@ export function Compass({
     [getEngine]
   );
 
+  const resetCameraOrientation = useCallback(() => {
+    const e = getEngine();
+    if (!e) return;
+    ambientAudio.playUi('tap', { intensity: 0.78 });
+    ambientAudio.vibrate(10);
+    e.resetToDefaultOrientation();
+    setResetPulseSeq((s) => s + 1);
+    onResetCamera?.();
+  }, [getEngine, onResetCamera]);
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = dialRef.current;
     if (!el) return;
@@ -250,28 +271,8 @@ export function Compass({
     dragSession.current = null;
     setDragging(false);
 
-    if (cancelled || sess.moved || !el) return;
-
-    // Interpret a clean tap on the dial: center snaps North, outer ring snaps N/E/S/W!
-    const rect = el.getBoundingClientRect();
-    const rx = e.clientX - (rect.left + rect.width * 0.5);
-    const ry = e.clientY - (rect.top + rect.height * 0.5);
-    const radial = Math.hypot(rx, ry);
-    if (radial <= 11) {
-      if (telemetry.mode === 'globe') {
-        snapToHeading(0);
-      } else {
-        setPinnedOpen((v) => !v);
-        snapToHeading(0);
-      }
-      return;
-    }
-
-    if (Math.abs(rx) > Math.abs(ry)) {
-      snapToHeading(rx > 0 ? 90 : 270);
-    } else {
-      snapToHeading(ry > 0 ? 180 : 0);
-    }
+    if (cancelled || sess.moved) return;
+    resetCameraOrientation();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -285,12 +286,12 @@ export function Compass({
       e.preventDefault();
       ambientAudio.playUi('tick');
       engine.rotateCameraAzimuth(Math.PI / 12);
-    } else if (e.key === 'Enter' || e.key === ' ' || e.key.toLowerCase() === 'n') {
+    } else if (e.key === 'Enter' || e.key === ' ' || e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      resetCameraOrientation();
+    } else if (e.key.toLowerCase() === 'n') {
       e.preventDefault();
       snapToHeading(0);
-    } else if (e.key === 'Escape' && pinnedOpen) {
-      e.preventDefault();
-      setPinnedOpen(false);
     }
   };
 
@@ -304,138 +305,163 @@ export function Compass({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div
-        ref={dialRef}
-        className="compass__dial focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e8b04a]"
-        role="slider"
-        tabIndex={0}
-        aria-label={`Compass heading ${padded}° ${cardinal}. Drag bezel or use Left/Right arrows to orbit, Enter or click N to align North.`}
-        aria-valuemin={0}
-        aria-valuemax={359}
-        aria-valuenow={telemetry.bearing}
-        aria-valuetext={`${padded}° ${cardinal}`}
-        data-dragging={dragging ? 'true' : undefined}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={(e) => finishDrag(e, false)}
-        onPointerCancel={(e) => finishDrag(e, true)}
-        onFocus={() => setFocused(true)}
-        onBlur={(e) => {
-          if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node | null)) {
-            setFocused(false);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        title="Drag to orbit · Tap N / E / S / W to align"
-      >
-        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" aria-hidden="true">
-          {/* Outer brass hairline and inner track */}
-          <circle cx={C} cy={C} r="27" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-          <circle
-            cx={C}
-            cy={C}
-            r="20.5"
-            stroke="rgba(255,255,255,0.08)"
-            strokeWidth="0.9"
-            strokeDasharray="2 2.4"
+      <div className="relative flex items-center justify-center">
+        {!reduce && pulseState.seq > 0 && (
+          <motion.span
+            key={`lm-pulse-${pulseState.seq}`}
+            aria-hidden="true"
+            initial={{ scale: 0.9, opacity: 0.78 }}
+            animate={{ scale: 1.5, opacity: 0 }}
+            transition={{ duration: 0.7, ease: EASE_SMOOTH_OUT }}
+            className="pointer-events-none absolute inset-0 rounded-full border border-[#e8b04a]/80"
           />
-          <circle cx={C} cy={C} r="13" stroke="rgba(232,176,74,0.14)" strokeWidth="0.8" />
-
-          {/* Engraved degree ticks */}
-          {TICKS.map((t, i) => (
-            <line
-              key={i}
-              x1={t.x1}
-              y1={t.y1}
-              x2={t.x2}
-              y2={t.y2}
-              stroke={
-                t.cardinal
-                  ? 'rgba(232,176,74,0.85)'
-                  : t.intercardinal
-                    ? 'rgba(255,255,255,0.34)'
-                    : 'rgba(255,255,255,0.14)'
-              }
-              strokeWidth={t.cardinal ? 1.5 : t.intercardinal ? 1.0 : 0.7}
-              strokeLinecap="round"
+        )}
+        {!reduce && resetPulseSeq > 0 && (
+          <motion.span
+            key={`reset-pulse-${resetPulseSeq}`}
+            aria-hidden="true"
+            initial={{ scale: 0.94, opacity: 0.65 }}
+            animate={{ scale: 1.38, opacity: 0 }}
+            transition={{ duration: 0.45, ease: EASE_SMOOTH_OUT }}
+            className="pointer-events-none absolute inset-0 rounded-full border border-white/70"
+          />
+        )}
+        <motion.div
+          ref={dialRef}
+          key={`dial-settle-${pulseState.seq}`}
+          animate={reduce || pulseState.seq === 0 ? undefined : { scale: [1, 1.08, 1] }}
+          transition={{ duration: 0.44, ease: EASE_SMOOTH_OUT }}
+          className="compass__dial focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e8b04a]"
+          role="button"
+          tabIndex={0}
+          aria-label={`Reset camera to default landmark orientation. Current heading ${padded}° ${cardinal}. Drag bezel or use Left/Right arrows to orbit.`}
+          data-dragging={dragging ? 'true' : undefined}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={(e) => finishDrag(e, false)}
+          onPointerCancel={(e) => finishDrag(e, true)}
+          onFocus={() => setFocused(true)}
+          onBlur={(e) => {
+            if (
+              !e.currentTarget.parentElement?.parentElement?.contains(
+                e.relatedTarget as Node | null
+              )
+            ) {
+              setFocused(false);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          title="Click to reset camera · Drag bezel to orbit"
+        >
+          <svg width="60" height="60" viewBox="0 0 60 60" fill="none" aria-hidden="true">
+            {/* Outer brass hairline and inner track */}
+            <circle cx={C} cy={C} r="27" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+            <circle
+              cx={C}
+              cy={C}
+              r="20.5"
+              stroke="rgba(255,255,255,0.08)"
+              strokeWidth="0.9"
+              strokeDasharray="2 2.4"
             />
-          ))}
+            <circle cx={C} cy={C} r="13" stroke="rgba(232,176,74,0.14)" strokeWidth="0.8" />
 
-          {/* Fixed cardinal ring letters */}
-          <text
-            x={C}
-            y="14"
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontSize="8"
-            fontWeight="700"
-            fill="#e8b04a"
-          >
-            N
-          </text>
-          <text
-            x="46"
-            y={C}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontSize="7"
-            fontWeight="600"
-            fill="rgba(255,255,255,0.58)"
-          >
-            E
-          </text>
-          <text
-            x={C}
-            y="46"
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontSize="7"
-            fontWeight="600"
-            fill="rgba(255,255,255,0.58)"
-          >
-            S
-          </text>
-          <text
-            x="14"
-            y={C}
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontSize="7"
-            fontWeight="600"
-            fill="rgba(255,255,255,0.58)"
-          >
-            W
-          </text>
+            {/* Engraved degree ticks */}
+            {TICKS.map((t, i) => (
+              <line
+                key={i}
+                x1={t.x1}
+                y1={t.y1}
+                x2={t.x2}
+                y2={t.y2}
+                stroke={
+                  t.cardinal
+                    ? 'rgba(232,176,74,0.85)'
+                    : t.intercardinal
+                      ? 'rgba(255,255,255,0.34)'
+                      : 'rgba(255,255,255,0.14)'
+                }
+                strokeWidth={t.cardinal ? 1.5 : t.intercardinal ? 1.0 : 0.7}
+                strokeLinecap="round"
+              />
+            ))}
 
-          {/* Next-landmark bearing marker on outer ring when Show Direction is active */}
-          <g
-            ref={nextBearingRef}
-            style={{ opacity: directionActive && telemetry.mode === 'diorama' ? 1 : 0 }}
-            transform={`rotate(0 ${C} ${C})`}
-          >
-            <polygon points={`${C},3.5 ${C - 2.6},7.5 ${C + 2.6},7.5`} fill="#5cd6a9" />
-          </g>
+            {/* Fixed cardinal ring letters */}
+            <text
+              x={C}
+              y="14"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="8"
+              fontWeight="700"
+              fill="#e8b04a"
+            >
+              N
+            </text>
+            <text
+              x="46"
+              y={C}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="7"
+              fontWeight="600"
+              fill="rgba(255,255,255,0.58)"
+            >
+              E
+            </text>
+            <text
+              x={C}
+              y="46"
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="7"
+              fontWeight="600"
+              fill="rgba(255,255,255,0.58)"
+            >
+              S
+            </text>
+            <text
+              x="14"
+              y={C}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize="7"
+              fontWeight="600"
+              fill="rgba(255,255,255,0.58)"
+            >
+              W
+            </text>
 
-          {/* Rotating two-tone compass needle pointing to True North */}
-          <g ref={needleRef} transform={`rotate(0 ${C} ${C})`}>
-            <line
-              x1={C}
-              y1="15.5"
-              x2={C}
-              y2="44.5"
-              stroke="rgba(255,255,255,0.12)"
-              strokeWidth="0.8"
-            />
-            <polygon points={`${C},15 26.8,${C} ${C},${C - 1.2}`} fill="#f6c768" />
-            <polygon points={`${C},15 ${C},${C - 1.2} 33.2,${C}`} fill="#d8962c" />
-            <polygon points={`${C},45 26.8,${C} 33.2,${C}`} fill="#798399" />
-            <circle cx={C} cy={C} r="2.8" fill="#121319" stroke="#e8b04a" strokeWidth="1.1" />
-            <circle cx={C} cy={C} r="1" fill="#f6efe6" />
-          </g>
-        </svg>
+            {/* Next-landmark bearing marker on outer ring when Show Direction is active */}
+            <g
+              ref={nextBearingRef}
+              style={{ opacity: directionActive && telemetry.mode === 'diorama' ? 1 : 0 }}
+              transform={`rotate(0 ${C} ${C})`}
+            >
+              <polygon points={`${C},3.5 ${C - 2.6},7.5 ${C + 2.6},7.5`} fill="#5cd6a9" />
+            </g>
+
+            {/* Rotating two-tone compass needle pointing to True North */}
+            <g ref={needleRef} transform={`rotate(0 ${C} ${C})`}>
+              <line
+                x1={C}
+                y1="15.5"
+                x2={C}
+                y2="44.5"
+                stroke="rgba(255,255,255,0.12)"
+                strokeWidth="0.8"
+              />
+              <polygon points={`${C},15 26.8,${C} ${C},${C - 1.2}`} fill="#f6c768" />
+              <polygon points={`${C},15 ${C},${C - 1.2} 33.2,${C}`} fill="#d8962c" />
+              <polygon points={`${C},45 26.8,${C} 33.2,${C}`} fill="#798399" />
+              <circle cx={C} cy={C} r="2.8" fill="#121319" stroke="#e8b04a" strokeWidth="1.1" />
+              <circle cx={C} cy={C} r="1" fill="#f6efe6" />
+            </g>
+          </svg>
+        </motion.div>
       </div>
 
-      {/* Expandable numeric bearing & quick cardinal snap readout on hover/drag/focus */}
+      {/* Expandable numeric bearing & quick cardinal / reset readout on hover/drag/focus */}
       <AnimatePresence>
         {showReadout && (
           <motion.div
@@ -443,7 +469,7 @@ export function Compass({
             animate={reduce ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, x: -6, scale: 0.96 }}
             transition={{ duration: DURATION.quick, ease: EASE_SMOOTH_OUT }}
-            className="bg-[#121319]/95 border border-white/15 rounded-xl px-2.5 py-2 shadow-xl flex flex-col gap-1.5 min-w-[116px]"
+            className="bg-[#121319]/95 border border-white/15 rounded-xl px-2.5 py-2 shadow-xl flex flex-col gap-1.5 min-w-[122px]"
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="font-mono tabular-nums text-[12.5px] font-semibold text-[#f3efe6]">
@@ -455,38 +481,54 @@ export function Compass({
             </div>
 
             {telemetry.mode !== 'globe' ? (
-              <div className="grid grid-cols-4 gap-1" role="group" aria-label="Snap camera heading">
-                {CARDINAL_TARGETS.map((c) => {
-                  const active = Math.abs(((telemetry.bearing - c.deg + 540) % 360) - 180) < 12;
-                  return (
-                    <button
-                      key={c.label}
-                      type="button"
-                      onClick={(ev) => {
-                        ev.stopPropagation();
-                        snapToHeading(c.deg);
-                      }}
-                      className={`h-6 rounded-md text-[10.5px] font-mono font-semibold border transition-colors cursor-pointer ${
-                        active
-                          ? 'bg-[#e8b04a]/20 border-[#e8b04a]/75 text-[#e8b04a]'
-                          : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  );
-                })}
+              <div className="space-y-1">
+                <div
+                  className="grid grid-cols-4 gap-1"
+                  role="group"
+                  aria-label="Snap camera heading"
+                >
+                  {CARDINAL_TARGETS.map((c) => {
+                    const active = Math.abs(((telemetry.bearing - c.deg + 540) % 360) - 180) < 12;
+                    return (
+                      <button
+                        key={c.label}
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          snapToHeading(c.deg);
+                        }}
+                        className={`h-6 rounded-md text-[10.5px] font-mono font-semibold border transition-colors cursor-pointer ${
+                          active
+                            ? 'bg-[#e8b04a]/20 border-[#e8b04a]/75 text-[#e8b04a]'
+                            : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    resetCameraOrientation();
+                  }}
+                  className="w-full h-6 rounded-md text-[10.5px] font-medium bg-[#e8b04a]/12 border border-[#e8b04a]/45 text-[#e8b04a] hover:bg-[#e8b04a]/22 transition-colors cursor-pointer"
+                >
+                  Reset Camera
+                </button>
               </div>
             ) : (
               <button
                 type="button"
                 onClick={(ev) => {
                   ev.stopPropagation();
-                  snapToHeading(0);
+                  resetCameraOrientation();
                 }}
                 className="h-6 px-2 rounded-md text-[10.5px] font-medium bg-white/[0.05] border border-white/12 text-[#f3efe6] hover:border-[#e8b04a]/70 hover:text-[#e8b04a] transition-colors cursor-pointer"
               >
-                Align North
+                Reset Globe View
               </button>
             )}
           </motion.div>
