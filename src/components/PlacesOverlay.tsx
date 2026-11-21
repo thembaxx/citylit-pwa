@@ -1,11 +1,13 @@
 import {
   ArrowLeft,
   ArrowUpRight,
+  BookmarkSimple,
   CaretLeft,
   CaretRight,
   CheckCircle,
   Compass,
   GlobeHemisphereEast,
+  MapPin,
   SpeakerHigh,
   SpeakerSlash,
   X,
@@ -16,7 +18,7 @@ import { getMonthCondition } from '../data/weatherData';
 import { DURATION, EASE_SMOOTH_OUT, SPRING } from '../lib/motion';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from '../three/placesScene';
 import { PLACE_SLICE_SPECS } from '../three/placesSliceBuilders';
-import type { WeatherDisplayState } from '../types/citylit';
+import type { SavedCustomPlace, WeatherDisplayState } from '../types/citylit';
 import { WeatherIcon, type WeatherIconCondition } from './WeatherIcon';
 
 interface PlacesOverlayProps {
@@ -28,6 +30,8 @@ interface PlacesOverlayProps {
   weatherMode: PlacesWeatherMode;
   activeTimeHour: number;
   soundOn: boolean;
+  activeExplorerCoords?: { lat: number; lon: number } | null;
+  savedPlaces?: readonly SavedCustomPlace[];
   reducedMotion?: boolean;
   onSelectProvince: (province: string) => void;
   onStepSlice: (dir: 1 | -1) => void;
@@ -38,6 +42,9 @@ interface PlacesOverlayProps {
   onToggleSound: () => void;
   onSelectTimePreset: (hour: number) => void;
   onSelectWeatherMode: (mode: PlacesWeatherMode) => void;
+  onToggleSavePlace?: (place: { lat: number; lon: number; label: string; detail: string }) => void;
+  onOpenSavedPlace?: (place: SavedCustomPlace) => void;
+  onRemoveSavedPlace?: (id: string) => void;
   onClose: () => void;
 }
 
@@ -81,6 +88,8 @@ export function PlacesOverlay({
   weatherMode,
   activeTimeHour,
   soundOn,
+  activeExplorerCoords = null,
+  savedPlaces = [],
   reducedMotion = false,
   onSelectProvince,
   onStepSlice,
@@ -91,6 +100,9 @@ export function PlacesOverlay({
   onToggleSound,
   onSelectTimePreset,
   onSelectWeatherMode,
+  onToggleSavePlace,
+  onOpenSavedPlace,
+  onRemoveSavedPlace,
   onClose,
 }: PlacesOverlayProps) {
   if (!open) return null;
@@ -107,9 +119,18 @@ export function PlacesOverlay({
     : 0;
   const activeLandmark = selectedPlace ? LANDMARKS[selectedPlace.landmarkIndex] : null;
   const isVisited = selectedPlace ? visited.has(selectedPlace.landmarkIndex) : false;
-  const cardCondition = selectedPlace && selectedPlace.landmarkIndex >= 0
-    ? placeCardCondition(weatherMode, selectedPlace.landmarkIndex, activeTimeHour)
-    : weather.condition;
+  const cardCondition =
+    selectedPlace && selectedPlace.landmarkIndex >= 0
+      ? placeCardCondition(weatherMode, selectedPlace.landmarkIndex, activeTimeHour)
+      : weather.condition;
+
+  const isExplorerSaved =
+    activeExplorerCoords !== null &&
+    savedPlaces.some(
+      (p) =>
+        Math.abs(p.lat - activeExplorerCoords.lat) < 0.0002 &&
+        Math.abs(p.lon - activeExplorerCoords.lon) < 0.0002
+    );
 
   return (
     <div className="fixed inset-0 z-20 pointer-events-none">
@@ -194,58 +215,90 @@ export function PlacesOverlay({
         </div>
       </div>
 
-      {/* Live Engine Weather & Time-of-Day Strip */}
-      <div className="absolute left-3.5 sm:left-4 top-[calc(62px+env(safe-area-inset-top,0px))] max-w-[calc(100vw-28px)] flex flex-wrap items-center gap-1.5 pointer-events-auto">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#121319]/90 border border-white/15 text-[11.5px] text-[#f3efe6] shadow-md">
-          <WeatherIcon condition={weather.condition} night={weather.night} size={16} />
-          <span className="font-semibold tabular-nums">{weather.temp}°C</span>
-          <span className="text-[#a9a69e] hidden sm:inline">· {weather.label}</span>
+      {/* Live Engine Weather, Time-of-Day & Bookmarked Coordinates Strip */}
+      <div className="absolute left-3.5 sm:left-4 top-[calc(62px+env(safe-area-inset-top,0px))] max-w-[calc(100vw-28px)] space-y-1.5 pointer-events-auto">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#121319]/90 border border-white/15 text-[11.5px] text-[#f3efe6] shadow-md">
+            <WeatherIcon condition={weather.condition} night={weather.night} size={16} />
+            <span className="font-semibold tabular-nums">{weather.temp}°C</span>
+            <span className="text-[#a9a69e] hidden sm:inline">· {weather.label}</span>
+          </div>
+
+          <div className="inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md">
+            {QUICK_TIMES.map((preset) => {
+              const active = Math.abs(activeTimeHour - preset.hour) < 1.5;
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => onSelectTimePreset(preset.hour)}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-[#e8b04a] text-[#1a1405] font-semibold'
+                      : 'text-[#a9a69e] hover:text-[#f3efe6]'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            role="group"
+            aria-label="Atmosphere shader mode"
+            className="inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md"
+          >
+            {WEATHER_MODES.map((wm) => {
+              const active = weatherMode === wm.id;
+              return (
+                <button
+                  key={wm.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onSelectWeatherMode(wm.id)}
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-[#e8b04a] text-[#1a1405] font-semibold'
+                      : 'text-[#a9a69e] hover:text-[#f3efe6]'
+                  }`}
+                >
+                  {wm.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md">
-          {QUICK_TIMES.map((preset) => {
-            const active = Math.abs(activeTimeHour - preset.hour) < 1.5;
-            return (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => onSelectTimePreset(preset.hour)}
-                className={`px-2.5 py-0.5 rounded-full text-[11px] transition-colors cursor-pointer ${
-                  active
-                    ? 'bg-[#e8b04a] text-[#1a1405] font-semibold'
-                    : 'text-[#a9a69e] hover:text-[#f3efe6]'
-                }`}
+        {savedPlaces.length > 0 && onOpenSavedPlace && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {savedPlaces.map((sp) => (
+              <div
+                key={sp.id}
+                className="inline-flex items-center rounded-full bg-[#121319]/90 border border-[#5cd6a9]/40 shadow-md overflow-hidden"
               >
-                {preset.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div
-          role="group"
-          aria-label="Atmosphere shader mode"
-          className="inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md"
-        >
-          {WEATHER_MODES.map((wm) => {
-            const active = weatherMode === wm.id;
-            return (
-              <button
-                key={wm.id}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onSelectWeatherMode(wm.id)}
-                className={`px-2.5 py-0.5 rounded-full text-[11px] transition-colors cursor-pointer ${
-                  active
-                    ? 'bg-[#e8b04a] text-[#1a1405] font-semibold'
-                    : 'text-[#a9a69e] hover:text-[#f3efe6]'
-                }`}
-              >
-                {wm.label}
-              </button>
-            );
-          })}
-        </div>
+                <button
+                  type="button"
+                  onClick={() => onOpenSavedPlace(sp)}
+                  className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 text-[11px] text-[#d9f7eb] hover:text-[#5cd6a9] cursor-pointer"
+                >
+                  <MapPin size={11} weight="fill" className="text-[#5cd6a9]" />
+                  <span>{sp.label}</span>
+                </button>
+                {onRemoveSavedPlace && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveSavedPlace(sp.id)}
+                    aria-label={`Remove saved place ${sp.label}`}
+                    className="pr-2 pl-0.5 py-1 text-[#a9a69e] hover:text-[#ff7a8a] cursor-pointer"
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Selected Geological Slice Card */}
@@ -349,15 +402,38 @@ export function PlacesOverlay({
               <span>{selectedPlace.explorer.stats.roads} roads</span>
               <span>{selectedPlace.explorer.stats.elevation} m elevation</span>
             </div>
-            <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/10">
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/10">
               <span className="text-[10px] text-[#a9a69e]">© OpenStreetMap contributors</span>
-              <button
-                type="button"
-                onClick={() => void navigator.clipboard?.writeText(window.location.href)}
-                className="h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 border border-white/15 bg-white/[0.06] text-[12px] text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
-              >
-                Copy link
-              </button>
+              <div className="flex items-center gap-1.5">
+                {activeExplorerCoords && onToggleSavePlace && selectedPlace.explorer && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onToggleSavePlace({
+                        lat: activeExplorerCoords.lat,
+                        lon: activeExplorerCoords.lon,
+                        label: selectedPlace.explorer!.label,
+                        detail: selectedPlace.explorer!.detail,
+                      })
+                    }
+                    className={`h-8 px-3 rounded-full inline-flex items-center gap-1.5 border text-[12px] transition-colors cursor-pointer ${
+                      isExplorerSaved
+                        ? 'bg-[#38c793]/18 border-[#5cd6a9] text-[#5cd6a9]'
+                        : 'border-white/15 bg-white/[0.06] text-[#f3efe6] hover:border-[#5cd6a9] hover:text-[#5cd6a9]'
+                    }`}
+                  >
+                    <BookmarkSimple size={14} weight={isExplorerSaved ? 'fill' : 'regular'} />
+                    <span>{isExplorerSaved ? 'Saved' : 'Bookmark'}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard?.writeText(window.location.href)}
+                  className="h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 border border-white/15 bg-white/[0.06] text-[12px] text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
+                >
+                  Copy link
+                </button>
+              </div>
             </div>
           </motion.div>
         )}

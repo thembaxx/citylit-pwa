@@ -182,6 +182,8 @@ class AmbientAudioController {
   private spatialEmitters = new Map<string, SpatialEmitter>();
   private listener: SpatialListener | null = null;
   private spatialActive = true;
+  private spatialFocusBoost = 0;
+  private curSpatialFocus = 0;
   /** Separate opt-out for interface cues; ambient beds keep playing. */
   private uiSounds = true;
   private uiCategories: Record<UiCueCategory, boolean> = {
@@ -244,6 +246,11 @@ class AmbientAudioController {
         emitter.gain.gain.setTargetAtTime(0, now, 0.08);
       }
     }
+  }
+
+  /** Gently emphasize nearby spatial emitters when focusing closely on a pin. */
+  setSpatialFocusBoost(boost: number): void {
+    this.spatialFocusBoost = clamp01(boost);
   }
 
   private eventPan(jitter = 0): number {
@@ -506,6 +513,9 @@ class AmbientAudioController {
     const [rx, , rz] = listener.right;
     const [fx, fy, fz] = listener.forward;
 
+    const focusLerp = 1 - Math.exp(-Math.max(0, dt) * 3.5);
+    this.curSpatialFocus += (this.spatialFocusBoost - this.curSpatialFocus) * focusLerp;
+
     for (const emitter of this.spatialEmitters.values()) {
       const [px, py, pz] = emitter.def.position;
       const dx = px - lx;
@@ -524,7 +534,8 @@ class AmbientAudioController {
       const bus =
         emitter.def.kind === 'birds' || emitter.def.kind === 'insects' ? this.mixer.birds : 1;
       const active = this.spatialActive && this.enabled ? 1 : 0;
-      const target = emitter.def.gain * closeness * frontal * bus * active;
+      const focusMul = 1 + this.curSpatialFocus * Math.max(0, facing) * 0.55;
+      const target = emitter.def.gain * closeness * frontal * bus * active * focusMul;
 
       emitter.gain.gain.setTargetAtTime(target, now, 0.22);
       emitter.panner?.pan.setTargetAtTime(pan, now, 0.14);

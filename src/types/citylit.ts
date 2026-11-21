@@ -159,12 +159,34 @@ export interface ForecastSlot {
   temp: number;
 }
 
+export type NoteCategory = 'memory' | 'photo' | 'history';
+
+export type CameraPreset = 'default' | 'aerial' | 'low' | 'detail';
+
 export interface LandmarkNote {
   id: string;
   text: string;
+  category?: NoteCategory;
   /** Position in 3D diorama space relative to heroRoot. */
   position: readonly [x: number, y: number, z: number];
   createdAt: number;
+}
+
+export interface SavedCustomPlace {
+  id: string;
+  lat: number;
+  lon: number;
+  label: string;
+  detail: string;
+  savedAt: number;
+}
+
+export interface HeritageRoute {
+  id: string;
+  name: string;
+  subtitle: string;
+  color: string;
+  stopIndices: readonly number[];
 }
 
 export interface CompassState {

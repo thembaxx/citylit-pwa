@@ -520,6 +520,7 @@ export function waterize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMat
     shader.uniforms.uSky = WU.sky;
     shader.uniforms.uRN = WU.rain;
     shader.uniforms.uWdW = WU.wind;
+    shader.uniforms.uWdDir = WU.windDir;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vW;')
       .replace(
@@ -535,7 +536,7 @@ vW=(modelMatrix*vec4(transformed,1.)).xyz;
       .replace(
         '#include <common>',
         `#include <common>
-varying vec3 vW;uniform float uWT,uSI,uHorW,uRN,uWdW;uniform vec3 uSky;
+varying vec3 vW;uniform float uWT,uSI,uHorW,uRN,uWdW;uniform vec2 uWdDir;uniform vec3 uSky;
 float wHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float wNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wHash(i),wHash(i+vec2(1.,0.)),f.x),mix(wHash(i+vec2(0.,1.)),wHash(i+vec2(1.,1.)),f.x),f.y);}
 float wFbm(vec2 p){float a=.5,s=0.;for(int i=0;i<3;i++){s+=a*wNoise(p);p=p*2.07+vec2(13.,7.);a*=.5;}return s;}
@@ -553,9 +554,13 @@ float wRainRing(vec2 q,float t){
   return ring*step(0.28,h);
 }
 float wHeight(vec2 p,float t){
-float chop=1.0+min(1.5,uWdW)*0.22;
-float h=(sin(p.x*1.9+t*1.25)*.5+sin(p.y*1.45-t*.95)*.42+sin((p.x+p.y)*2.6+t*1.7)*.2)*chop;
-h+=(wFbm(p*2.1+vec2(t*.22,-t*.16))-.5)*.42;
+float windN=min(2.5,max(0.0,uWdW));
+float chop=1.0+windN*0.28;
+float wt=t*(1.0+windN*0.18);
+vec2 windDrift=uWdDir*(t*(0.12+windN*0.24));
+float alignWave=sin(dot(p,uWdDir)*2.75-wt*1.9)*(0.18+windN*0.16);
+float h=(sin(p.x*1.9+wt*1.25)*.5+sin(p.y*1.45-wt*.95)*.42+sin((p.x+p.y)*2.6+wt*1.7)*.2+alignWave)*chop;
+h+=(wFbm(p*2.1+windDrift+vec2(wt*.14,-wt*.10))-.5)*(.42+windN*.12);
 h+=uRN*.18*sin((p.x*11.+p.y*9.)+t*9.)*sin((p.x*5.-p.y*13.)-t*7.);
 return h;
 }`
@@ -586,7 +591,7 @@ float rEdge=max(abs(vW.x),abs(vW.z));
 float shoreNoise=wNoise(q*4.5+vec2(t*0.6,-t*0.45));
 float shoreFoam=smoothstep(6.7,8.05,rEdge)*smoothstep(0.32,0.75,shoreNoise+sin(t*1.8)*0.12);
 float crest=smoothstep(.58,.95,h*.5+.5);
-outgoingLight+=vec3(.88,.97,1.)*(crest*.20+shoreFoam*.34);
+outgoingLight+=vec3(.88,.97,1.)*(crest*(.20+min(2.0,uWdW)*.08)+shoreFoam*.34);
 // Expanding raindrop splash rings on water surface
 if(uRN>0.05){
   outgoingLight+=vec3(.82,.92,1.)*wRainRing(q,t)*uRN*0.28;
@@ -599,7 +604,7 @@ outgoingLight+=glintCol*glint*(.85+.45*uHorW)*uSI;
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'water_v5';
+  mat.customProgramCacheKey = () => 'water_v6';
   return mat;
 }
 

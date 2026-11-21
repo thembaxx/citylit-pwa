@@ -25,6 +25,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { TopBar } from './components/TopBar';
 import { WeatherWidget } from './components/WeatherWidget';
 import { LANDMARKS, PROVINCES, slugifyLandmark } from './data/landmarks';
+import { HERITAGE_ROUTES } from './data/routes';
 import {
   fetchLiveWeather,
   getBestMonths,
@@ -33,18 +34,21 @@ import {
   getSASTParts,
   pad2,
   type LiveWeatherResult,
+  WEATHER_CONDITIONS,
 } from './data/weatherData';
-import { WEATHER_CONDITIONS } from './data/weatherData';
 import { useOnlineStatus, usePWARegistration } from './hooks/usePWAInstall';
 import { formatCoordinates, loadOsmPlace, type LatLon } from './services/osmService';
 import type { CitylitEngine } from './three/CitylitEngine';
 import { loadCachedThumbnails, saveCachedThumbnails } from './three/thumbnailCache';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from './three/placesScene';
 import type {
+  CameraPreset,
   CitylitSettings,
   ForecastSlot,
   LandmarkNote,
   LiveWeatherSample,
+  NoteCategory,
+  SavedCustomPlace,
   WeatherConditionKey,
   WeatherDisplayState,
 } from './types/citylit';
@@ -104,6 +108,33 @@ function readStoredNotes(): Record<number, LandmarkNote[]> {
     return out;
   } catch {
     return {};
+  }
+}
+
+const SAVED_PLACES_KEY = 'cl-saved-places';
+
+function readStoredSavedPlaces(): SavedCustomPlace[] {
+  try {
+    const raw = localStorage.getItem(SAVED_PLACES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SavedCustomPlace => {
+      if (!item || typeof item !== 'object') return false;
+      const p = item as Partial<SavedCustomPlace>;
+      return (
+        typeof p.id === 'string' &&
+        typeof p.label === 'string' &&
+        typeof p.detail === 'string' &&
+        typeof p.lat === 'number' &&
+        Number.isFinite(p.lat) &&
+        typeof p.lon === 'number' &&
+        Number.isFinite(p.lon) &&
+        typeof p.savedAt === 'number'
+      );
+    });
+  } catch {
+    return [];
   }
 }
 
@@ -223,9 +254,20 @@ export function App() {
 
   const [postcardUrl, setPostcardUrl] = useState('');
   const [postcardOpen, setPostcardOpen] = useState(false);
+  const [postcardNoteId, setPostcardNoteId] = useState<string | null>(null);
+  const [postcardPreviewHour, setPostcardPreviewHour] = useState(13);
 
   const [tourActive, setTourActive] = useState(false);
   const [showDirection, setShowDirection] = useState(false);
+  const [cutawayActive, setCutawayActive] = useState(false);
+  const [pinDropMode, setPinDropMode] = useState(false);
+  const [pendingDropPos, setPendingDropPos] = useState<[number, number, number] | null>(null);
+  const [activeRouteId, setActiveRouteId] = useState<string | null>(null);
+  const [savedPlaces, setSavedPlaces] = useState<SavedCustomPlace[]>(readStoredSavedPlaces);
+  const [activeExplorerCoords, setActiveExplorerCoords] = useState<{
+    lat: number;
+    lon: number;
+  } | null>(null);
   const [notesByLandmark, setNotesByLandmark] =
     useState<Record<number, LandmarkNote[]>>(readStoredNotes);
   const notesByLandmarkRef = useRef(notesByLandmark);
@@ -239,6 +281,11 @@ export function App() {
   const [hintVisible, setHintVisible] = useState(true);
   const [cineKey, setCineKey] = useState<number | null>(null);
   const [stampBanner, setStampBanner] = useState<string | null>(null);
+
+  const activeRoute = useMemo(
+    () => HERITAGE_ROUTES.find((r) => r.id === activeRouteId) ?? null,
+    [activeRouteId]
+  );
 
   const factTimerRef = useRef<number | null>(null);
   const noteTimerRef = useRef<number | null>(null);
@@ -336,6 +383,11 @@ export function App() {
       setIndex(wrapped);
       setFactText(null);
       setActiveNoteCallout(null);
+      setPinDropMode(false);
+      setPendingDropPos(null);
+      setCutawayActive(false);
+      engineRef.current?.setPinDropMode(false);
+      engineRef.current?.setCutawayMode(false);
       setUrlForLandmark(slugifyLandmark(LANDMARKS[wrapped].k));
       engineRef.current?.setUserNotes(wrapped, notesByLandmarkRef.current[wrapped] ?? []);
       engineRef.current?.transitionToLandmark(wrapped);
@@ -373,6 +425,14 @@ export function App() {
           onFirstInteract: () => setHintVisible(false),
           onFactDot: (text) => showFact(text),
           onUserNotePin: (noteId) => showUserNoteCallout(indexRef.current, noteId),
+          onPinDropPosition: (pos) => {
+            setPinDropMode(false);
+            if (pos) {
+              setPendingDropPos(pos);
+              ambientAudio.playUi('tap', { intensity: 0.8 });
+              showToast('3D point locked — write your note');
+            }
+          },
           onGlobePinHover: (pinIndex, x, y) => {
             setGlobeHover((prev) => {
               if (pinIndex === null) return prev === null ? prev : null;
@@ -418,6 +478,7 @@ export function App() {
         }
         const initialCoord = readInitialCoordinate();
         if (initialCoord) {
+          setActiveExplorerCoords(initialCoord);
           void loadOsmPlace(initialCoord).then((data) => {
             if (unmounted) return;
             const info = instance.openOsmPlace(data);
@@ -479,7 +540,7 @@ export function App() {
       engine?.dispose();
       engineRef.current = null;
     };
-  }, [selectLandmark, showFact, showUserNoteCallout]);
+  }, [selectLandmark, showFact, showToast, showUserNoteCallout]);
 
   // Pause WebGL render loop while tab is hidden or full-screen opaque gallery covers viewport
   useEffect(() => {
@@ -698,6 +759,18 @@ export function App() {
     engineRef.current?.setDirectionGuide(showDirection && !fullscreen, index);
   }, [showDirection, index, fullscreen]);
 
+  // Sync cutaway Inspect mode & active Heritage Route onto 3D scene and Globe
+  useEffect(() => {
+    engineRef.current?.setCutawayMode(cutawayActive && !globeOpen && !placesOpen);
+  }, [cutawayActive, globeOpen, placesOpen]);
+
+  useEffect(() => {
+    engineRef.current?.globe.setActiveRoute(
+      activeRoute ? activeRoute.stopIndices : [],
+      activeRoute?.color ?? '#e8b04a'
+    );
+  }, [activeRoute]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -747,6 +820,24 @@ export function App() {
           e.preventDefault();
           ambientAudio.playUi('toggle');
           setTourActive((v) => !v);
+        }
+      } else if (e.key === 'p' || e.key === 'P') {
+        if (
+          !globeOpen &&
+          !placesOpen &&
+          !settingsOpen &&
+          !passportOpen &&
+          !searchOpen &&
+          !postcardOpen &&
+          !infoOpen
+        ) {
+          e.preventDefault();
+          const stepped = engineRef.current?.stepInteractivePin(e.shiftKey ? -1 : 1);
+          if (stepped?.kind === 'note' && stepped.noteId) {
+            showUserNoteCallout(index, stepped.noteId);
+          } else if (stepped?.kind === 'fact' && stepped.text) {
+            showFact(stepped.text);
+          }
         }
       } else if (e.key === 'r' || e.key === 'R' || e.key === '0') {
         if (
@@ -798,6 +889,8 @@ export function App() {
     activeNoteCallout,
     fullscreen,
     selectLandmark,
+    showFact,
+    showUserNoteCallout,
   ]);
 
   // Mirror globe state into the URL for deep-linking. Skip the first run so an
@@ -838,19 +931,26 @@ export function App() {
   }, []);
 
   const handleAddNote = useCallback(
-    (text: string) => {
+    (
+      text: string,
+      category: NoteCategory = 'memory',
+      customPosition?: readonly [number, number, number]
+    ) => {
       const existing = notesByLandmarkRef.current[index] ?? [];
-      const position = engineRef.current?.computeDefaultNotePosition(index, existing.length) ?? [
-        Number((Math.cos(existing.length * 2.4) * 2.4).toFixed(2)),
-        2.2,
-        Number((Math.sin(existing.length * 2.4) * 2.4).toFixed(2)),
-      ];
+      const position: [number, number, number] = customPosition
+        ? [customPosition[0], customPosition[1], customPosition[2]]
+        : (engineRef.current?.computeDefaultNotePosition(index, existing.length) ?? [
+            Number((Math.cos(existing.length * 2.4) * 2.4).toFixed(2)),
+            2.2,
+            Number((Math.sin(existing.length * 2.4) * 2.4).toFixed(2)),
+          ]);
       const newNote: LandmarkNote = {
         id:
           typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID()
             : `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         text,
+        category,
         position,
         createdAt: Date.now(),
       };
@@ -858,6 +958,9 @@ export function App() {
       const next = { ...notesByLandmarkRef.current, [index]: updatedList };
       setNotesByLandmark(next);
       persistNotes(next);
+      setPendingDropPos(null);
+      setPinDropMode(false);
+      engineRef.current?.setPinDropMode(false);
       engineRef.current?.setUserNotes(index, updatedList, newNote.id);
       ambientAudio.playUi('success', { intensity: 0.72 });
       ambientAudio.vibrate(10);
@@ -907,6 +1010,82 @@ export function App() {
     [index, showUserNoteCallout]
   );
 
+  const handleStepPin = useCallback(
+    (dir: 1 | -1) => {
+      const stepped = engineRef.current?.stepInteractivePin(dir);
+      if (stepped?.kind === 'note' && stepped.noteId) {
+        showUserNoteCallout(index, stepped.noteId);
+      } else if (stepped?.kind === 'fact' && stepped.text) {
+        showFact(stepped.text);
+      }
+    },
+    [index, showFact, showUserNoteCallout]
+  );
+
+  const handleJumpToNote = useCallback(
+    (landmarkIndex: number, noteId: string) => {
+      if (globeOpen) engineRef.current?.closeGlobe();
+      if (placesOpen) engineRef.current?.closePlaces();
+      setGlobeOpen(false);
+      setPlacesOpen(false);
+      if (landmarkIndex !== index) {
+        selectLandmark(landmarkIndex, { cinematic: true });
+        window.setTimeout(() => {
+          engineRef.current?.focusUserNote(noteId);
+          showUserNoteCallout(landmarkIndex, noteId);
+        }, 620);
+      } else {
+        engineRef.current?.focusUserNote(noteId);
+        showUserNoteCallout(landmarkIndex, noteId);
+      }
+    },
+    [globeOpen, placesOpen, index, selectLandmark, showUserNoteCallout]
+  );
+
+  const handleSelectRoute = useCallback(
+    (routeId: string | null) => {
+      setActiveRouteId(routeId);
+      if (!routeId) {
+        showToast('Heritage route cleared');
+        return;
+      }
+      const route = HERITAGE_ROUTES.find((r) => r.id === routeId);
+      if (!route) return;
+      showToast(`Following ${route.name}`);
+      if (!route.stopIndices.includes(index)) {
+        selectLandmark(route.stopIndices[0], { cinematic: true });
+      }
+    },
+    [index, selectLandmark, showToast]
+  );
+
+  const handleNextRouteStop = useCallback(() => {
+    if (!activeRoute || activeRoute.stopIndices.length === 0) return;
+    const curPos = activeRoute.stopIndices.indexOf(index);
+    const nextStop =
+      curPos >= 0
+        ? activeRoute.stopIndices[(curPos + 1) % activeRoute.stopIndices.length]
+        : activeRoute.stopIndices[0];
+    selectLandmark(nextStop, { cinematic: true });
+  }, [activeRoute, index, selectLandmark]);
+
+  const handleViewRouteOnGlobe = useCallback(
+    (routeId: string) => {
+      const route = HERITAGE_ROUTES.find((r) => r.id === routeId);
+      if (!route || !engineRef.current) return;
+      setActiveRouteId(routeId);
+      setSearchOpen(false);
+      setInfoOpen(false);
+      setWeatherExpanded(false);
+      if (engineRef.current.places.isOpen) engineRef.current.closePlaces();
+      setPlacesOpen(false);
+      engineRef.current.openGlobe(visited);
+      engineRef.current.globe.setActiveRoute(route.stopIndices, route.color);
+      setGlobeOpen(true);
+    },
+    [visited]
+  );
+
   const handleToggleSound = useCallback(() => {
     const enabled = ambientAudio.toggle();
     setSoundOn(enabled);
@@ -934,13 +1113,44 @@ export function App() {
 
   const handleOpenPostcard = useCallback(() => {
     if (!engineRef.current) return;
+    setPostcardNoteId(null);
+    setPostcardPreviewHour(timeHour);
     const url = engineRef.current.capturePostcard(
       index,
       `${weatherState.temp}°C · ${weatherState.label} · ${weatherState.timeText}`
     );
     setPostcardUrl(url);
     setPostcardOpen(true);
-  }, [index, weatherState]);
+  }, [index, weatherState, timeHour]);
+
+  const handleRegeneratePostcard = useCallback(
+    (opts: { noteId?: string | null; hour?: number }) => {
+      if (!engineRef.current) return;
+      const nextHour = opts.hour ?? postcardPreviewHour;
+      const nextNoteId = opts.noteId !== undefined ? opts.noteId : postcardNoteId;
+      if (opts.hour !== undefined) {
+        setPostcardPreviewHour(opts.hour);
+        setTimeHour(opts.hour);
+        setTimeScrubbed(true);
+        setTimeLapseActive(false);
+        engineRef.current.setSunAltitudeImmediate(opts.hour);
+      }
+      if (opts.noteId !== undefined) {
+        setPostcardNoteId(opts.noteId);
+      }
+      const noteObj = nextNoteId
+        ? (notesByLandmarkRef.current[index] ?? []).find((n) => n.id === nextNoteId)
+        : undefined;
+      const cond = getMonthCondition(index, month, nextHour);
+      const timeStr = `${pad2(Math.floor(nextHour))}:${pad2(Math.floor((nextHour % 1) * 60))} SAST`;
+      const weatherLine = `${cond.temp}°C · ${WEATHER_CONDITIONS[cond.k].label} · ${timeStr}`;
+      const url = engineRef.current.capturePostcard(index, weatherLine, {
+        noteText: noteObj?.text,
+      });
+      setPostcardUrl(url);
+    },
+    [index, month, postcardNoteId, postcardPreviewHour]
+  );
 
   const handleDownloadPostcard = useCallback(() => {
     if (!postcardUrl) return;
@@ -1033,6 +1243,7 @@ export function App() {
       try {
         const data = await loadOsmPlace(center);
         const info = engineRef.current.openOsmPlace(data);
+        setActiveExplorerCoords(center);
         setSelectedPlace(info);
         setPlacesOpen(true);
         setUrlForCoordinates(center);
@@ -1044,12 +1255,69 @@ export function App() {
     [showToast]
   );
 
+  const handleToggleSavePlace = useCallback(
+    (place: { lat: number; lon: number; label: string; detail: string }) => {
+      setSavedPlaces((prev) => {
+        const existingIdx = prev.findIndex(
+          (p) => Math.abs(p.lat - place.lat) < 0.0002 && Math.abs(p.lon - place.lon) < 0.0002
+        );
+        const next =
+          existingIdx >= 0
+            ? prev.filter((_, idx) => idx !== existingIdx)
+            : [
+                {
+                  id:
+                    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+                      ? crypto.randomUUID()
+                      : `place-${Date.now()}`,
+                  lat: place.lat,
+                  lon: place.lon,
+                  label: place.label,
+                  detail: place.detail,
+                  savedAt: Date.now(),
+                },
+                ...prev,
+              ].slice(0, 12);
+        try {
+          localStorage.setItem(SAVED_PLACES_KEY, JSON.stringify(next));
+        } catch {
+          // Ignore storage failures
+        }
+        ambientAudio.playUi(existingIdx >= 0 ? 'toggle' : 'success', { intensity: 0.7 });
+        showToast(existingIdx >= 0 ? 'Removed saved place' : 'Saved coordinate slice');
+        return next;
+      });
+    },
+    [showToast]
+  );
+
+  const handleRemoveSavedPlace = useCallback((id: string) => {
+    setSavedPlaces((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      try {
+        localStorage.setItem(SAVED_PLACES_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore storage failures
+      }
+      return next;
+    });
+    ambientAudio.playUi('toggle');
+  }, []);
+
+  const handleOpenSavedPlace = useCallback(
+    (place: SavedCustomPlace) => {
+      void exploreCoordinates({ lat: place.lat, lon: place.lon });
+    },
+    [exploreCoordinates]
+  );
+
   const closePlaces = useCallback(() => {
     if (!engineRef.current) return;
     ambientAudio.playUi('close');
     engineRef.current.closePlaces();
     setPlacesOpen(false);
     setSelectedPlace(null);
+    setActiveExplorerCoords(null);
     setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k));
   }, [index]);
 
@@ -1195,6 +1463,10 @@ export function App() {
           isFavorite={favorites.has(index)}
           tourActive={tourActive}
           directionActive={showDirection}
+          cutawayActive={cutawayActive}
+          pinDropMode={pinDropMode}
+          pendingDropPos={pendingDropPos}
+          activeRoute={activeRoute}
           notes={notesByLandmark[index] ?? []}
           activeNoteId={
             activeNoteCallout?.landmarkIndex === index ? activeNoteCallout.noteId : null
@@ -1212,6 +1484,27 @@ export function App() {
             ambientAudio.playUi('toggle');
             setShowDirection((v) => !v);
           }}
+          onToggleCutaway={() => {
+            ambientAudio.playUi('toggle');
+            setCutawayActive((v) => !v);
+          }}
+          onTogglePinDrop={() => {
+            setPinDropMode((prev) => {
+              const next = !prev;
+              engineRef.current?.setPinDropMode(next);
+              ambientAudio.playUi('toggle');
+              if (next) showToast('Tap anywhere on the 3D landmark to anchor pin');
+              return next;
+            });
+          }}
+          onClearPendingDrop={() => setPendingDropPos(null)}
+          onApplyCameraPreset={(preset: CameraPreset) => {
+            ambientAudio.playUi('tap', { intensity: 0.7 });
+            engineRef.current?.applyCameraPreset(preset);
+          }}
+          onStepPin={handleStepPin}
+          onNextRouteStop={handleNextRouteStop}
+          onClearRoute={() => handleSelectRoute(null)}
           onAddNote={handleAddNote}
           onUpdateNote={handleUpdateNote}
           onDeleteNote={handleDeleteNote}
@@ -1289,6 +1582,8 @@ export function App() {
           weatherMode={placesWeatherMode}
           activeTimeHour={timeHour}
           soundOn={soundOn}
+          activeExplorerCoords={activeExplorerCoords}
+          savedPlaces={savedPlaces}
           reducedMotion={reducedMotion}
           onSelectProvince={(pv) => {
             setActiveProvince(pv);
@@ -1308,6 +1603,7 @@ export function App() {
             engineRef.current?.closePlaces();
             setPlacesOpen(false);
             setSelectedPlace(null);
+            setActiveExplorerCoords(null);
             selectLandmark(pickedIndex, { cinematic: true });
           }}
           onResetView={() => {
@@ -1326,6 +1622,9 @@ export function App() {
             setPlacesWeatherMode(mode);
             engineRef.current?.places.setWeatherMode(mode);
           }}
+          onToggleSavePlace={handleToggleSavePlace}
+          onOpenSavedPlace={handleOpenSavedPlace}
+          onRemoveSavedPlace={handleRemoveSavedPlace}
           onClose={closePlaces}
         />
 
@@ -1354,6 +1653,12 @@ export function App() {
                 (n) => n.id === activeNoteCallout.noteId
               );
               if (!pinnedNote) return null;
+              const catInfo =
+                pinnedNote.category === 'photo'
+                  ? { label: 'Photo Spot Pin', color: '#e8b04a', border: 'border-[#e8b04a]/55' }
+                  : pinnedNote.category === 'history'
+                    ? { label: 'History Pin', color: '#ff7a8a', border: 'border-[#ff7a8a]/55' }
+                    : { label: 'Memory Pin', color: '#5cd6a9', border: 'border-[#5cd6a9]/55' };
               return (
                 <motion.div
                   key={`user-note-${pinnedNote.id}`}
@@ -1363,12 +1668,20 @@ export function App() {
                   animate="animate"
                   exit="exit"
                   transition={reducedMotion ? { duration: 0 } : undefined}
-                  className="fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#5cd6a9]/55 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl"
+                  className={`fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border ${catInfo.border} rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl`}
                 >
-                  <MapPin size={17} weight="fill" className="text-[#5cd6a9] shrink-0 mt-0.5" />
+                  <MapPin
+                    size={17}
+                    weight="fill"
+                    style={{ color: catInfo.color }}
+                    className="shrink-0 mt-0.5"
+                  />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.12em] text-[#5cd6a9] mb-0.5">
-                      <span>Private User Pin</span>
+                    <div
+                      className="flex items-center gap-2 text-[10.5px] uppercase tracking-[0.12em] mb-0.5"
+                      style={{ color: catInfo.color }}
+                    >
+                      <span>{catInfo.label}</span>
                       <span aria-hidden="true" className="text-white/30">
                         ·
                       </span>
@@ -1535,8 +1848,13 @@ export function App() {
         <PassportModal
           open={passportOpen}
           visited={visited}
+          notesByLandmark={notesByLandmark}
+          activeRouteId={activeRouteId}
           reducedMotion={reducedMotion}
           onClose={() => setPassportOpen(false)}
+          onJumpToNote={handleJumpToNote}
+          onSelectRoute={handleSelectRoute}
+          onViewRouteOnGlobe={handleViewRouteOnGlobe}
           onResetPassport={() => {
             setVisited(new Set());
             try {
@@ -1561,7 +1879,11 @@ export function App() {
           open={postcardOpen}
           dataUrl={postcardUrl}
           landmarkName={LANDMARKS[index].k}
+          notes={notesByLandmark[index] ?? []}
+          selectedNoteId={postcardNoteId}
+          previewHour={postcardPreviewHour}
           reducedMotion={reducedMotion}
+          onRegeneratePostcard={handleRegeneratePostcard}
           onShare={handleSharePostcard}
           onDownload={handleDownloadPostcard}
           onClose={() => setPostcardOpen(false)}

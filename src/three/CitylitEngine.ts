@@ -12,10 +12,12 @@ import { LANDMARKS } from '../data/landmarks';
 import type { OsmPlaceData } from '../services/osmService';
 import type {
   AmbientSiteProfile,
+  CameraPreset,
   CompassState,
   LandmarkNote,
   LiveWeatherSample,
   MediaItem,
+  NoteCategory,
   QualityIndex,
   QualitySetting,
   ThemeSetting,
@@ -74,6 +76,7 @@ export interface EngineCallbacks {
   onOpenLandmarkFromPlaces?: (index: number) => void;
   onFactDot?: (text: string) => void;
   onUserNotePin?: (noteId: string) => void;
+  onPinDropPosition?: (pos: [number, number, number] | null) => void;
   onFirstInteract?: () => void;
   onThunder?: () => void;
   onSwipeLandmark?: (dir: 1 | -1) => void;
@@ -127,6 +130,8 @@ export class CitylitEngine {
   /** Soft, shadowless biome-tinted bounce fill. Deliberately not driven by weather. */
   private readonly bounceLight: THREE.DirectionalLight;
   private readonly hemiLight: THREE.HemisphereLight;
+  /** Subtle warm ground/apron spill lighting architectural facades at dusk & night. */
+  private readonly nightApronLight: THREE.PointLight;
   private readonly plinthGroup: THREE.Group;
   private readonly plinthTopMat: THREE.MeshStandardMaterial;
   private readonly plinthBaseMat: THREE.MeshStandardMaterial;
@@ -264,6 +269,18 @@ export class CitylitEngine {
   private lastHoverCheck = 0;
   private lastHeroHoverCheck = 0;
   private pinchDist = 0;
+  private pinDropMode = false;
+  private cutawayActive = false;
+  private cutawayAmount = 0;
+  private cutawayEntries: Array<{ obj: THREE.Object3D; baseY: number; liftY: number }> = [];
+  private activePinCursor = -1;
+  private readonly prevFrameCamPos = new THREE.Vector3();
+  private readonly dropLocalTmp = new THREE.Vector3();
+  private readonly dropWorldTmp = new THREE.Vector3();
+  private readonly dropNormalTmp = new THREE.Vector3();
+  private readonly dropBoxTmp = new THREE.Box3();
+  private readonly dropCenterTmp = new THREE.Vector3();
+  private readonly dropSizeTmp = new THREE.Vector3();
 
   private callbacks: EngineCallbacks;
 
@@ -398,6 +415,11 @@ export class CitylitEngine {
     this.bounceLight = createBounceLight();
     this.scene.add(this.bounceLight);
     this.scene.add(this.bounceLight.target);
+
+    this.nightApronLight = new THREE.PointLight('#ffb86b', 0, 16, 1.5);
+    this.nightApronLight.position.set(1.2, 3.1, 1.6);
+    this.nightApronLight.castShadow = false;
+    this.scene.add(this.nightApronLight);
 
     // Post-processing pipeline (depth-aware DoF + N8AO + Bloom + Tilt-Shift + SMAA + Output)
     const composerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
@@ -751,42 +773,84 @@ export class CitylitEngine {
     return tex;
   }
 
-  private createUserPinTexture(): THREE.CanvasTexture {
+  private createUserPinTexture(category: NoteCategory): THREE.CanvasTexture {
+    const palette: Record<NoteCategory, { halo: string; fill: string; ink: string }> = {
+      memory: {
+        halo: 'rgba(92, 214, 169, 0.25)',
+        fill: '#38c793',
+        ink: '#0e1f18',
+      },
+      photo: {
+        halo: 'rgba(232, 176, 74, 0.26)',
+        fill: '#e8b04a',
+        ink: '#1f1606',
+      },
+      history: {
+        halo: 'rgba(255, 122, 138, 0.26)',
+        fill: '#ff7a8a',
+        ink: '#240b10',
+      },
+    };
+    const colors = palette[category];
     const c = document.createElement('canvas');
     c.width = 64;
     c.height = 64;
     const ctx = c.getContext('2d');
     if (ctx) {
-      // Soft emerald outer halo so private user pins stand apart from amber fact pins
       ctx.beginPath();
       ctx.arc(32, 30, 23, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(92, 214, 169, 0.24)';
+      ctx.fillStyle = colors.halo;
       ctx.fill();
 
-      // Teardrop / bookmark badge silhouette
       ctx.beginPath();
       ctx.arc(32, 27, 14, Math.PI * 0.85, Math.PI * 0.15, false);
       ctx.quadraticCurveTo(42, 41, 32, 50);
       ctx.quadraticCurveTo(22, 41, 19.3, 33.4);
       ctx.closePath();
-      ctx.fillStyle = '#38c793';
+      ctx.fillStyle = colors.fill;
       ctx.fill();
       ctx.lineWidth = 2.6;
       ctx.strokeStyle = '#f6f3eb';
       ctx.stroke();
 
-      // Crisp miniature note-lines glyph inside the badge
-      ctx.strokeStyle = '#0e1f18';
-      ctx.lineWidth = 2.2;
+      ctx.strokeStyle = colors.ink;
+      ctx.fillStyle = colors.ink;
+      ctx.lineWidth = 2.1;
       ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(26, 23.5);
-      ctx.lineTo(38, 23.5);
-      ctx.moveTo(26, 28);
-      ctx.lineTo(38, 28);
-      ctx.moveTo(26, 32.5);
-      ctx.lineTo(34, 32.5);
-      ctx.stroke();
+      ctx.lineJoin = 'round';
+
+      if (category === 'photo') {
+        // Miniature viewfinder camera glyph
+        ctx.strokeRect(24.5, 23, 15, 10.5);
+        ctx.beginPath();
+        ctx.arc(32, 28.2, 2.8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(28.5, 23);
+        ctx.lineTo(30, 20.5);
+        ctx.lineTo(34, 20.5);
+        ctx.lineTo(35.5, 23);
+        ctx.stroke();
+      } else if (category === 'history') {
+        // Miniature hourglass / heritage monument glyph
+        ctx.beginPath();
+        ctx.moveTo(26.5, 21.5);
+        ctx.lineTo(37.5, 21.5);
+        ctx.lineTo(26.5, 33.5);
+        ctx.lineTo(37.5, 33.5);
+        ctx.closePath();
+        ctx.stroke();
+      } else {
+        // Note lines glyph
+        ctx.beginPath();
+        ctx.moveTo(26, 23.5);
+        ctx.lineTo(38, 23.5);
+        ctx.moveTo(26, 28);
+        ctx.lineTo(38, 28);
+        ctx.moveTo(26, 32.5);
+        ctx.lineTo(34, 32.5);
+        ctx.stroke();
+      }
     }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -794,9 +858,18 @@ export class CitylitEngine {
   }
 
   private markerTexture: THREE.CanvasTexture | null = null;
-  private userPinTexture: THREE.CanvasTexture | null = null;
+  private userPinTextures: Partial<Record<NoteCategory, THREE.CanvasTexture>> = {};
   private readonly userNotesByIndex = new Map<number, LandmarkNote[]>();
   private readonly userPinPopTimers = new Map<string, number>();
+
+  private getUserPinTexture(category: NoteCategory = 'memory'): THREE.CanvasTexture {
+    let tex = this.userPinTextures[category];
+    if (!tex) {
+      tex = this.createUserPinTexture(category);
+      this.userPinTextures[category] = tex;
+    }
+    return tex;
+  }
 
   computeDefaultNotePosition(
     landmarkIndex: number,
@@ -874,8 +947,58 @@ export class CitylitEngine {
   focusUserNote(noteId: string): void {
     const targetSprite = this.markerSprites.find((s) => s.userData.noteId === noteId);
     if (!targetSprite) return;
+    this.activePinCursor = this.markerSprites.indexOf(targetSprite);
     this.userPinPopTimers.set(noteId, 0.85);
     this.focusOnFactPoint(targetSprite.position);
+  }
+
+  setPinDropMode(active: boolean): void {
+    this.pinDropMode = active;
+    this.lastInteractAt = this.elapsed;
+    if (!this.globe.isOpen && !this.places.isOpen) {
+      this.renderer.domElement.style.cursor = active ? 'crosshair' : 'default';
+    }
+  }
+
+  setCutawayMode(active: boolean): void {
+    if (this.cutawayActive === active) return;
+    this.cutawayActive = active;
+    this.lastInteractAt = this.elapsed;
+    if (this.motionScale === 0) {
+      this.cutawayAmount = active ? 1 : 0;
+      for (const entry of this.cutawayEntries) {
+        entry.obj.position.y = entry.baseY + entry.liftY * this.cutawayAmount;
+      }
+      if (!this.isSoftwareGl) {
+        this.renderer.shadowMap.needsUpdate = true;
+      }
+    }
+  }
+
+  stepInteractivePin(
+    dir: 1 | -1
+  ): { kind: 'fact' | 'note'; text?: string; noteId?: string } | null {
+    if (this.markerSprites.length === 0 || this.globe.isOpen || this.places.isOpen) {
+      return null;
+    }
+    const len = this.markerSprites.length;
+    const nextCursor =
+      this.activePinCursor < 0 ? (dir > 0 ? 0 : len - 1) : (this.activePinCursor + dir + len) % len;
+    this.activePinCursor = nextCursor;
+    const sp = this.markerSprites[nextCursor];
+    if (!sp) return null;
+    this.focusOnFactPoint(sp.position);
+    ambientAudio.playSfx('ping');
+    ambientAudio.vibrate(10);
+    if (sp.userData.pinKind === 'note') {
+      const noteId = sp.userData.noteId as string | undefined;
+      if (noteId) {
+        this.userPinPopTimers.set(noteId, 0.85);
+        return { kind: 'note', noteId };
+      }
+    }
+    const text = sp.userData.factText as string | undefined;
+    return { kind: 'fact', text };
   }
 
   private rebuildMarkers(index: number): void {
@@ -884,6 +1007,7 @@ export class CitylitEngine {
       s.material.dispose();
     });
     this.markerSprites = [];
+    this.activePinCursor = -1;
     if (!this.markerTexture) {
       this.markerTexture = this.createMarkerTexture();
     }
@@ -908,13 +1032,11 @@ export class CitylitEngine {
     });
 
     const userNotes = this.userNotesByIndex.get(index) ?? [];
-    if (userNotes.length > 0 && !this.userPinTexture) {
-      this.userPinTexture = this.createUserPinTexture();
-    }
     userNotes.forEach((note) => {
+      const category = note.category ?? 'memory';
       const sprite = new THREE.Sprite(
         new THREE.SpriteMaterial({
-          map: this.userPinTexture!,
+          map: this.getUserPinTexture(category),
           depthTest: false,
           depthWrite: false,
           transparent: true,
@@ -1101,9 +1223,67 @@ export class CitylitEngine {
     });
   }
 
+  private resetCutawayOffsets(): void {
+    for (let i = 0; i < this.cutawayEntries.length; i++) {
+      const entry = this.cutawayEntries[i];
+      entry.obj.position.y = entry.baseY;
+    }
+    this.cutawayEntries = [];
+    this.cutawayAmount = 0;
+  }
+
+  private computeCutawayEntries(group: THREE.Group): void {
+    this.cutawayEntries = [];
+    this.cutawayAmount = 0;
+    const heroBox = this.computeDioramaBounds(group);
+    if (heroBox.isEmpty()) return;
+    heroBox.getSize(this.dropSizeTmp);
+    const minY = heroBox.min.y;
+    const sizeY = Math.max(0.8, this.dropSizeTmp.y);
+    const liftedSet = new Set<THREE.Object3D>();
+
+    const visit = (node: THREE.Object3D) => {
+      if (node !== group) {
+        if (
+          node.userData.noShadow ||
+          node.userData.cannotReceiveAO ||
+          node.userData.noDissolve ||
+          !node.visible
+        ) {
+          return;
+        }
+        // Lift self-contained elevated sub-assemblies or standalone upper meshes
+        this.dropBoxTmp.setFromObject(node);
+        if (!this.dropBoxTmp.isEmpty()) {
+          this.dropBoxTmp.getCenter(this.dropCenterTmp);
+          this.dropBoxTmp.getSize(this.dropSizeTmp);
+          const isWideBase =
+            this.dropSizeTmp.x > 10.5 && this.dropSizeTmp.z > 10.5 && this.dropSizeTmp.y < 1.2;
+          const relY = (this.dropCenterTmp.y - minY) / sizeY;
+          if (!isWideBase && relY > 0.42 && this.dropSizeTmp.y < sizeY * 0.72) {
+            liftedSet.add(node);
+            const liftY = THREE.MathUtils.clamp((relY - 0.34) * sizeY * 0.48, 0.4, 3.0);
+            this.cutawayEntries.push({
+              obj: node,
+              baseY: node.position.y,
+              liftY,
+            });
+            return;
+          }
+        }
+      }
+      for (let i = 0; i < node.children.length; i++) {
+        visit(node.children[i]);
+      }
+    };
+    visit(group);
+  }
+
   showLandmarkImmediate(index: number): void {
     this.activeIndex = index;
     this.lastSwitchAt = this.elapsed;
+    this.resetCutawayOffsets();
+    ambientAudio.setSpatialFocusBoost(0);
     if (this.currentGroup) {
       const old = this.currentGroup;
       this.heroRoot.remove(old);
@@ -1157,6 +1337,13 @@ export class CitylitEngine {
     this.heroRoot.add(this.currentGroup);
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
+    this.computeCutawayEntries(this.currentGroup);
+    if (this.cutawayActive) {
+      this.cutawayAmount = this.motionScale === 0 ? 1 : 0;
+      for (const entry of this.cutawayEntries) {
+        entry.obj.position.y = entry.baseY + entry.liftY * this.cutawayAmount;
+      }
+    }
     this.switchSettle = 0;
     this.rebuildMarkers(index);
     this.dissolvePhase = 0;
@@ -1581,6 +1768,24 @@ export class CitylitEngine {
     this.weather.target.night = val < 6 || val >= 19 ? 1 : 0;
   }
 
+  setSunAltitudeImmediate(val: number): void {
+    this.lastInteractAt = this.elapsed;
+    const isNight = val < 6 || val >= 19 ? 1 : 0;
+    this.weather.target.timeOfDay = val;
+    this.weather.target.night = isNight;
+    this.weather.current.timeOfDay = val;
+    this.weather.current.night = isNight;
+    this.weather.update(12, this.elapsed, {
+      qualityIndex: this.qualityIndex,
+      motionScale: Math.max(0.01, this.motionScale),
+      keyLight: this.keyLight,
+      fillLight: this.fillLight,
+      hemiLight: this.hemiLight,
+      scene: this.scene,
+      renderer: this.renderer,
+    });
+  }
+
   toggleRainRainbow(): void {
     this.lastInteractAt = this.elapsed;
     if (this.weather.target.rain > 0) {
@@ -1736,6 +1941,41 @@ export class CitylitEngine {
     this.camGoalT = 0;
     this.targetGoalActive = false;
     this.hasCustomFocus = false;
+  }
+
+  applyCameraPreset(preset: CameraPreset): void {
+    if (this.globe.isOpen || this.places.isOpen) return;
+    this.lastInteractAt = this.elapsed;
+    if (preset === 'default') {
+      this.resetToDefaultOrientation();
+      return;
+    }
+    if (this.isStudio()) {
+      this.frameStudioLandmark();
+      return;
+    }
+    const anchor = this.hasHeroFit
+      ? this.heroFitCenter
+      : this.fitCenterTmp.set(this.baseTargetX, this.baseTargetY, 0);
+    this.camGoalOrbital = false;
+    this.targetStart.copy(this.controls.target);
+    this.targetEnd.copy(anchor);
+    if (preset === 'aerial') {
+      this.camTargetPos.set(anchor.x + 0.6, anchor.y + 15.6, anchor.z + 4.4);
+      this.hasCustomFocus = false;
+    } else if (preset === 'low') {
+      this.camTargetPos.set(anchor.x + 10.6, Math.max(1.35, anchor.y + 0.4), anchor.z + 9.2);
+      this.hasCustomFocus = false;
+    } else {
+      // 'detail' macro close-up
+      this.camTargetPos.set(anchor.x + 5.8, anchor.y + 2.4, anchor.z + 6.4);
+      this.hasCustomFocus = true;
+    }
+    this.camStart.copy(this.camera.position);
+    this.camGoal = this.camTargetPos;
+    this.camGoalT = 0;
+    this.targetGoalActive = true;
+    ambientAudio.setSpatialFocusBoost(preset === 'detail' ? 0.8 : 0);
   }
 
   getCompassState(): CompassState {
@@ -1934,6 +2174,7 @@ export class CitylitEngine {
     this.camGoalT = 0;
     this.targetGoalActive = true;
     this.hasCustomFocus = true;
+    ambientAudio.setSpatialFocusBoost(0.95);
   }
 
   private computeResponsiveFraming(): void {
@@ -1961,6 +2202,7 @@ export class CitylitEngine {
   /** Smoothly animate camera and orbit target back to the default landmark orientation. */
   resetToDefaultOrientation(): void {
     this.lastInteractAt = this.elapsed;
+    ambientAudio.setSpatialFocusBoost(0);
     if (this.globe.isOpen) {
       this.globe.resetView();
       return;
@@ -2430,7 +2672,7 @@ export class CitylitEngine {
     return results;
   }
 
-  capturePostcard(index: number, weatherText: string): string {
+  capturePostcard(index: number, weatherText: string, opts?: { noteText?: string }): string {
     const lm = LANDMARKS[index];
     const wasMarkersVisible = this.markerGroup.visible;
     const wasDirVisible = this.directionGroup.visible;
@@ -2470,8 +2712,8 @@ export class CitylitEngine {
 
     const grad = ctx.createLinearGradient(0, 820, 0, 1350);
     grad.addColorStop(0, 'rgba(14,15,19,0)');
-    grad.addColorStop(0.6, 'rgba(14,15,19,0.78)');
-    grad.addColorStop(1, 'rgba(14,15,19,0.96)');
+    grad.addColorStop(0.58, 'rgba(14,15,19,0.82)');
+    grad.addColorStop(1, 'rgba(14,15,19,0.97)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 820, 1080, 530);
 
@@ -2479,17 +2721,27 @@ export class CitylitEngine {
     ctx.font = 'italic 600 28px Georgia, serif';
     ctx.fillText('cıtylit', 68, 86);
 
+    const noteClean = opts?.noteText?.trim();
+    const baseShiftY = noteClean ? -48 : 0;
+
     ctx.fillStyle = '#e8b04a';
     ctx.font = '600 22px system-ui, sans-serif';
-    ctx.fillText(lm.c.toUpperCase(), 68, 1140);
+    ctx.fillText(lm.c.toUpperCase(), 68, 1140 + baseShiftY);
 
     ctx.fillStyle = '#f3efe6';
     ctx.font = 'italic 400 72px Georgia, serif';
-    ctx.fillText(lm.k, 68, 1222);
+    ctx.fillText(lm.k, 68, 1222 + baseShiftY);
 
     ctx.fillStyle = '#a9a69e';
     ctx.font = '500 24px system-ui, sans-serif';
-    ctx.fillText(weatherText, 68, 1278);
+    ctx.fillText(weatherText, 68, 1278 + baseShiftY);
+
+    if (noteClean) {
+      ctx.fillStyle = '#7de3bc';
+      ctx.font = 'italic 400 26px Georgia, serif';
+      const clipped = noteClean.length > 84 ? `${noteClean.slice(0, 81)}…` : noteClean;
+      ctx.fillText(`“${clipped}”`, 68, 1296);
+    }
 
     return out.toDataURL('image/png');
   }
@@ -2663,7 +2915,7 @@ export class CitylitEngine {
         this.hoverRaycaster.intersectObject(this.currentGroup, true, this.hoverHits);
         this.hoveredHero = this.hoverHits.length > 0;
       }
-      canvas.style.cursor = markerIdx >= 0 ? 'pointer' : 'default';
+      canvas.style.cursor = this.pinDropMode ? 'crosshair' : markerIdx >= 0 ? 'pointer' : 'default';
     };
 
     const onPointerLeave = () => {
@@ -2673,7 +2925,7 @@ export class CitylitEngine {
       this.globe.clearHover();
       this.callbacks.onGlobePinHover?.(null);
       if (!this.globe.isOpen && !this.places.isOpen) {
-        canvas.style.cursor = 'default';
+        canvas.style.cursor = this.pinDropMode ? 'crosshair' : 'default';
       }
     };
 
@@ -2723,6 +2975,45 @@ export class CitylitEngine {
           return;
         }
         raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+
+        if (this.pinDropMode && this.currentGroup) {
+          this.hoverHits.length = 0;
+          raycaster.intersectObject(this.currentGroup, true, this.hoverHits);
+          const surfaceHit = this.hoverHits.find((h) => {
+            const o = h.object;
+            return (
+              o instanceof THREE.Mesh &&
+              o.visible &&
+              !o.userData.noShadow &&
+              !o.userData.cannotReceiveAO &&
+              !o.userData.noDissolve
+            );
+          });
+          if (surfaceHit) {
+            this.dropWorldTmp.copy(surfaceHit.point);
+            if (surfaceHit.face) {
+              this.dropNormalTmp
+                .copy(surfaceHit.face.normal)
+                .transformDirection(surfaceHit.object.matrixWorld);
+              this.dropWorldTmp.addScaledVector(this.dropNormalTmp, 0.24);
+            }
+            this.dropWorldTmp.y += 0.16;
+            this.heroRoot.worldToLocal(this.dropLocalTmp.copy(this.dropWorldTmp));
+            this.pinDropMode = false;
+            canvas.style.cursor = 'default';
+            ambientAudio.playSfx('ping');
+            ambientAudio.vibrate(12);
+            this.callbacks.onPinDropPosition?.([
+              Number(this.dropLocalTmp.x.toFixed(2)),
+              Number(this.dropLocalTmp.y.toFixed(2)),
+              Number(this.dropLocalTmp.z.toFixed(2)),
+            ]);
+          } else {
+            this.callbacks.onPinDropPosition?.(null);
+          }
+          return;
+        }
+
         const hits = raycaster.intersectObjects(this.markerSprites, false);
         let hitSprite: THREE.Sprite | undefined = hits.length
           ? (hits[0].object as THREE.Sprite)
@@ -2743,6 +3034,9 @@ export class CitylitEngine {
               hitSprite = sp;
             }
           }
+        }
+        if (hitSprite) {
+          this.activePinCursor = this.markerSprites.indexOf(hitSprite);
         }
         const pinKind = hitSprite?.userData.pinKind as 'fact' | 'note' | undefined;
         if (pinKind === 'note' && hitSprite) {
@@ -3282,6 +3576,23 @@ export class CitylitEngine {
         this.directionGroup.visible = false;
       }
 
+      // Architectural cutaway / exploded layer lift (damped smoothly)
+      const cutawayGoal = this.cutawayActive && this.dissolvePhase === 0 ? 1 : 0;
+      const cutawayPrev = this.cutawayAmount;
+      if (Math.abs(cutawayGoal - this.cutawayAmount) > 0.0005 && this.cutawayEntries.length > 0) {
+        this.cutawayAmount =
+          this.motionScale === 0
+            ? cutawayGoal
+            : THREE.MathUtils.damp(this.cutawayAmount, cutawayGoal, 7, dt);
+        for (let i = 0; i < this.cutawayEntries.length; i++) {
+          const entry = this.cutawayEntries[i];
+          entry.obj.position.y = entry.baseY + entry.liftY * this.cutawayAmount;
+        }
+        if (!this.isSoftwareGl && Math.abs(this.cutawayAmount - cutawayPrev) > 0.01) {
+          this.renderer.shadowMap.needsUpdate = true;
+        }
+      }
+
       // Weather simulation
       this.weather.update(dt, this.elapsed, {
         qualityIndex: this.qualityIndex,
@@ -3309,6 +3620,16 @@ export class CitylitEngine {
         this.motionScale,
         this.hoverRimBoost * 0.32
       );
+
+      // Night warm architectural ground spill on the plinth (no shadow caster overhead)
+      const targetApron =
+        !this.isStudio() && this.weather.current.night > 0.25
+          ? THREE.MathUtils.smoothstep(this.weather.current.night, 0.25, 0.85) *
+            (1.65 + litStrength * 1.15)
+          : 0;
+      this.nightApronLight.intensity +=
+        (targetApron - this.nightApronLight.intensity) *
+        (this.motionScale === 0 ? 1 : Math.min(1, dt * 3));
 
       const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
       const envLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
@@ -3434,16 +3755,32 @@ export class CitylitEngine {
         this.weather.current.timeOfDay
       );
 
-      // When reduced-motion is active and the scene is idle, render at ~15fps to save power.
-      const isStaticIdle =
+      // Adaptive idle frame pacing: when reduced-motion is active or camera/controls
+      // are completely settled with no active transitions, throttle redraws cleanly.
+      const camDeltaSq = this.camera.position.distanceToSquared(this.prevFrameCamPos);
+      this.prevFrameCamPos.copy(this.camera.position);
+      const isReducedStaticIdle =
         this.motionScale === 0 &&
         !this.isUserOrbiting &&
         this.dissolvePhase === 0 &&
         !this.camGoal &&
+        !this.timeLapsePlaying &&
+        camDeltaSq < 1e-6 &&
         WU.cursorStrength.value < 0.01 &&
         this.elapsed - this.lastInteractAt > 1.5;
 
-      if (!isStaticIdle || now - this.lastRenderAt >= 66) {
+      const isBatterySoftIdle =
+        this.isSoftwareGl &&
+        !this.isUserOrbiting &&
+        this.dissolvePhase === 0 &&
+        !this.camGoal &&
+        !this.timeLapsePlaying &&
+        camDeltaSq < 1e-6 &&
+        this.elapsed - this.lastInteractAt > 2.0;
+
+      const throttleMs = isReducedStaticIdle ? 66 : isBatterySoftIdle ? 50 : 0;
+
+      if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
         const shadowStride = this.isUserOrbiting ? 3 : 2;
         const keyMoved = this.keyLight.position.distanceToSquared(this.lastShadowKeyPos) > 0.002;
         const animateShadows =
@@ -3489,8 +3826,10 @@ export class CitylitEngine {
     this.markerSprites = [];
     this.markerTexture?.dispose();
     this.markerTexture = null;
-    this.userPinTexture?.dispose();
-    this.userPinTexture = null;
+    for (const tex of Object.values(this.userPinTextures)) {
+      tex?.dispose();
+    }
+    this.userPinTextures = {};
     this.directionGeo.dispose();
     this.directionPointsMat.dispose();
     this.directionChevron.geometry.dispose();

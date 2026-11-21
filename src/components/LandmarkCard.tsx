@@ -4,6 +4,8 @@ import {
   CaretLeft,
   CaretRight,
   Check,
+  Clock,
+  Crosshair,
   GlobeHemisphereEast,
   Heart,
   Images,
@@ -11,10 +13,12 @@ import {
   MapPin,
   NavigationArrow,
   NotePencil,
+  Path,
   Pause,
   PencilSimple,
   Play,
   ShareNetwork,
+  Stack,
   Trash,
   X,
 } from '@phosphor-icons/react';
@@ -23,7 +27,7 @@ import { AnimatePresence, motion, useMotionValue, type Variants } from 'motion/r
 import { LANDMARKS } from '../data/landmarks';
 import { animate, DURATION, EASE_SMOOTH_OUT, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
-import type { LandmarkNote } from '../types/citylit';
+import type { CameraPreset, HeritageRoute, LandmarkNote, NoteCategory } from '../types/citylit';
 
 interface SlideCustom {
   dir: number;
@@ -82,11 +86,52 @@ const bodySlideVariants: Variants = {
         },
 };
 
+const NOTE_CATEGORIES: ReadonlyArray<{
+  id: NoteCategory;
+  label: string;
+  dotColor: string;
+  textColor: string;
+  activeClass: string;
+}> = [
+  {
+    id: 'memory',
+    label: 'Memory',
+    dotColor: '#38c793',
+    textColor: '#5cd6a9',
+    activeClass: 'bg-[#38c793]/18 border-[#5cd6a9]/75 text-[#5cd6a9]',
+  },
+  {
+    id: 'photo',
+    label: 'Photo',
+    dotColor: '#e8b04a',
+    textColor: '#e8b04a',
+    activeClass: 'bg-[#e8b04a]/18 border-[#e8b04a]/75 text-[#e8b04a]',
+  },
+  {
+    id: 'history',
+    label: 'History',
+    dotColor: '#ff7a8a',
+    textColor: '#ff7a8a',
+    activeClass: 'bg-[#ff7a8a]/18 border-[#ff7a8a]/75 text-[#ff7a8a]',
+  },
+];
+
+const CAMERA_PRESETS: ReadonlyArray<{ id: CameraPreset; label: string }> = [
+  { id: 'default', label: 'Default' },
+  { id: 'aerial', label: 'Aerial' },
+  { id: 'low', label: 'Low' },
+  { id: 'detail', label: 'Macro' },
+];
+
 interface LandmarkCardProps {
   index: number;
   isFavorite: boolean;
   tourActive: boolean;
   directionActive: boolean;
+  cutawayActive?: boolean;
+  pinDropMode?: boolean;
+  pendingDropPos?: readonly [number, number, number] | null;
+  activeRoute?: HeritageRoute | null;
   notes: readonly LandmarkNote[];
   activeNoteId?: string | null;
   visible: boolean;
@@ -96,7 +141,18 @@ interface LandmarkCardProps {
   onToggleFavorite: () => void;
   onToggleTour: () => void;
   onToggleDirection: () => void;
-  onAddNote: (text: string) => void;
+  onToggleCutaway?: () => void;
+  onTogglePinDrop?: () => void;
+  onClearPendingDrop?: () => void;
+  onApplyCameraPreset?: (preset: CameraPreset) => void;
+  onStepPin?: (dir: 1 | -1) => void;
+  onNextRouteStop?: () => void;
+  onClearRoute?: () => void;
+  onAddNote: (
+    text: string,
+    category: NoteCategory,
+    position?: readonly [number, number, number]
+  ) => void;
   onUpdateNote: (noteId: string, text: string) => void;
   onDeleteNote: (noteId: string) => void;
   onFocusNote: (noteId: string) => void;
@@ -131,11 +187,19 @@ function nextBearingSummary(
   return { cardinal, km };
 }
 
+function getCategoryMeta(category: NoteCategory = 'memory') {
+  return NOTE_CATEGORIES.find((c) => c.id === category) ?? NOTE_CATEGORIES[0];
+}
+
 export function LandmarkCard({
   index,
   isFavorite,
   tourActive,
   directionActive,
+  cutawayActive = false,
+  pinDropMode = false,
+  pendingDropPos = null,
+  activeRoute = null,
   notes,
   activeNoteId = null,
   visible,
@@ -145,6 +209,13 @@ export function LandmarkCard({
   onToggleFavorite,
   onToggleTour,
   onToggleDirection,
+  onToggleCutaway,
+  onTogglePinDrop,
+  onClearPendingDrop,
+  onApplyCameraPreset,
+  onStepPin,
+  onNextRouteStop,
+  onClearRoute,
   onAddNote,
   onUpdateNote,
   onDeleteNote,
@@ -160,6 +231,7 @@ export function LandmarkCard({
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
   const [notesOpen, setNotesOpen] = useState(false);
   const [draftNote, setDraftNote] = useState('');
+  const [noteCategory, setNoteCategory] = useState<NoteCategory>('memory');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
   const [{ current: trackedIndex, dir: direction }, setNavState] = useState({
@@ -173,6 +245,7 @@ export function LandmarkCard({
     else if (trackedIndex === 0 && index === count - 1) nextDir = -1;
     setNavState({ current: index, dir: nextDir });
     setDraftNote('');
+    setNoteCategory('memory');
     setEditingNoteId(null);
     setEditingDraft('');
   }
@@ -237,6 +310,8 @@ export function LandmarkCard({
   const nextLm = LANDMARKS[(index + 1) % LANDMARKS.length];
   const { cardinal, km } = nextBearingSummary(lm.coords, nextLm.coords);
   const progressPct = ((index + 1) / LANDMARKS.length) * 100;
+  const totalInteractivePins = lm.dots.length + notes.length;
+  const routeStopIdx = activeRoute ? activeRoute.stopIndices.indexOf(index) : -1;
 
   const clearHold = () => {
     if (holdTimer.current !== null) {
@@ -295,6 +370,14 @@ export function LandmarkCard({
   const smallBtn =
     'w-9 h-9 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer';
 
+  const submitDraftNote = () => {
+    const clean = draftNote.trim();
+    if (!clean) return;
+    onAddNote(clean, noteCategory, pendingDropPos ?? undefined);
+    setDraftNote('');
+    onClearPendingDrop?.();
+  };
+
   return (
     <>
       <div
@@ -313,6 +396,47 @@ export function LandmarkCard({
           }}
           className="relative bg-[#121319]/92 border border-white/15 squircle-card px-4 py-[18px] landscape:px-3.5 landscape:py-3.5 md:landscape:px-4 md:landscape:py-[18px] [@media(max-height:700px)]:px-3.5 [@media(max-height:700px)]:py-3.5 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
         >
+          {activeRoute && (
+            <div className="mb-2.5 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/10">
+              <div className="min-w-0 flex items-center gap-2 text-[11px]">
+                <Path
+                  size={13}
+                  weight="bold"
+                  style={{ color: activeRoute.color }}
+                  className="shrink-0"
+                />
+                <span className="font-medium text-[#f3efe6] truncate">{activeRoute.name}</span>
+                <span className="font-mono tabular-nums text-[#a9a69e] shrink-0">
+                  {routeStopIdx >= 0
+                    ? `Stop ${routeStopIdx + 1}/${activeRoute.stopIndices.length}`
+                    : `${activeRoute.stopIndices.length} stops`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {onNextRouteStop && (
+                  <button
+                    type="button"
+                    onClick={onNextRouteStop}
+                    className="h-6 px-2 rounded-full bg-[#e8b04a]/18 border border-[#e8b04a]/60 text-[10.5px] font-medium text-[#e8b04a] hover:bg-[#e8b04a]/28 transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    Next Stop →
+                  </button>
+                )}
+                {onClearRoute && (
+                  <button
+                    type="button"
+                    onClick={onClearRoute}
+                    aria-label="Exit heritage route"
+                    title="Exit route"
+                    className="w-6 h-6 rounded-full grid place-items-center text-[#a9a69e] hover:text-[#f3efe6] hover:bg-white/[0.08] cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-start justify-between gap-3">
             <motion.div
               {...headerDrag}
@@ -440,12 +564,65 @@ export function LandmarkCard({
               <NotePencil size={13} weight={notesOpen || notes.length > 0 ? 'fill' : 'regular'} />
               {notes.length > 0 ? `Add Note (${notes.length})` : 'Add Note'}
             </motion.button>
+            {onToggleCutaway && (
+              <motion.button
+                type="button"
+                whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+                onClick={onToggleCutaway}
+                aria-pressed={cutawayActive}
+                aria-label="Inspect architectural cutaway layers"
+                title="Smoothly separate upper roofs & spires to inspect structure"
+                className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  cutawayActive
+                    ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
+                    : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
+                }`}
+              >
+                <Stack size={13} weight={cutawayActive ? 'fill' : 'regular'} />
+                Inspect
+              </motion.button>
+            )}
             <span className="text-[11px] text-[#a9a69e] truncate">
               {directionActive
                 ? `${cardinal} · ${km.toLocaleString()} km → ${nextLm.k}`
                 : `Next: ${nextLm.k}`}
             </span>
           </div>
+
+          {(onApplyCameraPreset || onStepPin) && (
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5">
+              {onApplyCameraPreset && (
+                <div
+                  className="inline-flex items-center gap-1"
+                  role="group"
+                  aria-label="3D camera views"
+                >
+                  {CAMERA_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => onApplyCameraPreset(preset.id)}
+                      className="h-6 px-2 rounded-full bg-white/[0.04] border border-white/10 text-[10.5px] text-[#c8c4bc] hover:border-[#e8b04a]/65 hover:text-[#e8b04a] transition-colors cursor-pointer"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {onStepPin && totalInteractivePins > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onStepPin(1)}
+                  title="Cycle through 3D fact pins & personal notes (Shortcut: P)"
+                  aria-label={`Cycle 3D pins (${totalInteractivePins} available)`}
+                  className="h-6 px-2.5 rounded-full inline-flex items-center gap-1 bg-white/[0.04] border border-white/10 text-[10.5px] font-mono tabular-nums text-[#d6d1c6] hover:border-[#5cd6a9]/60 hover:text-[#5cd6a9] transition-colors cursor-pointer ml-auto"
+                >
+                  <MapPin size={11} weight="fill" className="text-[#e8b04a]" />
+                  <span>Pins ({totalInteractivePins})</span>
+                </button>
+              )}
+            </div>
+          )}
 
           <AnimatePresence initial={false}>
             {notesOpen && (
@@ -461,13 +638,86 @@ export function LandmarkCard({
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
-                      const clean = draftNote.trim();
-                      if (!clean) return;
-                      onAddNote(clean);
-                      setDraftNote('');
+                      submitDraftNote();
                     }}
                     className="space-y-1.5"
                   >
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <div
+                        className="inline-flex items-center gap-1"
+                        role="radiogroup"
+                        aria-label="Pin category"
+                      >
+                        {NOTE_CATEGORIES.map((cat) => {
+                          const active = noteCategory === cat.id;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              role="radio"
+                              aria-checked={active}
+                              onClick={() => setNoteCategory(cat.id)}
+                              className={`h-6 px-2 rounded-full inline-flex items-center gap-1 text-[11px] border transition-colors cursor-pointer ${
+                                active
+                                  ? cat.activeClass
+                                  : 'bg-white/[0.04] border-white/10 text-[#a9a69e] hover:text-[#f3efe6]'
+                              }`}
+                            >
+                              <span
+                                className="w-1.5 h-1.5 rounded-full"
+                                style={{ backgroundColor: cat.dotColor }}
+                              />
+                              {cat.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {onTogglePinDrop && (
+                        <button
+                          type="button"
+                          onClick={onTogglePinDrop}
+                          aria-pressed={pinDropMode}
+                          title="Tap any surface on the 3D landmark to anchor this note"
+                          className={`h-6 px-2 rounded-full inline-flex items-center gap-1 text-[11px] border transition-colors cursor-pointer ${
+                            pinDropMode
+                              ? 'bg-[#e8b04a]/22 border-[#e8b04a] text-[#e8b04a]'
+                              : pendingDropPos
+                                ? 'bg-[#38c793]/16 border-[#5cd6a9]/60 text-[#5cd6a9]'
+                                : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
+                          }`}
+                        >
+                          <Crosshair size={12} />
+                          <span>
+                            {pinDropMode
+                              ? 'Tap 3D model…'
+                              : pendingDropPos
+                                ? '3D Point Locked'
+                                : 'Place on 3D'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+
+                    {pendingDropPos && (
+                      <div className="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg bg-[#38c793]/10 border border-[#5cd6a9]/35 text-[10.5px] font-mono tabular-nums text-[#9cebd0]">
+                        <span>
+                          Anchored at ({pendingDropPos[0]}, {pendingDropPos[1]}, {pendingDropPos[2]}
+                          )
+                        </span>
+                        {onClearPendingDrop && (
+                          <button
+                            type="button"
+                            onClick={onClearPendingDrop}
+                            aria-label="Clear custom 3D pin position"
+                            className="text-[#a9a69e] hover:text-[#f3efe6] cursor-pointer"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     <textarea
                       ref={noteInputRef}
                       value={draftNote}
@@ -475,11 +725,7 @@ export function LandmarkCard({
                       onKeyDown={(e) => {
                         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                           e.preventDefault();
-                          const clean = draftNote.trim();
-                          if (clean) {
-                            onAddNote(clean);
-                            setDraftNote('');
-                          }
+                          submitDraftNote();
                         } else if (e.key === 'Escape') {
                           e.stopPropagation();
                           setNotesOpen(false);
@@ -500,6 +746,7 @@ export function LandmarkCard({
                           type="button"
                           onClick={() => {
                             setDraftNote('');
+                            onClearPendingDrop?.();
                             setNotesOpen(false);
                           }}
                           className="h-7 px-2.5 rounded-lg border border-white/12 bg-white/[0.04] text-[11.5px] text-[#a9a69e] hover:text-[#f3efe6] transition-colors cursor-pointer"
@@ -522,6 +769,7 @@ export function LandmarkCard({
                       {notes.map((note) => {
                         const isEditing = editingNoteId === note.id;
                         const isHighlighted = activeNoteId === note.id;
+                        const catMeta = getCategoryMeta(note.category);
                         return (
                           <li
                             key={note.id}
@@ -585,11 +833,28 @@ export function LandmarkCard({
                                   className="flex-1 min-w-0 text-left flex items-start gap-2 cursor-pointer group"
                                   title="Focus camera on 3D User Pin"
                                 >
-                                  <MapPin
-                                    size={14}
-                                    weight="fill"
-                                    className="text-[#5cd6a9] shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
-                                  />
+                                  {note.category === 'photo' ? (
+                                    <Camera
+                                      size={14}
+                                      weight="fill"
+                                      style={{ color: catMeta.textColor }}
+                                      className="shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
+                                    />
+                                  ) : note.category === 'history' ? (
+                                    <Clock
+                                      size={14}
+                                      weight="fill"
+                                      style={{ color: catMeta.textColor }}
+                                      className="shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
+                                    />
+                                  ) : (
+                                    <MapPin
+                                      size={14}
+                                      weight="fill"
+                                      style={{ color: catMeta.textColor }}
+                                      className="shrink-0 mt-0.5 group-hover:scale-110 transition-transform"
+                                    />
+                                  )}
                                   <span className="text-[12px] leading-snug text-[#e9e4d9] break-words">
                                     {note.text}
                                   </span>

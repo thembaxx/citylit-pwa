@@ -47,7 +47,13 @@ export interface GlobeController {
   flyToProvince: (provinceName: string) => void;
   refreshPinColors: (visited: Set<number>) => void;
   setActiveProvince: (provinceName: string) => void;
-  update: (dt: number, elapsed: number, motionScale: number, keyLight?: THREE.DirectionalLight) => void;
+  setActiveRoute: (stopIndices: readonly number[] | null, colorHex?: string) => void;
+  update: (
+    dt: number,
+    elapsed: number,
+    motionScale: number,
+    keyLight?: THREE.DirectionalLight
+  ) => void;
   hoverPin: (ndcX: number, ndcY: number, radiusPx?: number) => number | null;
   clearHover: () => void;
   pickPin: (ndcX: number, ndcY: number, radiusPx?: number) => number | null;
@@ -91,7 +97,11 @@ export function createGlobeScene(
 
   // Ocean sphere with a gentle Fresnel limb so the disc reads as a lit globe.
   const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(GLOBE_RADIUS, Math.max(24, Math.round(48 * detail)), Math.max(18, Math.round(36 * detail))),
+    new THREE.SphereGeometry(
+      GLOBE_RADIUS,
+      Math.max(24, Math.round(48 * detail)),
+      Math.max(18, Math.round(36 * detail))
+    ),
     new THREE.ShaderMaterial({
       vertexShader:
         'varying vec3 N,V;void main(){N=normalize(normalMatrix*normal);vec4 p=modelViewMatrix*vec4(position,1.);V=normalize(-p.xyz);gl_Position=projectionMatrix*p;}',
@@ -115,7 +125,11 @@ export function createGlobeScene(
       'uniform vec3 uGlow;varying vec3 N,V;void main(){float f=pow(1.-abs(dot(N,V)),4.);gl_FragColor=vec4(uGlow,f*.55);}',
   });
   const atmosphere = new THREE.Mesh(
-    new THREE.SphereGeometry(GLOBE_RADIUS * 1.045, Math.max(20, Math.round(40 * detail)), Math.max(14, Math.round(28 * detail))),
+    new THREE.SphereGeometry(
+      GLOBE_RADIUS * 1.045,
+      Math.max(20, Math.round(40 * detail)),
+      Math.max(14, Math.round(28 * detail))
+    ),
     atmosphereMat
   );
   group.add(atmosphere);
@@ -250,10 +264,7 @@ export function createGlobeScene(
     }
     if (pts.length) pts.push(pts[0].clone());
     const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(pts),
-      mat
-    );
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
     track(mat, provinceIndex);
     group.add(line);
     return line;
@@ -396,16 +407,88 @@ export function createGlobeScene(
     });
   };
 
+  const routeGroup = new THREE.Group();
+  group.add(routeGroup);
+  const routeLines: Array<{ mat: THREE.LineBasicMaterial; phase: number }> = [];
+  const routeRings: THREE.Mesh[] = [];
+
+  const clearRouteVisuals = () => {
+    routeLines.length = 0;
+    routeRings.length = 0;
+    while (routeGroup.children.length > 0) {
+      const child = routeGroup.children[0];
+      routeGroup.remove(child);
+      if (child instanceof THREE.Line || child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        (child.material as THREE.Material).dispose();
+      }
+    }
+  };
+
+  const setActiveRoute = (stopIndices: readonly number[] | null, colorHex = '#e8b04a') => {
+    clearRouteVisuals();
+    if (!stopIndices || stopIndices.length < 2) return;
+    const baseCol = new THREE.Color(colorHex);
+    const arcUp = new THREE.Vector3();
+
+    for (let i = 0; i < stopIndices.length; i++) {
+      const lm = LANDMARKS[stopIndices[i]];
+      if (!lm) continue;
+      const surface = latLonToVec3(lm.coords[0], lm.coords[1], GLOBE_RADIUS + 0.032);
+      const ringGeo = new THREE.RingGeometry(0.068, 0.095, 24);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: baseCol,
+        transparent: true,
+        opacity: 0.88,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.copy(surface);
+      arcUp.copy(surface).normalize();
+      ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), arcUp);
+      ring.userData.phase = i * 0.55;
+      routeGroup.add(ring);
+      routeRings.push(ring);
+
+      if (i > 0) {
+        const prevLm = LANDMARKS[stopIndices[i - 1]];
+        if (!prevLm) continue;
+        const pA = latLonToVec3(prevLm.coords[0], prevLm.coords[1], 1).normalize();
+        const pB = latLonToVec3(lm.coords[0], lm.coords[1], 1).normalize();
+        const arcSteps = 28;
+        const pts: THREE.Vector3[] = [];
+        const arcSpan = pA.angleTo(pB);
+        const arcLift = THREE.MathUtils.clamp(arcSpan * 1.4, 0.09, 0.34);
+        for (let s = 0; s <= arcSteps; s++) {
+          const t = s / arcSteps;
+          const dir = slerpDirection(pA, pB, t);
+          const elev = GLOBE_RADIUS + 0.04 + Math.sin(t * Math.PI) * arcLift;
+          pts.push(dir.multiplyScalar(elev));
+        }
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        const lineMat = new THREE.LineBasicMaterial({
+          color: baseCol,
+          transparent: true,
+          opacity: 0.85,
+        });
+        const line = new THREE.Line(lineGeo, lineMat);
+        routeGroup.add(line);
+        routeLines.push({ mat: lineMat, phase: i * 0.6 });
+      }
+    }
+  };
+
   const setActiveProvince = (provinceName: string) => {
-    const idx = provinceName === 'All' ? -1 : GLOBE_PROVINCES.findIndex((p) => p.name === provinceName);
+    const idx =
+      provinceName === 'All' ? -1 : GLOBE_PROVINCES.findIndex((p) => p.name === provinceName);
     dimmable.forEach((entry) => {
       if (idx === -1) {
         entry.mat.opacity = entry.base;
       } else if (entry.provinceIndex === idx) {
         entry.mat.opacity = Math.min(1, entry.base * 1.35);
       } else {
-        entry.mat.opacity =
-          entry.base * (entry.provinceIndex >= 0 ? 0.16 : 0.4);
+        entry.mat.opacity = entry.base * (entry.provinceIndex >= 0 ? 0.16 : 0.4);
       }
     });
   };
@@ -474,7 +557,12 @@ export function createGlobeScene(
     cancelFly();
   };
 
-  const update = (dt: number, elapsed: number, motionScale: number, keyLight?: THREE.DirectionalLight) => {
+  const update = (
+    dt: number,
+    elapsed: number,
+    motionScale: number,
+    keyLight?: THREE.DirectionalLight
+  ) => {
     // Smooth reveal / conceal instead of a hard visibility toggle.
     const target = controller.isOpen ? 1 : 0;
     if (reveal !== target) {
@@ -529,20 +617,35 @@ export function createGlobeScene(
       const baseScale = 1 + 0.35 * Math.sin(phase);
       const suppressed = pinSuppressed[idx] && hoveredPinIdx !== idx;
       pin.scale.setScalar(
-        hoveredPinIdx === idx
-          ? Math.max(baseScale, 1.55)
-          : baseScale * (suppressed ? 0.6 : 1)
+        hoveredPinIdx === idx ? Math.max(baseScale, 1.55) : baseScale * (suppressed ? 0.6 : 1)
       );
       (pin.material as THREE.MeshBasicMaterial).opacity = suppressed ? 0.5 : 1;
     });
 
+    // Animate active route arcs & stop rings
+    if (routeLines.length > 0 || routeRings.length > 0) {
+      for (let i = 0; i < routeLines.length; i++) {
+        const entry = routeLines[i];
+        entry.mat.opacity =
+          motionScale > 0 ? 0.62 + 0.34 * Math.sin(elapsed * 2.4 - entry.phase) : 0.85;
+      }
+      for (let i = 0; i < routeRings.length; i++) {
+        const ring = routeRings[i];
+        const ph = (ring.userData.phase as number) ?? 0;
+        const s = motionScale > 0 ? 1 + 0.22 * Math.sin(elapsed * 2.8 - ph) : 1;
+        ring.scale.setScalar(s);
+      }
+    }
+
     // Warm the globe's rim with the sun direction: cool at day, amber as the
     // sun drops — the same key light weather drives, so the sweep shows up.
     const sunAlt = keyLight ? THREE.MathUtils.clamp(keyLight.position.y / 34, -0.35, 0.9) : 0.5;
-    const duskBlend = THREE.MathUtils.clamp(THREE.MathUtils.mapLinear(sunAlt, 0.1, -0.3, 0, 1), 0, 1);
-    atmosphereMat.uniforms.uGlow.value
-      .copy(globeDayRim)
-      .lerp(globeDuskRim, duskBlend);
+    const duskBlend = THREE.MathUtils.clamp(
+      THREE.MathUtils.mapLinear(sunAlt, 0.1, -0.3, 0, 1),
+      0,
+      1
+    );
+    atmosphereMat.uniforms.uGlow.value.copy(globeDayRim).lerp(globeDuskRim, duskBlend);
 
     controls.update();
   };
@@ -666,6 +769,7 @@ export function createGlobeScene(
   };
 
   const dispose = () => {
+    clearRouteVisuals();
     controls.dispose();
     const geometries = new Set<THREE.BufferGeometry>();
     const materials = new Set<THREE.Material>();
@@ -698,6 +802,7 @@ export function createGlobeScene(
     flyToProvince,
     refreshPinColors,
     setActiveProvince,
+    setActiveRoute,
     update,
     hoverPin,
     clearHover,
