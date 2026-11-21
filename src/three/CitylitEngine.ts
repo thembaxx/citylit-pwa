@@ -127,6 +127,15 @@ export class CitylitEngine {
   private readonly studioShadow: THREE.Mesh;
   private readonly heroRoot: THREE.Group;
   private readonly markerGroup: THREE.Group;
+  private readonly directionGroup: THREE.Group;
+  private readonly directionPositions: Float32Array;
+  private readonly directionColors: Float32Array;
+  private readonly directionGeo: THREE.BufferGeometry;
+  private readonly directionPointsMat: THREE.PointsMaterial;
+  private readonly directionChevron: THREE.Mesh;
+  private readonly directionChevronMat: THREE.MeshBasicMaterial;
+  private readonly directionPulse: THREE.Mesh;
+  private readonly directionPulseMat: THREE.MeshBasicMaterial;
   private readonly dustPoints: THREE.Points;
   private readonly dustPositions: Float32Array;
   private readonly dustGeo: THREE.BufferGeometry;
@@ -213,6 +222,10 @@ export class CitylitEngine {
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.35);
   private readonly cursorWorld = new THREE.Vector3();
   private cursorStrengthTarget = 0;
+  private directionActive = false;
+  private directionStrength = 0;
+  private directionTargetYaw = 0;
+  private directionCurrentYaw = 0;
   private lastInteractAt = 0;
   private lastRenderAt = 0;
   private tapDown = { x: 0, y: 0, t: 0 };
@@ -471,6 +484,79 @@ export class CitylitEngine {
 
     this.markerGroup = new THREE.Group();
     this.scene.add(this.markerGroup);
+
+    // Next-landmark geographic direction indicator (soft particle stream + ground chevron)
+    const DIR_COUNT = 36;
+    this.directionGroup = new THREE.Group();
+    this.directionGroup.visible = false;
+    this.scene.add(this.directionGroup);
+
+    this.directionPositions = new Float32Array(DIR_COUNT * 3);
+    this.directionColors = new Float32Array(DIR_COUNT * 3);
+    this.directionGeo = new THREE.BufferGeometry();
+    this.directionGeo.setAttribute(
+      'position',
+      new THREE.BufferAttribute(this.directionPositions, 3)
+    );
+    this.directionGeo.setAttribute('color', new THREE.BufferAttribute(this.directionColors, 3));
+    this.directionPointsMat = new THREE.PointsMaterial({
+      size: 0.44,
+      map: getSoftTexture(),
+      vertexColors: true,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    const directionPoints = new THREE.Points(this.directionGeo, this.directionPointsMat);
+    directionPoints.frustumCulled = false;
+    directionPoints.userData.noDissolve = true;
+    directionPoints.userData.cannotReceiveAO = true;
+    directionPoints.userData.noShadow = true;
+    directionPoints.renderOrder = 3;
+    this.directionGroup.add(directionPoints);
+
+    const chevShape = new THREE.Shape();
+    chevShape.moveTo(0.45, 0);
+    chevShape.lineTo(-0.22, 0.34);
+    chevShape.lineTo(-0.08, 0);
+    chevShape.lineTo(-0.22, -0.34);
+    chevShape.closePath();
+    this.directionChevronMat = new THREE.MeshBasicMaterial({
+      color: '#f5c56b',
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.directionChevron = new THREE.Mesh(
+      new THREE.ShapeGeometry(chevShape).rotateX(-Math.PI / 2),
+      this.directionChevronMat
+    );
+    this.directionChevron.position.set(7.7, 0.04, 0);
+    this.directionChevron.userData.noDissolve = true;
+    this.directionChevron.userData.cannotReceiveAO = true;
+    this.directionChevron.userData.noShadow = true;
+    this.directionChevron.renderOrder = 3;
+    this.directionGroup.add(this.directionChevron);
+
+    this.directionPulseMat = new THREE.MeshBasicMaterial({
+      color: '#e8b04a',
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.directionPulse = new THREE.Mesh(
+      new THREE.RingGeometry(0.24, 0.36, 24).rotateX(-Math.PI / 2),
+      this.directionPulseMat
+    );
+    this.directionPulse.position.set(7.7, 0.036, 0);
+    this.directionPulse.userData.noDissolve = true;
+    this.directionPulse.userData.cannotReceiveAO = true;
+    this.directionPulse.userData.noShadow = true;
+    this.directionPulse.renderOrder = 3;
+    this.directionGroup.add(this.directionPulse);
 
     // Dissolve dust particles
     const DN = 160;
@@ -1278,6 +1364,42 @@ export class CitylitEngine {
     this.hasCustomFocus = false;
   }
 
+  /**
+   * Toggle the 3D directional trail pointing along the geographic bearing
+   * from `fromIndex` toward the next landmark in the curated tour order.
+   */
+  setDirectionGuide(active: boolean, fromIndex: number): void {
+    const nextIdx = (fromIndex + 1) % LANDMARKS.length;
+    const from = LANDMARKS[fromIndex];
+    const to = LANDMARKS[nextIdx];
+    if (from && to) {
+      const [lat1, lon1] = from.coords;
+      const [lat2, lon2] = to.coords;
+      const avgLatRad = ((lat1 + lat2) * 0.5 * Math.PI) / 180;
+      const dNorth = lat2 - lat1;
+      const dEast = (lon2 - lon1) * Math.cos(avgLatRad);
+      let dx = dEast;
+      let dz = -dNorth;
+      const len = Math.hypot(dx, dz);
+      if (len > 1e-6) {
+        dx /= len;
+        dz /= len;
+      } else {
+        dx = 1;
+        dz = 0;
+      }
+      const nextYaw = Math.atan2(-dz, dx);
+      if (!this.directionActive && active) {
+        this.directionCurrentYaw = nextYaw;
+      }
+      this.directionTargetYaw = nextYaw;
+    }
+    if (this.directionActive !== active) {
+      this.directionActive = active;
+      this.lastInteractAt = this.elapsed;
+    }
+  }
+
   /** Smoothly glide both camera and orbit target toward an inspected fact pin. */
   private focusOnFactPoint(pt: THREE.Vector3): void {
     if (this.isStudio() || this.globe.isOpen || this.places.isOpen) return;
@@ -1679,8 +1801,10 @@ export class CitylitEngine {
     const savedPos = this.camera.position.clone();
     const savedTarget = this.controls.target.clone();
     const savedMarkers = this.markerGroup.visible;
+    const savedDir = this.directionGroup.visible;
     const prevQualityIndex = this.qualityIndex;
     this.markerGroup.visible = false;
+    this.directionGroup.visible = false;
     if (!this.isSoftwareGl) {
       if (prevQualityIndex !== 0) this.setQualityIndex(0);
       this.setShadowMapSize(4096);
@@ -1711,6 +1835,7 @@ export class CitylitEngine {
       this.setQualityIndex(prevQualityIndex);
     }
     this.markerGroup.visible = savedMarkers;
+    this.directionGroup.visible = savedDir;
     this.camera.position.copy(savedPos);
     this.controls.target.copy(savedTarget);
     return results;
@@ -1719,8 +1844,10 @@ export class CitylitEngine {
   capturePostcard(index: number, weatherText: string): string {
     const lm = LANDMARKS[index];
     const wasMarkersVisible = this.markerGroup.visible;
+    const wasDirVisible = this.directionGroup.visible;
     const prevQualityIndex = this.qualityIndex;
     this.markerGroup.visible = false;
+    this.directionGroup.visible = false;
     if (!this.isSoftwareGl) {
       if (prevQualityIndex !== 0) this.setQualityIndex(0);
       this.setShadowMapSize(4096);
@@ -1734,6 +1861,7 @@ export class CitylitEngine {
       this.setQualityIndex(prevQualityIndex);
     }
     this.markerGroup.visible = wasMarkersVisible;
+    this.directionGroup.visible = wasDirVisible;
 
     const srcCanvas = this.renderer.domElement;
     const out = document.createElement('canvas');
@@ -2466,6 +2594,58 @@ export class CitylitEngine {
         sp.scale.setScalar(i === this.hoveredMarkerIndex ? base * 1.24 : base);
       });
 
+      // Next-landmark soft directional trail & ground pulse
+      const dirGoal = this.directionActive && !this.globe.isOpen && !this.places.isOpen ? 1 : 0;
+      const dirRate = this.motionScale === 0 ? Math.min(1, dt * 10) : Math.min(1, dt * 5.5);
+      this.directionStrength += (dirGoal - this.directionStrength) * dirRate;
+      if (this.directionStrength > 0.005) {
+        this.directionGroup.visible = true;
+        const yawDiff = Math.atan2(
+          Math.sin(this.directionTargetYaw - this.directionCurrentYaw),
+          Math.cos(this.directionTargetYaw - this.directionCurrentYaw)
+        );
+        this.directionCurrentYaw += yawDiff * Math.min(1, dt * 7);
+        this.directionGroup.rotation.y = this.directionCurrentYaw;
+
+        const dayWarmth = this.theme === 'daylight' || this.isStudio() ? 0.88 : 1.0;
+        const tAnim = this.elapsed * (this.motionScale > 0 ? 0.52 : 0);
+        const N = this.directionPositions.length / 3;
+        for (let i = 0; i < N; i++) {
+          const phase = i / N;
+          const u = (phase + tAnim) % 1;
+          const fade = Math.sin(u * Math.PI);
+          const dist = 4.2 + u * 6.4;
+          const arcY =
+            0.22 +
+            Math.sin(u * Math.PI) * 1.18 +
+            Math.sin(phase * 18 + this.elapsed * 1.8 * this.motionScale) * 0.06;
+          const spreadZ =
+            Math.sin(i * 2.31 + this.elapsed * 0.9 * this.motionScale) * (0.28 - u * 0.14);
+          this.directionPositions[i * 3] = dist;
+          this.directionPositions[i * 3 + 1] = arcY;
+          this.directionPositions[i * 3 + 2] = spreadZ;
+          const glow =
+            fade * (0.62 + 0.38 * Math.sin(phase * 12 - this.elapsed * 3.2 * this.motionScale));
+          this.directionColors[i * 3] = 1.0 * glow * dayWarmth;
+          this.directionColors[i * 3 + 1] = 0.78 * glow * dayWarmth;
+          this.directionColors[i * 3 + 2] = 0.36 * glow * dayWarmth;
+        }
+        this.directionGeo.attributes.position.needsUpdate = true;
+        this.directionGeo.attributes.color.needsUpdate = true;
+        this.directionPointsMat.opacity = 0.92 * this.directionStrength;
+
+        const pulsePhase = this.motionScale > 0 ? (this.elapsed * 0.72) % 1 : 0.35;
+        this.directionChevronMat.opacity =
+          (0.68 + 0.22 * Math.sin(this.elapsed * 2.6 * this.motionScale)) * this.directionStrength;
+        this.directionChevron.scale.setScalar(
+          1 + 0.06 * Math.sin(this.elapsed * 2.6 * this.motionScale)
+        );
+        this.directionPulse.scale.setScalar(0.85 + pulsePhase * 1.65);
+        this.directionPulseMat.opacity = (1 - pulsePhase) * 0.55 * this.directionStrength;
+      } else {
+        this.directionGroup.visible = false;
+      }
+
       // Weather simulation
       this.weather.update(dt, this.elapsed, {
         qualityIndex: this.qualityIndex,
@@ -2620,6 +2800,12 @@ export class CitylitEngine {
     if (this.outgoingGroup) this.disposeTransientResources(this.outgoingGroup);
     if (this.cachedGroup) this.disposeTransientResources(this.cachedGroup);
     this.cachedGroup = null;
+    this.directionGeo.dispose();
+    this.directionPointsMat.dispose();
+    this.directionChevron.geometry.dispose();
+    this.directionChevronMat.dispose();
+    this.directionPulse.geometry.dispose();
+    this.directionPulseMat.dispose();
     this.controls.dispose();
     this.globe.dispose();
     this.places.dispose();

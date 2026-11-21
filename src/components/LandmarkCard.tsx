@@ -7,6 +7,7 @@ import {
   Heart,
   Images,
   Info,
+  NavigationArrow,
   Pause,
   Play,
   ShareNetwork,
@@ -78,12 +79,14 @@ interface LandmarkCardProps {
   index: number;
   isFavorite: boolean;
   tourActive: boolean;
+  directionActive: boolean;
   visible: boolean;
   reducedMotion?: boolean;
   onPrev: () => void;
   onNext: () => void;
   onToggleFavorite: () => void;
   onToggleTour: () => void;
+  onToggleDirection: () => void;
   onOpenInfo: () => void;
   onOpenGallery: () => void;
   onOpenPostcard: () => void;
@@ -92,16 +95,40 @@ interface LandmarkCardProps {
   onVibrate: () => void;
 }
 
+const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
+
+function nextBearingSummary(
+  from: readonly [number, number],
+  to: readonly [number, number]
+): { cardinal: string; km: number } {
+  const rad = Math.PI / 180;
+  const lat1 = from[0] * rad;
+  const lat2 = to[0] * rad;
+  const dLat = lat2 - lat1;
+  const dLon = (to[1] - from[1]) * rad;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const km = Math.round(6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  const deg = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  const cardinal = CARDINALS[Math.round(deg / 45) % 8];
+  return { cardinal, km };
+}
+
 export function LandmarkCard({
   index,
   isFavorite,
   tourActive,
+  directionActive,
   visible,
   reducedMotion = false,
   onPrev,
   onNext,
   onToggleFavorite,
   onToggleTour,
+  onToggleDirection,
   onOpenInfo,
   onOpenGallery,
   onOpenPostcard,
@@ -165,6 +192,8 @@ export function LandmarkCard({
   if (!visible) return null;
 
   const lm = LANDMARKS[index];
+  const nextLm = LANDMARKS[(index + 1) % LANDMARKS.length];
+  const { cardinal, km } = nextBearingSummary(lm.coords, nextLm.coords);
   const progressPct = ((index + 1) / LANDMARKS.length) * 100;
 
   const clearHold = () => {
@@ -330,7 +359,31 @@ export function LandmarkCard({
             </AnimatePresence>
           </div>
 
-          <div className="flex items-center gap-2.5 mt-3.5 landscape:mt-2.5 [@media(max-height:700px)]:mt-2.5">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <motion.button
+              type="button"
+              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+              onClick={onToggleDirection}
+              aria-pressed={directionActive}
+              aria-label={`Show direction toward ${nextLm.k}`}
+              title={`Point toward ${nextLm.k} (${cardinal}, ${km.toLocaleString()} km)`}
+              className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                directionActive
+                  ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
+                  : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
+              }`}
+            >
+              <NavigationArrow size={13} weight={directionActive ? 'fill' : 'regular'} />
+              {directionActive ? 'Hide Direction' : 'Show Direction'}
+            </motion.button>
+            <span className="text-[11px] text-[#a9a69e] truncate">
+              {directionActive
+                ? `${cardinal} · ${km.toLocaleString()} km → ${nextLm.k}`
+                : `Next: ${nextLm.k}`}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 mt-3 landscape:mt-2 [@media(max-height:700px)]:mt-2">
             <motion.button
               type="button"
               whileTap={reducedMotion ? undefined : { scale: 0.96 }}

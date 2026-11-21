@@ -187,6 +187,7 @@ export function App() {
   const [postcardOpen, setPostcardOpen] = useState(false);
 
   const [tourActive, setTourActive] = useState(false);
+  const [showDirection, setShowDirection] = useState(false);
   const [factText, setFactText] = useState<string | null>(null);
   const [toastText, setToastText] = useState<string | null>(null);
   const [hintVisible, setHintVisible] = useState(true);
@@ -578,6 +579,11 @@ export function App() {
   useEffect(() => {
     engineRef.current?.places.refreshVisited(visited);
   }, [visited]);
+
+  // Keep 3D directional indicator aligned with the active landmark & UI toggle
+  useEffect(() => {
+    engineRef.current?.setDirectionGuide(showDirection && !fullscreen, index);
+  }, [showDirection, index, fullscreen]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -971,6 +977,7 @@ export function App() {
           index={index}
           isFavorite={favorites.has(index)}
           tourActive={tourActive}
+          directionActive={showDirection}
           visible={!fullscreen && !globeOpen && !placesOpen}
           reducedMotion={reducedMotion}
           onPrev={() => selectLandmark(index - 1)}
@@ -979,6 +986,10 @@ export function App() {
           onToggleTour={() => {
             ambientAudio.playUi('toggle');
             setTourActive((v) => !v);
+          }}
+          onToggleDirection={() => {
+            ambientAudio.playUi('toggle');
+            setShowDirection((v) => !v);
           }}
           onOpenInfo={() => setInfoOpen(true)}
           onOpenGallery={() => setGalleryOpen(true)}
