@@ -182,6 +182,11 @@ export interface CutawayWaterOptions {
   foamStrength?: number;
   turbulence?: number;
   clarity?: number;
+  /** Damp these for still, dark crater/cave water. */
+  glint?: number;
+  caustic?: number;
+  fresnel?: number;
+  minAlpha?: number;
 }
 
 /**
@@ -213,6 +218,10 @@ export function createCutawayWaterTopMaterial(
       uFoamStrength: { value: opts.foamStrength ?? 1.0 },
       uTurbulence: { value: opts.turbulence ?? 1.0 },
       uClarity: { value: opts.clarity ?? 0.78 },
+      uGlint: { value: opts.glint ?? 1.0 },
+      uCaustic: { value: opts.caustic ?? 1.0 },
+      uFresnel: { value: opts.fresnel ?? 1.0 },
+      uMinAlpha: { value: opts.minAlpha ?? 0.32 },
       uVolSunDir: env.sunDir,
       uVolSunColor: env.sunColor,
       uVolFogColor: env.fogColor,
@@ -455,7 +464,7 @@ export function createSliceCloudMaterial(env: PlacesShaderEnvironment): THREE.Sh
       uSun: WU.sun,
       uLit: WU.lit,
       uSky: WU.sky,
-      uTint: { value: new THREE.Color('#f6f9ff') },
+      uTint: { value: new THREE.Color('#ffffff') },
       uSunDir: env.sunDir,
       uSunColor: env.sunColor,
       uVolSunDir: env.sunDir,

@@ -265,9 +265,9 @@
     "semantic_hash": ""
   },
   "src/three/placesClouds.ts": {
-    "mtime": 1795099859.1980371,
-    "seen": 1795270207.9621503,
-    "ast_hash": "6f5bba905222e36b652b788fa57da581",
+    "mtime": 1795280730.7660947,
+    "seen": 1795282846.5833206,
+    "ast_hash": "b7f75f2c39710380555e2b87fb93c77a",
     "semantic_hash": ""
   },
   "src/three/placesScene.ts": {
@@ -277,15 +277,15 @@
     "semantic_hash": ""
   },
   "src/three/placesShaders.ts": {
-    "mtime": 1795265753.9345407,
-    "seen": 1795270207.9621553,
-    "ast_hash": "51fee38932e57bde3709057313a927ad",
+    "mtime": 1795281523.1012323,
+    "seen": 1795282846.583328,
+    "ast_hash": "d924af983c76ea1f2b3b39c0649e6dc2",
     "semantic_hash": ""
   },
   "src/three/placesSliceBuilders.ts": {
-    "mtime": 1795279558.859261,
-    "seen": 1795279700.6728387,
-    "ast_hash": "bad2059d5ce8882712b774dfc112ef23",
+    "mtime": 1795282313.6197326,
+    "seen": 1795282846.5833309,
+    "ast_hash": "563c4f05ac2f9593cf2f52d4e02e629f",
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
@@ -301,9 +301,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
-    "mtime": 1795254769.2680128,
-    "seen": 1795270207.9621646,
-    "ast_hash": "560de3a8ecf0113a3706601e15a1ff2e",
+    "mtime": 1795280638.7627988,
+    "seen": 1795282846.5833395,
+    "ast_hash": "0d01670c5d7c75a32510a5a7f3b76245",
     "semantic_hash": ""
   },
   "src/three/shaders/noise.glsl.ts": {
@@ -313,9 +313,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders/strata.glsl.ts": {
-    "mtime": 1795266044.196846,
-    "seen": 1795270207.9621718,
-    "ast_hash": "6189caa0ae23c22d252c85c690a975c3",
+    "mtime": 1795280819.9298058,
+    "seen": 1795282846.5833485,
+    "ast_hash": "83271ec4e9b3c5410ae4c0a2033f315c",
     "semantic_hash": ""
   },
   "src/three/shaders/volumetricFog.glsl.ts": {
@@ -325,9 +325,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders/water.glsl.ts": {
-    "mtime": 1795099437.8359284,
-    "seen": 1795270207.962177,
-    "ast_hash": "e9668471fc35f3e266efdcf6b43940fb",
+    "mtime": 1795281443.9703224,
+    "seen": 1795282846.5833547,
+    "ast_hash": "c9c825cb4ecac959a132f616418375f6",
     "semantic_hash": ""
   },
   "src/three/siteAtmosphere.ts": {

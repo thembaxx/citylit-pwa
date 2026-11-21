@@ -57,11 +57,11 @@ void main() {
   float skyWrap = N.y * 0.5 + 0.5;
 
   // Cool skylight underside against warm sunlit crowns.
-  vec3 ambientCool = mix(vec3(0.26, 0.33, 0.46), uSky, 0.42);
+  vec3 ambientCool = mix(vec3(0.52, 0.58, 0.68), uSky, 0.40);
   vec3 body = mix(
-    ambientCool * (0.62 + 0.42 * uSun),
+    ambientCool * (0.78 + 0.30 * uSun),
     uTint * vTint,
-    wrap * 0.68 + skyWrap * 0.20
+    wrap * 0.78 + skyWrap * 0.18
   );
   vec3 sunlit = mix(uTint * vTint, uSunColor, 0.30 + 0.28 * (1.0 - uSun))
               * (0.74 + 0.34 * max(ndl, 0.0));
@@ -69,7 +69,7 @@ void main() {
 
   // Cool rim separates the puffs from the sky and the diorama below.
   float rim = pow(1.0 - max(dot(N, V), 0.0), 2.2);
-  col += mix(uSky, uSunColor, 0.40) * rim * 0.26;
+  col += mix(uSky, uSunColor, 0.40) * rim * 0.14;
   col *= 1.0 - uLit * 0.26;
 
   // Sun-facing edge emphasises the sunward side of each puff.
@@ -78,8 +78,8 @@ void main() {
   // Soft silhouette alpha + slow noise breakup gives a volumetric read.
   float facing = max(dot(N, V), 0.0);
   float softEdge = smoothstep(0.02, 0.62, facing);
-  float breakup = 0.88 + 0.12 * clFbm3(vWorldPos * 3.2 + vec3(0.0, uTime * 0.05, 0.0));
-  float alpha = softEdge * breakup * 0.88;
+  float breakup = 0.94 + 0.06 * clFbm3(vWorldPos * 3.2 + vec3(0.0, uTime * 0.05, 0.0));
+  float alpha = softEdge * breakup * 0.97;
   if (alpha < 0.015) discard;
 
   col = plApplyVolumetricFog(col, vWorldPos);

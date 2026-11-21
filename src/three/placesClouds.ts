@@ -70,33 +70,38 @@ export function createSliceCloudLayer(
   // A handful of puffs arranged on a slightly flattened sphere reads as one
   // soft cumulus cluster instead of a row of discs.
   const PuffOffsets: ReadonlyArray<readonly [number, number, number, number]> = [
-    [0.0, 0.03, 0.0, 1.3],
-    [0.105, 0.035, 0.03, 0.96],
-    [-0.1, 0.015, 0.04, 0.94],
-    [0.03, 0.085, -0.075, 0.86],
-    [-0.045, 0.07, 0.08, 0.9],
-    [0.14, -0.01, -0.05, 0.74],
-    [-0.135, -0.02, -0.035, 0.72],
-    [0.02, -0.035, 0.125, 0.68],
+    [0.0, 0.03, 0.0, 1.34],
+    [0.12, 0.04, 0.035, 1.02],
+    [-0.115, 0.02, 0.045, 0.98],
+    [0.035, 0.10, -0.085, 0.92],
+    [-0.05, 0.085, 0.09, 0.95],
+    [0.16, -0.01, -0.055, 0.78],
+    [-0.15, -0.02, -0.04, 0.76],
+    [0.02, -0.035, 0.14, 0.72],
+    // Upper billows stack into a taller cauliflower crown.
+    [0.015, 0.17, 0.015, 0.86],
+    [-0.075, 0.145, -0.04, 0.74],
+    [0.085, 0.15, -0.02, 0.76],
   ];
 
-  for (let c = 0; c < 2; c++) {
+  const clusters = 3 + (Math.floor(seed * 10) % 2);
+  for (let c = 0; c < clusters; c++) {
     const angle = seed * 2.1 + c * 2.35;
-    const rad = 0.52 + c * 0.16;
+    const rad = 0.5 + c * 0.14;
     const cx = Math.cos(angle) * rad;
-    const cy = maxTopY + 0.42 + c * 0.12;
+    const cy = maxTopY + 0.58 + c * 0.17;
     const cz = Math.sin(angle) * rad * 0.85;
     shadowSpots.push({ x: cx, z: cz });
 
     PuffOffsets.forEach(([ox, oy, oz, weight], p) => {
-      const s = 0.118 * weight;
+      const s = 0.17 * weight * (1 - c * 0.08);
       puffs.push({
         x: cx + ox,
         y: cy + oy,
         z: cz + oz,
-        sx: s * 1.22,
-        sy: s * 0.94,
-        sz: s * 1.08,
+        sx: s * 1.28,
+        sy: s * 1.02,
+        sz: s * 1.14,
         phase: seed * 1.7 + c * 2.3 + p * 0.37,
       });
     });
@@ -111,7 +116,7 @@ export function createSliceCloudLayer(
     map: getSoftTexture(),
     color: '#050811',
     transparent: true,
-    opacity: 0.24,
+    opacity: 0.16,
     depthWrite: false,
   });
   const shadows = new THREE.InstancedMesh(shadowGeo, shadowMat, shadowSpots.length);

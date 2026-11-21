@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LANDMARKS } from '../data/landmarks';
 import { createCloudPuffMesh, createSliceCloudLayer } from './placesClouds';
 import { grassWindy, windy, WU } from './shaders';
@@ -86,6 +87,54 @@ function createSculptedRockGeo(): THREE.BufferGeometry {
   return g;
 }
 
+/**
+ * One foliage "bush" built from overlapping displaced lobes with baked
+ * per-vertex colour, so each instanced tree reads as a textured canopy rather
+ * than a smooth plastic ball. Still a single instanced draw call.
+ */
+function createFoliageGeo(): THREE.BufferGeometry {
+  const lobes: Array<{ x: number; y: number; z: number; s: number; tint: number }> = [
+    { x: 0, y: 0.10, z: 0, s: 0.82, tint: 1.06 },
+    { x: 0.44, y: -0.04, z: 0.12, s: 0.58, tint: 0.93 },
+    { x: -0.42, y: -0.02, z: -0.10, s: 0.61, tint: 0.97 },
+    { x: 0.04, y: 0.42, z: -0.06, s: 0.54, tint: 1.12 },
+  ];
+  const parts = lobes.map((lobe, k) => {
+    const geo = new THREE.IcosahedronGeometry(1, 1);
+    const pos = geo.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const n =
+        1 +
+        0.14 * Math.sin(x * 6.1 + y * 4.7 + k) +
+        0.10 * Math.cos(z * 7.3 - y * 5.1 + k * 1.7) +
+        0.06 * Math.sin((x + z) * 12.0 + k);
+      pos.setXYZ(i, x * n, y * n * 0.92, z * n);
+      // Sun-facing crown lift and deep-crevice shade are baked into the mesh.
+      const shade =
+        lobe.tint *
+        (0.78 + 0.24 * Math.max(0, y) + 0.10 * Math.sin(x * 9.0 + z * 8.0 + k));
+      colors[i * 3] = shade;
+      colors[i * 3 + 1] = shade;
+      colors[i * 3 + 2] = shade;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.translate(lobe.x, lobe.y, lobe.z);
+    geo.scale(lobe.s, lobe.s, lobe.s);
+    return geo;
+  });
+  const merged = mergeGeometries(parts, false);
+  parts.forEach((p) => p.dispose());
+  const geo = merged ?? new THREE.IcosahedronGeometry(1, 1);
+  if (!merged) geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(1), 3));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
 export function createSliceSharedAssets(
   env: PlacesShaderEnvironment,
   terrainMat: THREE.MeshStandardMaterial,
@@ -95,12 +144,12 @@ export function createSliceSharedAssets(
   const waterWallMatMap = new Map<string, THREE.ShaderMaterial>();
   const waterWallMats: THREE.ShaderMaterial[] = [];
 
-  const foliageGeo = new THREE.IcosahedronGeometry(1, 1);
+  const foliageGeo = createFoliageGeo();
   const trunkGeo = new THREE.CylinderGeometry(0.14, 0.28, 1, 6);
   const rockGeo = createSculptedRockGeo();
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
   const coneGeo = new THREE.ConeGeometry(1, 1, 8);
-  const sphereGeo = new THREE.SphereGeometry(1, 12, 10);
+  const sphereGeo = new THREE.SphereGeometry(1, 18, 14);
   const cylinderGeo = new THREE.CylinderGeometry(1, 1, 1, 14);
   const gableRoofGeo = createGableRoofGeo();
   const flowerGeo = new THREE.DodecahedronGeometry(1, 0);
@@ -186,6 +235,8 @@ interface TerrainSliceConfig {
   waterLevel?: number;
   waterMask?: (x: number, z: number, h: number) => boolean;
   waterPalette?: CutawayWaterOptions;
+  /** Optional pale sand colour painted in a thin band around the waterline. */
+  shoreSand?: string;
   cavernCutout?: (x: number, z: number) => boolean;
 }
 
@@ -254,6 +305,7 @@ function buildTerrainAndWaterMeshes(
   const cStrataTop = new THREE.Color(cfg.strataTopColor);
   const cStrataBot = new THREE.Color(cfg.strataBottomColor);
   const cStrataMix = new THREE.Color();
+  const cShoreSand = new THREE.Color(cfg.shoreSand ?? '#e6d2a8');
 
   // Top terrain vertices
   for (let iz = 0; iz <= N; iz++) {
@@ -275,6 +327,12 @@ function buildTerrainAndWaterMeshes(
       const slope = 1 - ny;
 
       cfg.topColorAt(x, z, y, slope, cTop);
+      if (cfg.shoreSand && cfg.waterLevel !== undefined) {
+        // Pale wet-sand band hugging the waterline, with a subtle damp edge.
+        const band = 1 - clamp01(Math.abs(y - cfg.waterLevel) / 0.16);
+        const wet = 1 - clamp01(Math.abs(y - cfg.waterLevel) / 0.05);
+        cTop.lerp(cShoreSand, band * 0.55).multiplyScalar(1 - wet * 0.14);
+      }
       pos.push(x, y, z);
       norm.push(nx, ny, nz);
       col.push(cTop.r, cTop.g, cTop.b);
@@ -392,8 +450,40 @@ function buildTerrainAndWaterMeshes(
     );
     waterMats.push(wTopMat, wWallMat);
 
+    // Cheap two-pass chamfer distance to the nearest dry grid cell. Feeds the
+    // shader a shore-distance so breakers run parallel to beaches and shallow
+    // water stays turquoise even where the basin is deep.
+    const INF = 1e6;
+    const shoreDist = new Float32Array((N + 1) * (N + 1)).fill(INF);
+    for (let iz = 0; iz <= N; iz++) {
+      for (let ix = 0; ix <= N; ix++) {
+        if (!wMask(xs[ix], zs[iz], hAt(ix, iz))) shoreDist[iz * (N + 1) + ix] = 0;
+      }
+    }
+    for (let iz = 0; iz <= N; iz++) {
+      for (let ix = 0; ix <= N; ix++) {
+        const k = iz * (N + 1) + ix;
+        let d = shoreDist[k];
+        if (ix > 0) d = Math.min(d, shoreDist[k - 1] + 1);
+        if (iz > 0) d = Math.min(d, shoreDist[k - (N + 1)] + 1);
+        if (ix > 0 && iz > 0) d = Math.min(d, shoreDist[k - N - 2] + 1.414);
+        shoreDist[k] = d;
+      }
+    }
+    for (let iz = N; iz >= 0; iz--) {
+      for (let ix = N; ix >= 0; ix--) {
+        const k = iz * (N + 1) + ix;
+        let d = shoreDist[k];
+        if (ix < N) d = Math.min(d, shoreDist[k + 1] + 1);
+        if (iz < N) d = Math.min(d, shoreDist[k + (N + 1)] + 1);
+        if (ix < N && iz < N) d = Math.min(d, shoreDist[k + N + 2] + 1.414);
+        shoreDist[k] = d;
+      }
+    }
+
     const wPos: number[] = [];
     const wDepth: number[] = [];
+    const wShore: number[] = [];
     const wIdx: number[] = [];
     const vertMap = new Int32Array((N + 1) * (N + 1)).fill(-1);
 
@@ -421,6 +511,7 @@ function buildTerrainAndWaterMeshes(
             vertMap[k] = wPos.length / 3;
             wPos.push(xs[cx], wl, zs[cz]);
             wDepth.push(wl - hAt(cx, cz));
+            wShore.push(Math.min(1, (shoreDist[k] * step) / 0.4));
           }
           cornerIds.push(vertMap[k]);
         }
@@ -439,6 +530,7 @@ function buildTerrainAndWaterMeshes(
       const wTopGeo = new THREE.BufferGeometry();
       wTopGeo.setAttribute('position', new THREE.Float32BufferAttribute(wPos, 3));
       wTopGeo.setAttribute('aDepth', new THREE.Float32BufferAttribute(wDepth, 1));
+      wTopGeo.setAttribute('aShore', new THREE.Float32BufferAttribute(wShore, 1));
       wTopGeo.setIndex(wIdx);
       wTopGeo.computeVertexNormals();
       localGeometries.push(wTopGeo);
@@ -521,9 +613,9 @@ function addInstancedTrees(
   if (trees.length === 0) return;
   const barkMat = new THREE.MeshStandardMaterial({ color: '#6b533e', roughness: 0.92 });
   const leafMat = windy(
-    new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.02 }),
+    new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.02, vertexColors: true }),
     'places_foliage',
-    { heightScale: 0.38, swayScale: 0.55, flutterScale: 0.85 }
+    { heightScale: 0.38, swayScale: 0.55, flutterScale: 0.85, foliageSss: true }
   );
   matsToDispose.push(barkMat, leafMat);
 
@@ -582,9 +674,9 @@ function addInstancedTrees(
           x: t.x + Math.cos(ang) * off,
           y: t.y + th + (k === 0 ? 0.015 : 0),
           z: t.z + Math.sin(ang) * off,
-          sx: t.scale * (k === 0 ? 1.35 : 0.95),
-          sy: t.scale * 0.34,
-          sz: t.scale * (k === 0 ? 1.28 : 0.92),
+          sx: t.scale * (k === 0 ? 1.75 : 1.15),
+          sy: t.scale * 0.20,
+          sz: t.scale * (k === 0 ? 1.65 : 1.10),
           rx: 0.08,
           ry: ang,
           color: t.color,
@@ -660,7 +752,7 @@ function addInstancedTrees(
       puffMesh.setMatrixAt(i, dummy.matrix);
       c.set(p.color);
       // Slight per-lobe sun variation
-      c.offsetHSL(0, 0, (hashSeed(i, 7) - 0.5) * 0.08);
+      c.offsetHSL((hashSeed(i, 11) - 0.5) * 0.025, (hashSeed(i, 13) - 0.5) * 0.12, (hashSeed(i, 7) - 0.5) * 0.16);
       puffMesh.setColorAt(i, c);
     }
     puffMesh.instanceMatrix.needsUpdate = true;
@@ -1170,9 +1262,13 @@ export function buildPlaceSlice(
   const emeraldWater: CutawayWaterOptions = {
     shallowColor: '#128a72',
     deepColor: '#053b31',
-    foamStrength: 0.14,
-    turbulence: 0.35,
-    clarity: 0.78,
+    foamStrength: 0.10,
+    turbulence: 0.20,
+    clarity: 0.86,
+    glint: 0.20,
+    caustic: 0.10,
+    fresnel: 0.28,
+    minAlpha: 0.72,
   };
 
   const name = spec.landmarkName;
@@ -1194,6 +1290,7 @@ export function buildPlaceSlice(
       heightAt,
       waterLevel: 0.84,
       waterPalette: oceanWater,
+      shoreSand: '#ead7ad',
       topColorAt: (x, z, h, slope, out) => {
         if (h < 0.86) out.set('#967f5c');
         else if (slope > 0.34) out.set('#bd965e');
@@ -1383,6 +1480,7 @@ export function buildPlaceSlice(
       heightAt,
       waterLevel: 0.82,
       waterPalette: oceanWater,
+      shoreSand: '#f0dcb0',
       topColorAt: (x, _z, h, _slope, out) => {
         if (x < -0.75) out.set('#e8cd8e');
         else if (h < 0.85) out.set('#e5d2a4');
@@ -1859,6 +1957,7 @@ export function buildPlaceSlice(
       heightAt,
       waterLevel: 0.78,
       waterPalette: oceanWater,
+      shoreSand: '#e8d5aa',
       topColorAt: (x, z, h, slope, out) => {
         if (h < 0.8) out.set('#d2c098');
         else if (h < 0.88 && x > -0.2 && z > 0.1) out.set('#e5d1a3');
@@ -1993,18 +2092,27 @@ export function buildPlaceSlice(
 
       // 3D Instanced Namaqualand Wildflower carpets (orange, marigold yellow, violet)
       const flowers: Array<{ x: number; y: number; z: number; scale: number; color: string }> = [];
-      for (let i = 0; i < 110; i++) {
+      for (let i = 0; i < 420; i++) {
         const fx = -1.36 + hashSeed(i, 61) * 2.72;
         const fz = -1.36 + hashSeed(i, 62) * 2.72;
         const patch = fbm2(fx * 2.8 + 1.2, fz * 2.8 + 4.6);
         const sub = noise2(fx * 6.5, fz * 6.5);
-        if (patch > 0.45) {
-          const col = patch > 0.62 ? '#ff6f17' : patch > 0.51 && sub > 0.44 ? '#f5d227' : '#a864d6';
+        if (patch > 0.40) {
+          const col =
+            patch > 0.66
+              ? '#ff6f17'
+              : patch > 0.55 && sub > 0.5
+                ? '#f5d227'
+                : patch > 0.48
+                  ? '#a864d6'
+                  : sub > 0.55
+                    ? '#f7f2dc'
+                    : '#e8562f';
           flowers.push({
             x: fx,
             y: hFn(fx, fz) + 0.015,
             z: fz,
-            scale: 0.036 + hashSeed(i, 63) * 0.032,
+            scale: 0.032 + hashSeed(i, 63) * 0.03,
             color: col,
           });
         }
@@ -2437,6 +2545,7 @@ export function buildPlaceSlice(
       heightAt,
       waterLevel: 0.82,
       waterPalette: oceanWater,
+      shoreSand: '#e4cfa4',
       topColorAt: (_x, _z, h, slope, out) => {
         if (h < 0.84) out.set('#968569');
         else if (h < 0.9 && slope < 0.22) out.set('#ebdcb8');
@@ -2840,6 +2949,7 @@ export function buildPlaceSlice(
       heightAt,
       waterLevel: 0.84,
       waterPalette: oceanWater,
+      shoreSand: '#f2dfb6',
       topColorAt: (x, _z, h, _slope, out) => {
         if (x < -0.42) out.set('#4c752b');
         else if (h < 0.86) out.set('#969d8a');
@@ -2878,6 +2988,23 @@ export function buildPlaceSlice(
           color: '#d4cab6',
         });
       });
+      for (let i = 0; i < 12; i++) {
+        const ang = i * 2.399;
+        const rad = 0.34 + (i % 5) * 0.17;
+        const rx = Math.cos(ang) * rad + 0.2;
+        const rz = Math.sin(ang) * rad + 0.1;
+        const rs = 0.11 + hashSeed(i, 91) * 0.2;
+        rocks.push({
+          x: rx,
+          y: hFn(rx, rz) + rs * 0.45,
+          z: rz,
+          sx: rs * 1.2,
+          sy: rs * 0.82,
+          sz: rs,
+          ry: hashSeed(i, 92) * Math.PI * 2,
+          color: i % 3 === 0 ? '#c4b9a3' : '#ddd1ba',
+        });
+      }
       addInstancedRocks(root, shared, rocks, localMaterials);
 
       addRoadRibbon(
@@ -2950,6 +3077,7 @@ export function buildPlaceSlice(
       heightAt,
       waterLevel: 0.78,
       waterPalette: oceanWater,
+      shoreSand: '#efdcb2',
       topColorAt: (x, z, h, _slope, out) => {
         if (h < 0.79) out.set('#6e7c75');
         else if (Math.hypot(x - 0.36, z + 0.25) < 0.34) out.set('#ede4cf');
@@ -3005,14 +3133,22 @@ export function buildPlaceSlice(
       root.add(ferry);
 
       const islandTrees: TreePlacement[] = [];
-      for (let i = 0; i < 16; i++) {
-        const ang = i * 0.39;
-        const rad = 0.28 + (i % 3) * 0.18;
+      for (let i = 0; i < 96; i++) {
+        const ang = i * 2.399;
+        const rad = 0.16 + Math.sqrt(i / 96) * 0.74 + (noise2(i * 3.7, i * 1.9) - 0.5) * 0.12;
         const tx = Math.cos(ang) * rad;
         const tz = Math.sin(ang) * rad;
         const ty = hFn(tx, tz);
-        if (ty > 0.82) {
-          islandTrees.push({ x: tx, y: ty, z: tz, scale: 0.045, color: '#456e28', style: 'bush' });
+        if (ty > 0.7 && fbm2(tx * 7, tz * 7) > 0.42) {
+          const shade = noise2(i * 5.1, i * 2.3);
+          islandTrees.push({
+            x: tx,
+            y: ty,
+            z: tz,
+            scale: 0.05 + shade * 0.025,
+            color: shade > 0.55 ? '#244d23' : shade > 0.3 ? '#2f6229' : '#3c7130',
+            style: 'bush',
+          });
         }
       }
       addInstancedTrees(root, shared, islandTrees, localMaterials);
@@ -3428,6 +3564,7 @@ export function buildPlaceSlice(
       heightAt,
       waterLevel: 0.8,
       waterPalette: oceanWater,
+      shoreSand: '#ead7ab',
       topColorAt: (_x, _z, h, slope, out) => {
         if (h < 0.82) out.set('#968b72');
         else if (slope > 0.38) out.set('#a88459');
@@ -3522,18 +3659,19 @@ export function buildPlaceSlice(
 
       // Dense coastal milkwood & fynbos trees across Eastern and Western Heads
       const headTrees: TreePlacement[] = [];
-      for (let i = 0; i < 42; i++) {
+      for (let i = 0; i < 96; i++) {
         const rx = -1.32 + hashSeed(i, 81) * 2.64;
         const rz = -1.25 + hashSeed(i, 82) * 2.45;
         const ry = hFn(rx, rz);
-        if (ry > 0.96) {
+        if (ry > 0.9 && fbm2(rx * 8, rz * 8) > 0.43) {
+          const shade = hashSeed(i, 83);
           headTrees.push({
             x: rx,
             y: ry,
             z: rz,
-            scale: 0.048 + hashSeed(i, 83) * 0.036,
-            color: i % 2 === 0 ? '#356623' : '#4a7a2e',
-            style: i % 5 === 0 ? 'oak' : 'bush',
+            scale: 0.05 + shade * 0.032,
+            color: shade > 0.6 ? '#245026' : shade > 0.3 ? '#2f6429' : '#3b7331',
+            style: i % 6 === 0 ? 'oak' : 'bush',
           });
         }
       }
@@ -3800,9 +3938,13 @@ export function buildPlaceSlice(
         {
           shallowColor: '#24e3ca',
           deepColor: '#056366',
-          foamStrength: 0.15,
-          turbulence: 0.2,
-          clarity: 0.92,
+          foamStrength: 0.12,
+          turbulence: 0.18,
+          clarity: 0.9,
+          glint: 0.25,
+          caustic: 0.45,
+          fresnel: 0.35,
+          minAlpha: 0.66,
         }
       );
       extraWaterMats.push(caveWaterTopMat, caveWaterWallMat);
@@ -3810,6 +3952,8 @@ export function buildPlaceSlice(
       cavePoolTopGeo.rotateX(-Math.PI * 0.5);
       const poolDepth = new Float32Array(cavePoolTopGeo.attributes.position.count).fill(0.24);
       cavePoolTopGeo.setAttribute('aDepth', new THREE.BufferAttribute(poolDepth, 1));
+      const poolShore = new Float32Array(cavePoolTopGeo.attributes.position.count).fill(0.7);
+      cavePoolTopGeo.setAttribute('aShore', new THREE.BufferAttribute(poolShore, 1));
       localGeometries.push(cavePoolTopGeo);
       const cavePoolTop = new THREE.Mesh(cavePoolTopGeo, caveWaterTopMat);
       cavePoolTop.position.set(0.6, 0.34, 0.6);

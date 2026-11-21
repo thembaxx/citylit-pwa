@@ -56,22 +56,29 @@ export const STRATA_COLOR_FRAGMENT = /* glsl */ `
     float horizCoord = abs(vPlaceNorm.x) > abs(vPlaceNorm.z) ? vPlacePos.z : vPlacePos.x;
 
     // Organic band warp: 2D along the exposed face + 3D for corner continuity.
-    float warp = (clFbm2(vec2(horizCoord * 1.4, vPlacePos.y * 1.6)) - 0.5) * 0.14
-               + (clFbm3(vec3(vPlacePos.xz * 0.5, vPlacePos.y * 0.7)) - 0.5) * 0.08;
+    float warp = (clFbm2(vec2(horizCoord * 1.4, vPlacePos.y * 1.6)) - 0.5) * 0.22
+               + (clFbm3(vec3(vPlacePos.xz * 0.5, vPlacePos.y * 0.7)) - 0.5) * 0.12;
     float layer = clamp(layerT + warp, 0.0, 1.0);
 
-    // Geological sequence: humus -> terracotta clay -> sandstone -> shale -> bedrock.
-    vec3 cTopsoil = mix(diffuseColor.rgb, vec3(0.15, 0.10, 0.062), 0.78);
-    vec3 cClay = mix(diffuseColor.rgb, vec3(0.52, 0.215, 0.095), 0.74);
-    vec3 cSandstone = mix(diffuseColor.rgb, vec3(0.66, 0.49, 0.29), 0.72);
-    vec3 cShale = mix(diffuseColor.rgb, vec3(0.20, 0.195, 0.185), 0.72);
-    vec3 cBedrock = mix(diffuseColor.rgb, vec3(0.115, 0.125, 0.145), 0.78);
+    // Bright geological sequence: humus -> iron-rich clay -> cream sandstone
+    // -> shale -> bedrock, with the per-landmark palette still showing through.
+    vec3 cTopsoil = mix(diffuseColor.rgb, vec3(0.24, 0.16, 0.10), 0.62);
+    vec3 cClay = mix(diffuseColor.rgb, vec3(0.62, 0.19, 0.075), 0.62);
+    vec3 cSandstone = mix(diffuseColor.rgb, vec3(0.86, 0.76, 0.58), 0.62);
+    vec3 cShale = mix(diffuseColor.rgb, vec3(0.32, 0.31, 0.30), 0.58);
+    vec3 cBedrock = mix(diffuseColor.rgb, vec3(0.17, 0.18, 0.19), 0.60);
 
     vec3 strataCol = cTopsoil;
-    strataCol = mix(strataCol, cClay, smoothstep(0.075, 0.155, layer));
-    strataCol = mix(strataCol, cSandstone, smoothstep(0.34, 0.42, layer));
-    strataCol = mix(strataCol, cShale, smoothstep(0.64, 0.70, layer));
-    strataCol = mix(strataCol, cBedrock, smoothstep(0.845, 0.905, layer));
+    strataCol = mix(strataCol, cClay, smoothstep(0.07, 0.15, layer));
+    strataCol = mix(strataCol, cSandstone, smoothstep(0.31, 0.40, layer));
+    strataCol = mix(strataCol, cShale, smoothstep(0.62, 0.70, layer));
+    strataCol = mix(strataCol, cBedrock, smoothstep(0.84, 0.91, layer));
+
+    // Thin chalk and iron seams break the broad bands into readable strata.
+    float chalk = 1.0 - smoothstep(0.0, 0.030, abs(layer - 0.28));
+    float ironSeam = 1.0 - smoothstep(0.0, 0.022, abs(layer - 0.55));
+    strataCol = mix(strataCol, vec3(0.92, 0.88, 0.78), chalk * 0.42);
+    strataCol = mix(strataCol, cClay * 1.05, ironSeam * 0.38);
 
     // Fine laminated sedimentary lines + mineral seams running through the section.
     float lamination = 0.5 + 0.5 * sin(
@@ -92,8 +99,10 @@ export const STRATA_COLOR_FRAGMENT = /* glsl */ `
     ));
     strataCol = mix(strataCol, mix(diffuseColor.rgb, vec3(0.78, 0.74, 0.64), 0.7), quartz * 0.22);
 
-    float pebbles = smoothstep(0.72, 0.94, clNoise2(vec2(horizCoord * 18.0, vPlacePos.y * 22.0)));
-    strataCol = mix(strataCol, strataCol * 0.74, pebbles * 0.26);
+    float pebbles = smoothstep(0.68, 0.92, clNoise2(vec2(horizCoord * 18.0, vPlacePos.y * 22.0)));
+    float pebbleLight = smoothstep(0.70, 0.95, clNoise2(vec2(horizCoord * 15.0 + 7.3, vPlacePos.y * 19.0 - 2.1)));
+    strataCol = mix(strataCol, strataCol * 0.68, pebbles * 0.30);
+    strataCol = mix(strataCol, strataCol * 1.18, pebbleLight * 0.20);
 
     float fissure = smoothstep(0.90, 0.995, clNoise2(
       vec2(horizCoord * 6.4 + vPlacePos.y * 1.4, vPlacePos.y * 2.5)
@@ -106,7 +115,7 @@ export const STRATA_COLOR_FRAGMENT = /* glsl */ `
 
     // Soft contact occlusion toward the base of the diorama block.
     float baseAO = smoothstep(-0.05, 0.55, vPlacePos.y);
-    strataCol *= 0.64 + 0.36 * baseAO;
+    strataCol *= 0.78 + 0.22 * baseAO;
     diffuseColor.rgb = strataCol;
   } else {
     // Terrain surface micro-relief: grass tufts, pebbles, damp soil.

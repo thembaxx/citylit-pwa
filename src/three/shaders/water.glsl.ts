@@ -2,15 +2,18 @@ import { PLACES_VOLUMETRIC_FOG_GLSL } from './volumetricFog.glsl';
 
 export const WATER_TOP_VERTEX = /* glsl */ `
 attribute float aDepth;
+attribute float aShore;
 uniform float uTime;
 uniform float uTurbulence;
 uniform float uWind;
 varying float vDepth;
+varying float vShore;
 varying vec3 vWorldPos;
 varying vec3 vLocalPos;
 
 void main() {
   vDepth = aDepth;
+  vShore = aShore;
   vec3 pos = position;
   float edgeMask = smoothstep(0.018, 0.22, max(0.0, aDepth));
   float chop = 0.85 + 0.35 * uWind;
@@ -32,6 +35,10 @@ uniform float uRain;
 uniform float uFoamStrength;
 uniform float uTurbulence;
 uniform float uClarity;
+uniform float uGlint;
+uniform float uCaustic;
+uniform float uFresnel;
+uniform float uMinAlpha;
 uniform vec3 uSky;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -39,6 +46,7 @@ uniform vec3 uShallow;
 uniform vec3 uDeep;
 
 varying float vDepth;
+varying float vShore;
 varying vec3 vWorldPos;
 varying vec3 vLocalPos;
 
@@ -79,9 +87,10 @@ void main() {
   vec3 V = normalize(cameraPosition - vWorldPos);
   vec3 L = normalize(uSunDir);
 
-  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.4);
+  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.4) * uFresnel;
   float shallowMix = smoothstep(0.004, 0.13, depth);
-  float deepMix = smoothstep(0.07, 0.42, depth);
+  // Distance from shore keeps wide shallows turquoise; only basin centres go deep.
+  float deepMix = max(smoothstep(0.07, 0.42, depth), smoothstep(0.15, 0.9, vShore) * 0.88);
   vec3 waterBody = mix(uShallow, uDeep, deepMix);
   waterBody *= 0.92 + 0.20 * shallowMix;
 
@@ -93,19 +102,19 @@ void main() {
   vec3 col = waterBody * (0.44 + 0.68 * nDotL * (0.42 + 0.58 * uSun));
   col += waterBody * uSky * 0.20;
   col = mix(col, uSky * 1.10, fresnel * 0.55);
-  col += uSunColor * (specBroad * 1.25 + specGlint * 2.4);
+  col += uSunColor * (specBroad * 1.25 + specGlint * 2.4) * uGlint;
 
   // Dual-layer sunlit underwater caustics in clear turquoise shallows.
   float c1 = wtNoise(q * 11.5 + vec2(uTime * 0.36, -uTime * 0.28));
   float c2 = wtNoise(q * 14.0 - vec2(uTime * 0.25, uTime * 0.34));
   float caustic = pow(c1 * c2 * 2.1, 2.2);
-  col += uShallow * caustic * 0.30 * (1.0 - smoothstep(0.04, 0.58, depth)) * (0.40 + 0.60 * uSun);
+  col += uShallow * caustic * 0.30 * (1.0 - smoothstep(0.04, 0.58, depth)) * (0.40 + 0.60 * uSun) * uCaustic;
 
   // Crisp rolling breaking surf, lacy reverse-shore froth and a bright waterline.
-  float surfPhase = fract(depth * 13.0 - uTime * 0.55 + wtNoise(q * 4.2) * 0.34);
-  float surfRing = smoothstep(0.70, 0.92, surfPhase) * (1.0 - smoothstep(0.02, 0.36, depth));
-  float shoreLip = (1.0 - smoothstep(0.0, 0.17, depth))
-                 * (0.58 + 0.42 * wtNoise(q * 17.0 + uTime * 0.72));
+  float surfPhase = fract(vShore * 5.2 - uTime * 0.42 + wtNoise(q * 4.2) * 0.30);
+  float surfRing = smoothstep(0.62, 0.86, surfPhase) * (1.0 - smoothstep(0.0, 0.62, vShore));
+  float shoreLip = (1.0 - smoothstep(0.0, 0.24, vShore))
+                 * (0.62 + 0.38 * wtNoise(q * 17.0 + uTime * 0.72));
   float lacyFoam = smoothstep(0.46, 0.72, h)
                  * smoothstep(0.56, 0.86, wtNoise(q * 15.5 - uTime * 0.55))
                  * 0.44 * uTurbulence;
@@ -115,17 +124,18 @@ void main() {
     (surfRing * 0.95 + shoreLip * 1.08 + lacyFoam + rainRipples) * uFoamStrength,
     0.0, 1.0
   );
-  foam = smoothstep(0.10, 0.82, foam);
-  vec3 foamColor = mix(vec3(0.96, 0.99, 1.0), uSunColor, 0.12);
+  float foamAA = max(fwidth(foam), 0.02);
+  foam = smoothstep(0.30 - foamAA, 0.66 + foamAA, foam);
+  vec3 foamColor = mix(vec3(0.98, 1.0, 1.0), uSunColor, 0.06);
   col = mix(col, foamColor * 1.06, foam);
 
   // Faint glassy meniscus right at the cutaway block perimeter.
   float rim = smoothstep(1.455, 1.49, max(abs(vLocalPos.x), abs(vLocalPos.z)));
   col += mix(uShallow, vec3(0.72, 0.96, 1.0), 0.55) * rim * 0.10;
 
-  float alpha = mix(0.32, 0.90,
+  float alpha = mix(uMinAlpha, 0.92,
     smoothstep(0.0, 0.38, depth) * (1.10 - uClarity * 0.26));
-  alpha = clamp(max(alpha, foam * 0.97), 0.26, 0.94);
+  alpha = clamp(max(alpha, foam * 0.97), uMinAlpha, 0.96);
 
   col = plApplyVolumetricFog(col, vWorldPos);
 
