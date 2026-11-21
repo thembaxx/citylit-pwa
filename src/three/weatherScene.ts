@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { liveWeatherVisual, WEATHER_CONDITIONS } from '../data/weatherData';
+import { monthToSeasonWeights, type SeasonWeights } from '../lib/season';
 import type { LiveWeatherSample, ThemeSetting, WeatherConditionKey } from '../types/citylit';
 import { getSoftTexture, SKY_NOISE_GLSL, WU } from './shaders';
 
@@ -48,22 +49,6 @@ export interface WeatherSceneController {
       onThunder?: () => void;
     }
   ) => void;
-}
-
-interface SeasonWeights {
-  warmth: number;
-  autumn: number;
-  spring: number;
-}
-
-function monthToSeasonWeights(month: number): SeasonWeights {
-  const clamped = Math.max(1, Math.min(12, month));
-  const angle = ((clamped - 1) / 12) * Math.PI * 2;
-  return {
-    warmth: (Math.cos(angle) + 1) * 0.5,
-    autumn: Math.max(0, Math.sin(angle)),
-    spring: Math.max(0, -Math.sin(angle)),
-  };
 }
 
 export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
@@ -832,7 +817,11 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const targetLit = Math.min(1, Math.max(0, (1 - day) * 1.4 + current.cover * 0.3));
     WU.sun.value += (targetSun - WU.sun.value) * lightLerp;
     WU.sunHor.value += (targetSunHor - WU.sunHor.value) * skyLerp;
+    // Drive the shared seasonal uniforms that morph foliage and terrain colours.
+    // These are already eased by `seasonCurrent` above, so the transition is smooth.
     WU.season.value = seasonCurrent.warmth;
+    WU.seasonAutumn.value = seasonCurrent.autumn;
+    WU.seasonSpring.value = seasonCurrent.spring;
     WU.sky.value.copy(skyMat.uniforms.top.value);
     WU.wind.value = current.wind;
     // Ease the sway direction toward the real wind bearing so direction changes aren't a snap.

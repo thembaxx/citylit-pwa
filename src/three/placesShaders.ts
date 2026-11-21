@@ -148,6 +148,9 @@ export function createStrataTerrainMaterial(
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uRN = WU.rain;
     shader.uniforms.uWT = WU.t;
+    shader.uniforms.uSeasonF = WU.season;
+    shader.uniforms.uSeasonAutumn = WU.seasonAutumn;
+    shader.uniforms.uSeasonSpring = WU.seasonSpring;
     bindVolumetricFogUniforms(shader.uniforms, env);
 
     shader.vertexShader = shader.vertexShader

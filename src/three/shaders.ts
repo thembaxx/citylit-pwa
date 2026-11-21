@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SEASON_MORPH_GLSL, SEASON_UNIFORMS_GLSL } from './shaders/season.glsl';
 
 export const WU = {
   t: { value: 0 },
@@ -7,6 +8,10 @@ export const WU = {
   sunHor: { value: 0 },
   /** Seasonal warmth (0 winter .. 1 peak summer). */
   season: { value: 0.5 },
+  /** Autumn/golden seasonal influence (peaks mid-autumn). */
+  seasonAutumn: { value: 0 },
+  /** Spring/fresh-growth seasonal influence (peaks mid-spring). */
+  seasonSpring: { value: 0 },
   sky: { value: new THREE.Color('#3b6490') },
   wind: { value: 1 },
   /** Unit vector pointing in the direction the wind is blowing towards (xz plane). */
@@ -19,12 +24,33 @@ export const WU = {
   dy: { value: 100 },
 };
 
-function applyDissolveToShader(shader: THREE.WebGLProgramParametersWithUniforms): void {
+function applyDissolveToShader(
+  shader: THREE.WebGLProgramParametersWithUniforms,
+  mat?: THREE.Material
+): void {
   if (
     !shader.vertexShader.includes('#include <begin_vertex>') ||
     !shader.fragmentShader.includes('#include <alphatest_fragment>')
   ) {
     return;
+  }
+
+  // Vertex-coloured ground/terrain surfaces pick up the seasonal colour morph.
+  // Materials with their own shaders (windy foliage, water, strata) call this
+  // without a material and bind the season uniforms themselves instead.
+  if ((mat as THREE.MeshStandardMaterial | undefined)?.vertexColors) {
+    shader.uniforms.uSeasonF = WU.season;
+    shader.uniforms.uSeasonAutumn = WU.seasonAutumn;
+    shader.uniforms.uSeasonSpring = WU.seasonSpring;
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>\n${SEASON_UNIFORMS_GLSL}\n${SEASON_MORPH_GLSL}`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>\n diffuseColor.rgb = clSeasonMorph(diffuseColor.rgb, 0.82);`
+      );
   }
 
   const hasPbrNormals =
@@ -96,7 +122,7 @@ export function installDissolveShader(): void {
     ) {
       return;
     }
-    applyDissolveToShader(shader);
+    applyDissolveToShader(shader, this);
   };
 }
 
@@ -686,7 +712,7 @@ export function windy(
   const trunkBase = (opts.trunkBase ?? 0.14).toFixed(3);
   const wakeScale = (opts.wakeScale ?? 0.16).toFixed(3);
   const foliageSss = opts.foliageSss ? 1 : 0;
-  const fullKey = `${cacheKey}_v3_${heightScale}_${swayScale}_${flutterScale}_${rainDroop}_${trunkBase}_${wakeScale}_${foliageSss}`;
+  const fullKey = `${cacheKey}_v4_${heightScale}_${swayScale}_${flutterScale}_${rainDroop}_${trunkBase}_${wakeScale}_${foliageSss}`;
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
@@ -695,8 +721,11 @@ export function windy(
     shader.uniforms.uRain = WU.rain;
     shader.uniforms.uCursor = WU.cursor;
     shader.uniforms.uCursorStr = WU.cursorStrength;
+    // Every foliage material morphs with the month, not just the SSS-lit ones.
+    shader.uniforms.uSeasonF = WU.season;
+    shader.uniforms.uSeasonAutumn = WU.seasonAutumn;
+    shader.uniforms.uSeasonSpring = WU.seasonSpring;
     if (foliageSss) {
-      shader.uniforms.uSeasonF = WU.season;
       shader.uniforms.uSunF = WU.sun;
       shader.uniforms.uHorF = WU.sunHor;
     }
@@ -747,13 +776,26 @@ transformed.z+=wakeDir.y*cWake;
 transformed.y-=rainFac*.042*k*${rainDroop};
 }`
       );
+
+    // Morph the foliage's own colour (material/vertex/instance tint) with the
+    // selected month before any lighting/SSS is applied in opaque_fragment.
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>\n${SEASON_UNIFORMS_GLSL}\n${SEASON_MORPH_GLSL}`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>\n diffuseColor.rgb = clSeasonMorph(diffuseColor.rgb, 1.0);`
+      );
+
     if (
       foliageSss &&
       shader.fragmentShader.includes('#include <opaque_fragment>') &&
       shader.fragmentShader.includes('#include <normal_fragment_begin>')
     ) {
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', '#include <common>\nuniform float uSeasonF,uSunF,uHorF;')
+        .replace('#include <common>', '#include <common>\nuniform float uSunF,uHorF;')
         .replace(
           '#include <opaque_fragment>',
           `{

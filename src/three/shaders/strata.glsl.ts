@@ -1,3 +1,4 @@
+import { SEASON_MORPH_GLSL, SEASON_UNIFORMS_GLSL } from './season.glsl';
 import { NOISE_GLSL } from './noise.glsl';
 
 /** Vertex declarations injected into MeshStandardMaterial's `<common>` block. */
@@ -31,6 +32,8 @@ varying float vTopY;
 varying vec3 vVolFogWPos;
 uniform float uRN;
 uniform float uWT;
+${SEASON_UNIFORMS_GLSL}
+${SEASON_MORPH_GLSL}
 ${NOISE_GLSL}
 `;
 
@@ -115,6 +118,9 @@ export const STRATA_COLOR_FRAGMENT = /* glsl */ `
     diffuseColor.rgb *= 0.88 + 0.20 * broad + (fine - 0.5) * 0.09 + (micro - 0.5) * 0.04;
     diffuseColor.rgb *= 1.0 - slopeHint * 0.16 * (1.0 - fine);
     diffuseColor.rgb *= 1.0 - uRN * 0.14;
+    // Seasonally morph the living ground cover (lush summer / dormant winter)
+    // while the exposed geological strata above stay unchanged.
+    diffuseColor.rgb = clSeasonMorph(diffuseColor.rgb, 0.7);
   }
 }
 `;
