@@ -44,11 +44,13 @@ function sampleEquirect(eq: Equirect, dir: THREE.Vector3): THREE.Color {
   return new THREE.Color(r, g, b);
 }
 
-function buildProbeData(eq: Equirect): Float32Array {
+function buildProbeData(eq: Equirect): Uint8Array {
   const gx = Math.max(1, Math.round(probeGrid.x));
   const gy = Math.max(1, Math.round(probeGrid.y));
   const gz = Math.max(1, Math.round(probeGrid.z));
-  const data = new Float32Array(gx * gy * gz * 4);
+  // Data3DTexture defaults to UnsignedByteType; matching that avoids a
+  // texSubImage3D type mismatch (and the float-linear filter requirement).
+  const data = new Uint8Array(gx * gy * gz * 4);
   const tmp = new THREE.Vector3();
   for (let z = 0; z < gz; z++) {
     for (let y = 0; y < gy; y++) {
@@ -68,10 +70,10 @@ function buildProbeData(eq: Equirect): Float32Array {
           ib += c.b * w;
         }
         const o = (z * gy * gx + y * gx + x) * 4;
-        data[o] = Math.min(1, ir);
-        data[o + 1] = Math.min(1, ig);
-        data[o + 2] = Math.min(1, ib);
-        data[o + 3] = 1;
+        data[o] = Math.round(Math.min(1, ir) * 255);
+        data[o + 1] = Math.round(Math.min(1, ig) * 255);
+        data[o + 2] = Math.round(Math.min(1, ib) * 255);
+        data[o + 3] = 255;
       }
     }
   }
@@ -81,6 +83,10 @@ function buildProbeData(eq: Equirect): Float32Array {
 export function installGI(): void {
   if (giTexture) return;
   giTexture = new THREE.Data3DTexture(null, probeGrid.x, probeGrid.y, probeGrid.z);
+  giTexture.format = THREE.RGBAFormat;
+  giTexture.type = THREE.UnsignedByteType;
+  giTexture.minFilter = THREE.LinearFilter;
+  giTexture.magFilter = THREE.LinearFilter;
   // Register the global material patch the same way installDissolveShader
   // does: append to the shared onBeforeCompile wrapper chain.
   const orig = THREE.Material.prototype.onBeforeCompile;

@@ -327,7 +327,8 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
-  const ctx = c.getContext('2d');
+  // Read back later when deriving normal/roughness maps; opt in up front.
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   if (ctx) {
     const img = ctx.createImageData(size, size);
     const data = img.data;
@@ -367,7 +368,8 @@ export function getPlasterBumpTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
-  const ctx = c.getContext('2d');
+  // Read back later when deriving normal/roughness maps; opt in up front.
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   if (ctx) {
     const img = ctx.createImageData(size, size);
     const data = img.data;
@@ -404,7 +406,8 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
-  const ctx = c.getContext('2d');
+  // Read back later when deriving normal/roughness maps; opt in up front.
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   if (ctx) {
     const img = ctx.createImageData(size, size);
     const data = img.data;
@@ -440,7 +443,8 @@ export function getCanvasBumpTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
-  const ctx = c.getContext('2d');
+  // Read back later when deriving normal/roughness maps; opt in up front.
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   if (ctx) {
     const img = ctx.createImageData(size, size);
     const data = img.data;
@@ -477,7 +481,8 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
-  const ctx = c.getContext('2d');
+  // Read back later when deriving normal/roughness maps; opt in up front.
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   if (ctx) {
     const img = ctx.createImageData(size, size);
     const data = img.data;
@@ -510,7 +515,8 @@ export function getWoodBumpTexture(): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
-  const ctx = c.getContext('2d');
+  // Read back later when deriving normal/roughness maps; opt in up front.
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   if (ctx) {
     const img = ctx.createImageData(size, size);
     const data = img.data;

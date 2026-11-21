@@ -309,7 +309,9 @@ export class CitylitEngine {
     this.renderer.toneMappingExposure = 1.08;
     if (!this.isSoftwareGl) {
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // PCFSoftShadowMap was removed in Three r187; PCFShadowMap is the
+      // supported equivalent and avoids a runtime fallback warning.
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
       this.renderer.shadowMap.autoUpdate = false;
     }
     // Anisotropy and procedural normal maps are set up before any landmark
