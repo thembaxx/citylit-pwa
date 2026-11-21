@@ -830,6 +830,9 @@ export function gariep(): THREE.Group {
   const cn = MStone('#ccc7bb', 0.82, 0.016);
   const wm = MCascade('#eaf6ff', 0.86);
   add(g, B(15.2, 0.2, 15.2), MStone('#887e5e', 0.96), 0, 0.1, 0);
+  // Impounded valley floor: gives the reservoir surface ground to rest on
+  // instead of a sheet of water hanging above the base slab.
+  add(g, B(10.6, 1.34, 5.4), MStone('#7a7051', 0.96), 0, 0.87, -3.2);
   add(g, CB(10, 0.1, 5.2, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 1.6, -3.2);
   add(g, CB(3.2, 0.06, 5, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 0.24, 3.4);
 
@@ -1755,6 +1758,8 @@ export function harties(): THREE.Group {
   const g = new THREE.Group();
   const cn = MStone('#ccc7bb', 0.82, 0.015);
   add(g, B(15.2, 0.2, 15.2), MStone('#828456', 0.95), 0, 0.1, 0);
+  // Impounded valley floor beneath the reservoir (same fix as gariep()).
+  add(g, B(10.6, 1.29, 5.6), MStone('#77764e', 0.95), 0, 0.845, -3.3);
   add(g, CB(10, 0.1, 5.4, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 1.55, -3.3);
   add(g, CB(4, 0.06, 5, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 0.24, 3.6);
   const wallMat = MStone('#cfc9bd', 0.82);

@@ -1,7 +1,7 @@
 # Graph Report - citylit-pwa  (2026-11-21)
 
 ## Corpus Check
-- 83 files · ~195,548 words
+- 83 files · ~195,601 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: .woff2 4, (none) 2, .css 2)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `6ea056b6`
+- Built from commit: `842507b2`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -83,12 +83,12 @@
   src/components/Compass.tsx → src/three/CitylitEngine.ts
 - `AudioVisualizerBarProps` --references--> `ThemeSetting`  [EXTRACTED]
   src/components/AudioVisualizerBar.tsx → src/types/citylit.ts
-- `App()` --calls--> `Compass()`  [EXTRACTED]
-  src/App.tsx → src/components/Compass.tsx
-- `App()` --calls--> `InfoDrawer()`  [EXTRACTED]
-  src/App.tsx → src/components/InfoDrawer.tsx
-- `App()` --calls--> `LandmarkCard()`  [EXTRACTED]
-  src/App.tsx → src/components/LandmarkCard.tsx
+- `groot()` --calls--> `capeDutchGableGeo()`  [EXTRACTED]
+  src/three/builders/landmarksB.ts → src/three/builders/primitives.ts
+- `AmbientAudioController` --references--> `AmbientSiteProfile`  [EXTRACTED]
+  src/audio/ambientAudio.ts → src/types/citylit.ts
+- `AmbientAudioController` --references--> `SpatialAudioSource`  [EXTRACTED]
+  src/audio/ambientAudio.ts → src/types/citylit.ts
 
 ## Import Cycles
 - None detected.
@@ -262,15 +262,15 @@ Nodes (16): OsmPlaceData, EngineCallbacks, createPlacesScene(), ExplorerInfo, HE
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `siteAtmosphere.ts`, `primitives.ts`, `weatherData.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `placesClouds.ts`, `dioramaKit.ts`, `CitylitEngine.ts`, `horizonScenery.ts`, `placesScene.ts`, `osmSlice.ts`, `shaders.ts`, `package.json`, `dependencies`, `windParticles.ts`, `.constructor`?**
-  _High betweenness centrality (0.138) - this node is a cross-community bridge._
+  _High betweenness centrality (0.102) - this node is a cross-community bridge._
 - **Should `WeatherWidget.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.10967741935483871 - nodes in this community are weakly interconnected._
 - **Why does `CitylitEngine` connect `CitylitEngine` to `contact-sheet.ts`, `siteAtmosphere.ts`, `MiniaturePass`, `weatherData.ts`, `MiniaturePass`, `App.tsx`, `placesSliceBuilders.ts`, `citylit.ts`, `CitylitEngine.ts`, `motion.ts`, `horizonScenery.ts`, `placesScene.ts`, `windParticles.ts`, `.isStudio`?**
-  _High betweenness centrality (0.081) - this node is a cross-community bridge._
+  _High betweenness centrality (0.101) - this node is a cross-community bridge._
 - **Should `primitives.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.05230496453900709 - nodes in this community are weakly interconnected._
 - **Why does `AmbientAudioController` connect `AmbientAudioController` to `ambientAudio.ts`, `LandmarkBiome`, `.updateSpatial`, `.update`?**
-  _High betweenness centrality (0.040) - this node is a cross-community bridge._
+  _High betweenness centrality (0.038) - this node is a cross-community bridge._
 - **Should `citylit.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.11956521739130435 - nodes in this community are weakly interconnected._
 - **Should `App.tsx` be split into smaller, more focused modules?**
