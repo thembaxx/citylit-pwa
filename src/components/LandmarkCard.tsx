@@ -25,7 +25,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, type Variants } from 'motion/react';
 import { LANDMARKS } from '../data/landmarks';
-import { animate, DURATION, EASE_SMOOTH_OUT, project, SPRING } from '../lib/motion';
+import { animate, DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
 import type { CameraPreset, HeritageRoute, LandmarkNote, NoteCategory } from '../types/citylit';
 
@@ -508,7 +508,7 @@ export function LandmarkCard({
                 <motion.button
                   key={label}
                   type="button"
-                  whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                   transition={SPRING.snappy}
                   onClick={onClick}
                   aria-label={label}
@@ -540,7 +540,7 @@ export function LandmarkCard({
           <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={onToggleDirection}
               aria-pressed={directionActive}
               aria-label={`Show direction toward ${nextLm.k}`}
@@ -556,7 +556,7 @@ export function LandmarkCard({
             </motion.button>
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={() => setNotesOpen((v) => !v)}
               aria-expanded={notesOpen}
               aria-label={
@@ -579,7 +579,7 @@ export function LandmarkCard({
             {onToggleCutaway && (
               <motion.button
                 type="button"
-                whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                 onClick={onToggleCutaway}
                 aria-pressed={cutawayActive}
                 aria-label="Inspect architectural cutaway layers"
@@ -909,7 +909,7 @@ export function LandmarkCard({
           <div className="flex items-center gap-2.5 mt-3 landscape:mt-2 [@media(max-height:700px)]:mt-2">
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={onOpenInfo}
               aria-label="Landmark historical and architectural details"
               className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 bg-white/[0.06] border border-white/15 text-[12px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer whitespace-nowrap shrink-0"
@@ -919,7 +919,7 @@ export function LandmarkCard({
             </motion.button>
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={onPrev}
               aria-label="Previous landmark"
               className={smallBtn}
@@ -939,7 +939,7 @@ export function LandmarkCard({
             </span>
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={onNext}
               aria-label="Next landmark"
               className={smallBtn}
@@ -948,7 +948,7 @@ export function LandmarkCard({
             </motion.button>
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={onToggleTour}
               aria-label={tourActive ? 'Pause auto tour' : 'Start auto tour'}
               title={tourActive ? 'Pause tour' : 'Auto tour'}

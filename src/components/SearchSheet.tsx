@@ -17,7 +17,7 @@ import {
 } from '../services/osmService';
 import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
-import { SPRING, revealItem, revealVariants, swapTransition } from '../lib/motion';
+import { PRESS_SCALE, SPRING, revealItem, revealVariants, swapTransition } from '../lib/motion';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { Sheet } from './ui/Sheet';
 
@@ -224,7 +224,7 @@ export function SearchSheet({
           <motion.button
             key={label}
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             transition={SPRING.snappy}
             onClick={onClick}
             aria-label={label}
@@ -287,7 +287,7 @@ export function SearchSheet({
                 {isInstallable && (
                   <motion.button
                     type="button"
-                    whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+                    whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                     onClick={handleInstallClick}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#e8b04a] text-[#1a1405] text-[12px] font-semibold cursor-pointer"
                   >
@@ -316,7 +316,7 @@ export function SearchSheet({
             <motion.button
               key={pv}
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={() => setProvince(pv)}
               aria-pressed={active}
               transition={SPRING.snappy}
@@ -404,7 +404,7 @@ export function SearchSheet({
                       )}
                       <motion.button
                         type="button"
-                        whileTap={reducedMotion ? undefined : { scale: 0.82 }}
+                        whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                         onClick={(e) => {
                           e.stopPropagation();
                           onToggleFavorite(i);

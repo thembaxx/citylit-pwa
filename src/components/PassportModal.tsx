@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
 import { HERITAGE_ROUTES, routeDistanceKm } from '../data/routes';
-import { SPRING, revealItem, revealVariants } from '../lib/motion';
+import { PRESS_SCALE, SPRING, revealItem, revealVariants } from '../lib/motion';
 import type { LandmarkNote, NoteCategory } from '../types/citylit';
 import { PillNavigation, type PillOption } from './ui/PillNavigation';
 import { SettleModal } from './ui/SettleModal';
@@ -238,7 +238,7 @@ export function PassportModal({
           </div>
           <motion.button
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             onClick={onClose}
             aria-label="Close passport"
             className="w-9 h-9 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] cursor-pointer"

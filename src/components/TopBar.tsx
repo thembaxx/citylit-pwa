@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import type { ComponentType } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { DURATION, EASE_SMOOTH_OUT, SPRING, swapTransition } from '../lib/motion';
+import { DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, swapTransition } from '../lib/motion';
 import type { ThemeSetting } from '../types/citylit';
 
 interface TopBarProps {
@@ -49,7 +49,7 @@ function IconButton({
   return (
     <motion.button
       type="button"
-      whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+      whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
       transition={SPRING.snappy}
       onClick={onClick}
       aria-label={label}
@@ -156,7 +156,7 @@ export function TopBar({
       {fullscreen && (
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           onClick={onToggleFullscreen}
           aria-label="Exit fullscreen"
           animate={{ opacity: idleInFullscreen ? 0 : 0.8 }}

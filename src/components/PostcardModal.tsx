@@ -1,6 +1,6 @@
 import { DownloadSimple, MapPin, ShareNetwork, X } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
-import { SPRING } from '../lib/motion';
+import { PRESS_SCALE, SPRING } from '../lib/motion';
 import type { LandmarkNote } from '../types/citylit';
 import { SettleModal } from './ui/SettleModal';
 
@@ -49,7 +49,7 @@ export function PostcardModal({
         <span className="font-serif-display italic text-[18px] text-[#f3efe6]">{landmarkName}</span>
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           onClick={onClose}
           aria-label="Close postcard"
           className="w-8 h-8 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] cursor-pointer"
@@ -144,7 +144,7 @@ export function PostcardModal({
           <motion.button
             key={label}
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.97 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             onClick={onClick}
             className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 rounded-full text-[13px] cursor-pointer ${
               accent

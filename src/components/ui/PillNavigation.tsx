@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { ambientAudio } from '../../audio/ambientAudio';
-import { SPRING } from '../../lib/motion';
+import { PRESS_SCALE, SPRING } from '../../lib/motion';
 
 /**
  * Pill Navigation, adapted from EasyUI — one shared indicator physically
@@ -50,7 +50,7 @@ export function PillNavigation<T extends string>({
               if (!active) ambientAudio.playUi('tab');
               onChange(option.value);
             }}
-            whileTap={reducedMotion ? undefined : { scale: 0.95 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             className={`relative flex items-center justify-center gap-1 rounded-lg font-medium transition-colors cursor-pointer ${
               compact ? 'min-h-7 px-2.5 text-[11px]' : 'min-h-8 px-3 text-[12px]'
             } ${active ? 'text-[#1a1405]' : 'text-[#a9a69e] hover:text-[#f3efe6]'}`}

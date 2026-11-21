@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { ambientAudio } from '../../audio/ambientAudio';
 import { useFocusTrap } from '../../lib/focusTrap';
-import { EASE_SMOOTH_OUT, SPRING, shouldDismiss } from '../../lib/motion';
+import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, shouldDismiss } from '../../lib/motion';
 
 /**
  * Draggable sheet, adapted from EasyUI's Sheet component.
@@ -131,14 +131,15 @@ export function Sheet({
               </div>
             )}
             {showClose && (
-              <button
+              <motion.button
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                 className="absolute right-3.5 top-3.5 z-10 grid size-9 place-items-center rounded-full bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer"
               >
                 <X size={17} />
-              </button>
+              </motion.button>
             )}
             {children}
           </motion.div>

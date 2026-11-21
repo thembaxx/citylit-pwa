@@ -15,7 +15,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
 import { getMonthCondition } from '../data/weatherData';
-import { DURATION, EASE_SMOOTH_OUT, SPRING } from '../lib/motion';
+import { DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, SPRING } from '../lib/motion';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from '../three/placesScene';
 import { PLACE_SLICE_SPECS } from '../three/placesSliceBuilders';
 import type { SavedCustomPlace, WeatherDisplayState } from '../types/citylit';
@@ -150,7 +150,7 @@ export function PlacesOverlay({
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto">
           <motion.button
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.92 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             transition={SPRING.snappy}
             onClick={onToggleSound}
             aria-label={soundOn ? 'Mute ambient sound' : 'Unmute ambient sound'}
@@ -166,7 +166,7 @@ export function PlacesOverlay({
 
           <motion.button
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.92 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             transition={SPRING.snappy}
             onClick={onResetView}
             aria-label="Reset camera view"
@@ -178,7 +178,7 @@ export function PlacesOverlay({
 
           <motion.button
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             transition={SPRING.snappy}
             onClick={onBackToLandmarks}
             aria-label="Back to landmarks"
@@ -191,7 +191,7 @@ export function PlacesOverlay({
 
           <motion.button
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             transition={SPRING.snappy}
             onClick={onSwitchToGlobe}
             aria-label="Switch to 3D South Africa globe"
@@ -204,7 +204,7 @@ export function PlacesOverlay({
 
           <motion.button
             type="button"
-            whileTap={reducedMotion ? undefined : { scale: 0.92 }}
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
             transition={SPRING.snappy}
             onClick={onClose}
             aria-label="Close Places archipelago"
@@ -344,7 +344,7 @@ export function PlacesOverlay({
               <div className="flex items-center gap-1.5">
                 <motion.button
                   type="button"
-                  whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                   onClick={() => onStepSlice(-1)}
                   aria-label="Previous slice"
                   className="w-8 h-8 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
@@ -356,7 +356,7 @@ export function PlacesOverlay({
                 </span>
                 <motion.button
                   type="button"
-                  whileTap={reducedMotion ? undefined : { scale: 0.88 }}
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                   onClick={() => onStepSlice(1)}
                   aria-label="Next slice"
                   className="w-8 h-8 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
@@ -367,7 +367,7 @@ export function PlacesOverlay({
 
               <motion.button
                 type="button"
-                whileTap={reducedMotion ? undefined : { scale: 0.95 }}
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                 transition={SPRING.snappy}
                 onClick={() => onOpenLandmark(selectedPlace.landmarkIndex)}
                 className="h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 bg-[#e8b04a] text-[#1a1405] text-[12px] font-semibold hover:bg-[#f2be5d] transition-colors cursor-pointer"

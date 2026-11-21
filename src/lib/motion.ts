@@ -8,6 +8,9 @@ import { animate, type PanInfo, type Transition, type Variants } from 'motion/re
 export const EASE_SMOOTH_OUT = [0.22, 1, 0.36, 1] as const;
 export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
 
+/** Subtle press feedback for interactive controls (0.95–0.98 band). */
+export const PRESS_SCALE = 0.96;
+
 export const DURATION = {
   stagger: 0.04,
   micro: 0.08,

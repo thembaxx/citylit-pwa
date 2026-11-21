@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useMotionValue } from 'motion/react';
 import { LANDMARKS } from '../data/landmarks';
 import { loadLandmarkMedia } from '../services/mediaService';
 import type { MediaItem } from '../types/citylit';
-import { animate, applyRubberBand, EASE_SMOOTH_OUT, project, SPRING } from '../lib/motion';
+import { animate, applyRubberBand, EASE_SMOOTH_OUT, PRESS_SCALE, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
 
 interface GalleryModalProps {
@@ -171,7 +171,7 @@ function GalleryDialog({
         </div>
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           onClick={onClose}
           aria-label="Close gallery"
           className="w-10 h-10 rounded-full grid place-items-center bg-[#181a22] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer shrink-0"
@@ -243,7 +243,7 @@ function GalleryDialog({
           <div className="flex items-center justify-center gap-3">
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={() => clampCur(cur - 1)}
               disabled={cur === 0}
               aria-label="Previous photo"
@@ -272,7 +272,7 @@ function GalleryDialog({
             </div>
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={() => clampCur(cur + 1)}
               disabled={cur === items.length - 1}
               aria-label="Next photo"
@@ -310,7 +310,7 @@ function GalleryDialog({
               <div className="flex items-center gap-2">
                 <motion.button
                   type="button"
-                  whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                   onClick={onShare}
                   aria-label="Share landmark"
                   className="w-10 h-10 rounded-full grid place-items-center bg-[#181a22] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] cursor-pointer"
@@ -319,7 +319,7 @@ function GalleryDialog({
                 </motion.button>
                 <motion.button
                   type="button"
-                  whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                   onClick={() => setViewerOpen(false)}
                   aria-label="Close fullscreen photo"
                   className="w-10 h-10 rounded-full grid place-items-center bg-[#181a22] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] cursor-pointer"
@@ -356,7 +356,7 @@ function GalleryDialog({
             <div className="flex items-center justify-between gap-3 max-w-2xl mx-auto w-full">
               <motion.button
                 type="button"
-                whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                 onClick={() => clampView(viewIndex - 1)}
                 disabled={viewIndex === 0}
                 aria-label="Previous image"
@@ -379,7 +379,7 @@ function GalleryDialog({
               </div>
               <motion.button
                 type="button"
-                whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                 onClick={() => clampView(viewIndex + 1)}
                 disabled={viewIndex === items.length - 1}
                 aria-label="Next image"

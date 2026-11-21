@@ -9,7 +9,7 @@ import {
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { EASE_SMOOTH_OUT, SPRING, revealItem, revealVariants } from '../lib/motion';
+import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, revealItem, revealVariants } from '../lib/motion';
 import { LANDMARK_DETAILS } from '../data/landmarkDetails';
 import { LANDMARKS } from '../data/landmarks';
 import { loadWikipediaSummary, type WikiSummary } from '../services/mediaService';
@@ -98,7 +98,7 @@ export function InfoDrawer({
         </div>
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.92 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           whileHover={{ borderColor: '#e8b04a', color: '#e8b04a' }}
           onClick={onClose}
           aria-label="Close info drawer"
@@ -118,7 +118,7 @@ export function InfoDrawer({
           <div className="flex items-center justify-between gap-2">
             <motion.button
               type="button"
-              whileTap={reducedMotion ? undefined : { scale: 0.96 }}
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
               onClick={onOpenGallery}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/15 text-[12px] text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer whitespace-nowrap"
             >

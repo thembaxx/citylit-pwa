@@ -13,6 +13,7 @@ import {
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { ambientAudio } from '../audio/ambientAudio';
+import { PRESS_SCALE } from '../lib/motion';
 import { detectNativeHost } from '../three/cinematic/nativeHost';
 import type {
   AmbientMixerPreset,
@@ -187,7 +188,7 @@ export function SettingsModal({
         <h2 className="font-serif-display italic text-[24px] text-[#f3efe6] m-0">Settings</h2>
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           onClick={onClose}
           aria-label="Close settings"
           className="w-9 h-9 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] cursor-pointer"
@@ -282,7 +283,7 @@ export function SettingsModal({
             {!isDefaultMixer && (
               <motion.button
                 type="button"
-                whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                 onClick={() => onUpdate({ mixer: { ...DEFAULT_MIXER } })}
                 aria-label="Reset ambient atmosphere levels"
                 className="inline-flex items-center gap-1 text-[11.5px] text-[#a9a69e] hover:text-[#e8b04a] transition-colors cursor-pointer shrink-0"

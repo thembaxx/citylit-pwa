@@ -21,7 +21,7 @@ import {
   type ExtremeWeatherWarningKind,
 } from '../data/weatherData';
 import type { ForecastSlot, WeatherDisplayState } from '../types/citylit';
-import { EASE_SMOOTH_OUT, SPRING, swapTransition } from '../lib/motion';
+import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, swapTransition } from '../lib/motion';
 import { useFinePointer } from '../hooks/useFinePointer';
 import { WeatherIcon } from './WeatherIcon';
 import { AnimatedNumber } from './ui/AnimatedNumber';
@@ -128,7 +128,7 @@ export function WeatherWidget({
       >
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.985 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           onClick={() => {
             ambientAudio.playUi(expanded ? 'collapse' : 'expand', { intensity: 0.7 });
             onToggleExpand();
@@ -318,7 +318,7 @@ export function WeatherWidget({
 
                   <motion.button
                     type="button"
-                    whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+                    whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
                     onClick={() => {
                       ambientAudio.playUi('toggle');
                       onToggleTimeLapse();
@@ -386,7 +386,7 @@ export function WeatherWidget({
 
       <motion.button
         type="button"
-        whileTap={reducedMotion ? undefined : { scale: 0.9 }}
+        whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
         transition={SPRING.snappy}
         onClick={onToggleGlobe}
         aria-label="Open 3D South Africa globe"

@@ -1,7 +1,7 @@
 import { ArrowLeft, Compass, MapTrifold, X } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
-import { SPRING } from '../lib/motion';
+import { PRESS_SCALE, SPRING } from '../lib/motion';
 
 interface GlobeOverlayProps {
   open: boolean;
@@ -37,7 +37,7 @@ export function GlobeOverlay({
       <div className="absolute right-4 top-[calc(14px+env(safe-area-inset-top,0px))] flex items-center gap-2 pointer-events-auto">
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           transition={SPRING.snappy}
           onClick={onBackToLandmarks}
           aria-label="Back to landmarks"
@@ -50,7 +50,7 @@ export function GlobeOverlay({
 
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.94 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           transition={SPRING.snappy}
           onClick={onOpenPlaces}
           aria-label="Open 3D Places diorama archipelago"
@@ -63,7 +63,7 @@ export function GlobeOverlay({
 
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.92 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           transition={SPRING.snappy}
           onClick={onResetView}
           aria-label="Reset globe view"
@@ -75,7 +75,7 @@ export function GlobeOverlay({
 
         <motion.button
           type="button"
-          whileTap={reducedMotion ? undefined : { scale: 0.92 }}
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
           transition={SPRING.snappy}
           onClick={onClose}
           aria-label="Close 3D globe"

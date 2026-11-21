@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from 'motion/react';
 import { ambientAudio } from '../audio/ambientAudio';
-import { DURATION, EASE_SMOOTH_OUT, SPRING, useSpringFor } from '../lib/motion';
+import { DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, useSpringFor } from '../lib/motion';
 import type { CitylitEngine } from '../three/CitylitEngine';
 import type { CompassState } from '../types/citylit';
 
@@ -85,22 +85,36 @@ export function Compass({
     setPulseState({ lastIdx: landmarkIndex, seq: pulseState.seq + 1 });
   }
   const [resetPulseSeq, setResetPulseSeq] = useState(0);
-  const [telemetry, setTelemetry] = useState<{
-    bearing: number;
-    tilt: number;
-    mode: CompassState['mode'];
-    nextBearing: number | null;
-  }>({
-    bearing: 0,
-    tilt: 22,
-    mode: 'diorama',
-    nextBearing: null,
-  });
+  // Live bearing/tilt are written straight to the DOM. Going through React
+  // state here re-rendered the whole compass ~20x/second while the readout was
+  // animating in on hover, which is what made the pointer-over motion stutter.
+  const [mode, setMode] = useState<CompassState['mode']>('diorama');
+  const [activeCardinal, setActiveCardinal] = useState<'N' | 'E' | 'S' | 'W' | null>(null);
+  const bearingTextRef = useRef<HTMLSpanElement>(null);
+  const cardinalTextRef = useRef<HTMLSpanElement>(null);
+  const tiltTextRef = useRef<HTMLSpanElement>(null);
+  const lastReadoutRef = useRef({ bearing: -1, tilt: Number.NaN, mode: '', active: '' });
 
   const showReadout = hovered || focused || dragging;
+  // One 100ms press cue for every compass control; dropped entirely on reduced motion.
+  const tapFeedback = reduce
+    ? {}
+    : {
+        whileTap: {
+          scale: PRESS_SCALE,
+          transition: { duration: 0.1, ease: EASE_SMOOTH_OUT },
+        },
+      };
   const showReadoutRef = useRef(showReadout);
   useEffect(() => {
     showReadoutRef.current = showReadout;
+    if (showReadout) {
+      // The readout's DOM nodes are new on every mount; force a fresh write.
+      lastReadoutRef.current.bearing = -1;
+      lastReadoutRef.current.tilt = Number.NaN;
+      lastReadoutRef.current.mode = '';
+      lastReadoutRef.current.active = '';
+    }
   }, [showReadout]);
 
   const dragSession = useRef<{
@@ -115,6 +129,7 @@ export function Compass({
   const heading = useMotionValue(0);
   const angle = useSpring(heading, useSpringFor(reduce, SPRING.snappy));
   const latestNextOffsetRef = useRef<number | null>(null);
+  const didInitNeedleRef = useRef(false);
 
   useEffect(() => {
     return angle.on('change', (deg) => {
@@ -146,7 +161,19 @@ export function Compass({
 
         const current = heading.get();
         const target = state.needleDeg + Math.round((current - state.needleDeg) / 360) * 360;
-        heading.set(target);
+        if (!didInitNeedleRef.current) {
+          // Land on the real bearing immediately; otherwise a 0° default would
+          // spring the needle through a whole turn on first paint.
+          didInitNeedleRef.current = true;
+          heading.jump(target);
+          angle.jump(target);
+          needleRef.current?.setAttribute(
+            'transform',
+            `rotate(${target.toFixed(1)} ${C} ${C})`
+          );
+        } else {
+          heading.set(target);
+        }
 
         const pip = nextBearingRef.current;
         if (pip && state.nextBearingDeg !== null) {
@@ -158,22 +185,41 @@ export function Compass({
         if (showReadoutRef.current && now - lastTelemetryPush >= 48) {
           lastTelemetryPush = now;
           const roundedBearing = ((Math.round(state.bearingDeg) % 360) + 360) % 360;
-          setTelemetry((prev) => {
-            if (
-              prev.bearing === roundedBearing &&
-              prev.tilt === state.tiltDeg &&
-              prev.mode === state.mode &&
-              prev.nextBearing === state.nextBearingDeg
-            ) {
-              return prev;
+          const last = lastReadoutRef.current;
+
+          if (last.bearing !== roundedBearing) {
+            last.bearing = roundedBearing;
+            const { padded, cardinal } = formatBearing(roundedBearing);
+            if (bearingTextRef.current) bearingTextRef.current.textContent = `${padded}°`;
+            if (cardinalTextRef.current) cardinalTextRef.current.textContent = cardinal;
+            dialRef.current?.setAttribute(
+              'aria-label',
+              `Reset camera to default landmark orientation. Current heading ${padded}° ${cardinal}. Drag bezel or use Left/Right arrows to orbit.`
+            );
+          }
+
+          if (last.tilt !== state.tiltDeg || last.mode !== state.mode) {
+            last.tilt = state.tiltDeg;
+            last.mode = state.mode;
+            if (tiltTextRef.current) {
+              tiltTextRef.current.textContent =
+                state.mode === 'globe' ? 'POLE' : `${state.tiltDeg}° TILT`;
             }
-            return {
-              bearing: roundedBearing,
-              tilt: state.tiltDeg,
-              mode: state.mode,
-              nextBearing: state.nextBearingDeg,
-            };
-          });
+            // Mode only changes between diorama/globe: a rare, cheap re-render.
+            setMode(state.mode);
+          }
+
+          const nextActive =
+            state.mode === 'globe'
+              ? null
+              : (CARDINAL_TARGETS.find(
+                  (c) => Math.abs(((roundedBearing - c.deg + 540) % 360) - 180) < 12
+                )?.label ?? null);
+          const nextActiveKey = nextActive ?? '';
+          if (last.active !== nextActiveKey) {
+            last.active = nextActiveKey;
+            setActiveCardinal(nextActive);
+          }
         }
       }
       raf = requestAnimationFrame(loop);
@@ -297,8 +343,6 @@ export function Compass({
 
   if (!visible) return null;
 
-  const { padded, cardinal } = formatBearing(telemetry.bearing);
-
   return (
     <div
       className={`compass${reduce ? ' compass--reduced' : ''}`}
@@ -310,9 +354,9 @@ export function Compass({
           <motion.span
             key={`lm-pulse-${pulseState.seq}`}
             aria-hidden="true"
-            initial={{ scale: 0.9, opacity: 0.78 }}
-            animate={{ scale: 1.5, opacity: 0 }}
-            transition={{ duration: 0.7, ease: EASE_SMOOTH_OUT }}
+            initial={{ scale: 0.92, opacity: 0.72 }}
+            animate={{ scale: 1.45, opacity: 0 }}
+            transition={{ duration: 0.45, ease: EASE_SMOOTH_OUT }}
             className="pointer-events-none absolute inset-0 rounded-full border border-[#e8b04a]/80"
           />
         )}
@@ -320,21 +364,22 @@ export function Compass({
           <motion.span
             key={`reset-pulse-${resetPulseSeq}`}
             aria-hidden="true"
-            initial={{ scale: 0.94, opacity: 0.65 }}
-            animate={{ scale: 1.38, opacity: 0 }}
-            transition={{ duration: 0.45, ease: EASE_SMOOTH_OUT }}
+            initial={{ scale: 0.94, opacity: 0.6 }}
+            animate={{ scale: 1.32, opacity: 0 }}
+            transition={{ duration: 0.32, ease: EASE_SMOOTH_OUT }}
             className="pointer-events-none absolute inset-0 rounded-full border border-white/70"
           />
         )}
         <motion.div
           ref={dialRef}
           key={`dial-settle-${pulseState.seq}`}
-          animate={reduce || pulseState.seq === 0 ? undefined : { scale: [1, 1.08, 1] }}
-          transition={{ duration: 0.44, ease: EASE_SMOOTH_OUT }}
+          {...tapFeedback}
+          animate={reduce || pulseState.seq === 0 ? undefined : { scale: [1, 1.06, 1] }}
+          transition={{ duration: 0.32, ease: EASE_SMOOTH_OUT }}
           className="compass__dial focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e8b04a]"
           role="button"
           tabIndex={0}
-          aria-label={`Reset camera to default landmark orientation. Current heading ${padded}° ${cardinal}. Drag bezel or use Left/Right arrows to orbit.`}
+          aria-label="Reset camera to default landmark orientation. Current heading 000° N. Drag bezel or use Left/Right arrows to orbit."
           data-dragging={dragging ? 'true' : undefined}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -435,7 +480,7 @@ export function Compass({
             {/* Next-landmark bearing marker on outer ring when Show Direction is active */}
             <g
               ref={nextBearingRef}
-              style={{ opacity: directionActive && telemetry.mode === 'diorama' ? 1 : 0 }}
+              style={{ opacity: directionActive && mode === 'diorama' ? 1 : 0 }}
               transform={`rotate(0 ${C} ${C})`}
             >
               <polygon points={`${C},3.5 ${C - 2.6},7.5 ${C + 2.6},7.5`} fill="#5cd6a9" />
@@ -469,18 +514,25 @@ export function Compass({
             animate={reduce ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, x: -6, scale: 0.96 }}
             transition={{ duration: DURATION.quick, ease: EASE_SMOOTH_OUT }}
+            style={{ transformOrigin: 'top left' }}
             className="bg-[#121319]/95 border border-white/15 rounded-xl px-2.5 py-2 shadow-xl flex flex-col gap-1.5 min-w-[122px]"
           >
             <div className="flex items-baseline justify-between gap-2">
               <span className="font-mono tabular-nums text-[12.5px] font-semibold text-[#f3efe6]">
-                {padded}° <span className="text-[#e8b04a]">{cardinal}</span>
+                <span ref={bearingTextRef}>000°</span>{' '}
+                <span className="text-[#e8b04a]" ref={cardinalTextRef}>
+                  N
+                </span>
               </span>
-              <span className="font-mono tabular-nums text-[10px] text-[#a9a69e]">
-                {telemetry.mode === 'globe' ? 'POLE' : `${telemetry.tilt}° TILT`}
+              <span
+                ref={tiltTextRef}
+                className="font-mono tabular-nums text-[10px] text-[#a9a69e]"
+              >
+                22° TILT
               </span>
             </div>
 
-            {telemetry.mode !== 'globe' ? (
+            {mode !== 'globe' ? (
               <div className="space-y-1">
                 <div
                   className="grid grid-cols-4 gap-1"
@@ -488,11 +540,12 @@ export function Compass({
                   aria-label="Snap camera heading"
                 >
                   {CARDINAL_TARGETS.map((c) => {
-                    const active = Math.abs(((telemetry.bearing - c.deg + 540) % 360) - 180) < 12;
+                    const active = activeCardinal === c.label;
                     return (
-                      <button
+                      <motion.button
                         key={c.label}
                         type="button"
+                        {...tapFeedback}
                         onClick={(ev) => {
                           ev.stopPropagation();
                           snapToHeading(c.deg);
@@ -504,12 +557,13 @@ export function Compass({
                         }`}
                       >
                         {c.label}
-                      </button>
+                      </motion.button>
                     );
                   })}
                 </div>
-                <button
+                <motion.button
                   type="button"
+                  {...tapFeedback}
                   onClick={(ev) => {
                     ev.stopPropagation();
                     resetCameraOrientation();
@@ -517,11 +571,12 @@ export function Compass({
                   className="w-full h-6 rounded-md text-[10.5px] font-medium bg-[#e8b04a]/12 border border-[#e8b04a]/45 text-[#e8b04a] hover:bg-[#e8b04a]/22 transition-colors cursor-pointer"
                 >
                   Reset Camera
-                </button>
+                </motion.button>
               </div>
             ) : (
-              <button
+              <motion.button
                 type="button"
+                {...tapFeedback}
                 onClick={(ev) => {
                   ev.stopPropagation();
                   resetCameraOrientation();
@@ -529,7 +584,7 @@ export function Compass({
                 className="h-6 px-2 rounded-md text-[10.5px] font-medium bg-white/[0.05] border border-white/12 text-[#f3efe6] hover:border-[#e8b04a]/70 hover:text-[#e8b04a] transition-colors cursor-pointer"
               >
                 Reset Globe View
-              </button>
+              </motion.button>
             )}
           </motion.div>
         )}
