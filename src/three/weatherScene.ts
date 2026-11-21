@@ -448,7 +448,10 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     current.wind += (target.wind - current.wind) * k;
     current.storm += (target.storm - current.storm) * k;
     current.night += (target.night - current.night) * k;
-    current.timeOfDay += (target.timeOfDay - current.timeOfDay) * k;
+    let dHour = target.timeOfDay - current.timeOfDay;
+    if (dHour > 12) dHour -= 24;
+    else if (dHour < -12) dHour += 24;
+    current.timeOfDay = (((current.timeOfDay + dHour * k) % 24) + 24) % 24;
 
     seasonCurrent.warmth += (seasonTarget.warmth - seasonCurrent.warmth) * sk;
     seasonCurrent.autumn += (seasonTarget.autumn - seasonCurrent.autumn) * sk;

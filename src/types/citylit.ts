@@ -9,6 +9,13 @@ export interface AmbientMixerSettings {
   traffic: number;
 }
 
+export interface AmbientMixerPreset {
+  id: string;
+  name: string;
+  mixer: AmbientMixerSettings;
+  builtIn?: boolean;
+}
+
 export interface CitylitSettings {
   quality: QualitySetting;
   volume: number;

@@ -1,17 +1,21 @@
 import {
   ArrowsCounterClockwise,
   Bird,
+  BookmarkSimple,
   Car,
+  Plus,
   SlidersHorizontal,
   SpeakerHigh,
   Waveform,
   Wind,
   X,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { ambientAudio } from '../audio/ambientAudio';
 import { detectNativeHost } from '../three/cinematic/nativeHost';
 import type {
+  AmbientMixerPreset,
   AmbientMixerSettings,
   CitylitSettings,
   MotionSetting,
@@ -37,6 +41,58 @@ const DEFAULT_MIXER: AmbientMixerSettings = {
   birds: 75,
   traffic: 40,
 };
+
+const PRESETS_STORAGE_KEY = 'cl-mp';
+
+const BUILTIN_MIXER_PRESETS: readonly AmbientMixerPreset[] = [
+  {
+    id: 'rainy-city',
+    name: 'Rainy City',
+    mixer: { wind: 65, birds: 15, traffic: 85 },
+    builtIn: true,
+  },
+  {
+    id: 'quiet-nature',
+    name: 'Quiet Nature',
+    mixer: { wind: 55, birds: 90, traffic: 0 },
+    builtIn: true,
+  },
+  {
+    id: 'coastal-gale',
+    name: 'Coastal Gale',
+    mixer: { wind: 100, birds: 45, traffic: 10 },
+    builtIn: true,
+  },
+];
+
+function readCustomPresets(): AmbientMixerPreset[] {
+  try {
+    const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is AmbientMixerPreset =>
+        Boolean(item) &&
+        typeof item === 'object' &&
+        typeof (item as AmbientMixerPreset).id === 'string' &&
+        typeof (item as AmbientMixerPreset).name === 'string' &&
+        typeof (item as AmbientMixerPreset).mixer?.wind === 'number' &&
+        typeof (item as AmbientMixerPreset).mixer?.birds === 'number' &&
+        typeof (item as AmbientMixerPreset).mixer?.traffic === 'number'
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeCustomPresets(presets: AmbientMixerPreset[]): void {
+  try {
+    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+  } catch {
+    // Ignore storage failures
+  }
+}
 
 const QUALITY_OPTIONS = [
   { value: 'auto' as const, label: 'Auto' },
@@ -74,6 +130,8 @@ export function SettingsModal({
   onRequestTilt,
   onClose,
 }: SettingsModalProps) {
+  const [customPresets, setCustomPresets] = useState<AmbientMixerPreset[]>(readCustomPresets);
+  const [presetName, setPresetName] = useState('');
   const mixer = settings.mixer ?? DEFAULT_MIXER;
   const nativeHost = detectNativeHost();
   const isDefaultMixer =
@@ -81,8 +139,46 @@ export function SettingsModal({
     mixer.birds === DEFAULT_MIXER.birds &&
     mixer.traffic === DEFAULT_MIXER.traffic;
 
+  const allPresets = [...BUILTIN_MIXER_PRESETS, ...customPresets];
+
   const updateMixerChannel = (channel: keyof AmbientMixerSettings, value: number) => {
     onUpdate({ mixer: { ...mixer, [channel]: value } });
+  };
+
+  const applyPreset = (preset: AmbientMixerPreset) => {
+    ambientAudio.playUi('toggle');
+    onUpdate({ mixer: { ...preset.mixer } });
+  };
+
+  const saveCurrentPreset = () => {
+    const trimmed = presetName.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    const existingIdx = customPresets.findIndex((p) => p.name.toLowerCase() === lower);
+    let next: AmbientMixerPreset[];
+    if (existingIdx >= 0) {
+      next = customPresets.map((p, idx) =>
+        idx === existingIdx ? { ...p, name: trimmed, mixer: { ...mixer } } : p
+      );
+    } else {
+      const created: AmbientMixerPreset = {
+        id: `custom-${Date.now()}`,
+        name: trimmed,
+        mixer: { ...mixer },
+      };
+      next = [...customPresets, created];
+    }
+    setCustomPresets(next);
+    writeCustomPresets(next);
+    setPresetName('');
+    ambientAudio.playUi('success', { intensity: 0.75 });
+  };
+
+  const deleteCustomPreset = (id: string) => {
+    const next = customPresets.filter((p) => p.id !== id);
+    setCustomPresets(next);
+    writeCustomPresets(next);
+    ambientAudio.playUi('tick');
   };
 
   return (
@@ -239,6 +335,80 @@ export function SettingsModal({
                 </div>
               );
             })}
+          </div>
+
+          <div className="pt-3 border-t border-white/8 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] tracking-[0.12em] uppercase text-[#a9a69e]">
+                <BookmarkSimple size={13} className="text-[#e8b04a]" />
+                Presets
+              </span>
+              <span className="text-[11px] text-[#a9a69e]/70">Tap to load</span>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              {allPresets.map((preset) => {
+                const isActive =
+                  preset.mixer.wind === mixer.wind &&
+                  preset.mixer.birds === mixer.birds &&
+                  preset.mixer.traffic === mixer.traffic;
+                return (
+                  <div
+                    key={preset.id}
+                    className={`inline-flex items-center rounded-full border text-[11.5px] transition-colors ${
+                      isActive
+                        ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
+                        : 'bg-white/[0.04] border-white/12 text-[#f3efe6] hover:border-[#e8b04a]/50'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      title={`Wind ${preset.mixer.wind}% · Birds ${preset.mixer.birds}% · Traffic ${preset.mixer.traffic}%`}
+                      className="px-2.5 py-1 cursor-pointer leading-none"
+                    >
+                      {preset.name}
+                    </button>
+                    {!preset.builtIn && (
+                      <button
+                        type="button"
+                        onClick={() => deleteCustomPreset(preset.id)}
+                        aria-label={`Remove preset ${preset.name}`}
+                        className="pr-2 pl-0.5 py-1 text-[#a9a69e] hover:text-[#f3efe6] cursor-pointer leading-none"
+                      >
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveCurrentPreset();
+              }}
+              className="flex items-center gap-2 pt-0.5"
+            >
+              <input
+                type="text"
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                placeholder="Name custom mix…"
+                maxLength={24}
+                aria-label="Custom sound preset name"
+                className="flex-1 min-w-0 h-8 px-3 rounded-xl bg-white/[0.05] border border-white/12 text-[12px] text-[#f3efe6] placeholder:text-[#a9a69e]/55 focus:outline-none focus:border-[#e8b04a]/70"
+              />
+              <button
+                type="submit"
+                disabled={!presetName.trim()}
+                className="h-8 px-3 rounded-xl inline-flex items-center gap-1 bg-[#e8b04a]/16 border border-[#e8b04a]/45 text-[11.5px] font-medium text-[#e8b04a] hover:bg-[#e8b04a]/25 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 transition-colors"
+              >
+                <Plus size={13} />
+                Save
+              </button>
+            </form>
           </div>
         </div>
 

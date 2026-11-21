@@ -3,6 +3,8 @@ import {
   CloudRain,
   GlobeHemisphereEast,
   Moon,
+  Pause,
+  Play,
   Sun,
   SunDim,
   SunHorizon,
@@ -31,11 +33,13 @@ interface WeatherWidgetProps {
   bestMonths: string;
   forecast: ForecastSlot[];
   activeTimeHour: number;
+  timeLapseActive: boolean;
   visible: boolean;
   globeOpen: boolean;
   reducedMotion?: boolean;
   onToggleExpand: () => void;
   onSelectTimePreset: (hour: number) => void;
+  onToggleTimeLapse: () => void;
   onChangeMonth: (month: number) => void;
   onTriggerRainbow: () => void;
   onToggleGlobe: () => void;
@@ -93,11 +97,13 @@ export function WeatherWidget({
   bestMonths,
   forecast,
   activeTimeHour,
+  timeLapseActive,
   visible,
   globeOpen,
   reducedMotion = false,
   onToggleExpand,
   onSelectTimePreset,
+  onToggleTimeLapse,
   onChangeMonth,
   onTriggerRainbow,
   onToggleGlobe,
@@ -180,10 +186,16 @@ export function WeatherWidget({
                   {weather.label}
                 </motion.span>
               </AnimatePresence>
-              {weather.live && (
-                <span className="shrink-0 px-1 py-px rounded text-[8px] font-semibold tracking-wider bg-[#e8b04a]/15 text-[#e8b04a]">
-                  LIVE
+              {timeLapseActive ? (
+                <span className="shrink-0 px-1.5 py-px rounded text-[8px] font-semibold tracking-wider bg-[#e8b04a]/22 text-[#e8b04a]">
+                  24H
                 </span>
+              ) : (
+                weather.live && (
+                  <span className="shrink-0 px-1 py-px rounded text-[8px] font-semibold tracking-wider bg-[#e8b04a]/15 text-[#e8b04a]">
+                    LIVE
+                  </span>
+                )
               )}
             </div>
             <AnimatePresence mode="wait" initial={false}>
@@ -277,29 +289,58 @@ export function WeatherWidget({
                   </div>
                 )}
 
-                <PillNavigation
-                  layoutId="weather-time-preset"
-                  reducedMotion={reducedMotion}
-                  className="w-full justify-between"
-                  compact
-                  value={(activePreset ?? 'noon') as PresetKey}
-                  onChange={(key) =>
-                    onSelectTimePreset(TIME_PRESETS.find((p) => p.value === key)!.hour)
-                  }
-                  options={TIME_PRESETS.map((preset) => {
-                    const Icon = preset.icon;
-                    return {
-                      value: preset.value,
-                      label: (
-                        <>
-                          <Icon size={13} />
-                          <span>{preset.label}</span>
-                        </>
-                      ),
-                      ariaLabel: `Set time to ${preset.label}`,
-                    };
-                  })}
-                />
+                <div className="space-y-2">
+                  <PillNavigation
+                    layoutId="weather-time-preset"
+                    reducedMotion={reducedMotion}
+                    className="w-full justify-between"
+                    compact
+                    value={(activePreset ?? 'noon') as PresetKey}
+                    onChange={(key) =>
+                      onSelectTimePreset(TIME_PRESETS.find((p) => p.value === key)!.hour)
+                    }
+                    options={TIME_PRESETS.map((preset) => {
+                      const Icon = preset.icon;
+                      return {
+                        value: preset.value,
+                        label: (
+                          <>
+                            <Icon size={13} />
+                            <span>{preset.label}</span>
+                          </>
+                        ),
+                        ariaLabel: `Set time to ${preset.label}`,
+                      };
+                    })}
+                  />
+
+                  <motion.button
+                    type="button"
+                    whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+                    onClick={() => {
+                      ambientAudio.playUi('toggle');
+                      onToggleTimeLapse();
+                    }}
+                    aria-pressed={timeLapseActive}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl border text-[11.5px] font-medium transition-colors cursor-pointer ${
+                      timeLapseActive
+                        ? 'bg-[#e8b04a]/16 border-[#e8b04a]/65 text-[#e8b04a]'
+                        : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/50 hover:text-[#e8b04a]'
+                    }`}
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      {timeLapseActive ? (
+                        <Pause size={13} weight="fill" />
+                      ) : (
+                        <Play size={13} weight="fill" />
+                      )}
+                      <span>Time Lapse</span>
+                    </span>
+                    <span className="text-[10.5px] font-mono opacity-80">
+                      {timeLapseActive ? 'Cycling 24h…' : '24h Day–Night'}
+                    </span>
+                  </motion.button>
+                </div>
 
                 <div>
                   <div className="flex items-center justify-between text-[11px] text-[#a9a69e] mb-1.5">

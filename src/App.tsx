@@ -140,6 +140,8 @@ export function App() {
   });
   /** True once the user has taken manual control of the time-of-day slider. */
   const [timeScrubbed, setTimeScrubbed] = useState(false);
+  const [timeLapseActive, setTimeLapseActive] = useState(false);
+  const timeHourRef = useRef(timeHour);
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
   /** Real hourly forecast, used instead of the climate estimate when available. */
   const [liveForecast, setLiveForecast] = useState<ForecastSlot[] | null>(null);
@@ -499,7 +501,7 @@ export function App() {
       applyState(cond.k, cond.temp, night, 'Climate');
     }
 
-    if (isNow && isOnline) {
+    if (isNow && isOnline && !timeLapseActive) {
       let cancelled = false;
       fetchLiveWeather(index)
         .then((live) => {
@@ -513,17 +515,44 @@ export function App() {
       };
     }
     return undefined;
-  }, [index, month, timeHour, isOnline]);
+  }, [index, month, timeHour, isOnline, timeLapseActive]);
+
+  useEffect(() => {
+    timeHourRef.current = timeHour;
+  }, [timeHour]);
+
+  // 24-hour atmospheric Time Lapse cycle
+  useEffect(() => {
+    if (!timeLapseActive || docHidden || globeOpen || placesOpen) return undefined;
+    let raf = 0;
+    let last = performance.now();
+    let lastUiSync = last;
+    let curHour = timeHourRef.current;
+
+    const step = (now: number) => {
+      const dt = Math.min(0.1, Math.max(0, (now - last) / 1000));
+      last = now;
+      curHour = (curHour + dt * 2.2) % 24;
+      engineRef.current?.setSunAltitudeFromSlider(curHour);
+      if (now - lastUiSync >= 140) {
+        lastUiSync = now;
+        setTimeHour(curHour);
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [timeLapseActive, docHidden, globeOpen, placesOpen]);
 
   // Keep the scene on SAST real time until the user takes manual control
   useEffect(() => {
-    if (timeScrubbed) return undefined;
+    if (timeScrubbed || timeLapseActive) return undefined;
     const timer = window.setInterval(() => {
       const { h, m } = getSASTParts();
       setTimeHour(h + m / 60);
     }, 60000);
     return () => window.clearInterval(timer);
-  }, [timeScrubbed]);
+  }, [timeScrubbed, timeLapseActive]);
 
   // Stamp Explorer Passport after lingering 3 seconds on a landmark
   useEffect(() => {
@@ -916,6 +945,7 @@ export function App() {
               value={timeHour}
               onChange={(e) => {
                 const val = Number(e.target.value);
+                setTimeLapseActive(false);
                 setTimeHour(val);
                 setTimeScrubbed(true);
                 engineRef.current?.setSunAltitudeFromSlider(val);
@@ -936,6 +966,7 @@ export function App() {
                 type="button"
                 onClick={() => {
                   const { h, m } = getSASTParts();
+                  setTimeLapseActive(false);
                   setTimeHour(h + m / 60);
                   setTimeScrubbed(false);
                 }}
@@ -955,14 +986,20 @@ export function App() {
           bestMonths={bestMonths}
           forecast={forecast}
           activeTimeHour={timeHour}
+          timeLapseActive={timeLapseActive}
           visible={!fullscreen}
           globeOpen={globeOpen || placesOpen}
           reducedMotion={reducedMotion}
           onToggleExpand={() => setWeatherExpanded((v) => !v)}
           onSelectTimePreset={(h) => {
+            setTimeLapseActive(false);
             setTimeHour(h);
             setTimeScrubbed(true);
             engineRef.current?.setSunAltitudeFromSlider(h);
+          }}
+          onToggleTimeLapse={() => {
+            setTimeScrubbed(true);
+            setTimeLapseActive((v) => !v);
           }}
           onChangeMonth={(m) => setMonth(m)}
           onTriggerRainbow={() => engineRef.current?.toggleRainRainbow()}
@@ -1219,6 +1256,7 @@ export function App() {
           onClose={() => setSearchOpen(false)}
           onSelectLandmark={(i) => selectLandmark(i)}
           onSelectTime={(h) => {
+            setTimeLapseActive(false);
             setTimeHour(h);
             setTimeScrubbed(true);
             engineRef.current?.setSunAltitudeFromSlider(h);
