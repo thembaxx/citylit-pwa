@@ -550,10 +550,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
         );
       // Warm the overcast fog: thick cloud bands give the ground layer a
       // subtle ochre cast instead of the flat gray of clear-sky fog.
-      s.fog.color.lerp(
-        overcastFogWarm,
-        Math.min(1, Math.max(0, current.cover - 0.4) * 1.2)
-      );
+      s.fog.color.lerp(overcastFogWarm, Math.min(1, Math.max(0, current.cover - 0.4) * 1.2));
     }
 
     starMat.opacity =
@@ -620,8 +617,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
 
     seasonFillTmp.copy(winterFillCol).lerp(summerFillCol, seasonCurrent.warmth);
     fillLight.color.copy(seasonFillTmp);
-    fillLight.intensity =
-      (1.35 + 0.12 * seasonCurrent.warmth) * day + 0.85 * (1 - day) + hor * 0.3;
+    fillLight.intensity = (1.35 + 0.12 * seasonCurrent.warmth) * day + 0.85 * (1 - day) + hor * 0.3;
 
     seasonHemiSkyTmp.copy(winterHemiSky).lerp(summerHemiSky, seasonCurrent.warmth);
     seasonHemiGroundTmp.copy(winterHemiGround).lerp(summerHemiGround, seasonCurrent.warmth);
@@ -656,6 +652,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     stormCurtain.visible = wStudio < 0.995 && current.storm > 0.03;
 
     WU.sun.value = day * (1 - current.cover * 0.65);
+    WU.sunHor.value = hor * (1 - wStudio);
+    WU.season.value = seasonCurrent.warmth;
     WU.sky.value.copy(skyTmp);
     WU.wind.value = current.wind;
     // Ease the sway direction toward the real wind bearing so direction changes aren't a snap.

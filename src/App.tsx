@@ -607,9 +607,34 @@ export function App() {
           return;
         }
       }
-      if (e.key === 'ArrowRight') selectLandmark(index + 1);
-      else if (e.key === 'ArrowLeft') selectLandmark(index - 1);
-      else if (e.key === '/') {
+      if (e.key === 'ArrowRight' || e.key === ']') selectLandmark(index + 1);
+      else if (e.key === 'ArrowLeft' || e.key === '[') selectLandmark(index - 1);
+      else if (e.key === ' ') {
+        if (
+          !globeOpen &&
+          !placesOpen &&
+          !settingsOpen &&
+          !passportOpen &&
+          !searchOpen &&
+          !postcardOpen &&
+          !infoOpen
+        ) {
+          e.preventDefault();
+          ambientAudio.playUi('toggle');
+          setTourActive((v) => !v);
+        }
+      } else if (e.key === 'r' || e.key === 'R' || e.key === '0') {
+        if (
+          !globeOpen &&
+          !placesOpen &&
+          !settingsOpen &&
+          !passportOpen &&
+          !searchOpen &&
+          !postcardOpen
+        ) {
+          engineRef.current?.frameCurrentLandmark();
+        }
+      } else if (e.key === '/') {
         e.preventDefault();
         setSearchOpen(true);
       } else if (e.key === 'Escape') {
@@ -790,25 +815,28 @@ export function App() {
     setPlacesOpen(true);
   }, [visited, activeProvince, index]);
 
-  const exploreCoordinates = useCallback(async (center: LatLon) => {
-    if (!engineRef.current) return;
-    setExploring(true);
-    setSearchOpen(false);
-    setInfoOpen(false);
-    setWeatherExpanded(false);
-    setTodOpen(false);
-    setGlobeOpen(false);
-    try {
-      const data = await loadOsmPlace(center);
-      const info = engineRef.current.openOsmPlace(data);
-      setSelectedPlace(info);
-      setPlacesOpen(true);
-      setUrlForCoordinates(center);
-      showToast(`Exploring ${formatCoordinates(center)}`);
-    } finally {
-      setExploring(false);
-    }
-  }, [showToast]);
+  const exploreCoordinates = useCallback(
+    async (center: LatLon) => {
+      if (!engineRef.current) return;
+      setExploring(true);
+      setSearchOpen(false);
+      setInfoOpen(false);
+      setWeatherExpanded(false);
+      setTodOpen(false);
+      setGlobeOpen(false);
+      try {
+        const data = await loadOsmPlace(center);
+        const info = engineRef.current.openOsmPlace(data);
+        setSelectedPlace(info);
+        setPlacesOpen(true);
+        setUrlForCoordinates(center);
+        showToast(`Exploring ${formatCoordinates(center)}`);
+      } finally {
+        setExploring(false);
+      }
+    },
+    [showToast]
+  );
 
   const closePlaces = useCallback(() => {
     if (!engineRef.current) return;
@@ -970,7 +998,7 @@ export function App() {
               settings.theme === 'dark' ? 'text-[#a9a69e]' : 'text-[#1c2330]/75'
             }`}
           >
-            Drag to orbit · Scroll to zoom · Tap pins for facts
+            Drag to orbit · Scroll to zoom · Space tour · R reframe · Tap pins
           </div>
         )}
 
@@ -1006,9 +1034,7 @@ export function App() {
             style={{ left: globeHover.x + 14, top: globeHover.y - 6 }}
             role="status"
           >
-            <span className="font-semibold text-[#e8b04a]">
-              {LANDMARKS[globeHover.index].k}
-            </span>
+            <span className="font-semibold text-[#e8b04a]">{LANDMARKS[globeHover.index].k}</span>
             <span className="block text-[11px] text-white/60">
               {LANDMARKS[globeHover.index].c}
               {visited.has(globeHover.index) ? ' · visited' : ''}

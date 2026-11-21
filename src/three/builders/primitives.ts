@@ -861,7 +861,10 @@ export function weatherVertexColors<T extends THREE.BufferGeometry>(
   const nrm = geo.attributes.normal;
   let colors = geo.attributes.color as THREE.BufferAttribute | undefined;
   if (!colors) {
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(new Float32Array(p.count * 3).fill(1), 3));
+    geo.setAttribute(
+      'color',
+      new THREE.Float32BufferAttribute(new Float32Array(p.count * 3).fill(1), 3)
+    );
     colors = geo.attributes.color as THREE.BufferAttribute;
   }
   const ao = opts.ao ?? 0.3;
@@ -1104,7 +1107,14 @@ function treeMaterial(): THREE.MeshStandardMaterial {
     treeMat = windy(
       new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.02 }),
       'wind_tree_vc',
-      { heightScale: 1.75, swayScale: 1.0, flutterScale: 1.05 }
+      {
+        heightScale: 1.75,
+        swayScale: 1.05,
+        flutterScale: 1.15,
+        trunkBase: 0.26,
+        wakeScale: 0.16,
+        foliageSss: true,
+      }
     );
     treeMat.userData.sharedResource = true;
   }
@@ -1215,62 +1225,92 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
   const rs = (i: number) => R(variant * 97 + i * 13 + k * 211);
 
   if (k === 3) {
-    const trunkMat = '#6e553e';
-    for (let i = 0; i < 6; i++) {
+    // Coastal/tropical palm: ringed curved bole, coconut cluster & 2-tier feathered fronds.
+    for (let i = 0; i < 7; i++) {
+      const lean = Math.sin(i * 0.23 + variant * 0.22) * 0.09;
       parts.push({
-        g: new THREE.CylinderGeometry(0.045 - i * 0.004, 0.055 - i * 0.004, 0.24, 7),
-        c: trunkMat,
-        p: [Math.sin(i * 0.25 + variant * 0.2) * 0.08, 0.12 + i * 0.2, 0],
-        r: [0, 0, -0.06 * i],
+        g: new THREE.CylinderGeometry(0.044 - i * 0.0036, 0.056 - i * 0.0036, 0.21, 7),
+        c: i % 2 === 0 ? '#6f563e' : '#5e4732',
+        p: [lean, 0.1 + i * 0.18, 0],
+        r: [0, 0, -0.055 * i],
       });
     }
-    const crownX = 0.22 + (variant - 1) * 0.05;
-    for (let i = 0; i < 8; i++) {
+    const crownX = 0.23 + (variant - 1) * 0.045;
+    for (let i = 0; i < 3; i++) {
+      const ca = (i * Math.PI * 2) / 3 + variant * 0.4;
       parts.push({
-        g: new THREE.ConeGeometry(0.13 + rs(i) * 0.03, 0.82 + rs(i + 2) * 0.2, 4),
-        c: i % 3 === 0 ? '#4f9146' : '#3c7b3b',
-        p: [crownX, 1.28, 0],
-        r: [0, (i * Math.PI * 2) / 8, -0.35 - (i % 2) * 0.2 + variant * 0.04],
-        s: [1, 1, 0.25],
+        g: new THREE.SphereGeometry(0.045, 6, 5),
+        c: '#4c341f',
+        p: [crownX + Math.cos(ca) * 0.055, 1.24, Math.sin(ca) * 0.055],
+      });
+    }
+    // Outer sweeping fronds
+    for (let i = 0; i < 6; i++) {
+      const yaw = (i * Math.PI * 2) / 6 + variant * 0.35;
+      parts.push({
+        g: new THREE.ConeGeometry(0.135 + rs(i) * 0.025, 0.88 + rs(i + 2) * 0.16, 4),
+        c: i % 2 === 0 ? '#4e9146' : '#3a793a',
+        p: [crownX, 1.29, 0],
+        r: [0, yaw, -0.56 - rs(i + 4) * 0.16],
+        s: [1, 1, 0.22],
+      });
+    }
+    // Inner arched crown fronds
+    for (let i = 0; i < 4; i++) {
+      const yaw = (i * Math.PI * 2) / 4 + 0.4 + variant * 0.35;
+      parts.push({
+        g: new THREE.ConeGeometry(0.11, 0.68 + rs(i + 9) * 0.12, 4),
+        c: '#5da14f',
+        p: [crownX, 1.33, 0],
+        r: [0, yaw, -0.22 - rs(i + 12) * 0.1],
+        s: [1, 1, 0.22],
       });
     }
     return mergeTreeParts(parts);
   }
 
   if (k === 4) {
+    // Layered mountain conifer with root flare & staggered boughs.
     parts.push({
-      g: new THREE.CylinderGeometry(0.035, 0.075, 0.95, 8),
+      g: new THREE.CylinderGeometry(0.034, 0.082, 0.96, 8),
       c: '#4e3826',
-      p: [0, 0.47, 0],
+      p: [0, 0.48, 0],
     });
-    const pineCols = ['#2a5630', '#36693a', '#447943'];
-    for (let i = 0; i < 5; i++) {
-      const rB = 0.45 - i * 0.068 + (variant - 1) * 0.03;
+    const pineCols = ['#27522d', '#346838', '#427842'];
+    for (let i = 0; i < 6; i++) {
+      const rB = 0.47 - i * 0.064 + (variant - 1) * 0.025;
       parts.push({
-        g: new THREE.CylinderGeometry(rB * 0.22, rB, 0.34 + rs(i) * 0.08, 9),
+        g: new THREE.CylinderGeometry(rB * 0.18, rB, 0.32 + rs(i) * 0.07, 9),
         c: pineCols[i % 3],
-        p: [0, 0.82 + i * 0.22, 0],
-        r: [0, i * 0.5 + variant * 0.3, 0],
+        p: [(rs(i + 14) - 0.5) * 0.03, 0.78 + i * 0.2, (rs(i + 19) - 0.5) * 0.03],
+        r: [(rs(i + 2) - 0.5) * 0.06, i * 0.55 + variant * 0.3, (rs(i + 5) - 0.5) * 0.06],
       });
     }
     return mergeTreeParts(parts);
   }
 
   const trunkCol = k === 2 ? '#4d3624' : '#4a3a2a';
-  // Taller, slightly thicker trunk and longer branches peek out between the
-  // lowered canopy lobes instead of vanishing completely inside them.
+  // Root flare + taller trunk + forked structural boughs peek beneath canopy lobes.
   parts.push({
-    g: new THREE.CylinderGeometry(0.05, 0.105, 1.04, 8),
+    g: new THREE.CylinderGeometry(0.088, 0.135, 0.18, 7),
+    c: trunkCol,
+    p: [0, 0.09, 0],
+  });
+  parts.push({
+    g: new THREE.CylinderGeometry(0.048, 0.096, 1.04, 8),
     c: trunkCol,
     p: [0, 0.52, 0],
   });
-  for (let i = 0; i < 4; i++) {
-    const a = i * 1.7 + rs(i) * 0.5;
+  const limbCount = k === 2 ? 6 : 4;
+  for (let i = 0; i < limbCount; i++) {
+    const a = (i * Math.PI * 2) / limbCount + rs(i) * 0.45;
+    const reach = k === 2 ? 0.21 : 0.16;
+    const tilt = k === 2 ? 1.04 : 0.74;
     parts.push({
-      g: new THREE.CylinderGeometry(0.016, 0.038, 0.62, 6),
+      g: new THREE.CylinderGeometry(0.014, 0.036, k === 2 ? 0.68 : 0.62, 6),
       c: trunkCol,
-      p: [Math.cos(a) * 0.16, 0.9, Math.sin(a) * 0.16],
-      r: [-Math.sin(a) * (k === 2 ? 0.96 : 0.74), 0, -Math.cos(a) * (k === 2 ? 0.96 : 0.74)],
+      p: [Math.cos(a) * reach, k === 2 ? 0.94 : 0.9, Math.sin(a) * reach],
+      r: [-Math.sin(a) * tilt, 0, -Math.cos(a) * tilt],
     });
   }
   const palettes: Record<number, readonly [string, string, string]> = {
@@ -1279,19 +1319,19 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
     2: ['#7e8d3b', '#98a64a', '#5f6e2d'],
   };
   const cs = palettes[k] ?? palettes[1];
-  const baseY = k === 2 ? 1.02 : 0.98;
+  const baseY = k === 2 ? 1.05 : 0.98;
   const count = 3 + (variant === 1 ? 1 : 0);
   for (let i = 0; i < count; i++) {
     const r = 0.29 + rs(i + 7) * 0.09 + (variant === 2 ? 0.025 : 0);
-    const q = k === 2 ? 0.34 : 0.27 + (i % 2) * 0.06;
+    const q = k === 2 ? 0.36 : 0.27 + (i % 2) * 0.06;
     const px = Math.cos(i * 2.39 + variant * 0.4) * q;
     const pz = Math.sin(i * 2.39 + variant * 0.4) * q;
-    const py = rs(i + 3) * (k === 2 ? 0.12 : 0.2) + (i === count - 1 ? 0.12 : 0);
+    const py = rs(i + 3) * (k === 2 ? 0.1 : 0.2) + (i === count - 1 ? 0.12 : 0);
     parts.push({
       g: crownGeo(r, i + variant * 11 + k * 5),
       c: cs[i % 3],
       p: [px, baseY + py, pz],
-      s: k === 2 ? [1.6, 0.42, 1.6] : [1, 0.94, 1],
+      s: k === 2 ? [1.72, 0.36, 1.72] : [1, 0.94, 1],
       r: [0, rs(i + 5) * 2, 0],
     });
   }
@@ -1301,8 +1341,8 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
     parts.push({
       g: crownGeo(0.13 + rs(i + 44) * 0.06, i + variant * 5 + k * 9),
       c: cs[(i + 1) % 3],
-      p: [Math.cos(ang) * 0.35, baseY + 0.14 + rs(i + 48) * 0.26, Math.sin(ang) * 0.35],
-      s: [1, 0.8, 1],
+      p: [Math.cos(ang) * 0.36, baseY + 0.14 + rs(i + 48) * 0.24, Math.sin(ang) * 0.36],
+      s: k === 2 ? [1.3, 0.55, 1.3] : [1, 0.8, 1],
     });
   }
   return mergeTreeParts(parts);
@@ -1817,14 +1857,20 @@ export function birds(g: THREE.Object3D, count: number, r: number, y: number): (
     return b;
   });
   return (t: number) => {
-    bs.forEach((b, i) => {
-      const a = t * 0.25 + (i * 6.28) / count;
-      b.position.set(r * Math.cos(a), y + Math.sin(t * 0.7 + i) * 0.3, r * Math.sin(a));
-      b.rotation.y = -a;
-      b.children.forEach((w) => {
-        w.rotation.z = (w.userData.s as number) * Math.sin(t * 9 + i) * 0.6;
-      });
-    });
+    for (let i = 0; i < bs.length; i++) {
+      const b = bs[i];
+      const a = t * 0.25 + (i * 6.2832) / count;
+      const climb = Math.sin(t * 0.7 + i);
+      const glideEnv = Math.max(0.16, 0.56 + 0.56 * Math.sin(t * 0.52 + i * 1.9));
+      const flap = Math.sin(t * 9.2 + i * 1.7) * 0.62 * glideEnv;
+      b.position.set(r * Math.cos(a), y + climb * 0.32, r * Math.sin(a));
+      b.rotation.set(-Math.cos(t * 0.7 + i) * 0.14, -a, -0.24 - Math.cos(t * 0.8 + i) * 0.08);
+      for (let c = 0; c < b.children.length; c++) {
+        const w = b.children[c];
+        const s = w.userData.s as number;
+        if (s) w.rotation.z = s * flap;
+      }
+    }
   };
 }
 

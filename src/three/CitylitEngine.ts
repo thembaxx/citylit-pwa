@@ -42,7 +42,14 @@ import {
   type MiniaturePass,
   type MiniatureTuning,
 } from './postfx';
-import { configureTextureQuality, getSoftTexture, installDissolveShader, WU } from './shaders';
+import {
+  configureTextureQuality,
+  getSoftTexture,
+  grassWindy,
+  installDissolveShader,
+  windy,
+  WU,
+} from './shaders';
 import {
   configureDioramaShadow,
   createBounceLight,
@@ -198,6 +205,16 @@ export class CitylitEngine {
   private camStart = new THREE.Vector3();
   private camTargetPos = new THREE.Vector3();
   private camGoalT = 1;
+  private targetStart = new THREE.Vector3();
+  private targetEnd = new THREE.Vector3();
+  private targetGoalActive = false;
+  private hasCustomFocus = false;
+  private readonly factFocusDir = new THREE.Vector3();
+  private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.35);
+  private readonly cursorWorld = new THREE.Vector3();
+  private cursorStrengthTarget = 0;
+  private lastInteractAt = 0;
+  private lastRenderAt = 0;
   private tapDown = { x: 0, y: 0, t: 0 };
   private lastPlaceTap = { sliceIndex: -1, t: 0 };
   private lastGlobeTap = 0;
@@ -395,19 +412,13 @@ export class CitylitEngine {
 
     // Square plinth — the house style is a cut slab, not a circular stand.
     this.plinthTopMat = new THREE.MeshStandardMaterial({ color: '#1a1c24', roughness: 0.88 });
-    const plinthTop = new THREE.Mesh(
-      new THREE.BoxGeometry(17.4, 0.5, 17.4),
-      this.plinthTopMat
-    );
+    const plinthTop = new THREE.Mesh(new THREE.BoxGeometry(17.4, 0.5, 17.4), this.plinthTopMat);
     plinthTop.position.y = -0.25;
     plinthTop.receiveShadow = true;
     this.plinthGroup.add(plinthTop);
 
     this.plinthBaseMat = new THREE.MeshStandardMaterial({ color: '#111218', roughness: 0.9 });
-    const plinthBase = new THREE.Mesh(
-      new THREE.BoxGeometry(18.6, 0.2, 18.6),
-      this.plinthBaseMat
-    );
+    const plinthBase = new THREE.Mesh(new THREE.BoxGeometry(18.6, 0.2, 18.6), this.plinthBaseMat);
     plinthBase.position.y = -0.6;
     this.plinthGroup.add(plinthBase);
 
@@ -770,6 +781,11 @@ export class CitylitEngine {
     this.heroRoot.add(this.currentGroup);
     this.rebuildMarkers(index);
     this.dissolvePhase = 0;
+    this.camGoal = null;
+    this.targetGoalActive = false;
+    this.hasCustomFocus = false;
+    this.cursorStrengthTarget = 0;
+    this.lastInteractAt = this.elapsed;
     WU.dy.value = 100;
     this.dustPoints.visible = false;
     // Reframes for the active theme (Studio keeps its fixed isometric shot).
@@ -818,6 +834,7 @@ export class CitylitEngine {
             : this.isSoftwareGl
               ? 2
               : 0;
+    this.lastInteractAt = this.elapsed;
     this.setQualityIndex(idx);
   }
 
@@ -1001,6 +1018,7 @@ export class CitylitEngine {
     const wasStudio = this.isStudio();
     const themeChanged = this.theme !== theme;
     this.theme = theme;
+    this.lastInteractAt = this.elapsed;
     this.weather.setTheme(theme, immediate);
     this.updatePlinthVisibility();
     this.applyPostGrade();
@@ -1094,25 +1112,30 @@ export class CitylitEngine {
   }
 
   setWeather(condition: WeatherConditionKey, night: boolean, timeOfDay?: number): void {
+    this.lastInteractAt = this.elapsed;
     this.weather.applyCondition(condition, night, timeOfDay);
   }
 
   /** Apply a real observation: cloud, rain, fog, wind and storm flow into the scene. */
   setLiveWeather(sample: LiveWeatherSample, timeOfDay: number): void {
+    this.lastInteractAt = this.elapsed;
     this.weather.applyLiveSample(sample, timeOfDay);
   }
 
   setSeasonMonth(month: number, immediate = false): void {
+    this.lastInteractAt = this.elapsed;
     this.weather.setSeasonMonth(month, immediate);
     ambientAudio.setSeasonMonth(month, immediate);
   }
 
   setSunAltitudeFromSlider(val: number): void {
+    this.lastInteractAt = this.elapsed;
     this.weather.target.timeOfDay = val;
     this.weather.target.night = val < 6 || val >= 19 ? 1 : 0;
   }
 
   toggleRainRainbow(): void {
+    this.lastInteractAt = this.elapsed;
     if (this.weather.target.rain > 0) {
       this.weather.target.rain = 0;
       this.weather.target.cover = 0.25;
@@ -1121,6 +1144,9 @@ export class CitylitEngine {
   }
 
   openGlobe(visited: Set<number>): void {
+    this.cursorStrengthTarget = 0;
+    WU.cursorStrength.value = 0;
+    this.lastInteractAt = this.elapsed;
     if (this.places.isOpen) {
       this.places.close();
       this.weather.rainLines.position.set(0, 0, 0);
@@ -1164,6 +1190,9 @@ export class CitylitEngine {
     province = 'All',
     activeLandmarkIndex?: number
   ): PlacesSelectionInfo {
+    this.cursorStrengthTarget = 0;
+    WU.cursorStrength.value = 0;
+    this.lastInteractAt = this.elapsed;
     if (this.globe.isOpen) {
       this.globe.close();
     }
@@ -1240,24 +1269,52 @@ export class CitylitEngine {
   }
 
   flyCameraPreset(pos: [number, number, number]): void {
+    this.lastInteractAt = this.elapsed;
     this.camStart.copy(this.camera.position);
     this.camTargetPos.set(pos[0], pos[1], pos[2]);
     this.camGoal = this.camTargetPos;
     this.camGoalT = 0;
+    this.targetGoalActive = false;
+    this.hasCustomFocus = false;
+  }
+
+  /** Smoothly glide both camera and orbit target toward an inspected fact pin. */
+  private focusOnFactPoint(pt: THREE.Vector3): void {
+    if (this.isStudio() || this.globe.isOpen || this.places.isOpen) return;
+    this.lastInteractAt = this.elapsed;
+    this.targetStart.copy(this.controls.target);
+    const anchor = this.hasHeroFit
+      ? this.heroFitCenter
+      : this.factFocusDir.set(this.baseTargetX, this.baseTargetY, 0);
+    this.targetEnd.copy(anchor).lerp(pt, 0.46);
+    const dir = this.factFocusDir.copy(this.camera.position).sub(this.controls.target);
+    const curDist = Math.max(6.2, dir.length());
+    dir.normalize();
+    const zoomDist = THREE.MathUtils.clamp(curDist * 0.84, 7.2, 16.5);
+    this.camStart.copy(this.camera.position);
+    this.camTargetPos.copy(this.targetEnd).addScaledVector(dir, zoomDist);
+    this.camGoal = this.camTargetPos;
+    this.camGoalT = 0;
+    this.targetGoalActive = true;
+    this.hasCustomFocus = true;
   }
 
   private computeResponsiveFraming(): void {
     const w = window.innerWidth;
     const h = Math.max(1, window.innerHeight);
     const aspect = w / h;
+    const rawCardH = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--cl-card-h') || '0'
+    );
+    const cardRatio = rawCardH > 0 ? THREE.MathUtils.clamp(rawCardH / h, 0.14, 0.44) : 0.25;
     if (aspect < 0.85) {
-      // Portrait mobile: lower controls target so landmark floats cleanly above bottom card.
+      // Portrait mobile: lift diorama cleanly above the bottom card based on live card height.
       this.baseTargetX = 0;
-      this.baseTargetY = 0.88;
+      this.baseTargetY = 0.72 + (0.3 - Math.min(0.3, cardRatio)) * 0.8;
     } else if (h < 520 && aspect > 1.35) {
       // Short landscape mobile: shift diorama right of the compact bottom-left card.
-      this.baseTargetX = -1.05;
-      this.baseTargetY = 1.4;
+      this.baseTargetX = -1.08;
+      this.baseTargetY = 1.38;
     } else {
       this.baseTargetX = 0;
       this.baseTargetY = 1.5;
@@ -1265,6 +1322,7 @@ export class CitylitEngine {
   }
 
   resetCamera(isPortrait: boolean): void {
+    this.lastInteractAt = this.elapsed;
     this.computeResponsiveFraming();
     // Re-establish the default view direction; the fitter derives distance and
     // aim from the landmark instead of reusing the old fixed camera distance.
@@ -1280,6 +1338,7 @@ export class CitylitEngine {
   /** Reframe the active landmark for the current theme/shot, never per frame. */
   frameCurrentLandmark(): void {
     if (this.globe.isOpen || this.places.isOpen) return;
+    this.lastInteractAt = this.elapsed;
     if (this.isStudio()) {
       this.frameStudioLandmark();
     } else {
@@ -1314,6 +1373,8 @@ export class CitylitEngine {
     this.controls.minDistance = Math.min(6, distance * 0.2);
     this.controls.maxDistance = Math.max(30, distance * 1.6);
     this.camGoal = null;
+    this.targetGoalActive = false;
+    this.hasCustomFocus = false;
     this.controls.autoRotate = false;
     this.controls.update();
 
@@ -1346,7 +1407,7 @@ export class CitylitEngine {
   }
 
   /**
-   * Fit the active diorama into the live FOV/aspect with an ~11% margin, along
+   * Fit the active diorama into the live FOV/aspect with safe viewport margin, along
    * the camera's current view direction so the user's orbit is preserved.
    */
   private fitHeroCamera(): void {
@@ -1362,8 +1423,9 @@ export class CitylitEngine {
     const vFov = THREE.MathUtils.degToRad(this.camera.fov);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
     const fit = Math.max(radius / Math.tan(vFov / 2), radius / Math.tan(hFov / 2));
+    const compactScreen = window.innerHeight < 680 || this.camera.aspect < 0.72;
     const distance = THREE.MathUtils.clamp(
-      fit * 1.11,
+      fit * (compactScreen ? 1.18 : 1.11),
       this.controls.minDistance + 0.2,
       this.controls.maxDistance - 0.2
     );
@@ -1381,6 +1443,8 @@ export class CitylitEngine {
     this.camera.position.copy(this.heroFitCenter).addScaledVector(this.heroFitDirection, distance);
     this.miniaturePass.setFocus(this.camera.position.distanceTo(this.heroFitCenter));
     this.camGoal = null;
+    this.targetGoalActive = false;
+    this.hasCustomFocus = false;
     this.controls.update();
   }
 
@@ -1750,6 +1814,7 @@ export class CitylitEngine {
 
   private bindEvents(canvas: HTMLCanvasElement): void {
     const onResize = () => {
+      this.lastInteractAt = this.elapsed;
       const w = window.innerWidth;
       const h = window.innerHeight;
       this.camera.aspect = w / h;
@@ -1764,6 +1829,7 @@ export class CitylitEngine {
 
     const onControlStart = () => {
       this.isUserOrbiting = true;
+      this.lastInteractAt = this.elapsed;
       if (
         !this.isSoftwareGl &&
         this.qualityIndex === 0 &&
@@ -1777,6 +1843,7 @@ export class CitylitEngine {
 
     const onControlEnd = () => {
       this.isUserOrbiting = false;
+      this.lastInteractAt = this.elapsed;
       if (!this.isSoftwareGl && this.qualityIndex === 0) {
         this.n8aoPass.enabled = true;
         this.renderPass.enabled = false;
@@ -1790,6 +1857,8 @@ export class CitylitEngine {
     const projPos = new THREE.Vector3();
     const onPointerDown = (e: PointerEvent) => {
       this.camGoal = null;
+      this.targetGoalActive = false;
+      this.lastInteractAt = this.elapsed;
       this.globe.cancelFly();
       this.tapDown = { x: e.clientX, y: e.clientY, t: performance.now() };
       this.callbacks.onFirstInteract?.();
@@ -1798,12 +1867,14 @@ export class CitylitEngine {
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return;
       const now = performance.now();
-      if (now - this.lastHoverCheck < 45) return;
+      if (now - this.lastHoverCheck < 24) return;
       this.lastHoverCheck = now;
+      this.lastInteractAt = this.elapsed;
       const ndcX = (e.clientX / window.innerWidth) * 2 - 1;
       const ndcY = -(e.clientY / window.innerHeight) * 2 + 1;
 
       if (this.globe.isOpen) {
+        this.cursorStrengthTarget = 0;
         const hoveredPin = this.globe.hoverPin(ndcX, ndcY, 14);
         canvas.style.cursor = hoveredPin !== null ? 'pointer' : 'grab';
         this.callbacks.onGlobePinHover?.(hoveredPin, e.clientX, e.clientY);
@@ -1811,6 +1882,7 @@ export class CitylitEngine {
       }
 
       if (this.places.isOpen) {
+        this.cursorStrengthTarget = 0;
         const hovered = this.places.hoverAt(ndcX, ndcY);
         canvas.style.cursor = hovered !== null ? 'pointer' : 'grab';
         return;
@@ -1818,12 +1890,27 @@ export class CitylitEngine {
 
       if (this.isUserOrbiting || this.dissolvePhase > 0 || !this.currentGroup) {
         this.hoveredMarkerIndex = -1;
+        this.cursorStrengthTarget = 0;
         canvas.style.cursor = this.isUserOrbiting ? 'grabbing' : 'default';
         return;
       }
 
       this.hoverNdc.set(ndcX, ndcY);
       this.hoverRaycaster.setFromCamera(this.hoverNdc, this.camera);
+
+      // Gently part grass blades & foliage where the cursor sweeps across the diorama.
+      if (this.hoverRaycaster.ray.intersectPlane(this.groundPlane, this.cursorWorld)) {
+        const distSq =
+          this.cursorWorld.x * this.cursorWorld.x + this.cursorWorld.z * this.cursorWorld.z;
+        if (distSq < 56) {
+          WU.cursor.value.copy(this.cursorWorld);
+          this.cursorStrengthTarget = 1;
+        } else {
+          this.cursorStrengthTarget = 0;
+        }
+      } else {
+        this.cursorStrengthTarget = 0;
+      }
 
       // Check fact-pin sprites (raycast + tight screen-space proximity)
       let markerIdx = -1;
@@ -1854,6 +1941,7 @@ export class CitylitEngine {
 
     const onPointerLeave = () => {
       this.hoveredMarkerIndex = -1;
+      this.cursorStrengthTarget = 0;
       this.globe.clearHover();
       this.callbacks.onGlobePinHover?.(null);
       if (!this.globe.isOpen && !this.places.isOpen) {
@@ -1908,11 +1996,11 @@ export class CitylitEngine {
         }
         raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
         const hits = raycaster.intersectObjects(this.markerSprites, false);
-        let text = hits.length
-          ? (hits[0].object.userData.factText as string | undefined)
+        let hitSprite: THREE.Sprite | undefined = hits.length
+          ? (hits[0].object as THREE.Sprite)
           : undefined;
         // Touch-friendly screen-space radius fallback so fingers never miss small pins.
-        if (!text && this.markerSprites.length > 0) {
+        if (!hitSprite && this.markerSprites.length > 0) {
           const hitRadius = e.pointerType === 'touch' ? 28 : 16;
           let bestDist = hitRadius;
           for (let i = 0; i < this.markerSprites.length; i++) {
@@ -1924,19 +2012,22 @@ export class CitylitEngine {
             const dist = Math.hypot(sx - e.clientX, sy - e.clientY);
             if (dist < bestDist) {
               bestDist = dist;
-              text = sp.userData.factText as string | undefined;
+              hitSprite = sp;
             }
           }
         }
-        if (text) {
+        const text = hitSprite?.userData.factText as string | undefined;
+        if (text && hitSprite) {
           ambientAudio.playSfx('ping');
           ambientAudio.vibrate(10);
+          this.focusOnFactPoint(hitSprite.position);
           this.callbacks.onFactDot?.(text);
         }
       }
     };
 
     const onWheel = (e: WheelEvent) => {
+      this.lastInteractAt = this.elapsed;
       if (!this.globe.isOpen) return;
       e.preventDefault();
       this.globe.zoomBy(1 + Math.sign(e.deltaY) * 0.12);
@@ -2031,11 +2122,33 @@ export class CitylitEngine {
     const geo = new THREE.BoxGeometry(0.1, 0.1, 0.1);
     const warmupGroup = new THREE.Group();
     warmupGroup.position.set(0, -50, 0);
+    const treeWarmMat = windy(
+      new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.02 }),
+      'wind_tree_vc',
+      {
+        heightScale: 1.75,
+        swayScale: 1.05,
+        flutterScale: 1.15,
+        trunkBase: 0.26,
+        wakeScale: 0.16,
+        foliageSss: true,
+      }
+    );
+    const grassWarmMat = grassWindy(
+      new THREE.MeshStandardMaterial({
+        color: '#ffffff',
+        vertexColors: true,
+        roughness: 0.84,
+        metalness: 0.02,
+      })
+    );
     const mats = [
       MWater('#1a7598', 0.1, 0.25),
       MCascade('#d9f4ff', 0.88),
       G('#ffe1a0', 0.85),
       Mc('#4f9146'),
+      treeWarmMat,
+      grassWarmMat,
     ];
     for (let i = 0; i < mats.length; i++) {
       warmupGroup.add(new THREE.Mesh(geo, mats[i]));
@@ -2045,6 +2158,8 @@ export class CitylitEngine {
     const finish = () => {
       this.scene.remove(warmupGroup);
       geo.dispose();
+      treeWarmMat.dispose();
+      grassWarmMat.dispose();
     };
     // The materials from builders/primitives are cached and shared, so they are
     // deliberately not disposed here. compileAsync uses
@@ -2123,6 +2238,9 @@ export class CitylitEngine {
     // reduced motion eases into the new rate rather than jumping the shader phase.
     this.shaderTime += dt * this.motionScale;
     WU.t.value = this.shaderTime;
+    this.cursorStrengthTarget = Math.max(0, this.cursorStrengthTarget - dt * 1.4);
+    WU.cursorStrength.value +=
+      (this.cursorStrengthTarget - WU.cursorStrength.value) * Math.min(1, dt * 8);
 
     // Auto quality monitor: drop a tier when clearly off target, then fine-tune
     // resolution so the 60fps budget is met without losing shadows or post FX.
@@ -2242,12 +2360,18 @@ export class CitylitEngine {
       }
       this.renderCurrentPass();
     } else {
-      // Camera fly preset interpolation
+      // Camera fly preset & fact-pin focus interpolation
       if (this.camGoal) {
         this.camGoalT = Math.min(1, this.camGoalT + dt * 1.4);
         const s = this.camGoalT * this.camGoalT * (3 - 2 * this.camGoalT);
         this.camera.position.lerpVectors(this.camStart, this.camTargetPos, s);
-        if (this.camGoalT >= 1) this.camGoal = null;
+        if (this.targetGoalActive) {
+          this.controls.target.lerpVectors(this.targetStart, this.targetEnd, s);
+        }
+        if (this.camGoalT >= 1) {
+          this.camGoal = null;
+          this.targetGoalActive = false;
+        }
       }
 
       // Dust-dissolve landmark switch
@@ -2395,10 +2519,16 @@ export class CitylitEngine {
         fogColor: fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color),
       });
 
-      // Gentle gyro tilt offset + responsive viewport framing. The per-landmark
-      // hero fit supplies the aim point; without one, keep the legacy target.
-      if (!this.isStudio()) {
-        if (this.hasHeroFit) {
+      // Gentle gyro tilt offset + responsive viewport framing. When inspecting a fact pin,
+      // preserve the custom focus center until reset/reframe.
+      if (!this.isStudio() && !this.targetGoalActive) {
+        if (this.hasCustomFocus) {
+          this.controls.target.set(
+            this.targetEnd.x + this.tiltOffsetX,
+            this.targetEnd.y + this.tiltOffsetY,
+            this.targetEnd.z
+          );
+        } else if (this.hasHeroFit) {
           this.controls.target.set(
             this.heroFitCenter.x + this.tiltOffsetX,
             this.heroFitCenter.y + this.tiltOffsetY,
@@ -2444,24 +2574,40 @@ export class CitylitEngine {
         this.weather.current.timeOfDay
       );
 
-      const shadowStride = this.isUserOrbiting ? 3 : 2;
-      const keyMoved = this.keyLight.position.distanceToSquared(this.lastShadowKeyPos) > 0.002;
-      const animateShadows =
-        this.hasAnimatedShadowScene &&
-        this.motionScale > 0 &&
-        this.shadowFrameCounter++ % shadowStride === 0;
-      if (
-        !this.isSoftwareGl &&
-        this.qualityIndex < 2 &&
-        (this.dissolvePhase > 0 || keyMoved || animateShadows)
-      ) {
-        this.renderer.shadowMap.needsUpdate = true;
-        this.lastShadowKeyPos.copy(this.keyLight.position);
+      // When reduced-motion is active and the scene is idle, render at ~15fps to save power.
+      const isStaticIdle =
+        this.motionScale === 0 &&
+        !this.isUserOrbiting &&
+        this.dissolvePhase === 0 &&
+        !this.camGoal &&
+        WU.cursorStrength.value < 0.01 &&
+        this.elapsed - this.lastInteractAt > 1.5;
+
+      if (!isStaticIdle || now - this.lastRenderAt >= 66) {
+        const shadowStride = this.isUserOrbiting ? 3 : 2;
+        const keyMoved = this.keyLight.position.distanceToSquared(this.lastShadowKeyPos) > 0.002;
+        const animateShadows =
+          this.hasAnimatedShadowScene &&
+          this.motionScale > 0 &&
+          this.shadowFrameCounter++ % shadowStride === 0;
+        if (
+          !this.isSoftwareGl &&
+          this.qualityIndex < 2 &&
+          (this.dissolvePhase > 0 || keyMoved || animateShadows)
+        ) {
+          this.renderer.shadowMap.needsUpdate = true;
+          this.lastShadowKeyPos.copy(this.keyLight.position);
+        }
+        this.renderCurrentPass();
+        this.lastRenderAt = now;
+        this.updateAutoExposure(dt);
       }
-      this.renderCurrentPass();
     }
 
-    this.updateAutoExposure(dt);
+    if (this.globe.isOpen || this.places.isOpen) {
+      this.lastRenderAt = now;
+      this.updateAutoExposure(dt);
+    }
     this.afterDraw(() => this.scheduleNextFrame());
   };
 

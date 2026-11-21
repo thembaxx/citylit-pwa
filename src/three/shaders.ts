@@ -3,10 +3,17 @@ import * as THREE from 'three';
 export const WU = {
   t: { value: 0 },
   sun: { value: 1 },
+  /** Golden-hour horizon warmth (0 noon/night .. 1 sunset/sunrise). */
+  sunHor: { value: 0 },
+  /** Seasonal warmth (0 winter .. 1 peak summer). */
+  season: { value: 0.5 },
   sky: { value: new THREE.Color('#3b6490') },
   wind: { value: 1 },
   /** Unit vector pointing in the direction the wind is blowing towards (xz plane). */
   windDir: { value: new THREE.Vector2(1, 0) },
+  /** World-space pointer position on ground plane for gentle grass/foliage wind wake. */
+  cursor: { value: new THREE.Vector3(0, -100, 0) },
+  cursorStrength: { value: 0 },
   lit: { value: 0 },
   rain: { value: 0 },
   dy: { value: 100 },
@@ -20,7 +27,13 @@ function applyDissolveToShader(shader: THREE.WebGLProgramParametersWithUniforms)
     return;
   }
 
+  const hasPbrNormals =
+    shader.fragmentShader.includes('#include <opaque_fragment>') &&
+    shader.fragmentShader.includes('#include <normal_fragment_begin>');
+
   shader.uniforms.uDY = WU.dy;
+  shader.uniforms.uGouacheHor = WU.sunHor;
+  shader.uniforms.uGouacheSun = WU.sun;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vWD;uniform float uDY;')
     .replace(
@@ -36,7 +49,7 @@ vWD=(modelMatrix*vec4(transformed,1.)).xyz;
     .replace(
       '#include <common>',
       `#include <common>
-varying vec3 vWD;uniform float uDY;
+varying vec3 vWD;uniform float uDY,uGouacheHor,uGouacheSun;
 float dtHash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}`
     )
     .replace(
@@ -51,6 +64,21 @@ diffuseColor.rgb*=0.9+0.1*ao;
 }
 if(uDY<90.&&vWD.y>uDY&&dot(vWD.xz,vWD.xz)<110.&&vWD.y<14.)discard;diffuseColor.rgb+=vec3(1.,.75,.35)*smoothstep(uDY-.3,uDY,vWD.y)*step(vWD.y,uDY)*(uDY<90.?2.:0.);`
     );
+
+  if (hasPbrNormals) {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      `{
+// Painterly gouache sunlit bounce + golden-hour impasto rim light on PBR surfaces.
+vec3 gView=normalize(vViewPosition);
+float gRim=pow(1.-max(dot(gView,normal),0.),2.6);
+float gHeight=smoothstep(-0.2,2.4,vWD.y);
+outgoingLight*=1.+.045*smoothstep(.25,.95,uGouacheSun)*gHeight;
+outgoingLight+=vec3(1.,.64,.28)*gRim*uGouacheHor*.22*(.35+.65*gHeight);
+}
+#include <opaque_fragment>`
+    );
+  }
 }
 
 let dissolveInstalled = false;
@@ -269,7 +297,7 @@ export function getSoftTexture(): THREE.CanvasTexture {
 
 export function getStoneBumpTexture(): THREE.CanvasTexture {
   if (stoneBumpCache) return stoneBumpCache;
-  const size = 256;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -282,8 +310,12 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
         Math.sin((y / size) * Math.PI * 10) * 18 + Math.sin((y / size) * Math.PI * 26 + 1.3) * 9;
       for (let x = 0; x < size; x++) {
         const grain = (hash2d(x, y) - 0.5) * 34;
-        const block = Math.sin((x / size) * Math.PI * 6 + Math.sin(y * 0.2)) * 8;
-        const crack = Math.abs(Math.sin(x * 0.07 + Math.sin(y * 0.04) * 3)) > 0.991 ? -38 : 0;
+        const block = Math.sin((x / size) * Math.PI * 6 + Math.sin((y / size) * Math.PI * 16)) * 8;
+        const crack =
+          Math.abs(Math.sin((x / size) * Math.PI * 6 + Math.sin((y / size) * Math.PI * 4) * 3)) >
+          0.991
+            ? -38
+            : 0;
         const v = Math.max(0, Math.min(255, Math.round(128 + strata + grain + block + crack)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
@@ -305,7 +337,7 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
 
 export function getPlasterBumpTexture(): THREE.CanvasTexture {
   if (plasterBumpCache) return plasterBumpCache;
-  const size = 256;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -316,7 +348,7 @@ export function getPlasterBumpTexture(): THREE.CanvasTexture {
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const fine = (hash2d(x * 1.3, y * 1.7) - 0.5) * 28;
-        const trowel = Math.sin(x * 0.22 + y * 0.16) * 8;
+        const trowel = Math.sin((x / size) * Math.PI * 18 + (y / size) * Math.PI * 12) * 8;
         const v = Math.max(0, Math.min(255, Math.round(128 + fine + trowel)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
@@ -342,7 +374,7 @@ let brushedRoughCache: THREE.CanvasTexture | null = null;
 
 export function getRoofBumpTexture(): THREE.CanvasTexture {
   if (roofBumpCache) return roofBumpCache;
-  const size = 256;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -351,11 +383,11 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
     const img = ctx.createImageData(size, size);
     const data = img.data;
     for (let y = 0; y < size; y++) {
-      const row = Math.floor(y / 16);
-      const course = Math.sin(((y % 16) / 16) * Math.PI) * 22;
+      const row = Math.floor(y / 8);
+      const course = Math.sin(((y % 8) / 8) * Math.PI) * 22;
       for (let x = 0; x < size; x++) {
-        const offset = row % 2 ? 8 : 0;
-        const tile = Math.sin((((x + offset) % 16) / 16) * Math.PI) * 14;
+        const offset = row % 2 ? 4 : 0;
+        const tile = Math.sin((((x + offset) % 8) / 8) * Math.PI) * 14;
         const grain = (hash2d(x * 1.7, y * 1.3) - 0.5) * 18;
         const v = Math.max(0, Math.min(255, Math.round(128 + course + tile + grain)));
         const idx = (y * size + x) * 4;
@@ -378,7 +410,7 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
 
 export function getCanvasBumpTexture(): THREE.CanvasTexture {
   if (canvasBumpCache) return canvasBumpCache;
-  const size = 256;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -388,7 +420,7 @@ export function getCanvasBumpTexture(): THREE.CanvasTexture {
     const data = img.data;
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
-        const weave = Math.sin((x / size) * Math.PI * 64) * Math.sin((y / size) * Math.PI * 64);
+        const weave = Math.sin((x / size) * Math.PI * 32) * Math.sin((y / size) * Math.PI * 32);
         const slub = (hash2d(Math.floor(x * 0.5), Math.floor(y * 0.5)) - 0.5) * 22;
         const v = Math.max(0, Math.min(255, Math.round(128 + weave * 10 + slub)));
         const idx = (y * size + x) * 4;
@@ -415,7 +447,7 @@ export function getBrushedNormalTexture(): THREE.CanvasTexture | null {
 
 export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
   if (brushedRoughCache) return brushedRoughCache;
-  const size = 256;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -426,7 +458,7 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
     for (let y = 0; y < size; y++) {
       const broad = Math.sin((y / size) * Math.PI * 6) * 12;
       for (let x = 0; x < size; x++) {
-        const streak = (hash2d(Math.floor(x * 0.2), y * 2.2) - 0.5) * 26;
+        const streak = (hash2d(Math.floor(x * 0.3), y * 2.2) - 0.5) * 26;
         const v = Math.max(0, Math.min(255, Math.round(178 + broad + streak)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
@@ -448,7 +480,7 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
 
 export function getWoodBumpTexture(): THREE.CanvasTexture {
   if (woodBumpCache) return woodBumpCache;
-  const size = 256;
+  const size = 128;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -459,8 +491,8 @@ export function getWoodBumpTexture(): THREE.CanvasTexture {
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const streak =
-          Math.sin(x * 0.65 + Math.sin(y * 0.08) * 2.4) * 18 +
-          (hash2d(x, Math.floor(y * 0.35)) - 0.5) * 22;
+          Math.sin((x / size) * Math.PI * 52 + Math.sin((y / size) * Math.PI * 6) * 2.4) * 18 +
+          (hash2d(x, Math.floor(y * 0.5)) - 0.5) * 22;
         const v = Math.max(0, Math.min(255, Math.round(128 + streak)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
@@ -484,6 +516,7 @@ export function waterize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMat
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
     shader.uniforms.uSI = WU.sun;
+    shader.uniforms.uHorW = WU.sunHor;
     shader.uniforms.uSky = WU.sky;
     shader.uniforms.uRN = WU.rain;
     shader.vertexShader = shader.vertexShader
@@ -501,7 +534,7 @@ vW=(modelMatrix*vec4(transformed,1.)).xyz;
       .replace(
         '#include <common>',
         `#include <common>
-varying vec3 vW;uniform float uWT,uSI,uRN;uniform vec3 uSky;
+varying vec3 vW;uniform float uWT,uSI,uHorW,uRN;uniform vec3 uSky;
 float wHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float wNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wHash(i),wHash(i+vec2(1.,0.)),f.x),mix(wHash(i+vec2(0.,1.)),wHash(i+vec2(1.,1.)),f.x),f.y);}
 float wFbm(vec2 p){float a=.5,s=0.;for(int i=0;i<3;i++){s+=a*wNoise(p);p=p*2.07+vec2(13.,7.);a*=.5;}return s;}
@@ -527,17 +560,19 @@ normal=normalize(normal+(viewMatrix*vec4(dev,0.)).xyz);
         `{
 vec2 q=vW.xz;float t=uWT;float h=wHeight(q,t);
 float fr=pow(1.-max(dot(normalize(vViewPosition),normal),0.),3.2);
-outgoingLight=mix(outgoingLight,uSky*1.1,fr*.6);
-float crest=smoothstep(.62,.98,h*.5+.5);
-outgoingLight+=vec3(.82,.94,1.)*crest*.16;
-float glint=pow(wNoise(q*7.+vec2(t*1.4,-t*1.1)),18.);
-outgoingLight+=vec3(1.,.96,.84)*glint*.85*uSI;
+vec3 skyWash=mix(uSky*1.1,vec3(1.,.68,.38),uHorW*.48);
+outgoingLight=mix(outgoingLight,skyWash,fr*.62);
+float crest=smoothstep(.60,.96,h*.5+.5);
+outgoingLight+=vec3(.84,.95,1.)*crest*.18;
+float glint=pow(wNoise(q*7.+vec2(t*1.4,-t*1.1)),16.);
+vec3 glintCol=mix(vec3(1.,.96,.84),vec3(1.,.74,.36),uHorW*.72);
+outgoingLight+=glintCol*glint*(.85+.45*uHorW)*uSI;
 }
 #include <opaque_fragment>`
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'water_v3';
+  mat.customProgramCacheKey = () => 'water_v4';
   return mat;
 }
 
@@ -572,6 +607,12 @@ export interface WindyShaderOptions {
   flutterScale?: number;
   /** Rain weight vertical droop multiplier (default 1). */
   rainDroop?: number;
+  /** Normalized height [0..1] below which root base stays rigidly anchored (default 0.14). */
+  trunkBase?: number;
+  /** World-space cursor wind wake parting amplitude (default 0.16). */
+  wakeScale?: number;
+  /** Enables warm backlit foliage subsurface translucency + seasonal tinting. */
+  foliageSss?: boolean;
 }
 
 export function windy(
@@ -583,17 +624,27 @@ export function windy(
   const swayScale = (opts.swayScale ?? 1.0).toFixed(3);
   const flutterScale = (opts.flutterScale ?? 1.0).toFixed(3);
   const rainDroop = (opts.rainDroop ?? 1.0).toFixed(3);
-  const fullKey = `${cacheKey}_v2_${heightScale}_${swayScale}_${flutterScale}_${rainDroop}`;
+  const trunkBase = (opts.trunkBase ?? 0.14).toFixed(3);
+  const wakeScale = (opts.wakeScale ?? 0.16).toFixed(3);
+  const foliageSss = opts.foliageSss ? 1 : 0;
+  const fullKey = `${cacheKey}_v3_${heightScale}_${swayScale}_${flutterScale}_${rainDroop}_${trunkBase}_${wakeScale}_${foliageSss}`;
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
     shader.uniforms.uWd = WU.wind;
     shader.uniforms.uWindDir = WU.windDir;
     shader.uniforms.uRain = WU.rain;
+    shader.uniforms.uCursor = WU.cursor;
+    shader.uniforms.uCursorStr = WU.cursorStrength;
+    if (foliageSss) {
+      shader.uniforms.uSeasonF = WU.season;
+      shader.uniforms.uSunF = WU.sun;
+      shader.uniforms.uHorF = WU.sunHor;
+    }
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform float uWT,uWd,uRain;uniform vec2 uWindDir;'
+        '#include <common>\nuniform float uWT,uWd,uRain,uCursorStr;uniform vec2 uWindDir;uniform vec3 uCursor;'
       )
       .replace(
         '#include <begin_vertex>',
@@ -606,27 +657,56 @@ float seed=instanceMatrix[3].x*.73+instanceMatrix[3].z*1.17;
 vec3 wp=(modelMatrix*vec4(transformed,1.)).xyz;
 float seed=wp.x*.73+wp.z*1.17;
 #endif
-// Smooth root-anchored flex curve extending cleanly across tall trunks & crowns.
+// Hierarchical root-anchored flex curve: solid root flare below trunkBase, fluid sway above.
 float h=clamp(position.y/${heightScale},0.,1.);
-float k=h*h*(2.4-1.4*h);
+float hb=smoothstep(${trunkBase},1.,h);
+float k=hb*hb*(2.2-1.2*hb);
 float radial=clamp(length(position.xz)*1.45,0.,1.);
 float t=uWT;
 float windStrength=clamp(uWd,0.,4.);
 float rainFac=clamp(uRain,0.,1.);
 // Travelling world-space gust wave sweeps across groves & plains sequentially.
-float gustWave=.64+.26*sin(dot(wp.xz,uWindDir)*.48-t*1.35+seed*.35)+.14*sin(t*.41+seed*1.2);
-float slow=sin(t*.86+seed),mid=sin(t*1.78+seed*1.7+1.3);
-float leafRipple=sin(t*3.9+wp.x*4.7+wp.z*5.3+wp.y*2.9);
-float amp=.092*windStrength*k*gustWave*${swayScale};
+float gustWave=.62+.26*sin(dot(wp.xz,uWindDir)*.48-t*1.38+seed*.35)+.14*sin(t*.41+seed*1.2);
+float slow=sin(t*.86+seed),mid=sin(t*1.82+seed*1.7+1.3);
+float leafRipple=sin(t*4.1+wp.x*4.9+wp.z*5.4+wp.y*3.1);
+float amp=.094*windStrength*k*gustWave*${swayScale};
 float sway=(slow*.62+mid*.28)*amp;
-float flutter=leafRipple*.024*windStrength*k*(.35+.65*radial)*mix(1.,.65,rainFac)*${flutterScale};
+float flutter=leafRipple*.026*windStrength*k*(.35+.65*radial)*mix(1.,.65,rainFac)*${flutterScale};
+// Subtle rotational crown twist weighted by radial branch distance.
+float twist=sin(t*1.25+seed*2.1)*.032*windStrength*radial*hb*${swayScale};
 vec2 dir=uWindDir;
-transformed.x+=dir.x*(sway+flutter)-dir.y*flutter*.65;
-transformed.z+=dir.y*(sway+flutter)+dir.x*flutter*.65;
-// Subtle canopy & grass blade droop under rain weight.
+transformed.x+=dir.x*(sway+flutter)-dir.y*flutter*.65-position.z*twist;
+transformed.z+=dir.y*(sway+flutter)+dir.x*flutter*.65+position.x*twist;
+// Interactive pointer breeze wake parts nearby grass & canopies smoothly.
+vec2 dCur=wp.xz-uCursor.xz;
+float cDistSq=dot(dCur,dCur);
+float cWake=exp(-cDistSq*1.35)*uCursorStr*${wakeScale}*h;
+vec2 wakeDir=cDistSq>0.0001?normalize(dCur):dir;
+transformed.x+=wakeDir.x*cWake;
+transformed.z+=wakeDir.y*cWake;
+// Canopy & grass blade droop under rain weight.
 transformed.y-=rainFac*.042*k*${rainDroop};
 }`
       );
+    if (
+      foliageSss &&
+      shader.fragmentShader.includes('#include <opaque_fragment>') &&
+      shader.fragmentShader.includes('#include <normal_fragment_begin>')
+    ) {
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nuniform float uSeasonF,uSunF,uHorF;')
+        .replace(
+          '#include <opaque_fragment>',
+          `{
+vec3 fView=normalize(vViewPosition);
+float backScatter=pow(clamp(-dot(fView,normal)*.5+.5,0.,1.),2.2);
+vec3 sssTint=mix(vec3(.65,.95,.42),vec3(1.0,.82,.38),uHorF*.75);
+outgoingLight*=mix(vec3(.96,1.0,.94),vec3(1.05,.97,.89),uSeasonF);
+outgoingLight+=sssTint*backScatter*(.08*uSunF+.18*uHorF);
+}
+#include <opaque_fragment>`
+        );
+    }
     applyDissolveToShader(shader);
   };
   mat.customProgramCacheKey = () => fullKey;
@@ -640,8 +720,11 @@ export function grassWindy(
   return windy(mat, cacheKey, {
     heightScale: 0.34,
     swayScale: 1.35,
-    flutterScale: 0.75,
+    flutterScale: 0.8,
     rainDroop: 1.3,
+    trunkBase: 0.04,
+    wakeScale: 0.28,
+    foliageSss: true,
   });
 }
 

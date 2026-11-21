@@ -690,7 +690,8 @@ function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
       pos.setY(i, y - lip * (0.018 + 0.014 * Math.sin(x * 7.3 - z * 5.9)));
       // Macro terrain variation, a faint plaza/cross-path accent and contact
       // darkening where the top surface meets the cut wall.
-      const macro = 1 + 0.045 * Math.sin(x * 0.47 + z * 0.29) + 0.03 * Math.sin(x * 0.93 - z * 0.71);
+      const macro =
+        1 + 0.045 * Math.sin(x * 0.47 + z * 0.29) + 0.03 * Math.sin(x * 0.93 - z * 0.71);
       const plaza = Math.max(0, 1 - Math.hypot(x, z) / 3.4) * 0.09;
       const path = Math.exp(-Math.min(Math.abs(x), Math.abs(z)) * 1.7) * 0.055;
       const contact = 1 - 0.2 * Math.max(0, (perimeter - 0.82) / 0.18);
@@ -1263,7 +1264,11 @@ function addSiteMotion(g: THREE.Group, key: string, profile: SiteProfile, angle:
   const detailed = normalMapsActive();
 
   // Masonry landmarks with visible hearths get a slow wispy chimney plume.
-  if (key.includes('Union Buildings') || key.includes('Voortrekker') || key.includes('Constantia')) {
+  if (
+    key.includes('Union Buildings') ||
+    key.includes('Voortrekker') ||
+    key.includes('Constantia')
+  ) {
     const sx = Math.cos(angle + 0.8) * 2.2;
     const sz = Math.sin(angle + 0.8) * 2.2;
     const s = stream(
@@ -1326,6 +1331,62 @@ function addSiteMotion(g: THREE.Group, key: string, profile: SiteProfile, angle:
         );
       },
       0.34
+    );
+    updates.push(s.update);
+  }
+
+  if (
+    key.includes('Union Buildings') ||
+    key.includes('Voortrekker') ||
+    key.includes('Constitution')
+  ) {
+    // Wind-borne purple Jacaranda blossoms drifting across Pretoria & Johannesburg groves.
+    const s = stream(
+      g,
+      detailed ? 22 : 11,
+      '#be8ee8',
+      0.062,
+      (i, t, o) => {
+        const u = (t * 0.095 + R(i * 6.1 + 3)) % 1;
+        const driftScale = 0.6 + WU.wind.value * 0.85;
+        const bx = (R(i * 4.7 + 1) - 0.5) * 6.2;
+        const bz = (R(i * 5.9 + 2) - 0.5) * 6.2;
+        o.set(
+          bx + WU.windDir.value.x * u * 2.1 * driftScale + Math.sin(t * 1.4 + i) * 0.22,
+          2.6 - u * 2.5 + Math.sin(t * 2.1 + i * 1.3) * 0.08,
+          bz + WU.windDir.value.y * u * 2.1 * driftScale + Math.cos(t * 1.2 + i) * 0.22
+        );
+      },
+      0.55,
+      false
+    );
+    updates.push(s.update);
+  } else if (
+    key.includes('Kirstenbosch') ||
+    key.includes('Constantia') ||
+    key.includes('Blyde') ||
+    key.includes('Drakensberg') ||
+    key.includes('Stellenbosch')
+  ) {
+    // Slow sunlit foliage & golden pollen motes drifting in mountain/garden air currents.
+    const s = stream(
+      g,
+      detailed ? 16 : 8,
+      '#d9be6c',
+      0.055,
+      (i, t, o) => {
+        const u = (t * 0.075 + R(i * 7.3 + 1)) % 1;
+        const driftScale = 0.5 + WU.wind.value * 0.7;
+        const bx = (R(i * 3.7 + 4) - 0.5) * 6.4;
+        const bz = (R(i * 8.1 + 5) - 0.5) * 6.4;
+        o.set(
+          bx + WU.windDir.value.x * u * 1.6 * driftScale + Math.sin(t * 1.1 + i) * 0.18,
+          2.4 - u * 2.25 + Math.sin(t * 1.8 + i) * 0.07,
+          bz + WU.windDir.value.y * u * 1.6 * driftScale + Math.cos(t * 0.9 + i) * 0.18
+        );
+      },
+      0.42,
+      false
     );
     updates.push(s.update);
   }
