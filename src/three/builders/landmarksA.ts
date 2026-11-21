@@ -134,7 +134,7 @@ export function table(): THREE.Group {
     ...surfaceDetail('stone', 0.03),
     side: THREE.DoubleSide,
   });
-  add(g, C(6.2, 6.9, 0.5, 84), MStone('#436333', 0.95), 0, 0.25, 0);
+  add(g, B(12.4, 0.5, 12.4), MStone('#436333', 0.95), 0, 0.25, 0);
   // One continuous cliff shell with a single deep notch; the cap is one flat plane.
   add(g, warpTable(C(3.6, 5.6, 2.4, 84, 14, true), false), vm, 0, 1.45, 0);
   add(
@@ -730,7 +730,7 @@ export function stadium(): THREE.Group {
   bowl.add(lines(av, '#8794a6'));
 
   // Wettable Durban coastal concourse apron
-  add(g, C(5.65, 5.85, 0.12, 84), MWet('#beb8ac', 0.84, 0.18, 0.05, 'stone'), 0, 0.06, 0);
+  add(g, B(11.4, 0.12, 11.4), MWet('#beb8ac', 0.84, 0.18, 0.05, 'stone'), 0, 0.06, 0);
   [-1, 1].forEach((s) =>
     add(g, CB(0.65, 0.5, 0.65, 0.04), MStone('#9e9d98', 0.88), -5.6, 0.25, s * 1.7)
   );
@@ -1121,7 +1121,7 @@ export function voortrekker(): THREE.Group {
   const bz = M('#6b5a3a', 0.42, 0.72);
   const gl = G('#ffcf8a', 1.25);
 
-  add(g, C(7.55, 7.55, 0.16, 84), plaza, 0, 0.08, 0);
+  add(g, B(15.1, 0.16, 15.1), plaza, 0, 0.08, 0);
   (
     [
       [7.4, 0.3],
@@ -1694,7 +1694,7 @@ export function soccer(): THREE.Group {
   instancedMeshes(g, CB(0.14, 2.8, 0.16, 0.03), M('#4b3526', 0.55, 0.45), ribT);
 
   add(g, new THREE.CircleGeometry(3.5, 64).rotateX(-Math.PI / 2), M('#3b8a47', 0.95), 0, 0.48, 0);
-  add(g, C(5.45, 5.65, 0.2, 84), MWet('#7f6043', 0.85, 0.16, 0.04, 'stone'), 0, 0.1, 0);
+  add(g, B(11, 0.2, 11), MWet('#7f6043', 0.85, 0.16, 0.04, 'stone'), 0, 0.1, 0);
   [
     [4.6, 1.2],
     [4.2, 2.5],
@@ -1815,7 +1815,7 @@ export function rondavels(): THREE.Group {
 export function baobab(): THREE.Group {
   const g = new THREE.Group();
   const bk = MWood('#8a7862', 0.94, 0.032);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#b5964e', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#b5964e', 0.96), 0, 0.1, 0);
 
   // Girth first: a very broad bottle trunk with a flared, buttressed base.
   const pts: THREE.Vector2[] = [];
@@ -2004,7 +2004,7 @@ export function castle(): THREE.Group {
   const wl = MPlaster('#e4d5a8', 0.82);
   const rf = MPlaster('#8a4932', 0.78);
   const st = MStone('#9e957e', 0.9);
-  add(g, C(7.6, 7.6, 0.2, 84), MWet('#b4ab86', 0.86, 0.18, 0.04, 'stone'), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MWet('#b4ab86', 0.86, 0.18, 0.04, 'stone'), 0, 0.1, 0);
   const pent = (r: number) =>
     Array.from(
       { length: 5 },
@@ -2130,7 +2130,7 @@ export function amphi(): THREE.Group {
   const g = new THREE.Group();
   const wm = MCascade('#e4f5ff', 0.85);
   const cm = MT('#f6faff', 0.62, 0.98, 0, false);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#587442', 0.95), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#587442', 0.95), 0, 0.1, 0);
   // Towering layered basalt wall of the Amphitheatre, banded by erosion.
   const bandCols = ['#5d4a3a', '#6b563f', '#7a6047', '#67503a'];
   for (let i = 0; i < 8; i++) {
@@ -2313,7 +2313,7 @@ export function palace(): THREE.Group {
   const gd = M('#dfa942', 0.28, 0.84);
   const tl = M('#297d8e', 0.42, 0.35);
   const wn = G('#ffd98a', 1.15);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#567440', 0.95), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#567440', 0.95), 0, 0.1, 0);
   add(g, CB(8.4, 0.3, 4.6, 0.05), st, 0, 0.35, 0);
   add(g, CB(3.2, 2.6, 2.4, 0.06), st, 0, 1.8, -0.4);
   add(g, CB(3.4, 0.16, 2.6, 0.03), gd, 0, 3.16, -0.4);
@@ -2343,7 +2343,7 @@ export function palace(): THREE.Group {
 
 export function golden(): THREE.Group {
   const g = new THREE.Group();
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#a89d58', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#a89d58', 0.96), 0, 0.1, 0);
   (
     [
       [-3.2, -2.4, 1.8, 2.6, 4.2],
@@ -2392,7 +2392,7 @@ export function kruger(): THREE.Group {
   const g = new THREE.Group();
   const sk = MStone('#888076', 0.92, 0.025);
   const iv = M('#f4eddb', 0.4);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#b4964c', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#b4964c', 0.96), 0, 0.1, 0);
   const ear: Array<[THREE.Mesh, number]> = [];
   const mk = (s: number) => {
     const e = new THREE.Group();
@@ -2474,7 +2474,7 @@ export function kruger(): THREE.Group {
 export function ponte(): THREE.Group {
   const g = new THREE.Group();
   const roadMat = MWet('#484b54', 0.84, 0.16, 0.06, 'plaster');
-  add(g, C(7.6, 7.6, 0.2, 84), roadMat, 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), roadMat, 0, 0.1, 0);
   const wm = litWindowMaterial({
     wall: '#c4bcb0',
     lit: '#e8ca86',
@@ -2841,7 +2841,7 @@ export function agulhas(): THREE.Group {
 export function orlando(): THREE.Group {
   const g = new THREE.Group();
   const pal = ['#e84a5f', '#ff9a3c', '#f4d35e', '#4ecdc4', '#5b8def', '#9b59b6'];
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#868074', 0.94), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#868074', 0.94), 0, 0.1, 0);
   const T = (x: number, c1: string, c2: string) => {
     const p: THREE.Vector2[] = [];
     for (let i = 0; i <= 24; i++) {

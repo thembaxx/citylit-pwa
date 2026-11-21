@@ -41,6 +41,7 @@ const MiniatureShader = {
     uniform sampler2D tDepth;
     uniform vec2 uResolution;
     uniform float uFocusY;
+    uniform float toneMappingExposure;
     uniform float uFocusRange;
     uniform float uMaxBlur;
     uniform float uVignette;
@@ -102,7 +103,17 @@ const MiniatureShader = {
       col.rgb *= vig;
 
       gl_FragColor = col;
-      #include <tonemapping_fragment>
+      // Local tone mapping: ACES filmic with an exposure that widens slightly
+      // where the local luma gradient (fwidth of luma) is strong, keeping open
+      // water breathing and compressing high-contrast textured areas.
+      {
+        vec3 c = gl_FragColor.rgb;
+        float lg = fwidth(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b);
+        float bs = mix(0.03, 0.012, smoothstep(0.03, 0.08, lg));
+        const float a = 2.51, c2 = 2.43, d = 0.59, m = 1.46;
+        vec3 t = c * (toneMappingExposure / 0.6);
+        gl_FragColor = vec4(clamp((t * (a * t + bs)) / (t * (c2 * t + d) + m), 0.0, 1.0), gl_FragColor.a);
+      }
       #include <colorspace_fragment>
     }
   `,

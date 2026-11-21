@@ -52,6 +52,7 @@ import {
 } from './lightingRig';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
+import { attachEquirect, installGI } from './globalIllumination';
 
 export interface EngineCallbacks {
   onSelectLandmarkFromGlobe?: (index: number) => void;
@@ -96,6 +97,8 @@ export class CitylitEngine {
   private readonly composer: EffectComposer;
   private readonly renderPass: RenderPass;
   private readonly n8aoPass: N8AOPass;
+  private autoExposureValue = 1.08;
+  private exposureBuf: Uint16Array | null = null;
   private readonly bloomPass: UnrealBloomPass;
   private readonly miniaturePass: MiniaturePass;
   private readonly smaaPass: SMAAPass;
@@ -208,6 +211,7 @@ export class CitylitEngine {
     this.container = container;
     this.callbacks = callbacks;
     installDissolveShader();
+    installGI();
     // Handle for browser evals and perf measurements.
     (window as { citylitEngine?: CitylitEngine }).citylitEngine = this;
 
@@ -272,6 +276,7 @@ export class CitylitEngine {
         }
         // Physical sky HDRIs contain extreme >60k-nit sun spikes that clip diffuse PBR albedo under PMREM.
         // Compress luminance > 2.0 with a smooth log knee so specular reflections stay crisp while diffuse fill stays natural.
+        attachEquirect(hdrTex);
         const raw = hdrTex.image?.data as unknown as Uint16Array | Float32Array | undefined;
         if (raw) {
           const isFloat32 = raw instanceof Float32Array;
@@ -311,10 +316,10 @@ export class CitylitEngine {
       }
     );
 
-    this.hemiLight = new THREE.HemisphereLight('#d9e7ff', '#2a2016', 0.38);
+    this.hemiLight = new THREE.HemisphereLight('#d9e7ff', '#3a2d20', 0.7);
     this.scene.add(this.hemiLight);
 
-    this.keyLight = new THREE.DirectionalLight('#fff5dd', 2.8);
+    this.keyLight = new THREE.DirectionalLight('#fff5dd', 3.1);
     this.keyLight.position.set(12, 18, 10);
     if (!this.isSoftwareGl) {
       this.keyLight.castShadow = true;
@@ -322,7 +327,7 @@ export class CitylitEngine {
     }
     this.scene.add(this.keyLight);
 
-    this.fillLight = new THREE.DirectionalLight('#4a72b0', 0.58);
+    this.fillLight = new THREE.DirectionalLight('#7298c8', 0.95);
     this.fillLight.position.set(-12, 8, -10);
     this.scene.add(this.fillLight);
 
@@ -388,9 +393,10 @@ export class CitylitEngine {
     this.plinthGroup = new THREE.Group();
     this.scene.add(this.plinthGroup);
 
+    // Square plinth — the house style is a cut slab, not a circular stand.
     this.plinthTopMat = new THREE.MeshStandardMaterial({ color: '#1a1c24', roughness: 0.88 });
     const plinthTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(8.5, 9, 0.5, 72),
+      new THREE.BoxGeometry(17.4, 0.5, 17.4),
       this.plinthTopMat
     );
     plinthTop.position.y = -0.25;
@@ -399,7 +405,7 @@ export class CitylitEngine {
 
     this.plinthBaseMat = new THREE.MeshStandardMaterial({ color: '#111218', roughness: 0.9 });
     const plinthBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(9.2, 9.6, 0.2, 72),
+      new THREE.BoxGeometry(18.6, 0.2, 18.6),
       this.plinthBaseMat
     );
     plinthBase.position.y = -0.6;
@@ -412,8 +418,22 @@ export class CitylitEngine {
       roughness: 0.4,
     });
     this.ringMat.userData.i = 0.6;
+    // Square emissive rim: a thin flat frame instead of the old torus ring.
+    const rimShape = new THREE.Shape();
+    rimShape.moveTo(-8.52, -8.52);
+    rimShape.lineTo(8.52, -8.52);
+    rimShape.lineTo(8.52, 8.52);
+    rimShape.lineTo(-8.52, 8.52);
+    rimShape.closePath();
+    const rimHole = new THREE.Path();
+    rimHole.moveTo(-8.46, -8.46);
+    rimHole.lineTo(-8.46, 8.46);
+    rimHole.lineTo(8.46, 8.46);
+    rimHole.lineTo(8.46, -8.46);
+    rimHole.closePath();
+    rimShape.holes.push(rimHole);
     const plinthRing = new THREE.Mesh(
-      new THREE.TorusGeometry(8.52, 0.035, 8, 96).rotateX(Math.PI / 2),
+      new THREE.ShapeGeometry(rimShape).rotateX(-Math.PI / 2),
       this.ringMat
     );
     plinthRing.position.y = 0.01;
@@ -423,9 +443,9 @@ export class CitylitEngine {
       new THREE.PlaneGeometry(9, 9),
       new THREE.MeshBasicMaterial({
         map: getSoftTexture(),
-        color: '#828c99',
+        color: '#94a0ad',
         transparent: true,
-        opacity: 0.34,
+        opacity: 0.22,
         depthWrite: false,
       })
     );
@@ -817,10 +837,51 @@ export class CitylitEngine {
 
   /** AO is relaxed by theme; Studio keeps its original catalogue-grade value. */
   private n8aoThemeIntensity(): number {
-    const base = this.cinematic && !this.isSoftwareGl ? 3 : 2.4;
+    const base = this.cinematic && !this.isSoftwareGl ? 2.2 : 1.85;
     if (this.theme === 'dark') return base * 0.7;
     if (this.theme === 'daylight') return base * 0.85;
     return base;
+  }
+
+  /**
+   * Adaptive auto exposure: measures the average luminance of the final beauty
+   * buffer and nudges `toneMappingExposure` toward a mid-gray target. The
+   * composer target is HalfFloatType, so pixels must be decoded as half floats
+   * (reading them as bytes yields zeros and silently disables adaptation).
+   * Four full-width rows sample both the bright sky and the darker miniature.
+   */
+  private updateAutoExposure(dt: number): void {
+    if (this.isSoftwareGl || this.qualityIndex >= 2 || !this.composer) return;
+    const rt = this.composer.readBuffer;
+    const W = Math.floor(rt.width);
+    const H = Math.floor(rt.height);
+    if (W < 1 || H < 1) return;
+    if (!this.exposureBuf || this.exposureBuf.length < W * 4) {
+      this.exposureBuf = new Uint16Array(W * 4);
+    }
+    const buf = this.exposureBuf;
+    // A single mid-height row crosses both the brighter sky and the darker
+    // miniature. One readback per frame keeps the sync stall minimal.
+    this.renderer.readRenderTargetPixels(rt, 0, Math.floor(H * 0.5), W, 1, buf);
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i < W; i++) {
+      const r = THREE.DataUtils.fromHalfFloat(buf[i * 4]);
+      const g = THREE.DataUtils.fromHalfFloat(buf[i * 4 + 1]);
+      const b = THREE.DataUtils.fromHalfFloat(buf[i * 4 + 2]);
+      if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
+        sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        n++;
+      }
+    }
+    const avg = n ? sum / n : 0;
+    if (!(avg > 0.02) || !Number.isFinite(avg)) return;
+    const k = 1 - Math.exp(-Math.max(dt, 0) * 0.9);
+    const desired = this.autoExposureValue * (0.58 / avg);
+    this.autoExposureValue += (desired - this.autoExposureValue) * k;
+    this.autoExposureValue = Math.min(4.0, Math.max(0.3, this.autoExposureValue));
+    this.renderer.toneMappingExposure = this.autoExposureValue;
+    this.miniaturePass.setExposure(this.autoExposureValue);
   }
 
   /** Apply the per-theme miniature grade (DoF band, vignette, AO and exposure). */
@@ -2310,8 +2371,8 @@ export class CitylitEngine {
       this.bloomPass.threshold +=
         (this.targetBloomThreshold - this.bloomPass.threshold) * themeLerp;
 
-      const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
-      const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
+      const envCeiling = this.usingSkyHdr ? 0.34 : 0.6;
+      const envFloor = this.usingSkyHdr ? 0.12 : 0.26;
       const skyEnvIntensity =
         envFloor +
         (envCeiling - envFloor) *
@@ -2400,6 +2461,7 @@ export class CitylitEngine {
       this.renderCurrentPass();
     }
 
+    this.updateAutoExposure(dt);
     this.afterDraw(() => this.scheduleNextFrame());
   };
 

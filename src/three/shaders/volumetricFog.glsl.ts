@@ -58,7 +58,9 @@ vec3 plApplyVolumetricFog(vec3 sceneRgb, vec3 worldPos) {
   vec3 hazeCol = mix(uVolFogDeepColor, uVolFogColor, altMix);
   float sunCos = max(dot(viewDir, normalize(uVolSunDir)), 0.0);
   float mie = pow(sunCos, 5.0) * 0.36 + pow(sunCos, 16.0) * 0.28;
-  vec3 scattered = hazeCol + uVolSunColor * mie * (0.30 + 0.70 * uVolSun);
+  // Improved: longer forward scatter so sun through fog reads warm and bright.
+  float fwd = pow(sunCos, 4.0) * 0.32;
+  vec3 scattered = hazeCol + uVolSunColor * mie * (0.30 + 0.70 * uVolSun) + uVolSunColor * fwd;
 
   return mix(sceneRgb, scattered, fogAmount);
 }

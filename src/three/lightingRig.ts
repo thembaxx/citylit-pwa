@@ -18,11 +18,15 @@ export function configureDioramaShadow(light: THREE.DirectionalLight): void {
   cam.updateProjectionMatrix();
   light.shadow.bias = -0.0004;
   light.shadow.normalBias = 0.03;
+  // Soften the cast shadows: PCF radius plus reduced contrast so shaded
+  // albedo stays readable instead of going nearly black.
+  light.shadow.radius = 3;
+  light.shadow.intensity = 0.6;
 }
 
 /** Subtle cool back light that separates cliffs, domes and trees from the sky. */
 export function createRimLight(): THREE.DirectionalLight {
-  const rim = new THREE.DirectionalLight('#9ec6ff', 0.5);
+  const rim = new THREE.DirectionalLight('#b9d4ff', 0.6);
   rim.position.set(-9, 7, -11);
   rim.castShadow = false;
   rim.target.position.set(0, 0.8, 0);
@@ -52,7 +56,7 @@ const DEFAULT_BOUNCE_COLOR = '#dfe8f2';
 
 /** Low, non-shadow-casting bounce fill that carries the site's biome tint. */
 export function createBounceLight(): THREE.DirectionalLight {
-  const bounce = new THREE.DirectionalLight(DEFAULT_BOUNCE_COLOR, 0.22);
+  const bounce = new THREE.DirectionalLight(DEFAULT_BOUNCE_COLOR, 0.7);
   bounce.position.set(6, 1.5, 9);
   bounce.castShadow = false;
   bounce.target.position.set(0, 1, 0);

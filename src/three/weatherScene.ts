@@ -610,8 +610,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       keyLight.position.set(sx * 0.45, Math.max(3, sy * 0.45), sz * 0.55);
       keyLight.color.copy(sunColTmp);
       keyLight.intensity =
-        (2.75 * seasonalIntensityScale * day * (1 - current.cover * 0.55) + lightningFlash * 4) *
-        (0.55 + 0.45 * (1 - hor));
+        (3.05 * seasonalIntensityScale * day * (1 - current.cover * 0.5) + lightningFlash * 4) *
+        (0.68 + 0.32 * (1 - hor));
     } else {
       keyLight.position.set(-10, 14, -8);
       keyLight.color.set('#b8d0ff');
@@ -621,24 +621,24 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     seasonFillTmp.copy(winterFillCol).lerp(summerFillCol, seasonCurrent.warmth);
     fillLight.color.copy(seasonFillTmp);
     fillLight.intensity =
-      (0.55 + 0.08 * seasonCurrent.warmth) * day + 0.45 * (1 - day) + hor * 0.28;
+      (1.35 + 0.12 * seasonCurrent.warmth) * day + 0.85 * (1 - day) + hor * 0.3;
 
     seasonHemiSkyTmp.copy(winterHemiSky).lerp(summerHemiSky, seasonCurrent.warmth);
     seasonHemiGroundTmp.copy(winterHemiGround).lerp(summerHemiGround, seasonCurrent.warmth);
     hemiLight.color.copy(seasonHemiSkyTmp);
     hemiLight.groundColor.copy(seasonHemiGroundTmp);
-    hemiLight.intensity = (0.46 + 0.08 * seasonCurrent.warmth) * day + 0.34 * (1 - day);
+    hemiLight.intensity = (1.05 + 0.12 * seasonCurrent.warmth) * day + 0.7 * (1 - day);
 
     // Studio/catalog look: smoothly blend toward flat neutral catalog lighting.
     if (wStudio > 0.001) {
       keyLight.position.lerp(studioKeyPos, wStudio);
       keyLight.color.lerp(studioKeyCol, wStudio);
-      keyLight.intensity += (2.8 - keyLight.intensity) * wStudio;
+      keyLight.intensity += (3.1 - keyLight.intensity) * wStudio;
       fillLight.color.lerp(studioFillCol, wStudio);
-      fillLight.intensity += (1.0 - fillLight.intensity) * wStudio;
+      fillLight.intensity += (1.3 - fillLight.intensity) * wStudio;
       hemiLight.color.lerp(studioHemiSky, wStudio);
       hemiLight.groundColor.lerp(studioHemiGround, wStudio);
-      hemiLight.intensity += (0.75 - hemiLight.intensity) * wStudio;
+      hemiLight.intensity += (0.95 - hemiLight.intensity) * wStudio;
     }
 
     const rainCount = Math.floor((qualityIndex > 1 ? 150 : RN) * current.rain);

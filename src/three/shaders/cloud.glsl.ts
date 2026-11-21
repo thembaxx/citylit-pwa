@@ -11,11 +11,17 @@ uniform float uTime;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
 varying vec3 vViewDir;
+varying vec3 vTint;
 
 void main() {
   vec4 inst = instanceMatrix * vec4(position, 1.0);
   inst.x += sin(uTime * 0.28 + aPhase) * 0.14;
   inst.y += cos(uTime * 0.45 + aPhase * 1.13) * 0.045;
+
+  // Per-puff colour jitter from a hash of the instance translation, so
+  // neighbouring puffs read as distinct instead of a wall of identical discs.
+  float seed = fract(abs(inst.x) * 0.61 + abs(inst.y) * 0.37 + abs(inst.z) * 0.83 + aPhase * 1.13);
+  vTint = mix(vec3(1.0), vec3(0.92, 0.96, 1.04), seed);
 
   vec4 wp = modelMatrix * inst;
   vWorldPos = wp.xyz;
@@ -37,6 +43,7 @@ uniform vec3 uSunColor;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
 varying vec3 vViewDir;
+varying vec3 vTint;
 ${NOISE_GLSL}
 ${PLACES_VOLUMETRIC_FOG_GLSL}
 
@@ -53,10 +60,10 @@ void main() {
   vec3 ambientCool = mix(vec3(0.26, 0.33, 0.46), uSky, 0.42);
   vec3 body = mix(
     ambientCool * (0.62 + 0.42 * uSun),
-    uTint,
+    uTint * vTint,
     wrap * 0.68 + skyWrap * 0.20
   );
-  vec3 sunlit = mix(uTint, uSunColor, 0.30 + 0.28 * (1.0 - uSun))
+  vec3 sunlit = mix(uTint * vTint, uSunColor, 0.30 + 0.28 * (1.0 - uSun))
               * (0.74 + 0.34 * max(ndl, 0.0));
   vec3 col = mix(body, sunlit, smoothstep(0.08, 0.82, wrap)) * 0.90;
 
@@ -64,6 +71,9 @@ void main() {
   float rim = pow(1.0 - max(dot(N, V), 0.0), 2.2);
   col += mix(uSky, uSunColor, 0.40) * rim * 0.26;
   col *= 1.0 - uLit * 0.26;
+
+  // Sun-facing edge emphasises the sunward side of each puff.
+  col *= mix(0.88, 1.14, smoothstep(-0.2, 0.6, ndl));
 
   // Soft silhouette alpha + slow noise breakup gives a volumetric read.
   float facing = max(dot(N, V), 0.0);

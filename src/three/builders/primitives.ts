@@ -2038,7 +2038,8 @@ export function seaRings(
 }
 
 export function sea(g: THREE.Object3D, c = '#1c6e91', shallow = '#2da8b8'): THREE.Mesh {
-  const geo = C(7.8, 7.8, 0.1, 96, 1);
+  // Square water plate — the house style is a cut slab, not a circular stand.
+  const geo = B(15.6, 0.1, 15.6);
   // Radial bathymetry vertex tinting for crisp shallows -> ocean navy gradient
   const cDeep = new THREE.Color(c);
   const cShal = new THREE.Color(shallow);
@@ -2046,7 +2047,7 @@ export function sea(g: THREE.Object3D, c = '#1c6e91', shallow = '#2da8b8'): THRE
   const cols: number[] = [];
   const tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
-    const r = Math.hypot(pos.getX(i), pos.getZ(i));
+    const r = Math.max(Math.abs(pos.getX(i)), Math.abs(pos.getZ(i)));
     const mix = Math.min(1, Math.max(0, (r - 2.0) / 5.4));
     tmp.copy(cShal).lerp(cDeep, mix);
     cols.push(tmp.r, tmp.g, tmp.b);
@@ -2107,7 +2108,8 @@ export function stampContactShadow(
     list = [];
     contactShadowBatches.set(g, list);
   }
-  list.push({ x, y, z, r: radius, op: Math.min(0.6, opacity) });
+  // Softer baked contact: lower peak opacity and a slightly wider footprint.
+  list.push({ x, y, z, r: radius * 1.08, op: Math.min(0.34, opacity * 0.72) });
 }
 
 export function stampContactShadowsFromMeshes(g: THREE.Object3D): void {

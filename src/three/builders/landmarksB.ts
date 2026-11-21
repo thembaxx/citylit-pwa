@@ -72,7 +72,7 @@ export function augrabies(): THREE.Group {
   const cm = MT('#f6fbff', 0.58, 0.98, 0, false);
   const graniteA = '#8f4f34';
   const graniteB = '#d68a5c';
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#8a735c', 0.94), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#8a735c', 0.94), 0, 0.1, 0);
   add(g, C(2.75, 2.75, 0.06, 48), MWater('#2ea0b8', 0.09, 0.25), 0, 0.22, 0);
 
   // Two staggered tiers of jagged red-orange granite form a deep gorge. The
@@ -236,7 +236,7 @@ export function salt(): THREE.Group {
   const wh = M('#f0f2f4', 0.32, 0.48);
   const dk = M('#242730', 0.5, 0.55);
   const mir = M('#9ec4e0', 0.14, 0.85);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#a59268', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#a59268', 0.96), 0, 0.1, 0);
   add(g, C(2.2, 2.4, 0.5, 48), MStone('#cbc3b2', 0.82), 0, 0.45, 0);
 
   const en = new THREE.Group();
@@ -329,7 +329,7 @@ export function bloukrans(): THREE.Group {
   const cn = MStone('#dad5c8', 0.76, 0.016);
   const roadMat = MWet('#3c4048', 0.84, 0.15, 0.05, 'plaster');
   const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#665646', 0.95), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#665646', 0.95), 0, 0.1, 0);
   add(g, CB(1.85, 0.08, 12, 0.02), MWater('#3394b4', 0.09, 0.25), 0, 0.24, 0);
   [-5.2, 5.2].forEach((x) => {
     rock(g, 1.9, 2.4, 4.6, x, 0, '#6b5a4a', '#4d7a38', 0.11);
@@ -788,7 +788,7 @@ export function chapman(): THREE.Group {
 
 export function isandlwana(): THREE.Group {
   const g = new THREE.Group();
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#a49654', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#a49654', 0.96), 0, 0.1, 0);
   rock(g, 1.3, 3.4, 4.4, 0, -3, '#695b45', '#b09866', 0.18);
   rock(g, 1.1, 2.2, 2.2, 2.6, -3.4, '#695b45', '#a08a58', 0.18);
   rock(g, 0.9, 1.8, 1.6, -2.6, -3.6, '#695b45', '#a08a58', 0.18);
@@ -829,7 +829,7 @@ export function gariep(): THREE.Group {
   const g = new THREE.Group();
   const cn = MStone('#ccc7bb', 0.82, 0.016);
   const wm = MCascade('#eaf6ff', 0.86);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#887e5e', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#887e5e', 0.96), 0, 0.1, 0);
   add(g, CB(10, 0.1, 5.2, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 1.6, -3.2);
   add(g, CB(3.2, 0.06, 5, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 0.24, 3.4);
 
@@ -871,7 +871,7 @@ export function maropeng(): THREE.Group {
   const mt = M('#8f5d38', 0.36, 0.74);
   const bn = M('#f0e9d6', 0.58);
   const cs = MWet('#cdc7ba', 0.84, 0.18, 0.04, 'stone');
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#a49654', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#a49654', 0.96), 0, 0.1, 0);
   add(
     g,
     new THREE.SphereGeometry(3.2, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2),
@@ -904,7 +904,7 @@ export function maropeng(): THREE.Group {
 export function mapungubwe(): THREE.Group {
   const g = new THREE.Group();
   const gd = M('#e6b842', 0.25, 0.92);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#b29654', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#b29654', 0.96), 0, 0.1, 0);
   // Flat-topped sandstone mesa: near-vertical walls, one level summit and a
   // shelter notch pushed into the east face. Deliberately not a rounded hill.
   const mesaGeo = C(2.24, 2.5, 3.5, 64, 12);
@@ -1481,7 +1481,7 @@ export function hermanus(): THREE.Group {
 
 export function isimangaliso(): THREE.Group {
   const g = new THREE.Group();
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#c6b484', 0.95), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#c6b484', 0.95), 0, 0.1, 0);
   add(g, C(4.6, 4.6, 0.06, 64), MWater('#28859b', 0.09, 0.25), 0, 0.22, 0.6);
   rock(g, 2.6, 4.6, 2.2, 0, -5.3, '#c4a468', '#e6cf98', 0.12);
   rock(g, 1.8, 3.2, 1.6, -5.2, -2.4, '#c4a468', '#e6cf98', 0.12);
@@ -1547,7 +1547,7 @@ export function isimangaliso(): THREE.Group {
 
 export function sani(): THREE.Group {
   const g = new THREE.Group();
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#5e7242', 0.95), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#5e7242', 0.95), 0, 0.1, 0);
   rock(g, 2.5, 4.3, 6.2, 0, -2, '#5a4a3a', '#8c7a62', 0.11);
   // Flanking Drakensberg escarpment ridges & alpine gorge stream
   rock(g, 1.3, 2.4, 4.6, -3.5, -2.7, '#4c463b', '#83735d', 0.14);
@@ -1609,7 +1609,7 @@ export function richtersveld(): THREE.Group {
   const g = new THREE.Group();
   const bk = MWood('#b49262', 0.9);
   const lf = Mc('#729262');
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#ad7c4b', 0.96), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#ad7c4b', 0.96), 0, 0.1, 0);
   // Low-poly, flat-shaded shards instead of soft eroded mounds: the jagged
   // skyline is the landscape's signature.
   const shardMat = new THREE.MeshStandardMaterial({
@@ -1754,7 +1754,7 @@ export function vredefort(): THREE.Group {
 export function harties(): THREE.Group {
   const g = new THREE.Group();
   const cn = MStone('#ccc7bb', 0.82, 0.015);
-  add(g, C(7.6, 7.6, 0.2, 84), MStone('#828456', 0.95), 0, 0.1, 0);
+  add(g, B(15.2, 0.2, 15.2), MStone('#828456', 0.95), 0, 0.1, 0);
   add(g, CB(10, 0.1, 5.4, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 1.55, -3.3);
   add(g, CB(4, 0.06, 5, 0.02), MWater('#2585a4', 0.09, 0.25), 0, 0.24, 3.6);
   const wallMat = MStone('#cfc9bd', 0.82);

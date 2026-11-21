@@ -114,9 +114,9 @@ export function createPlacesScene(
   shadowDiscGeo.rotateX(-Math.PI / 2);
   const shadowDiscMat = new THREE.MeshBasicMaterial({
     map: getSoftTexture(),
-    color: '#050811',
+    color: '#0b1422',
     transparent: true,
-    opacity: 0.34,
+    opacity: 0.2,
     depthWrite: false,
   });
   const shadowDisc = new THREE.Mesh(shadowDiscGeo, shadowDiscMat);
@@ -126,8 +126,25 @@ export function createPlacesScene(
   shadowDisc.userData.cannotReceiveAO = true;
   cartoGroup.add(shadowDisc);
 
-  const ringGeo = new THREE.RingGeometry(2.42, 2.47, 96);
-  ringGeo.rotateX(-Math.PI / 2);
+  // Square cartographic frame instead of the old circular compass rings.
+  const squareFrame = (outer: number, inner: number) => {
+    const shape = new THREE.Shape();
+    shape.moveTo(-outer, -outer);
+    shape.lineTo(outer, -outer);
+    shape.lineTo(outer, outer);
+    shape.lineTo(-outer, outer);
+    shape.closePath();
+    const hole = new THREE.Path();
+    hole.moveTo(-inner, -inner);
+    hole.lineTo(-inner, inner);
+    hole.lineTo(inner, inner);
+    hole.lineTo(inner, -inner);
+    hole.closePath();
+    shape.holes.push(hole);
+    return new THREE.ShapeGeometry(shape).rotateX(-Math.PI / 2);
+  };
+
+  const ringGeo = squareFrame(2.47, 2.42);
   const ringMat = new THREE.MeshBasicMaterial({
     color: '#e8b04a',
     transparent: true,
@@ -142,8 +159,7 @@ export function createPlacesScene(
   outerRing.userData.cannotReceiveAO = true;
   cartoGroup.add(outerRing);
 
-  const innerRingGeo = new THREE.RingGeometry(1.94, 1.97, 96);
-  innerRingGeo.rotateX(-Math.PI / 2);
+  const innerRingGeo = squareFrame(1.97, 1.94);
   const innerRingMat = new THREE.MeshBasicMaterial({
     color: '#88a4cc',
     transparent: true,

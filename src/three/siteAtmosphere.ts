@@ -244,6 +244,36 @@ const RING_SPECS: LayerSpec[] = [
     additive: false,
   },
 
+  // Physical improvement: a low fog bank that hugs the plinth, catching
+  // overlapping distant views of the diorama from the ground up.
+  {
+    effect: 'ridgeFog',
+    radius: 10.2,
+    height: 1.9,
+    y: 0.07,
+    base: 0.42,
+    density: 0.52,
+    spin: 0.006,
+    seed: 0.5,
+    mode: 0,
+    additive: false,
+  },
+
+  // Physical improvement: ridgeFog rings respond to rain by thickening at
+  // the bottom half of their band.
+  {
+    effect: 'ridgeFog',
+    radius: 13,
+    height: 3.0,
+    y: 0.3,
+    base: 0.4,
+    density: 0.62,
+    spin: -0.006,
+    seed: 2.0,
+    mode: 0,
+    additive: false,
+  },
+
   // Arid heat shimmer, using a fast-rising additive shader.
   {
     effect: 'heatHaze',
@@ -382,7 +412,8 @@ function effectOpacity(effect: AtmosphereEffect, options: AtmosphereUpdateOption
 
   switch (effect) {
     case 'ridgeFog':
-      return 0.55 + fog * 1.45 + cover * 0.18;
+      // Rain thickens the bank near the plinth: a physical 'wet ground' reading.
+      return 0.55 + fog * 1.45 + cover * 0.18 + wet * 0.35;
     case 'tableCloth':
       return (0.55 + cover * 0.45) * (0.55 + 0.45 * day);
     case 'heatHaze':

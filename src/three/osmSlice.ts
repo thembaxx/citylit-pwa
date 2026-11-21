@@ -271,9 +271,21 @@ export function createOsmSlice(
     disposables.push({ dispose: () => trees.dispose() });
   }
 
-  // Selection ring (kept as a Standard material — placesScene tweaks its emissive).
-  const ringGeo = new THREE.RingGeometry(2.42, 2.47, 96);
-  ringGeo.rotateX(-Math.PI / 2);
+  // Square selection frame (kept as a Standard material — placesScene tweaks its emissive).
+  const ringShape = new THREE.Shape();
+  ringShape.moveTo(-2.47, -2.47);
+  ringShape.lineTo(2.47, -2.47);
+  ringShape.lineTo(2.47, 2.47);
+  ringShape.lineTo(-2.47, 2.47);
+  ringShape.closePath();
+  const ringHole = new THREE.Path();
+  ringHole.moveTo(-2.42, -2.42);
+  ringHole.lineTo(-2.42, 2.42);
+  ringHole.lineTo(2.42, 2.42);
+  ringHole.lineTo(2.42, -2.42);
+  ringHole.closePath();
+  ringShape.holes.push(ringHole);
+  const ringGeo = new THREE.ShapeGeometry(ringShape).rotateX(-Math.PI / 2);
   const ringMat = new THREE.MeshStandardMaterial({
     color: '#e8b04a',
     emissive: '#e8b04a',

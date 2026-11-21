@@ -223,9 +223,9 @@
     "semantic_hash": "b2b5f6621f831ffae65e03a634b7d8e2"
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795211654.997398,
-    "seen": 1795212207.8760376,
-    "ast_hash": "221cfed8a529f2032acd1270e9a2e4f4",
+    "mtime": 1795261019.3661475,
+    "seen": 1795261351.5498133,
+    "ast_hash": "4a40c8532f1f8569aa6830a0abf5dbbf",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -235,21 +235,21 @@
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795209149.5931978,
-    "seen": 1795209309.9557238,
-    "ast_hash": "f4d6ab5707c0ca4f59819f665b59f2b6",
+    "mtime": 1795261260.1389372,
+    "seen": 1795261351.54983,
+    "ast_hash": "abf5ff84b1708d2b35d2804537a5808b",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795209133.2264597,
-    "seen": 1795209309.9557316,
-    "ast_hash": "ec5de82ae5b6415f748a82a2b4155669",
+    "mtime": 1795260124.6629367,
+    "seen": 1795260331.6792996,
+    "ast_hash": "365f53e4f6f0e3cad1893377d4ff0dfc",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795212136.4308064,
-    "seen": 1795212207.8760536,
-    "ast_hash": "029e0a66230cc0c8152256a0d59e4f71",
+    "mtime": 1795261238.2806344,
+    "seen": 1795261351.5498445,
+    "ast_hash": "e9567c58dfb499e20f2160cc2cb312fb",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
@@ -259,9 +259,9 @@
     "semantic_hash": ""
   },
   "src/three/lightingRig.ts": {
-    "mtime": 1795210423.5713756,
-    "seen": 1795210654.1617668,
-    "ast_hash": "4a347b54e7432dc5fed07ca7ab380e34",
+    "mtime": 1795261097.5568404,
+    "seen": 1795261351.5498724,
+    "ast_hash": "45fcf50b2235544a9584fb34bc4438bf",
     "semantic_hash": ""
   },
   "src/three/placesClouds.ts": {
@@ -271,9 +271,9 @@
     "semantic_hash": "6f5bba905222e36b652b788fa57da581"
   },
   "src/three/placesScene.ts": {
-    "mtime": 1795196911.7801945,
-    "seen": 1795198128.738908,
-    "ast_hash": "a80bb70e31a7ab693aebe163b00f14c3",
+    "mtime": 1795259775.4860623,
+    "seen": 1795260331.6793578,
+    "ast_hash": "64790d5690401f3128a76d3b871e4419",
     "semantic_hash": ""
   },
   "src/three/placesShaders.ts": {
@@ -289,9 +289,9 @@
     "semantic_hash": "bad2059d5ce8882712b774dfc112ef23"
   },
   "src/three/postfx.ts": {
-    "mtime": 1795210528.9640324,
-    "seen": 1795210654.1617763,
-    "ast_hash": "2423b12da9ff19e889e7bb9c0aae0e32",
+    "mtime": 1795257758.48452,
+    "seen": 1795258452.8295443,
+    "ast_hash": "532fcc90348656c02cc11820c313b8cb",
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
@@ -301,10 +301,10 @@
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
-    "mtime": 1795100018.3512716,
-    "seen": 1795194883.6611543,
-    "ast_hash": "733c8553985f2267c7710199489963b7",
-    "semantic_hash": "733c8553985f2267c7710199489963b7"
+    "mtime": 1795254769.2680128,
+    "seen": 1795258452.8295631,
+    "ast_hash": "560de3a8ecf0113a3706601e15a1ff2e",
+    "semantic_hash": ""
   },
   "src/three/shaders/noise.glsl.ts": {
     "mtime": 1795097760.942368,
@@ -319,10 +319,10 @@
     "semantic_hash": "5a39c8090bef0405f1e4f379271965d4"
   },
   "src/three/shaders/volumetricFog.glsl.ts": {
-    "mtime": 1795097760.942368,
-    "seen": 1795194883.661618,
-    "ast_hash": "f7372909bb8ffae763090adb5c723e30",
-    "semantic_hash": "f7372909bb8ffae763090adb5c723e30"
+    "mtime": 1795254769.27836,
+    "seen": 1795258452.829595,
+    "ast_hash": "27fa61f417bdd76e90f4c7eb6fb4bfff",
+    "semantic_hash": ""
   },
   "src/three/shaders/water.glsl.ts": {
     "mtime": 1795099437.8359284,
@@ -331,10 +331,10 @@
     "semantic_hash": "e9668471fc35f3e266efdcf6b43940fb"
   },
   "src/three/siteAtmosphere.ts": {
-    "mtime": 1794993077.5912306,
-    "seen": 1795194883.6619241,
-    "ast_hash": "d93ee577ab89a6ce39e977f153ed57d9",
-    "semantic_hash": "d93ee577ab89a6ce39e977f153ed57d9"
+    "mtime": 1795254699.0610712,
+    "seen": 1795258452.829613,
+    "ast_hash": "17d682e6af427865adcfde79468a5ed6",
+    "semantic_hash": ""
   },
   "src/three/thumbnailCache.ts": {
     "mtime": 1795187027.273702,
@@ -343,9 +343,9 @@
     "semantic_hash": "943c31001f55bde83364c6c6c1cf0610"
   },
   "src/three/weatherScene.ts": {
-    "mtime": 1795212744.2887564,
-    "seen": 1795212794.7326667,
-    "ast_hash": "447f3ed2a34f42714f734fc56d3cfc3d",
+    "mtime": 1795261097.6371274,
+    "seen": 1795261351.5499911,
+    "ast_hash": "e091fcd567de01fd544f9839a8ec4f72",
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
@@ -451,9 +451,9 @@
     "semantic_hash": ""
   },
   "src/three/osmSlice.ts": {
-    "mtime": 1795198019.4681563,
-    "seen": 1795198128.7389045,
-    "ast_hash": "d92c04668b39fe9e617410475c815e78",
+    "mtime": 1795259391.6790736,
+    "seen": 1795260331.6793427,
+    "ast_hash": "5d1159c3ee4688e8d8c87fbd08f5db07",
     "semantic_hash": ""
   },
   "docs/THREERT.md": {
@@ -532,6 +532,12 @@
     "mtime": 1795214839.432292,
     "seen": 1795214918.9995897,
     "ast_hash": "9eabf12b301c116e5a3b810db4b8a8d2",
+    "semantic_hash": ""
+  },
+  "src/three/globalIllumination.ts": {
+    "mtime": 1795260287.3957438,
+    "seen": 1795260331.6793218,
+    "ast_hash": "a28c1505232d4170b5449ef889c0f1f8",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {
