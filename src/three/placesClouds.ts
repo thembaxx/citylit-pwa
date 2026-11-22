@@ -52,6 +52,11 @@ export function createCloudPuffMesh(
   return mesh;
 }
 
+function hash(n: number): number {
+  const s = Math.sin(n * 127.1) * 43758.5453;
+  return s - Math.floor(s);
+}
+
 /**
  * Instanced stylised cloud clusters with GPU drift/bob and a soft contact shadow
  * per cluster. One draw call for every puff and one for all shadows.
@@ -67,41 +72,49 @@ export function createSliceCloudLayer(
   const puffs: CloudPuffInstance[] = [];
   const shadowSpots: Array<{ x: number; z: number }> = [];
 
-  // A handful of puffs arranged on a slightly flattened sphere reads as one
-  // soft cumulus cluster instead of a row of discs.
+  // Reference-style cumulus: a wide flat base row of puffs, a bulging middle
+  // and a stacked cauliflower crown, so the cluster silhouettes as a single
+  // chunky cloud instead of a ring of spheres.
   const PuffOffsets: ReadonlyArray<readonly [number, number, number, number]> = [
-    [0.0, 0.03, 0.0, 1.34],
-    [0.12, 0.04, 0.035, 1.02],
-    [-0.115, 0.02, 0.045, 0.98],
-    [0.035, 0.10, -0.085, 0.92],
-    [-0.05, 0.085, 0.09, 0.95],
-    [0.16, -0.01, -0.055, 0.78],
-    [-0.15, -0.02, -0.04, 0.76],
-    [0.02, -0.035, 0.14, 0.72],
-    // Upper billows stack into a taller cauliflower crown.
-    [0.015, 0.17, 0.015, 0.86],
-    [-0.075, 0.145, -0.04, 0.74],
-    [0.085, 0.15, -0.02, 0.76],
+    // flat, slightly shaded base
+    [0.0, -0.035, 0.0, 1.30],
+    [0.19, -0.045, 0.03, 0.92],
+    [-0.18, -0.04, -0.02, 0.90],
+    [0.06, -0.05, 0.15, 0.80],
+    [-0.08, -0.05, -0.14, 0.78],
+    // main billows
+    [0.02, 0.075, 0.01, 1.14],
+    [0.22, 0.05, -0.07, 0.86],
+    [-0.21, 0.06, 0.07, 0.84],
+    [0.10, 0.03, 0.20, 0.74],
+    [-0.13, 0.04, -0.18, 0.72],
+    // cauliflower crown, kept broad rather than tall
+    [0.02, 0.185, 0.0, 0.90],
+    [-0.12, 0.16, -0.05, 0.76],
+    [0.14, 0.165, -0.02, 0.78],
+    [0.01, 0.225, 0.03, 0.60],
+    [-0.02, 0.14, 0.12, 0.66],
   ];
 
-  const clusters = 3 + (Math.floor(seed * 10) % 2);
+  const clusters = 3 + (Math.floor(seed * 10) % 3);
   for (let c = 0; c < clusters; c++) {
     const angle = seed * 2.1 + c * 2.35;
-    const rad = 0.5 + c * 0.14;
+    const rad = 0.52 + c * 0.16;
     const cx = Math.cos(angle) * rad;
-    const cy = maxTopY + 0.58 + c * 0.17;
+    const cy = maxTopY + 0.78 + c * 0.21;
     const cz = Math.sin(angle) * rad * 0.85;
     shadowSpots.push({ x: cx, z: cz });
 
     PuffOffsets.forEach(([ox, oy, oz, weight], p) => {
-      const s = 0.17 * weight * (1 - c * 0.08);
+      // Clusters shrink and thin out as they climb, giving the sky depth.
+      const s = 0.175 * weight * (1 - c * 0.09) * (0.92 + hash(seed * 31.7 + c * 7.3 + p));
       puffs.push({
-        x: cx + ox,
-        y: cy + oy,
-        z: cz + oz,
-        sx: s * 1.28,
-        sy: s * 1.02,
-        sz: s * 1.14,
+        x: cx + ox * (1 - c * 0.05),
+        y: cy + oy * (1 - c * 0.04),
+        z: cz + oz * (1 - c * 0.05),
+        sx: s * 1.30,
+        sy: s * (0.94 + oy * 0.18),
+        sz: s * 1.16,
         phase: seed * 1.7 + c * 2.3 + p * 0.37,
       });
     });

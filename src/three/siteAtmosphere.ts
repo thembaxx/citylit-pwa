@@ -413,7 +413,8 @@ function effectOpacity(effect: AtmosphereEffect, options: AtmosphereUpdateOption
   switch (effect) {
     case 'ridgeFog':
       // Rain thickens the bank near the plinth: a physical 'wet ground' reading.
-      return 0.55 + fog * 1.45 + cover * 0.18 + wet * 0.35;
+      // Daylight thins it so the landmark palette reads as crisply as Places.
+      return (0.55 + fog * 1.45 + cover * 0.18 + wet * 0.35) * (0.55 + 0.45 * day);
     case 'tableCloth':
       return (0.55 + cover * 0.45) * (0.55 + 0.45 * day);
     case 'heatHaze':
@@ -421,11 +422,11 @@ function effectOpacity(effect: AtmosphereEffect, options: AtmosphereUpdateOption
     case 'dustHaze':
       return dry * (0.45 + 0.55 * day) * (0.55 + options.wind * 0.12);
     case 'seaMist':
-      return 0.62 + fog * 0.95 + cover * 0.18;
+      return (0.62 + fog * 0.95 + cover * 0.18) * (0.64 + 0.36 * day);
     case 'sprayMist':
       return 0.7 + cover * 0.3;
     case 'urbanSmog':
-      return 0.58 + cover * 0.5;
+      return (0.58 + cover * 0.5) * (0.62 + 0.38 * day);
   }
 }
 

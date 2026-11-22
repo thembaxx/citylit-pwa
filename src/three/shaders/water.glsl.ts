@@ -35,6 +35,7 @@ uniform float uRain;
 uniform float uFoamStrength;
 uniform float uTurbulence;
 uniform float uClarity;
+uniform float uWind;
 uniform float uGlint;
 uniform float uCaustic;
 uniform float uFresnel;
@@ -63,6 +64,19 @@ float wtNoise(vec2 p) {
     f.y
   );
 }
+float wtFbm(vec2 p) {
+  float s = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 4; i++) {
+    s += a * wtNoise(p);
+    p = p * 2.06 + vec2(9.1, 5.3);
+    a *= 0.5;
+  }
+  return s;
+}
+float wtRidge(vec2 p) {
+  return 1.0 - abs(wtNoise(p) * 2.0 - 1.0);
+}
 float wtHeight(vec2 p, float t) {
   float h = sin(p.x * 5.6 + t * 2.15) * 0.34
           + cos(p.y * 6.6 - t * 1.85) * 0.30
@@ -76,65 +90,97 @@ ${PLACES_VOLUMETRIC_FOG_GLSL}
 void main() {
   if (vDepth < -0.004) discard;
   float depth = max(0.0, vDepth);
-
   vec2 q = vWorldPos.xz;
-  float eps = 0.06;
+
+  // --- wave normal: two broad swells plus a fine wind-ripple octave --------
+  float eps = 0.055;
   float h = wtHeight(q, uTime);
   float hx = wtHeight(q + vec2(eps, 0.0), uTime);
   float hz = wtHeight(q + vec2(0.0, eps), uTime);
-  float tilt = 0.10 * uTurbulence;
+  float tilt = 0.11 * uTurbulence;
   vec3 N = normalize(vec3(-(h - hx) / eps * tilt, 1.0, -(h - hz) / eps * tilt));
+
+  vec2 rp = q * 24.0 + vec2(uTime * 0.85, -uTime * 0.68);
+  float r0 = wtNoise(rp);
+  N = normalize(N + vec3(
+    (r0 - wtNoise(rp + vec2(0.42, 0.0))) * 0.62 * uTurbulence,
+    0.0,
+    (r0 - wtNoise(rp + vec2(0.0, 0.42))) * 0.62 * uTurbulence
+  ));
+
   vec3 V = normalize(cameraPosition - vWorldPos);
   vec3 L = normalize(uSunDir);
-
-  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.4) * uFresnel;
-  float shallowMix = smoothstep(0.004, 0.13, depth);
-  // Distance from shore keeps wide shallows turquoise; only basin centres go deep.
-  float deepMix = max(smoothstep(0.07, 0.42, depth), smoothstep(0.15, 0.9, vShore) * 0.88);
-  vec3 waterBody = mix(uShallow, uDeep, deepMix);
-  waterBody *= 0.92 + 0.20 * shallowMix;
-
   float nDotL = max(dot(N, L), 0.0);
   vec3 H = normalize(L + V);
-  float specBroad = pow(max(dot(N, H), 0.0), 96.0) * (0.35 + 1.0 * uSun);
-  float specGlint = pow(max(dot(N, H), 0.0), 340.0) * (0.6 + 1.6 * uSun);
 
-  vec3 col = waterBody * (0.44 + 0.68 * nDotL * (0.42 + 0.58 * uSun));
-  col += waterBody * uSky * 0.20;
-  col = mix(col, uSky * 1.10, fresnel * 0.55);
-  col += uSunColor * (specBroad * 1.25 + specGlint * 2.4) * uGlint;
+  // --- water body: pale sand glows through the shallows, cobalt in basins --
+  float shallowT = smoothstep(0.0, 0.14, depth);
+  float deepT = smoothstep(0.11, 0.55, depth);
+  vec3 seabed = mix(vec3(0.78, 0.70, 0.50), uShallow * 0.95, 0.22);
+  vec3 body = mix(seabed * 0.92, uShallow, smoothstep(0.0, 0.075, depth));
+  body = mix(body, uDeep, deepT);
+  // Water darkens with the sun so night basins read deep blue, not glowing cyan.
+  body *= mix(0.30, 1.0, uSun);
 
-  // Dual-layer sunlit underwater caustics in clear turquoise shallows.
-  float c1 = wtNoise(q * 11.5 + vec2(uTime * 0.36, -uTime * 0.28));
-  float c2 = wtNoise(q * 14.0 - vec2(uTime * 0.25, uTime * 0.34));
-  float caustic = pow(c1 * c2 * 2.1, 2.2);
-  col += uShallow * caustic * 0.30 * (1.0 - smoothstep(0.04, 0.58, depth)) * (0.40 + 0.60 * uSun) * uCaustic;
+  // Dark reef / weed patches drifting across the deeper turquoise.
+  float reef = smoothstep(0.58, 0.82, wtFbm(q * 3.6 + 13.0));
+  body = mix(body, mix(uDeep * 0.66, uShallow * 0.30, 0.38), reef * deepT * 0.52);
 
-  // Crisp rolling breaking surf, lacy reverse-shore froth and a bright waterline.
-  float surfPhase = fract(vShore * 5.2 - uTime * 0.42 + wtNoise(q * 4.2) * 0.30);
-  float surfRing = smoothstep(0.62, 0.86, surfPhase) * (1.0 - smoothstep(0.0, 0.62, vShore));
-  float shoreLip = (1.0 - smoothstep(0.0, 0.24, vShore))
-                 * (0.62 + 0.38 * wtNoise(q * 17.0 + uTime * 0.72));
-  float lacyFoam = smoothstep(0.46, 0.72, h)
-                 * smoothstep(0.56, 0.86, wtNoise(q * 15.5 - uTime * 0.55))
-                 * 0.44 * uTurbulence;
-  float rainRipples = uRain * smoothstep(0.75, 0.95,
-    sin(q.x * 32.0 + uTime * 14.0) * cos(q.y * 30.0 - uTime * 12.0)) * 0.22;
+  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.2) * uFresnel;
+  float specBroad = pow(max(dot(N, H), 0.0), 90.0);
+  float specGlint = pow(max(dot(N, H), 0.0), 330.0);
+  float sparkle = smoothstep(0.55, 0.95, wtNoise(q * 42.0 + vec2(uTime * 1.4, -uTime * 1.2)));
+
+  vec3 col = body * (0.48 + 0.78 * nDotL);
+  col += uSky * (0.08 + fresnel * 0.26) * mix(0.90, 1.15, uSun);
+  col = mix(col, mix(uShallow, uSky, 0.24), fresnel * 0.30);
+  // Glints stay sun-driven, so night water reads dark instead of stippled white.
+  col += uSunColor * (specBroad * (0.55 + 0.5 * uSun)
+       + specGlint * (0.25 + sparkle * 1.1) * uSun) * uGlint;
+
+  // --- sunlit caustics webbing across the pale sandy bottom ----------------
+  float c1 = wtRidge(q * 7.4 + vec2(uTime * 0.22, -uTime * 0.17));
+  float c2 = wtRidge(q * 9.6 - vec2(uTime * 0.15, uTime * 0.19) + 7.0);
+  float caustic = pow(c1 * c2, 2.6);
+  col += mix(uShallow, vec3(0.88, 1.0, 0.97), 0.45)
+       * caustic * 0.52 * (1.0 - deepT) * (0.35 + 0.65 * uSun) * uCaustic;
+
+  // --- layered breakers, shore lip, lacy foam and offshore whitecaps -------
+  float shore = clamp(vShore, 0.0, 1.0);
+  // Breakers hug the beach: several fine lines close to shore, none mid-lagoon.
+  float surfA = smoothstep(0.60, 0.90,
+    fract(shore * 9.0 - uTime * 0.55 + wtNoise(q * 3.4) * 0.30))
+    * (1.0 - smoothstep(0.0, 0.48, shore));
+  float surfB = smoothstep(0.72, 0.95,
+    fract(shore * 14.0 - uTime * 0.82 + 0.5 + wtNoise(q * 5.2 + 9.0) * 0.24))
+    * (1.0 - smoothstep(0.0, 0.30, shore));
+  float shoreLip = (1.0 - smoothstep(0.0, 0.12, shore))
+    * (0.68 + 0.32 * wtNoise(q * 19.0 + uTime * 0.6));
+  float lacyFoam = smoothstep(0.52, 0.74, h)
+    * smoothstep(0.58, 0.86, wtFbm(q * 12.0 - vec2(uTime * 0.35, uTime * 0.28)))
+    * 0.20 * uTurbulence;
+  float whitecaps = smoothstep(0.93, 1.0, wtRidge(q * 6.8 + vec2(uTime * 0.5, uTime * 0.22)))
+    * smoothstep(0.35, 0.85, uWind)
+    * (1.0 - smoothstep(0.05, 0.5, shore)) * 0.16;
+  float rainRipples = uRain * smoothstep(0.72, 0.95,
+    sin(q.x * 34.0 + uTime * 15.0) * cos(q.y * 31.0 - uTime * 13.0)) * 0.18;
+
   float foam = clamp(
-    (surfRing * 0.95 + shoreLip * 1.08 + lacyFoam + rainRipples) * uFoamStrength,
+    (surfA + surfB * 0.85 + shoreLip * 1.05 + lacyFoam + whitecaps + rainRipples)
+      * uFoamStrength,
     0.0, 1.0
   );
   float foamAA = max(fwidth(foam), 0.02);
-  foam = smoothstep(0.30 - foamAA, 0.66 + foamAA, foam);
-  vec3 foamColor = mix(vec3(0.98, 1.0, 1.0), uSunColor, 0.06);
-  col = mix(col, foamColor * 1.06, foam);
+  foam = smoothstep(0.42 - foamAA, 0.74 + foamAA, foam);
+  vec3 foamColor = mix(vec3(0.985, 1.0, 1.0), uSunColor, 0.05)
+    * (0.95 + 0.10 * uSun) * mix(0.42, 1.0, uSun);
+  col = mix(col, foamColor, foam);
 
   // Faint glassy meniscus right at the cutaway block perimeter.
-  float rim = smoothstep(1.455, 1.49, max(abs(vLocalPos.x), abs(vLocalPos.z)));
-  col += mix(uShallow, vec3(0.72, 0.96, 1.0), 0.55) * rim * 0.10;
+  float rim = smoothstep(1.452, 1.492, max(abs(vLocalPos.x), abs(vLocalPos.z)));
+  col += mix(uShallow, vec3(0.72, 0.97, 1.0), 0.58) * rim * 0.12;
 
-  float alpha = mix(uMinAlpha, 0.92,
-    smoothstep(0.0, 0.38, depth) * (1.10 - uClarity * 0.26));
+  float alpha = mix(uMinAlpha, 0.92, shallowT * 0.30 + deepT * 0.60);
   alpha = clamp(max(alpha, foam * 0.97), uMinAlpha, 0.96);
 
   col = plApplyVolumetricFog(col, vWorldPos);
@@ -168,19 +214,59 @@ varying vec2 vUv;
 varying vec3 vWorldPos;
 ${PLACES_VOLUMETRIC_FOG_GLSL}
 
+float wwHash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+float wwNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(wwHash(i), wwHash(i + vec2(1.0, 0.0)), f.x),
+    mix(wwHash(i + vec2(0.0, 1.0)), wwHash(i + vec2(1.0, 1.0)), f.x),
+    f.y
+  );
+}
+
 void main() {
   float depthMix = 1.0 - vUv.y;
-  vec3 col = mix(uShallow * 1.04, uDeep * 0.62, pow(depthMix, 0.58));
 
-  // Sediment laminations and slow underwater caustics in the cross-section.
-  float sediment = 0.5 + 0.5 * sin(vWorldPos.y * 26.0 + sin(vWorldPos.x * 5.0 + vWorldPos.z * 4.0) * 1.4);
-  col *= 0.91 + 0.12 * sediment;
-  float caustic = sin(vWorldPos.x * 10.0 + vWorldPos.z * 9.5 + uTime * 2.2) * 0.5 + 0.5;
-  caustic *= sin(vUv.y * 18.0 - uTime * 1.5) * 0.5 + 0.5;
-  col += uShallow * caustic * 0.24 * (0.4 + 0.6 * uSun) * vUv.y;
+  // Turquoise at the surface fading into cobalt depth, exactly like the
+  // translucent cut reference blocks.
+  vec3 col = mix(uShallow * 1.08, uDeep * 0.66, pow(depthMix, 0.55));
+  col *= mix(0.38, 1.0, uSun);
+  col = mix(col, uSky * 0.92, smoothstep(0.0, 0.06, vUv.y) * 0.24);
 
+  // Sediment laminations settled on the cross-section.
+  float sediment = 0.5 + 0.5 * sin(
+    vWorldPos.y * 24.0 + sin(vWorldPos.x * 4.6 + vWorldPos.z * 3.8) * 1.6
+  );
+  col *= 0.92 + 0.12 * sediment;
+
+  // Slow caustic webbing and slanted light shafts through the water column.
+  float caustic = sin(vWorldPos.x * 9.0 + vWorldPos.z * 8.5 + uTime * 1.9) * 0.5 + 0.5;
+  caustic *= sin(vUv.y * 16.0 - uTime * 1.4) * 0.5 + 0.5;
+  col += uShallow * caustic * 0.30 * (0.4 + 0.6 * uSun) * vUv.y;
+
+  float shaft = smoothstep(0.62, 0.98, wwNoise(vec2(
+    vUv.x * 7.0 + uTime * 0.05,
+    vUv.y * 1.4
+  )));
+  col += mix(uShallow, vec3(1.0, 0.94, 0.80), 0.4) * shaft * 0.12 * vUv.y;
+
+  // A few rising bubbles clinging to the cut face.
+  vec2 bCell = floor(vec2(vUv.x * 26.0, vUv.y * 13.0));
+  float bSeed = wwHash(bCell);
+  vec2 bLocal = fract(vec2(vUv.x * 26.0, vUv.y * 13.0)) - 0.5;
+  float bubble = step(0.72, bSeed)
+    * (1.0 - smoothstep(0.06, 0.16, length(bLocal + vec2(0.0, sin(uTime * 1.4 + bSeed * 20.0) * 0.18))));
+  col += vec3(0.85, 0.98, 1.0) * bubble * 0.28;
+
+  // Sandy pale meniscus at the waterline, then deeper blue below.
   float meniscus = smoothstep(0.94, 1.0, vUv.y);
   col = mix(col, mix(uSky, vec3(0.88, 0.98, 1.0), 0.7), meniscus * 0.42);
+  float bed = (1.0 - smoothstep(0.0, 0.16, vUv.y));
+  col = mix(col, mix(vec3(0.82, 0.76, 0.58), uShallow * 0.5, 0.35), bed * 0.28);
 
   float alpha = mix(0.40, 0.82, depthMix) * (1.12 - uClarity * 0.30);
   alpha = clamp(max(alpha, meniscus * 0.62), 0.32, 0.86);

@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795284877.0035474,
-    "seen": 1795285281.7917893,
-    "ast_hash": "937e9003027fac43745cf17909cbb262",
+    "mtime": 1795306317.013496,
+    "seen": 1795306426.3070974,
+    "ast_hash": "9f5822d948af9951d512465b47dd23a0",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -235,15 +235,15 @@
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795276347.8031123,
-    "seen": 1795276409.1604,
-    "ast_hash": "abf5ff84b1708d2b35d2804537a5808b",
+    "mtime": 1795305332.7022903,
+    "seen": 1795305405.005721,
+    "ast_hash": "01e1383a86062cf8479d89da10abb64c",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795276353.6958096,
-    "seen": 1795276409.1604042,
-    "ast_hash": "66b612946f8714ddffbabae129a700e8",
+    "mtime": 1795305354.5048704,
+    "seen": 1795305405.0057275,
+    "ast_hash": "2b6c359f4ebad4defb289f92913314cc",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
@@ -265,33 +265,33 @@
     "semantic_hash": ""
   },
   "src/three/placesClouds.ts": {
-    "mtime": 1795280730.7660947,
-    "seen": 1795282846.5833206,
-    "ast_hash": "b7f75f2c39710380555e2b87fb93c77a",
+    "mtime": 1795288712.5519605,
+    "seen": 1795288890.3832643,
+    "ast_hash": "8143c5588c604ed85630045e9c4d540f",
     "semantic_hash": ""
   },
   "src/three/placesScene.ts": {
-    "mtime": 1795280020.30469,
-    "seen": 1795280050.1217432,
-    "ast_hash": "7d26dc18012c8f6ba6cb33b929c5b17d",
+    "mtime": 1795288714.396631,
+    "seen": 1795288890.3832712,
+    "ast_hash": "1f2535cddffa367e5f0ecf77df23edad",
     "semantic_hash": ""
   },
   "src/three/placesShaders.ts": {
-    "mtime": 1795281523.1012323,
-    "seen": 1795282846.583328,
-    "ast_hash": "d924af983c76ea1f2b3b39c0649e6dc2",
+    "mtime": 1795288151.4061773,
+    "seen": 1795288890.3832757,
+    "ast_hash": "dffdf79689601dff3f1070bacbe3eebe",
     "semantic_hash": ""
   },
   "src/three/placesSliceBuilders.ts": {
-    "mtime": 1795282313.6197326,
-    "seen": 1795282846.5833309,
-    "ast_hash": "563c4f05ac2f9593cf2f52d4e02e629f",
+    "mtime": 1795291259.9898517,
+    "seen": 1795291705.4637167,
+    "ast_hash": "ae5ccc118a11a6307f5051952804f816",
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
-    "mtime": 1795265253.7126043,
-    "seen": 1795270207.9621599,
-    "ast_hash": "c2177607258cc431a52285319a4a32fa",
+    "mtime": 1795306274.1508794,
+    "seen": 1795306426.3071887,
+    "ast_hash": "ef2b64609addc17674a2bcf4f1116d61",
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
@@ -301,9 +301,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
-    "mtime": 1795280638.7627988,
-    "seen": 1795282846.5833395,
-    "ast_hash": "0d01670c5d7c75a32510a5a7f3b76245",
+    "mtime": 1795288150.0881512,
+    "seen": 1795288890.3832948,
+    "ast_hash": "920c0da280eab7389486d9b02cfc42e1",
     "semantic_hash": ""
   },
   "src/three/shaders/noise.glsl.ts": {
@@ -313,9 +313,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders/strata.glsl.ts": {
-    "mtime": 1795280819.9298058,
-    "seen": 1795282846.5833485,
-    "ast_hash": "83271ec4e9b3c5410ae4c0a2033f315c",
+    "mtime": 1795291261.651038,
+    "seen": 1795291705.4637337,
+    "ast_hash": "02dbd9c6baa72d8d4b45330fd15f3313",
     "semantic_hash": ""
   },
   "src/three/shaders/volumetricFog.glsl.ts": {
@@ -325,15 +325,15 @@
     "semantic_hash": ""
   },
   "src/three/shaders/water.glsl.ts": {
-    "mtime": 1795281443.9703224,
-    "seen": 1795282846.5833547,
-    "ast_hash": "c9c825cb4ecac959a132f616418375f6",
+    "mtime": 1795288148.9185762,
+    "seen": 1795288890.3833194,
+    "ast_hash": "0b2b10fa81dc0c1036046974d26dc78a",
     "semantic_hash": ""
   },
   "src/three/siteAtmosphere.ts": {
-    "mtime": 1795265253.7146716,
-    "seen": 1795270207.9621797,
-    "ast_hash": "14a88c7cb0ee69e15c40359304c52751",
+    "mtime": 1795291262.7866423,
+    "seen": 1795291705.4637415,
+    "ast_hash": "42505c8b6800cbc674b07877f9ba025a",
     "semantic_hash": ""
   },
   "src/three/thumbnailCache.ts": {
@@ -529,9 +529,9 @@
     "semantic_hash": ""
   },
   "src/components/Compass.tsx": {
-    "mtime": 1795270749.7781765,
-    "seen": 1795270802.8053381,
-    "ast_hash": "e603feded2d0de6deda4e91ebc41d25d",
+    "mtime": 1795285696.7198348,
+    "seen": 1795286220.0086734,
+    "ast_hash": "7ceb778b08842831b3f3307c6be8ac74",
     "semantic_hash": ""
   },
   "src/three/globalIllumination.ts": {
@@ -646,6 +646,168 @@
     "mtime": 1795269731.3505404,
     "seen": 1795270207.9622426,
     "ast_hash": "fe1fce8fb91cce8438afeefa6381960f",
+    "semantic_hash": ""
+  },
+  "probe-flicker.mjs": {
+    "mtime": 1795293027.2325828,
+    "seen": 1795303638.0364685,
+    "ast_hash": "0478ea686d3b258176a30863e9d656f5",
+    "semantic_hash": ""
+  },
+  "probe-shots.mjs": {
+    "mtime": 1795293356.4706733,
+    "seen": 1795303638.0364769,
+    "ast_hash": "241ce49cad7756152bd22614c4949a47",
+    "semantic_hash": ""
+  },
+  "LANDMARK_IMPROVEMENTS.md": {
+    "mtime": 1795294170.6158085,
+    "seen": 1795303638.037037,
+    "ast_hash": "b9928c12de8a065f5a731cef2ed9fc8e",
+    "semantic_hash": ""
+  },
+  "docs/LANDMARK-RESEARCH.md": {
+    "mtime": 1795303596.7701402,
+    "seen": 1795303638.0370533,
+    "ast_hash": "212afdc2cfe35ceb8772d4d77c6b1fe2",
+    "semantic_hash": ""
+  },
+  "s-shot2-after-close.jpg": {
+    "mtime": 1795293459.4454207,
+    "seen": 1795303638.0371995,
+    "ast_hash": "c80614f65b905d80cb83f65bb7827958",
+    "semantic_hash": ""
+  },
+  "s-shot2-hero-dark-noon.jpg": {
+    "mtime": 1795293460.1420891,
+    "seen": 1795303638.0372047,
+    "ast_hash": "492c8314d572c7f5ee7e7af08304dbf9",
+    "semantic_hash": ""
+  },
+  "s-shot2-hero-dark.jpg": {
+    "mtime": 1795293461.4001539,
+    "seen": 1795303638.0372102,
+    "ast_hash": "5390c71118eee4abe3573ef214147911",
+    "semantic_hash": ""
+  },
+  "s-shot2-hero-day.jpg": {
+    "mtime": 1795293462.5773947,
+    "seen": 1795303638.0372152,
+    "ast_hash": "0d79654b8e40b26b836fb05c5ea31e73",
+    "semantic_hash": ""
+  },
+  "s-shot2-places-day.jpg": {
+    "mtime": 1795293463.1806574,
+    "seen": 1795303638.0372202,
+    "ast_hash": "322a6adf4916d158b7b7eef85050a711",
+    "semantic_hash": ""
+  },
+  "s-shot2-places-night.jpg": {
+    "mtime": 1795293463.9510424,
+    "seen": 1795303638.037225,
+    "ast_hash": "b8cd17db963afd2e9fb9b7709c308fb5",
+    "semantic_hash": ""
+  },
+  "s-shot2-places-slice.jpg": {
+    "mtime": 1795293464.696146,
+    "seen": 1795303638.0372305,
+    "ast_hash": "506fc54d31ab7c27941f0fcab7464d33",
+    "semantic_hash": ""
+  },
+  "shot-hero-dark.png": {
+    "mtime": 1795293165.2294965,
+    "seen": 1795303638.0372353,
+    "ast_hash": "e9c65fa1e02a559e8af42b2c7fdd8c10",
+    "semantic_hash": ""
+  },
+  "shot-hero-day.png": {
+    "mtime": 1795293160.2347474,
+    "seen": 1795303638.03724,
+    "ast_hash": "d070df915ec8b96f71d3bbbf71062ce2",
+    "semantic_hash": ""
+  },
+  "shot-places-day.png": {
+    "mtime": 1795293171.1319704,
+    "seen": 1795303638.0372443,
+    "ast_hash": "cb5336aa8d2036df350e187c14170179",
+    "semantic_hash": ""
+  },
+  "shot-places-night.png": {
+    "mtime": 1795293187.0640638,
+    "seen": 1795303638.0372493,
+    "ast_hash": "be53c85c1ce6535de5389c72df89aa50",
+    "semantic_hash": ""
+  },
+  "shot-places-slice.png": {
+    "mtime": 1795293181.359597,
+    "seen": 1795303638.037254,
+    "ast_hash": "f348fdbbc2064f7b8328f1899bb13c10",
+    "semantic_hash": ""
+  },
+  "shot2-after-close.png": {
+    "mtime": 1795293419.1948693,
+    "seen": 1795303638.0372596,
+    "ast_hash": "b9bb42f93260ef02da953e2839cc9510",
+    "semantic_hash": ""
+  },
+  "shot2-hero-dark-noon.png": {
+    "mtime": 1795293393.88129,
+    "seen": 1795303638.0372643,
+    "ast_hash": "d6e443c19134c911e4bb69dbe110d72c",
+    "semantic_hash": ""
+  },
+  "shot2-hero-dark.png": {
+    "mtime": 1795293389.00171,
+    "seen": 1795303638.0372694,
+    "ast_hash": "5b498ef3331f78e963f277131e7e3717",
+    "semantic_hash": ""
+  },
+  "shot2-hero-day.png": {
+    "mtime": 1795293383.7602453,
+    "seen": 1795303638.037274,
+    "ast_hash": "9bf4afc1dcd645ee407b72fa7d68a006",
+    "semantic_hash": ""
+  },
+  "shot2-places-day.png": {
+    "mtime": 1795293405.431958,
+    "seen": 1795303638.0372784,
+    "ast_hash": "3a847751f88ecd238bbabac5f1dedd08",
+    "semantic_hash": ""
+  },
+  "shot2-places-night.png": {
+    "mtime": 1795293416.515027,
+    "seen": 1795303638.0372834,
+    "ast_hash": "7737a0c4996887798a670a3ef56ad66e",
+    "semantic_hash": ""
+  },
+  "shot2-places-slice.png": {
+    "mtime": 1795293411.415319,
+    "seen": 1795303638.0372882,
+    "ast_hash": "4a36e68af46645b0a833b365b4bffb72",
+    "semantic_hash": ""
+  },
+  "small-shot-hero-dark.jpg": {
+    "mtime": 1795293229.7009583,
+    "seen": 1795303638.0372932,
+    "ast_hash": "079c5d1a9a20162c689361c94e173ba6",
+    "semantic_hash": ""
+  },
+  "small-shot-hero-day.jpg": {
+    "mtime": 1795293229.115088,
+    "seen": 1795303638.0372975,
+    "ast_hash": "c7611466890f489a6e31e8ce199531d9",
+    "semantic_hash": ""
+  },
+  "small-shot-places-day.jpg": {
+    "mtime": 1795293230.079182,
+    "seen": 1795303638.0373023,
+    "ast_hash": "eb43faf553cfde22ea348ba5ed4b785f",
+    "semantic_hash": ""
+  },
+  "small-shot-places-night.jpg": {
+    "mtime": 1795293230.4023852,
+    "seen": 1795303638.037306,
+    "ast_hash": "90595df23cd35a8e86070d81e93d765c",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

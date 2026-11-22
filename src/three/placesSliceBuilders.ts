@@ -88,38 +88,58 @@ function createSculptedRockGeo(): THREE.BufferGeometry {
 }
 
 /**
- * One foliage "bush" built from overlapping displaced lobes with baked
- * per-vertex colour, so each instanced tree reads as a textured canopy rather
- * than a smooth plastic ball. Still a single instanced draw call.
+ * One foliage "bush" built from many overlapping leaf-clump lobes with baked
+ * per-vertex colour. Reference dioramas show dense cauliflower canopies made of
+ * individually readable leaf tufts, sun-warmed on top and deep green beneath,
+ * so each lobe is a high-detail displaced icosahedron with cavity shade and a
+ * fine leaf fleck baked into the vertex colours. Still one instanced draw call.
  */
 function createFoliageGeo(): THREE.BufferGeometry {
   const lobes: Array<{ x: number; y: number; z: number; s: number; tint: number }> = [
-    { x: 0, y: 0.10, z: 0, s: 0.82, tint: 1.06 },
-    { x: 0.44, y: -0.04, z: 0.12, s: 0.58, tint: 0.93 },
-    { x: -0.42, y: -0.02, z: -0.10, s: 0.61, tint: 0.97 },
-    { x: 0.04, y: 0.42, z: -0.06, s: 0.54, tint: 1.12 },
+    // broad dome core + asymmetric side clumps
+    { x: 0.0, y: 0.04, z: 0.0, s: 0.84, tint: 1.0 },
+    { x: 0.42, y: -0.02, z: 0.10, s: 0.58, tint: 0.94 },
+    { x: -0.40, y: 0.0, z: -0.08, s: 0.60, tint: 0.97 },
+    { x: 0.16, y: -0.02, z: -0.38, s: 0.54, tint: 0.91 },
+    { x: -0.18, y: 0.02, z: 0.36, s: 0.52, tint: 0.95 },
+    // crown clumps catching the light
+    { x: 0.02, y: 0.40, z: -0.04, s: 0.55, tint: 1.14 },
+    { x: 0.24, y: 0.30, z: 0.20, s: 0.44, tint: 1.08 },
+    { x: -0.24, y: 0.28, z: 0.18, s: 0.43, tint: 1.05 },
+    { x: -0.02, y: 0.26, z: -0.28, s: 0.42, tint: 1.02 },
+    // tucked-under shadow clump so canopies never read as a floating ball
+    { x: 0.0, y: -0.22, z: 0.0, s: 0.62, tint: 0.80 },
   ];
   const parts = lobes.map((lobe, k) => {
-    const geo = new THREE.IcosahedronGeometry(1, 1);
+    const geo = new THREE.IcosahedronGeometry(1, 2);
     const pos = geo.attributes.position;
     const colors = new Float32Array(pos.count * 3);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const y = pos.getY(i);
       const z = pos.getZ(i);
-      const n =
-        1 +
-        0.14 * Math.sin(x * 6.1 + y * 4.7 + k) +
-        0.10 * Math.cos(z * 7.3 - y * 5.1 + k * 1.7) +
-        0.06 * Math.sin((x + z) * 12.0 + k);
-      pos.setXYZ(i, x * n, y * n * 0.92, z * n);
-      // Sun-facing crown lift and deep-crevice shade are baked into the mesh.
-      const shade =
-        lobe.tint *
-        (0.78 + 0.24 * Math.max(0, y) + 0.10 * Math.sin(x * 9.0 + z * 8.0 + k));
-      colors[i * 3] = shade;
-      colors[i * 3 + 1] = shade;
-      colors[i * 3 + 2] = shade;
+      // Multi-octave lumpy displacement reads as clustered leaves at diorama scale.
+      const lump =
+        0.115 * Math.sin(x * 6.1 + y * 4.7 + k * 1.7) +
+        0.075 * Math.cos(z * 7.9 - y * 5.3 + k * 2.3) +
+        0.045 * Math.sin((x + z) * 13.5 + k) +
+        0.028 * Math.sin(x * 23.0 - z * 19.0 + y * 11.0 + k);
+      const n = 1 + lump;
+      pos.setXYZ(i, x * n, y * n * 0.94, z * n);
+
+      // Bake crown light, crevice occlusion and a fine leaf fleck.
+      const crown = Math.max(0, y);
+      const crevice = 0.74 + 0.24 * smoothstep(-0.55, 0.55, y);
+      const fleck =
+        0.14 * Math.sin(x * 31.0 + z * 27.0 + y * 19.0) *
+        Math.sin(z * 23.0 - x * 17.0 + k * 3.1);
+      // Tuned against true 13:00 key light (not the brighter night exposure):
+      // canopy highlights stay olive rather than neon.
+      const shade = lobe.tint * (0.72 + 0.24 * crown + 0.12 * fleck) * crevice;
+      // Greens stay saturated in the shade; highlights lean warm yellow-green.
+      colors[i * 3] = shade * (0.96 + crown * 0.09);
+      colors[i * 3 + 1] = shade * 1.04;
+      colors[i * 3 + 2] = shade * (0.92 - (1 - crown) * 0.06);
     }
     geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geo.translate(lobe.x, lobe.y, lobe.z);
@@ -128,12 +148,13 @@ function createFoliageGeo(): THREE.BufferGeometry {
   });
   const merged = mergeGeometries(parts, false);
   parts.forEach((p) => p.dispose());
-  const geo = merged ?? new THREE.IcosahedronGeometry(1, 1);
+  const geo = merged ?? new THREE.IcosahedronGeometry(1, 2);
   if (!merged) geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(1), 3));
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
 }
+
 
 export function createSliceSharedAssets(
   env: PlacesShaderEnvironment,
@@ -613,7 +634,7 @@ function addInstancedTrees(
   if (trees.length === 0) return;
   const barkMat = new THREE.MeshStandardMaterial({ color: '#6b533e', roughness: 0.92 });
   const leafMat = windy(
-    new THREE.MeshStandardMaterial({ roughness: 0.86, metalness: 0.02, vertexColors: true }),
+    new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.0, vertexColors: true }),
     'places_foliage',
     { heightScale: 0.38, swayScale: 0.55, flutterScale: 0.85, foliageSss: true }
   );
@@ -640,27 +661,39 @@ function addInstancedTrees(
     const seedB = hashSeed(t.z * 7.1, t.x * 15.9);
 
     if (st === 'bush') {
-      // Sculpted asymmetrical 2-lobe fynbos cluster seated low into terrain
+      // Dense rounded fynbos clump: a low shadow mass, a broad main dome and a
+      // small crown tuft, matching the lush clustered canopies in the reference.
       puffItems.push({
-        x: t.x,
-        y: t.y + t.scale * 0.35,
-        z: t.z,
-        sx: t.scale * (1.05 + seedA * 0.25),
-        sy: t.scale * (0.72 + seedB * 0.2),
-        sz: t.scale * (1.0 + seedB * 0.22),
-        rx: seedA * 0.4,
+        x: t.x + (seedA - 0.5) * t.scale * 0.3,
+        y: t.y + t.scale * 0.22,
+        z: t.z + (seedB - 0.5) * t.scale * 0.3,
+        sx: t.scale * (1.05 + seedA * 0.2),
+        sy: t.scale * (0.62 + seedB * 0.16),
+        sz: t.scale * (1.0 + seedB * 0.2),
+        rx: seedA * 0.25,
         ry: seedB * Math.PI * 2,
         color: t.color,
       });
       puffItems.push({
-        x: t.x + (seedA - 0.5) * t.scale * 0.7,
-        y: t.y + t.scale * 0.25,
-        z: t.z + (seedB - 0.5) * t.scale * 0.7,
-        sx: t.scale * 0.72,
-        sy: t.scale * 0.58,
-        sz: t.scale * 0.72,
+        x: t.x + (seedA - 0.5) * t.scale * 0.8,
+        y: t.y + t.scale * 0.28,
+        z: t.z + (seedB - 0.5) * t.scale * 0.8,
+        sx: t.scale * 0.74,
+        sy: t.scale * 0.62,
+        sz: t.scale * 0.74,
         rx: seedB * 0.4,
         ry: seedA * Math.PI * 2,
+        color: t.color,
+      });
+      puffItems.push({
+        x: t.x + (seedB - 0.5) * t.scale * 0.45,
+        y: t.y + t.scale * 0.78,
+        z: t.z + (seedA - 0.5) * t.scale * 0.45,
+        sx: t.scale * 0.54,
+        sy: t.scale * 0.44,
+        sz: t.scale * 0.54,
+        rx: seedA * 0.5,
+        ry: seedB * Math.PI * 2,
         color: t.color,
       });
     } else if (st === 'acacia') {
@@ -701,20 +734,23 @@ function addInstancedTrees(
         });
       }
     } else {
-      // Tall full-crowned Oak or blooming Jacaranda
+      // Tall full-crowned Oak or blooming Jacaranda: five clumps arranged in a
+      // broad dome, with a smaller top tuft so the crown silhouette is rounded.
       const th = t.scale * (st === 'oak' ? 1.55 : 1.35);
       trunkItems.push({ x: t.x, y: t.y + th * 0.48, z: t.z, sx: t.scale * 0.42, sy: th, r: seedA });
-      for (let k = 0; k < 3; k++) {
-        const ang = seedB * 6.28 + k * 2.05;
-        const off = k === 0 ? 0 : t.scale * 0.36;
+      for (let k = 0; k < 5; k++) {
+        const ang = seedB * 6.28 + k * 1.31;
+        const off = k === 0 ? 0 : t.scale * (0.30 + (k % 2) * 0.14);
+        const lift = k === 0 ? 0.38 : k < 3 ? 0.20 : 0.30;
+        const size = k === 0 ? 0.96 : k < 3 ? 0.80 : 0.66;
         puffItems.push({
           x: t.x + Math.cos(ang) * off,
-          y: t.y + th + (k === 0 ? t.scale * 0.32 : t.scale * 0.12),
+          y: t.y + th + t.scale * lift,
           z: t.z + Math.sin(ang) * off,
-          sx: t.scale * (k === 0 ? 0.95 : 0.78),
-          sy: t.scale * (k === 0 ? 0.85 : 0.68),
-          sz: t.scale * (k === 0 ? 0.95 : 0.78),
-          rx: seedA * 0.35,
+          sx: t.scale * size,
+          sy: t.scale * size * 0.82,
+          sz: t.scale * size,
+          rx: seedA * 0.3,
           ry: ang,
           color: t.color,
         });
@@ -747,12 +783,13 @@ function addInstancedTrees(
       const p = puffItems[i];
       dummy.position.set(p.x, p.y, p.z);
       dummy.rotation.set(p.rx, p.ry, p.rx * 0.6);
-      dummy.scale.set(p.sx, p.sy, p.sz);
+      dummy.scale.set(p.sx * 1.1, p.sy * 1.1, p.sz * 1.1);
       dummy.updateMatrix();
       puffMesh.setMatrixAt(i, dummy.matrix);
       c.set(p.color);
-      // Slight per-lobe sun variation
-      c.offsetHSL((hashSeed(i, 11) - 0.5) * 0.025, (hashSeed(i, 13) - 0.5) * 0.12, (hashSeed(i, 7) - 0.5) * 0.16);
+      // Small per-lobe sun variation; no saturation lift, which turned canopies
+      // fluorescent under real daylight.
+      c.offsetHSL((hashSeed(i, 11) - 0.5) * 0.025, -0.03 + (hashSeed(i, 13) - 0.5) * 0.06, (hashSeed(i, 7) - 0.5) * 0.10);
       puffMesh.setColorAt(i, c);
     }
     puffMesh.instanceMatrix.needsUpdate = true;
@@ -1232,18 +1269,19 @@ export function buildPlaceSlice(
 
   const cScratch = new THREE.Color();
   const oceanWater: CutawayWaterOptions = {
-    shallowColor: '#25bdd1',
-    deepColor: '#063d54',
-    foamStrength: 1.05,
-    turbulence: 1.08,
-    clarity: 0.85,
+    // Reference turquoise: brilliant cyan shallows over pale sand, cobalt basins.
+    shallowColor: '#3fd9e0',
+    deepColor: '#0a4b86',
+    foamStrength: 1.18,
+    turbulence: 1.12,
+    clarity: 0.88,
   };
   const riverWater: CutawayWaterOptions = {
-    shallowColor: '#41ced6',
-    deepColor: '#0b5a6e',
-    foamStrength: 1.2,
+    shallowColor: '#4ad8d2',
+    deepColor: '#0b5f7e',
+    foamStrength: 1.25,
     turbulence: 1.28,
-    clarity: 0.74,
+    clarity: 0.78,
   };
   const tanninWater: CutawayWaterOptions = {
     shallowColor: '#915524',
@@ -1253,22 +1291,22 @@ export function buildPlaceSlice(
     clarity: 0.68,
   };
   const muddyWater: CutawayWaterOptions = {
-    shallowColor: '#9c8663',
-    deepColor: '#5c4b34',
-    foamStrength: 0.14,
-    turbulence: 0.35,
-    clarity: 0.45,
+    shallowColor: '#83704f',
+    deepColor: '#3f3322',
+    foamStrength: 0.06,
+    turbulence: 0.30,
+    clarity: 0.34,
   };
   const emeraldWater: CutawayWaterOptions = {
-    shallowColor: '#128a72',
-    deepColor: '#053b31',
-    foamStrength: 0.10,
+    shallowColor: '#1c9e83',
+    deepColor: '#07513f',
+    foamStrength: 0.08,
     turbulence: 0.20,
-    clarity: 0.86,
-    glint: 0.20,
-    caustic: 0.10,
-    fresnel: 0.28,
-    minAlpha: 0.72,
+    clarity: 0.88,
+    glint: 0.30,
+    caustic: 0.22,
+    fresnel: 0.30,
+    minAlpha: 0.62,
   };
 
   const name = spec.landmarkName;

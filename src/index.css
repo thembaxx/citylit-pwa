@@ -460,17 +460,27 @@ body,
 
 .compass__dial:hover,
 .compass__dial:focus-within {
-  border-color: rgba(232, 176, 74, 0.52);
+  transform: translateY(-1px) scale(1.045);
+  border-color: rgba(232, 176, 74, 0.62);
   box-shadow:
-    0 10px 26px rgba(0, 0, 0, 0.56),
-    0 0 0 1px rgba(232, 176, 74, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    0 12px 30px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(232, 176, 74, 0.24),
+    0 0 18px rgba(232, 176, 74, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.compass__dial:hover svg {
+  filter: drop-shadow(0 0 3px rgba(232, 176, 74, 0.35));
 }
 
 .compass__dial[data-dragging='true'] {
   cursor: grabbing;
   transform: scale(1.06);
   border-color: rgba(232, 176, 74, 0.8);
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.6),
+    0 0 22px rgba(232, 176, 74, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 /* One-time boot reveal: fade in from a slight leftward offset, never from nothing. */

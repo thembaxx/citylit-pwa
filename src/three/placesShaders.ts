@@ -560,9 +560,9 @@ void main() {
   float bank = smoothstep(0.24, 0.80, vfFbm(vWorldPos.xz * 0.22 + drift));
 
   float radial = length(vWorldPos.xz);
-  float innerFade = smoothstep(1.9, 3.2, radial);
+  float innerFade = smoothstep(2.6, 4.4, radial);
   float outerFade = 1.0 - smoothstep(5.8, 11.4, radial);
-  float alpha = bank * innerFade * outerFade * 0.22 * densityNorm;
+  float alpha = bank * innerFade * outerFade * 0.10 * densityNorm;
   if (alpha < 0.005) discard;
 
   vec3 baseCol = mix(uFogDeepColor, uFogColor, 0.55);

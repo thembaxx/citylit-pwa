@@ -15,7 +15,6 @@ import {
   type PlaceSliceSpec,
 } from './placesSliceBuilders';
 import { getSoftTexture, WU } from './shaders';
-import { addSquareRim, getSiteProfile } from './builders/dioramaKit';
 import type { OsmPlaceData } from '../services/osmService';
 import { createOsmSlice } from './osmSlice';
 
@@ -127,30 +126,8 @@ export function createPlacesScene(
   shadowDisc.userData.cannotReceiveAO = true;
   cartoGroup.add(shadowDisc);
 
-  // Reuse the landmark model's own stratified stand as the stage base. It is
-  // scaled to the slice footprint and rebuilt per slice so its earth/rock
-  // palette matches the landmark exactly — no separate square geometry.
-  const STAND_SCALE = 2.47 / 8.4;
-  let standGroup: THREE.Group | null = null;
-  const setStandFor = (landmarkName: string): void => {
-    if (standGroup) {
-      standGroup.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) obj.geometry.dispose();
-      });
-      cartoGroup.remove(standGroup);
-    }
-    standGroup = new THREE.Group();
-    addSquareRim(standGroup, getSiteProfile(landmarkName));
-    standGroup.scale.setScalar(STAND_SCALE);
-    standGroup.position.y = 0.005 - 0.04 * STAND_SCALE;
-    standGroup.traverse((obj) => {
-      if (obj instanceof THREE.Mesh) {
-        obj.userData.noShadow = true;
-        obj.userData.cannotReceiveAO = true;
-      }
-    });
-    cartoGroup.add(standGroup);
-  };
+  // The slice's own geological block is the base: no separate plinth, so the
+  // layered cutaway walls run to the bottom exactly like the reference blocks.
 
   // Build all 24 sculpted isometric geological slices centered at (0, 0, 0); only 1 is visible at a time
   const slices: BuiltPlaceSlice[] = PLACE_SLICE_SPECS.map((spec, idx) => {
@@ -212,7 +189,6 @@ export function createPlacesScene(
     selectedSliceIndex = nextIndex;
     env.activeSliceIndex.value = nextIndex;
     hoveredSliceIndex = null;
-    setStandFor(slices[nextIndex].spec.landmarkName);
     for (let i = 0; i < slices.length; i++) {
       const s = slices[i];
       const active = i === nextIndex;
@@ -571,13 +547,6 @@ export function createPlacesScene(
     cloudMat.dispose();
     shadowDiscGeo.dispose();
     shadowDiscMat.dispose();
-    if (standGroup) {
-      standGroup.traverse((obj) => {
-        if (obj instanceof THREE.Mesh) obj.geometry.dispose();
-      });
-      cartoGroup.remove(standGroup);
-      standGroup = null;
-    }
   };
 
   const controller: PlacesController = {

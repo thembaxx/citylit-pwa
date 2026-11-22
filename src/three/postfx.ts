@@ -27,6 +27,9 @@ const MiniatureShader = {
     uFar: { value: 200 },
     uFocusDistance: { value: 9.0 },
     uDepthRange: { value: 2.0 },
+    uContrast: { value: 1.0 },
+    uSaturation: { value: 1.05 },
+    uShadowLift: { value: 0.0 },
     toneMappingExposure: { value: 1.08 },
   },
   vertexShader: /* glsl */ `
@@ -51,6 +54,9 @@ const MiniatureShader = {
     uniform float uFar;
     uniform float uFocusDistance;
     uniform float uDepthRange;
+    uniform float uContrast;
+    uniform float uSaturation;
+    uniform float uShadowLift;
     varying vec2 vUv;
 
     float linearDepth(vec2 uv) {
@@ -61,9 +67,16 @@ const MiniatureShader = {
 
     vec3 grade(vec3 c) {
       float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
-      c = mix(vec3(luma), c, 1.05);
+      c = mix(vec3(luma), c, uSaturation);
+      // Pivot contrast in linear HDR. This separates pale masonry from dark
+      // rock without changing the authored albedo hues of any landmark.
+      c = max(vec3(0.0), (c - 0.10) * uContrast + 0.10);
       // Gentle cool-shadow / warm-highlight split for a photographic finish.
       c *= mix(vec3(0.97, 0.99, 1.05), vec3(1.04, 1.01, 0.96), smoothstep(0.15, 0.85, luma));
+      // Lift only dim material tones, never the near-black night sky. The band
+      // starts above the background level and falls off before the midtones.
+      float dimBand = smoothstep(0.004, 0.024, luma) * (1.0 - smoothstep(0.06, 0.18, luma));
+      c += uShadowLift * dimBand;
       return c;
     }
 
@@ -124,6 +137,7 @@ export interface MiniaturePass extends ShaderPass {
   setDepth(texture: THREE.Texture | null, near: number, far: number): void;
   setFocus(distance: number, depthRange?: number, aperture?: number): void;
   setExposure(exposure: number): void;
+  setGrade(grade: { contrast?: number; saturation?: number; shadowLift?: number }): void;
   applyTuning(tuning: Partial<MiniatureTuning>): void;
 }
 
@@ -190,6 +204,12 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
 
   pass.setExposure = (exposure) => {
     pass.uniforms.toneMappingExposure.value = exposure;
+  };
+
+  pass.setGrade = (grade) => {
+    if (grade.contrast !== undefined) pass.uniforms.uContrast.value = grade.contrast;
+    if (grade.saturation !== undefined) pass.uniforms.uSaturation.value = grade.saturation;
+    if (grade.shadowLift !== undefined) pass.uniforms.uShadowLift.value = grade.shadowLift;
   };
 
   pass.applyTuning = (tuning: Partial<MiniatureTuning>) => {

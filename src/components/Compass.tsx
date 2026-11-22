@@ -71,9 +71,13 @@ export function Compass({
   directionActive = false,
   reducedMotion = false,
 }: CompassProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
   const dialRef = useRef<HTMLDivElement>(null);
   const needleRef = useRef<SVGGElement>(null);
   const nextBearingRef = useRef<SVGGElement>(null);
+  const hoverMarkerRef = useRef<SVGGElement>(null);
+  const faceHintRef = useRef<HTMLSpanElement>(null);
+  const hoverBearingRef = useRef<number | null>(null);
   const osReduce = useReducedMotion();
   const reduce = reducedMotion || Boolean(osReduce);
 
@@ -250,6 +254,64 @@ export function Compass({
     onResetCamera?.();
   }, [getEngine, onResetCamera]);
 
+  /** Screen angle around the dial -> compass bearing (0° = north/up). */
+  const bearingFromPointer = (
+    e: React.PointerEvent<HTMLDivElement>
+  ): { bearing: number; radial: number } | null => {
+    const el = dialRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const rx = e.clientX - (rect.left + rect.width * 0.5);
+    const ry = e.clientY - (rect.top + rect.height * 0.5);
+    const deg = (Math.atan2(ry, rx) * 180) / Math.PI + 90;
+    return {
+      bearing: ((((deg % 360) + 360) % 360) * 10) / 10,
+      radial: Math.hypot(rx, ry),
+    };
+  };
+
+  /** Show the bearing currently under the pointer, written straight to the SVG. */
+  const updateHoverMarker = (bearing: number | null) => {
+    if (hoverBearingRef.current !== bearing) hoverBearingRef.current = bearing;
+    const marker = hoverMarkerRef.current;
+    if (marker) {
+      if (bearing === null) {
+        marker.style.opacity = '0';
+      } else {
+        marker.setAttribute('transform', `rotate(${bearing.toFixed(1)} ${C} ${C})`);
+        marker.style.opacity = '1';
+      }
+    }
+    const hint = faceHintRef.current;
+    if (hint) {
+      if (bearing === null) {
+        hint.textContent = '';
+        hint.classList.add('hidden');
+      } else {
+        const { padded, cardinal } = formatBearing(bearing);
+        hint.textContent = `Face ${padded}° ${cardinal}`;
+        hint.classList.remove('hidden');
+      }
+    }
+  };
+
+  // Wheel over the dial steps the camera heading in 10° increments. Attached
+  // natively so preventDefault actually stops the page scrolling underneath.
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || !visible) return undefined;
+    const onWheel = (e: WheelEvent) => {
+      const engine = getEngine();
+      const dir = Math.sign(e.deltaY);
+      if (!engine || !dir) return;
+      e.preventDefault();
+      ambientAudio.playUi('tick');
+      engine.rotateCameraAzimuth((dir * Math.PI) / 18);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [getEngine, visible]);
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const el = dialRef.current;
     if (!el) return;
@@ -272,7 +334,14 @@ export function Compass({
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const sess = dragSession.current;
     const el = dialRef.current;
-    if (!sess || sess.pointerId !== e.pointerId || !el) return;
+    if (!el) return;
+    if (!sess) {
+      // Hover: preview the bearing under the pointer on the bezel.
+      const info = bearingFromPointer(e);
+      if (info) updateHoverMarker(info.radial > 11 ? info.bearing : null);
+      return;
+    }
+    if (sess.pointerId !== e.pointerId) return;
 
     const totalMoved = Math.hypot(e.clientX - sess.startX, e.clientY - sess.startY);
     if (totalMoved >= 4) sess.moved = true;
@@ -318,7 +387,16 @@ export function Compass({
     setDragging(false);
 
     if (cancelled || sess.moved) return;
-    resetCameraOrientation();
+
+    // Clicking the bezel now faces that exact bearing; only a click on the
+    // centre boss resets the camera to its default landmark orientation.
+    const info = bearingFromPointer(e);
+    if (info && info.radial > 11) {
+      snapToHeading(info.bearing);
+      updateHoverMarker(info.bearing);
+    } else {
+      resetCameraOrientation();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -345,9 +423,13 @@ export function Compass({
 
   return (
     <div
+      ref={rootRef}
       className={`compass${reduce ? ' compass--reduced' : ''}`}
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseLeave={() => {
+        setHovered(false);
+        updateHoverMarker(null);
+      }}
     >
       <div className="relative flex items-center justify-center">
         {!reduce && pulseState.seq > 0 && (
@@ -396,7 +478,7 @@ export function Compass({
             }
           }}
           onKeyDown={handleKeyDown}
-          title="Click to reset camera · Drag bezel to orbit"
+          title="Click a bearing to face it · centre click or R resets · drag to orbit · scroll to step"
         >
           <svg width="60" height="60" viewBox="0 0 60 60" fill="none" aria-hidden="true">
             {/* Outer brass hairline and inner track */}
@@ -477,6 +559,26 @@ export function Compass({
               W
             </text>
 
+            {/* Bearing under the pointer: gold pip + needle spark, click to face it */}
+            <g
+              ref={hoverMarkerRef}
+              style={{ opacity: 0, transition: 'opacity 120ms ease' }}
+              transform={`rotate(0 ${C} ${C})`}
+              aria-hidden="true"
+            >
+              <line
+                x1={C}
+                y1={C - 26}
+                x2={C}
+                y2={C - 15}
+                stroke="#ffd784"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+              />
+              <polygon points={`${C},4.4 ${C - 2.2},8.4 ${C + 2.2},8.4`} fill="#ffd784" />
+              <circle cx={C} cy={C - 20.5} r="1.05" fill="#ffd784" />
+            </g>
+
             {/* Next-landmark bearing marker on outer ring when Show Direction is active */}
             <g
               ref={nextBearingRef}
@@ -531,6 +633,10 @@ export function Compass({
                 22° TILT
               </span>
             </div>
+            <span
+              ref={faceHintRef}
+              className="hidden font-mono text-[10px] tracking-wide text-[#e8b04a]"
+            />
 
             {mode !== 'globe' ? (
               <div className="space-y-1">

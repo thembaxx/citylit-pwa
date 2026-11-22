@@ -133,8 +133,6 @@ export class CitylitEngine {
   /** Subtle warm ground/apron spill lighting architectural facades at dusk & night. */
   private readonly nightApronLight: THREE.PointLight;
   private readonly plinthGroup: THREE.Group;
-  private readonly plinthTopMat: THREE.MeshStandardMaterial;
-  private readonly plinthBaseMat: THREE.MeshStandardMaterial;
   private readonly ringMat: THREE.MeshStandardMaterial;
   /** Kept alive so Studio mode can switch away from the sky HDRI without breaking it. */
   private readonly roomEnvTex: THREE.Texture;
@@ -178,8 +176,6 @@ export class CitylitEngine {
   private cinematic = false;
   private theme: ThemeSetting = 'daylight';
   private studioWeight = 0;
-  private targetPlinthTop = new THREE.Color('#1a1c24');
-  private targetPlinthBase = new THREE.Color('#111218');
   private targetRingCol = new THREE.Color('#e8b04a');
   private targetRingEmissive = 0.35;
   private targetBloomThreshold = 0.9;
@@ -477,17 +473,9 @@ export class CitylitEngine {
     this.plinthGroup = new THREE.Group();
     this.scene.add(this.plinthGroup);
 
-    // Square plinth — the house style is a cut slab, not a circular stand.
-    this.plinthTopMat = new THREE.MeshStandardMaterial({ color: '#1a1c24', roughness: 0.88 });
-    const plinthTop = new THREE.Mesh(new THREE.BoxGeometry(17.4, 0.5, 17.4), this.plinthTopMat);
-    plinthTop.position.y = -0.25;
-    plinthTop.receiveShadow = true;
-    this.plinthGroup.add(plinthTop);
-
-    this.plinthBaseMat = new THREE.MeshStandardMaterial({ color: '#111218', roughness: 0.9 });
-    const plinthBase = new THREE.Mesh(new THREE.BoxGeometry(18.6, 0.2, 18.6), this.plinthBaseMat);
-    plinthBase.position.y = -0.6;
-    this.plinthGroup.add(plinthBase);
+    // No display slab: every landmark already grows its own carved strata
+    // block and hanging rock underside, exactly like the Places dioramas. A
+    // wide plinth under it only hid that block behind a pale apron.
 
     this.ringMat = new THREE.MeshStandardMaterial({
       color: '#e8b04a',
@@ -1225,6 +1213,22 @@ export class CitylitEngine {
     });
   }
 
+  /**
+   * Drop an armed hero dissolve. A dissolve only advances in the hero branch
+   * of the frame loop, so arming one while the globe or Places stage is open
+   * used to leave the cut plane and phase behind: closing the stage then ran
+   * a stale dissolve and the diorama vanished for its whole duration.
+   */
+  private cancelHeroDissolve(): void {
+    if (this.dissolvePhase === 0 && this.pendingIndex === null) return;
+    this.dissolvePhase = 0;
+    this.dissolveT = 0;
+    this.pendingIndex = null;
+    WU.dy.value = 100;
+    this.dustPoints.visible = false;
+    if (this.currentGroup) setContactShadowFade(this.currentGroup, 1);
+  }
+
   private resetCutawayOffsets(): void {
     for (let i = 0; i < this.cutawayEntries.length; i++) {
       const entry = this.cutawayEntries[i];
@@ -1374,6 +1378,13 @@ export class CitylitEngine {
       this.showLandmarkImmediate(index);
       return;
     }
+    // The hero is hidden behind a full-screen stage; a dust dissolve would
+    // never be stepped there, so swap straight away instead.
+    if (this.places.isOpen || this.globe.isOpen) {
+      this.cancelHeroDissolve();
+      this.showLandmarkImmediate(index);
+      return;
+    }
     const prevIdx = this.activeIndex;
     const count = LANDMARKS.length;
     let dir: 1 | -1 = index >= prevIdx ? 1 : -1;
@@ -1453,16 +1464,19 @@ export class CitylitEngine {
     const W = Math.floor(rt.width);
     const H = Math.floor(rt.height);
     if (W < 1 || H < 1) return;
-    if (!this.exposureBuf || this.exposureBuf.length < W * 4) {
-      this.exposureBuf = new Uint16Array(W * 4);
+    // One mid-height row through the miniature, trimmed to the central band.
+    // Sampling edge-to-edge let a black night sky dominate the average, which
+    // drove exposure up and bleached the pale stone and cream strata.
+    const sampleX = Math.floor(W * 0.22);
+    const sampleW = Math.max(1, Math.floor(W * 0.56));
+    if (!this.exposureBuf || this.exposureBuf.length < sampleW * 4) {
+      this.exposureBuf = new Uint16Array(sampleW * 4);
     }
     const buf = this.exposureBuf;
-    // A single mid-height row crosses both the brighter sky and the darker
-    // miniature. One readback per frame keeps the sync stall minimal.
-    this.renderer.readRenderTargetPixels(rt, 0, Math.floor(H * 0.5), W, 1, buf);
+    this.renderer.readRenderTargetPixels(rt, sampleX, Math.floor(H * 0.52), sampleW, 1, buf);
     let sum = 0;
     let n = 0;
-    for (let i = 0; i < W; i++) {
+    for (let i = 0; i < sampleW; i++) {
       const r = THREE.DataUtils.fromHalfFloat(buf[i * 4]);
       const g = THREE.DataUtils.fromHalfFloat(buf[i * 4 + 1]);
       const b = THREE.DataUtils.fromHalfFloat(buf[i * 4 + 2]);
@@ -1476,7 +1490,14 @@ export class CitylitEngine {
     const k = 1 - Math.exp(-Math.max(dt, 0) * 0.9);
     const desired = this.autoExposureValue * (0.58 / avg);
     this.autoExposureValue += (desired - this.autoExposureValue) * k;
-    this.autoExposureValue = Math.min(4.0, Math.max(0.3, this.autoExposureValue));
+    // A black night sky drags the sampled average down and used to drive this
+    // to 4x, blowing pale stone and cream strata to flat white (the landmark
+    // "white, high-contrast" look). Keep the range moonlit instead, and keep
+    // the dark theme visibly darker than daylight rather than equalising both.
+    const darkTheme = this.theme === 'dark';
+    const ceiling = darkTheme ? 1.28 : 1.9;
+    const floor = darkTheme ? 0.8 : 0.7;
+    this.autoExposureValue = Math.min(ceiling, Math.max(floor, this.autoExposureValue));
     this.renderer.toneMappingExposure = this.autoExposureValue;
     this.miniaturePass.setExposure(this.autoExposureValue);
   }
@@ -1493,6 +1514,7 @@ export class CitylitEngine {
         focusRange: 0.34,
         focusY: 0.5,
       });
+      this.miniaturePass.setGrade({ contrast: 1.0, saturation: 1.05, shadowLift: 0 });
     } else if (this.theme === 'daylight') {
       // Clean, bright tabletop: light blur and a shallow vignette.
       this.baseAperture = 0.78;
@@ -1503,18 +1525,27 @@ export class CitylitEngine {
         focusRange: 0.3,
         focusY: 0.5,
       });
+      // Brighter key can flatten pale stone against a bright sky; add punch
+      // without moving any of the authored landmark albedos.
+      this.miniaturePass.setGrade({ contrast: 1.1, saturation: 1.08, shadowLift: 0 });
     } else {
       // Dark: a wider focus band and much lighter vignette keep shaded detail
       // legible instead of crushing the diorama into a silhouette.
       this.baseAperture = 0.82;
       this.miniaturePass.applyTuning({
         blur: 1.2,
-        vignette: 0.08,
+        vignette: 0.05,
         aperture: 0.82,
         focusRange: 0.28,
         focusY: 0.5,
       });
+      // Moonlit stone and dark sky sat too close in value. Lift only dim
+      // material tones (never the near-black sky) and open up the midtones.
+      this.miniaturePass.setGrade({ contrast: 1.14, saturation: 1.1, shadowLift: 0.022 });
     }
+    // Shadow-casting lights stay at their weather-driven night levels; the
+    // non-shadowing bounce adds separation to the miniature's shaded faces.
+    this.bounceLight.intensity = this.theme === 'dark' ? 0.95 : 0.7;
     this.n8aoPass.configuration.intensity = this.n8aoThemeIntensity();
     this.renderer.toneMappingExposure = this.themeExposure();
     this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
@@ -1688,14 +1719,10 @@ export class CitylitEngine {
     }
 
     if (theme === 'daylight') {
-      this.targetPlinthTop.set('#b8ad99');
-      this.targetPlinthBase.set('#968b76');
       this.targetRingCol.set('#b8842f');
       this.targetRingEmissive = 0.14;
       this.targetBloomThreshold = 1.0;
     } else {
-      this.targetPlinthTop.set('#1a1c24');
-      this.targetPlinthBase.set('#111218');
       this.targetRingCol.set('#e8b04a');
       this.targetRingEmissive = 0.35;
       this.targetBloomThreshold = 0.9;
@@ -1703,8 +1730,6 @@ export class CitylitEngine {
 
     if (immediate) {
       this.studioWeight = 0;
-      this.plinthTopMat.color.copy(this.targetPlinthTop);
-      this.plinthBaseMat.color.copy(this.targetPlinthBase);
       this.ringMat.color.copy(this.targetRingCol);
       this.ringMat.emissive.copy(this.targetRingCol);
       this.ringMat.emissiveIntensity = this.targetRingEmissive;
@@ -1809,6 +1834,7 @@ export class CitylitEngine {
       this.weather.stormCurtain.scale.setScalar(1);
       this.atmosphere.root.position.set(0, 0, 0);
     }
+    this.cancelHeroDissolve();
     this.heroRoot.visible = false;
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
@@ -1856,6 +1882,7 @@ export class CitylitEngine {
     if (this.globe.isOpen) {
       this.globe.close();
     }
+    this.cancelHeroDissolve();
     this.heroRoot.visible = false;
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
@@ -3620,7 +3647,7 @@ export class CitylitEngine {
         WU.sunHor.value,
         dt,
         this.motionScale,
-        this.hoverRimBoost * 0.32
+        this.hoverRimBoost * 0.32 + (this.theme === 'dark' ? 0.22 : 0)
       );
 
       // Night warm architectural ground spill on the plinth (no shadow caster overhead)
@@ -3639,8 +3666,6 @@ export class CitylitEngine {
       if (!this.isSoftwareGl && this.qualityIndex < 2) {
         this.bloomPass.enabled = this.studioWeight < 0.99;
       }
-      this.plinthTopMat.color.lerp(this.targetPlinthTop, themeLerp);
-      this.plinthBaseMat.color.lerp(this.targetPlinthBase, themeLerp);
       this.ringMat.color.lerp(this.targetRingCol, themeLerp);
       this.ringMat.emissive.lerp(this.targetRingCol, themeLerp);
       this.ringMat.emissiveIntensity +=
