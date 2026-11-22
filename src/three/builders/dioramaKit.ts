@@ -2043,7 +2043,77 @@ export function shopfrontBand(g: THREE.Object3D, spec: ShopfrontBandSpec): THREE
     spec.z
   );
   mesh.rotation.y = spec.ry ?? 0;
+
+  // Light from the shopfront spills onto the pavement below it. A single
+  // additive quad replaces a real light, so street level glows without adding
+  // to the (deliberately fixed) forward light count.
+  const spillW = spec.width * 1.3;
+  const spillD = Math.max(0.55, spec.width * 0.34);
+  const spill = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    getWindowSpillMat(spec.lit ?? '#ffd08a')
+  );
+  spill.scale.set(spillW, 1, spillD);
+  spill.position.set(spec.x, spec.y - height * 0.5 - 0.008, spec.z + spillD * 0.4);
+  spill.rotation.y = spec.ry ?? 0;
+  spill.renderOrder = 2;
+  spill.castShadow = false;
+  spill.receiveShadow = false;
+  spill.userData.noShadow = true;
+  spill.userData.cannotReceiveAO = true;
+  spill.userData.noDissolve = true;
+  g.add(spill);
   return mesh;
+}
+
+const spillMats = new Map<string, THREE.ShaderMaterial>();
+
+function getWindowSpillMat(lit: THREE.ColorRepresentation): THREE.ShaderMaterial {
+  const key = new THREE.Color(lit).getHexString();
+  const cached = spillMats.get(key);
+  if (cached) return cached;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uDY: WU.dy,
+      uCol: { value: new THREE.Color(`#${key}`) },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uDY;
+      uniform vec3 uCol;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float night = smoothstep(0.12, 0.8, uLit);
+        if (night <= 0.004) discard;
+        vec2 c = (vUv - 0.5) * 2.0;
+        float across = pow(max(0.0, 1.0 - abs(c.x)), 2.2);
+        float away = smoothstep(-0.2, 0.85, c.y) * (1.0 - smoothstep(0.7, 1.0, vUv.y));
+        float a = across * away * night * 0.13;
+        gl_FragColor = vec4(uCol * a * 1.25, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  mat.userData.sharedResource = true;
+  mat.userData.noDissolve = true;
+  spillMats.set(key, mat);
+  return mat;
 }
 
 export interface CorniceBandSpec {
@@ -2681,6 +2751,97 @@ function addLampWaterReflections(
   im.userData.noDissolve = true;
 }
 
+let wetRoadMatShared: THREE.ShaderMaterial | null = null;
+
+function getWetRoadMat(): THREE.ShaderMaterial {
+  if (wetRoadMatShared) return wetRoadMatShared;
+  wetRoadMatShared = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uRain: WU.rain,
+      uWT: WU.t,
+      uDY: WU.dy,
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        vUv = uv;
+        #ifdef USE_INSTANCING
+          vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        #else
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        #endif
+        #ifdef USE_INSTANCING_COLOR
+          vLampCol = instanceColor;
+        #else
+          vLampCol = vec3(1.0, 0.82, 0.5);
+        #endif
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uRain, uWT, uDY;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        // Wet asphalt only mirrors light once the road is genuinely soaked, so
+        // the streaks fade in with rain instead of appearing on a dry night.
+        float wet = smoothstep(0.28, 0.85, uRain);
+        if (wet <= 0.004) discard;
+        float night = smoothstep(0.12, 0.85, uLit);
+        if (night <= 0.004) discard;
+        float across = pow(max(0.0, 1.0 - abs(vUv.x - 0.5) * 2.0), 3.1);
+        float along = smoothstep(0.0, 0.35, 1.0 - vUv.y) * pow(vUv.y, 1.1);
+        float broken = 0.55 + 0.45 * sin(vUv.y * 17.0 - uWT * 2.2 + vWorldPos.x * 1.7);
+        float a = across * along * broken * wet * night * 0.34;
+        gl_FragColor = vec4(vLampCol * a * 1.35, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  wetRoadMatShared.userData.sharedResource = true;
+  wetRoadMatShared.userData.noDissolve = true;
+  return wetRoadMatShared;
+}
+
+/** Rain-soaked road reflection streaks under every street lamp. */
+function addWetRoadStreaks(
+  g: THREE.Object3D,
+  items: ReadonlyArray<{ x: number; y: number; z: number; color: THREE.ColorRepresentation; scale: number }>
+): void {
+  const transforms: InstanceTransform[] = [];
+  const colors: THREE.ColorRepresentation[] = [];
+  for (const it of items) {
+    const len = 0.95 * it.scale;
+    transforms.push({
+      x: it.x,
+      y: it.y + 0.007,
+      z: it.z - len * 0.5,
+      sx: 0.36 * it.scale,
+      sy: 1,
+      sz: len,
+    });
+    colors.push(it.color);
+  }
+  const im = instancedMeshes(g, getLampReflectionGeo(), getWetRoadMat(), transforms, colors);
+  if (!im) return;
+  im.castShadow = false;
+  im.receiveShadow = false;
+  im.renderOrder = 3;
+  im.userData.noShadow = true;
+  im.userData.cannotReceiveAO = true;
+  im.userData.noDissolve = true;
+}
+
 export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSpec[]): void {
   if (!specs.length) return;
 
@@ -2711,6 +2872,13 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
     x: number;
     z: number;
     y: number;
+    color: THREE.ColorRepresentation;
+    scale: number;
+  }> = [];
+  const wetStreaks: Array<{
+    x: number;
+    y: number;
+    z: number;
     color: THREE.ColorRepresentation;
     scale: number;
   }> = [];
@@ -2771,6 +2939,9 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
     if (s.reflectY !== undefined) {
       reflections.push({ x: s.x, z: s.z, y: s.reflectY, color: col, scale: sc });
     }
+    // Every fixture also lays a rain-gated streak on the road beneath it, so a
+    // wet night reads as reflective asphalt even where there is no water body.
+    wetStreaks.push({ x: s.x, y: s.y + 0.016, z: s.z, color: col, scale: sc });
 
     const coneH = (s.coneHeight ?? arch.coneHeight) * sc;
     const coneR = (s.coneRadius ?? arch.coneRadius) * sc;
@@ -2904,6 +3075,7 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
   }
 
   if (reflections.length > 0) addLampWaterReflections(g, reflections);
+  if (wetStreaks.length > 0) addWetRoadStreaks(g, wetStreaks);
 }
 
 let lighthouseSweepGeoShared: THREE.BufferGeometry | null = null;

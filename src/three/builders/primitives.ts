@@ -2067,6 +2067,53 @@ let carGeos: {
 } | null = null;
 let carHeadlightMat: THREE.ShaderMaterial | null = null;
 let carTaillightMat: THREE.ShaderMaterial | null = null;
+let carPoolMat: THREE.ShaderMaterial | null = null;
+let carPoolGeo: THREE.BufferGeometry | null = null;
+
+/**
+ * Headlight light pooling on a wet road. Gated on rain so dry scenes pay a
+ * single discard, and on the night ramp so daytime traffic lays no glow.
+ */
+function getCarPoolMat(): THREE.ShaderMaterial {
+  if (carPoolMat) return carPoolMat;
+  carPoolMat = new THREE.ShaderMaterial({
+    uniforms: { uLit: WU.lit, uRain: WU.rain, uDY: WU.dy },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uRain, uDY;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float wet = smoothstep(0.3, 0.9, uRain);
+        if (wet <= 0.004) discard;
+        float lit = smoothstep(0.12, 0.8, uLit);
+        if (lit <= 0.004) discard;
+        vec2 c = (vUv - 0.5) * 2.0;
+        float cone = pow(max(0.0, 1.0 - abs(c.x)), 2.0) * smoothstep(-0.1, 1.0, c.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+        float a = cone * wet * lit * 0.32;
+        gl_FragColor = vec4(vec3(1.0, 0.88, 0.62) * a * 1.4, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  carPoolMat.userData.sharedResource = true;
+  carPoolMat.userData.noDissolve = true;
+  return carPoolMat;
+}
 
 function getCarHeadlightMat(): THREE.ShaderMaterial {
   if (carHeadlightMat) return carHeadlightMat;
@@ -2237,6 +2284,19 @@ export function car(col: string, sc = 0.5): THREE.Group {
     tGlow.userData.cannotReceiveAO = true;
     tGlow.userData.noDissolve = true;
   }
+  if (!carPoolGeo) {
+    carPoolGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    carPoolGeo.userData.sharedResource = true;
+  }
+  const pool = add(c, carPoolGeo, getCarPoolMat(), 1.02, 0.006, 0);
+  pool.scale.set(1.5, 1, 0.8);
+  pool.castShadow = false;
+  pool.receiveShadow = false;
+  pool.renderOrder = 3;
+  pool.userData.noShadow = true;
+  pool.userData.cannotReceiveAO = true;
+  pool.userData.noDissolve = true;
+
   c.scale.setScalar(sc);
   return c;
 }

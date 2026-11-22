@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import type { LandmarkBiome } from '../types/citylit';
-import { getSoftTexture } from './shaders';
+import { getSoftTexture, WU } from './shaders';
 
 export interface HorizonUpdateOptions {
   fogColor: THREE.Color;
   skyColor: THREE.Color;
   sunGlow: THREE.Color;
+  /** City-specific colour pumped into the sky by its street lighting. */
+  pollutionTint: THREE.Color;
   hor: number;
   night: number;
   rain: number;
@@ -72,6 +74,8 @@ function createHorizonRing(
       uSeed: { value: seed },
       uAlpha: { value: layerAlpha },
       uHaze: { value: 0 },
+      uPollution: WU.pollution,
+      uPolCol: { value: new THREE.Color('#ff9a52') },
     },
     vertexShader: /* glsl */ `
       uniform vec4 uWeights;
@@ -127,6 +131,8 @@ function createHorizonRing(
       uniform float uSeed;
       uniform float uAlpha;
       uniform float uHaze;
+      uniform float uPollution;
+      uniform vec3 uPolCol;
       varying float vElev;
       varying float vAngle;
       varying vec3 vWorldPos;
@@ -165,11 +171,13 @@ function createHorizonRing(
           col += glowTint * belt * uNight * 0.18;
         }
 
-        // Sodium light-pollution dome over inhabited biomes at night.
+        // Sodium light-pollution dome over inhabited biomes at night, scaled by
+        // how many rooms are actually lit so the sky tracks the city, not the clock.
         if (uNight > 0.05) {
           float dome = smoothstep(0.62, 0.02, vElev) * smoothstep(-1.5, -0.45, vWorldPos.y);
-          vec3 sodium = mix(vec3(0.34, 0.42, 0.62), vec3(1.0, 0.64, 0.32), uWeights.w);
-          col += sodium * dome * uNight * (0.05 + uWeights.w * 0.2 + uWeights.z * 0.07);
+          vec3 sodium = mix(vec3(0.34, 0.42, 0.62), uPolCol, uWeights.w);
+          float occupancy = 0.35 + uPollution * 1.35;
+          col += sodium * dome * uNight * occupancy * (0.05 + uWeights.w * 0.2 + uWeights.z * 0.07);
         }
 
         // Aerial perspective: distant layers desaturate and dissolve toward the
@@ -360,6 +368,7 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
       const targetAlpha = l.alpha * studioFade;
       u.uAlpha.value += (targetAlpha - u.uAlpha.value) * k;
       u.uHaze.value += (l.haze + opts.rain * 0.18 - u.uHaze.value) * k;
+      u.uPolCol.value.lerp(opts.pollutionTint, k);
     }
 
     // Ground catcher takes subtle rain wetness sheen, ambient sky bounce, & coastal moon track.

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { registerBeacons } from '../beacons';
 import {
   agulhas,
   amphi,
@@ -2966,20 +2967,26 @@ export function orlando(): THREE.Group {
   }
   addStreetLampSet(g, orlandoLamps);
 
-  // Subtle red aviation lip beacons atop both cooling towers & glowing skybridge deck marker
-  const beaconMat = G('#ff4a3d', 1.4);
+  // Subtle red aviation lip beacons atop both cooling towers. The pulse itself
+  // lives in the shared beacon registry so every tower in the skyline blinks on
+  // one rhythm instead of each builder animating its own material.
+  const beaconMat = G('#ff4a3d', 0.5);
+  const beaconAnchors: Array<{
+    x: number;
+    y: number;
+    z: number;
+    color: string;
+    size: number;
+  }> = [];
   for (const tx of [-2.4, 2.4]) {
     for (const ang of [0, Math.PI * 0.67, Math.PI * 1.33]) {
-      add(
-        g,
-        new THREE.SphereGeometry(0.06, 8, 6),
-        beaconMat,
-        tx + Math.cos(ang) * 1.91,
-        6.2,
-        Math.sin(ang) * 1.91
-      );
+      const bx = tx + Math.cos(ang) * 1.91;
+      const bz = Math.sin(ang) * 1.91;
+      add(g, new THREE.SphereGeometry(0.06, 8, 6), beaconMat, bx, 6.2, bz);
+      beaconAnchors.push({ x: bx, y: 6.2, z: bz, color: '#ff4a3d', size: 0.075 });
     }
   }
+  registerBeacons(g, beaconAnchors);
 
   // Lattice electricity pylons + gravity-sagged overhead power wires (ZERO lines()!)
   const pylonSegs: Array<readonly [[number, number, number], [number, number, number]]> = [];
@@ -3033,8 +3040,6 @@ export function orlando(): THREE.Group {
   g.userData.tick = (t: number) => {
     baseTick(t);
     dust(t);
-    const pulse = 0.72 + 0.28 * Math.sin(t * 2.6);
-    beaconMat.emissiveIntensity = 1.4 * pulse;
   };
   return g;
 }

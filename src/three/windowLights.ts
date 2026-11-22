@@ -99,6 +99,8 @@ interface FacadeRecord extends WindowFacade {
   /** Per-facade schedule phase in hours (0..0.9) so buildings do not sync. */
   offset: number;
   lastKey: string;
+  /** Share of panes currently lit, feeding the sky's light-pollution term. */
+  litRatio: number;
 }
 
 const facades = new Map<string, FacadeRecord>();
@@ -106,6 +108,17 @@ const tmpLit = new THREE.Color();
 let currentHour = 21;
 let currentCover = 0;
 let lastBakeAt = -Infinity;
+/** Smoothed share of panes lit across every registered facade. */
+let litFraction = 0;
+
+/**
+ * Share of all baked panes that are lit right now (0..1). The horizon and sky
+ * read this so the city's glow into the night actually tracks how many rooms
+ * are occupied rather than sitting at a fixed brightness.
+ */
+export function windowLitFraction(): number {
+  return litFraction;
+}
 
 function bake(record: FacadeRecord, hour: number, cover: number): void {
   const { ctx, ex, cols, rows, width, height } = record;
@@ -116,14 +129,18 @@ function bake(record: FacadeRecord, hour: number, cover: number): void {
   ex.fillRect(0, 0, width, height);
 
   // Occupancy peaks in the evening, thins overnight and at midday, and lifts on
-  // overcast days when offices actually do leave the lights on.
-  const occupancy = Math.min(1, windowOccupancy(hour) + cover * OVERCAST_BUMP);
-  const chance = Math.max(0, Math.min(1, record.chance * occupancy));
+  // overcast days when offices actually do leave the lights on. It is evaluated
+  // per floor below, because each floor runs slightly behind the one under it.
   // Rooms hold their state for about two hours; brightness re-rolls hourly.
   const roomSalt = Math.floor((((hour % 24) + 24) % 24) / 2) * 7919;
   const detailSalt = Math.floor((((hour % 24) + 24) % 24)) * 104729;
   // Late-night rooms skew cooler (television blue) than evening tungsten.
   const coolBias = hour >= 23 || hour < 5 ? 0.42 : 0.22;
+  // Offices light from the ground up, so each floor runs a fraction of an hour
+  // behind the one below it. Without this a tower flips every pane at once and
+  // reads as a single switch rather than a building waking up.
+  const floorLagHours = 0.75;
+  let litCells = 0;
   const marginX = 3;
   const marginY = 3;
   const ww = CELL_W - marginX * 2;
@@ -154,11 +171,18 @@ function bake(record: FacadeRecord, hour: number, cover: number): void {
   for (let r = 0; r < rows; r++) {
     // Ground-floor retail and the top few floors stay lit noticeably more.
     const floorBias = r === 0 ? 1.35 : r >= rows - 3 ? 1.15 : 1;
+    // Per-floor choreography: higher floors trail the lobby by up to 45 min.
+    const rowHour = hour - (r / Math.max(1, rows)) * floorLagHours;
+    const rowSalt = roomSalt + r * 131;
+    const rowChance = Math.min(
+      1,
+      record.chance * Math.min(1, windowOccupancy(rowHour) + cover * OVERCAST_BUMP) * floorBias
+    );
     let c = 0;
     while (c < cols) {
-      const run = 1 + Math.floor(hash01(record.seed * 13 + r * 911 + c * 37 + roomSalt) * 3);
-      const roomChance = Math.min(1, chance * floorBias);
-      const on = roomChance > 0 && hash01(record.seed * 97 + r * cols + c * 17 + roomSalt) > 1 - roomChance;
+      const run = 1 + Math.floor(hash01(record.seed * 13 + r * 911 + c * 37 + rowSalt) * 3);
+      const roomChance = rowChance;
+      const on = roomChance > 0 && hash01(record.seed * 97 + r * cols + c * 17 + rowSalt) > 1 - roomChance;
       const coolMix = hash01(record.seed * 31 + r * 7 + c + detailSalt) < coolBias ? 0.55 : 0;
       const brightness = 0.58 + 0.42 * hash01(record.seed * 29 + r * 53 + c * 5 + detailSalt);
       tmpLit.copy(record.warm).lerp(record.cool, coolMix).multiplyScalar(brightness);
@@ -167,10 +191,12 @@ function bake(record: FacadeRecord, hour: number, cover: number): void {
       for (let k = c; k < last; k++) {
         paintCell(k * CELL_W + marginX, r * CELL_H + marginY, litHex);
       }
+      if (on) litCells += last - c;
       c = last;
     }
   }
 
+  record.litRatio = rows * cols > 0 ? litCells / (rows * cols) : 0;
   // Dim the freshly baked content and let the ramp ease it back up, so a facade
   // "switches on" instead of popping.
   record.ramp.value = 0.35;
@@ -225,8 +251,9 @@ export function createWindowFacade(opts: WindowFacadeOptions): WindowFacade {
     ex: ecv.getContext('2d')!,
     width,
     height,
-    offset: ((seed * 0.37) % 1 + 1) % 1 * 0.9,
+    offset: (((seed * 0.37) % 1) + 1) % 1 * 0.9,
     lastKey: '',
+    litRatio: 0,
   };
   bake(record, currentHour, currentCover);
   record.ramp.value = 1;
@@ -246,7 +273,9 @@ export function updateWindowLights(hour: number, dt = 0, cover = 0): void {
   const now = performance.now();
   const coverKey = Math.round(Math.max(0, Math.min(1, cover)) * 4);
   let baked = 0;
+  let ratioSum = 0;
   facades.forEach((record) => {
+    ratioSum += record.litRatio;
     // Shared ramp: eases freshly baked emissive maps up from a dim start.
     if (dt > 0 && record.ramp.value < 1) {
       record.ramp.value += (1 - record.ramp.value) * Math.min(1, dt * 3.2);
@@ -261,4 +290,9 @@ export function updateWindowLights(hour: number, dt = 0, cover = 0): void {
     baked++;
     bake(record, localHour, cover);
   });
+  if (facades.size > 0) {
+    const targetRatio = ratioSum / facades.size;
+    const ease = dt > 0 ? Math.min(1, dt * 1.6) : 1;
+    litFraction += (targetRatio - litFraction) * ease;
+  }
 }

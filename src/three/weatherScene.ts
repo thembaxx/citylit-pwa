@@ -3,6 +3,7 @@ import { liveWeatherVisual, WEATHER_CONDITIONS } from '../data/weatherData';
 import { monthToSeasonWeights, type SeasonWeights } from '../lib/season';
 import type { LiveWeatherSample, ThemeSetting, WeatherConditionKey } from '../types/citylit';
 import { getSoftTexture, SKY_NOISE_GLSL, WU } from './shaders';
+import { solarHalfDay } from './streetLights';
 
 export interface WeatherTargetState {
   sky: THREE.Color;
@@ -65,6 +66,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       top: { value: new THREE.Color('#27476e') },
       bot: { value: new THREE.Color('#0c0e16') },
       uSiteHor: { value: new THREE.Color('#6fa6cc') },
+      uPol: WU.pollution,
       uSiteWeight: { value: 0.24 },
       cv: { value: 0.2 },
       uCirrus: { value: 0.16 },
@@ -81,7 +83,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       'varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader: /* glsl */ `
       varying vec3 v;
-      uniform float t, uSiteWeight, cv, uCirrus, uCumulus, uSkyStorm, uFlash, nt, hor, rb;
+      uniform float t, uSiteWeight, cv, uCirrus, uCumulus, uSkyStorm, uFlash, nt, hor, rb, uPol;
       uniform vec3 top, bot, uSiteHor, sunDir, glow;
       ${SKY_NOISE_GLSL}
       void main() {
@@ -105,6 +107,14 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
           float dustRift = smoothstep(0.32, 0.78, mwNoise);
           vec3 mwCol = mix(vec3(0.16, 0.24, 0.44), vec3(0.28, 0.34, 0.58), mwNoise);
           col += mwCol * bandMask * dustRift * nt * (1.0 - cv * 0.85) * 0.42;
+        }
+
+        // City light pollution: a warm dome hugging the horizon that grows with
+        // the share of lit windows, so a full CBD glows harder than an empty one.
+        if (nt > 0.04) {
+          float polBand = pow(1.0 - y, 6.5) * horMask;
+          vec3 polCol = mix(vec3(0.30, 0.38, 0.58), vec3(1.0, 0.62, 0.30), uSiteWeight);
+          col += polCol * polBand * nt * uPol * 0.6;
         }
 
         // Warm directional horizon & Mie-like solar bloom
@@ -600,9 +610,13 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     seasonCurrent.spring += (seasonTarget.spring - seasonCurrent.spring) * sk;
 
     const hr = current.timeOfDay;
-    const rawAlt = Math.sin(((hr - 6) * Math.PI) / 12);
-    const alt = rawAlt + (seasonCurrent.warmth - 0.5) * 0.12 * Math.max(0, rawAlt);
-    const sx = -Math.cos(((hr - 6) * Math.PI) / 12) * 32;
+    // Season-dependent solar arc: winter days are short and the sun stays low,
+    // summer days run long and climb high. Lamp ignition and the window
+    // schedule read the same curve, so the whole scene agrees on sunset.
+    const arc = ((hr - 12) / solarHalfDay(seasonCurrent.warmth)) * (Math.PI / 2);
+    const rawAlt = Math.cos(arc);
+    const alt = rawAlt;
+    const sx = Math.sin(arc) * 32;
     const sy = alt * 34;
     const sz = 18;
     const hor = Math.max(0, 1 - Math.abs(alt) * 3.5);

@@ -23,6 +23,11 @@ export const WU = {
   rain: { value: 0 },
   /** Weather fog density (0..1); lamp halos bloom wider in fog. */
   fog: { value: 0 },
+  /**
+   * Share of lit windows in the active landmark (0..1), gated by night. Feeds
+   * the sky's light-pollution dome so a busy city glows harder than an empty one.
+   */
+  pollution: { value: 0 },
   dy: { value: 100 },
 };
 
@@ -62,6 +67,11 @@ export function applyDissolveToShader(
   shader.uniforms.uDY = WU.dy;
   shader.uniforms.uGouacheHor = WU.sunHor;
   shader.uniforms.uGouacheSun = WU.sun;
+  // Atmospheric in-scattering inputs: weather fog + rain thicken the air, the
+  // sky tint colours the haze, and golden hour warms the forward scatter.
+  shader.uniforms.uFogD = WU.fog;
+  shader.uniforms.uRainF = WU.rain;
+  shader.uniforms.uSkyF = WU.sky;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vWD;uniform float uDY;')
     .replace(
@@ -77,7 +87,7 @@ vWD=(modelMatrix*vec4(transformed,1.)).xyz;
     .replace(
       '#include <common>',
       `#include <common>
-varying vec3 vWD;uniform float uDY,uGouacheHor,uGouacheSun;
+varying vec3 vWD;uniform float uDY,uGouacheHor,uGouacheSun,uFogD,uRainF;uniform vec3 uSkyF;
 float dtHash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}`
     )
     .replace(
@@ -103,6 +113,20 @@ float gRim=pow(1.-max(dot(gView,normal),0.),2.6);
 float gHeight=smoothstep(-0.2,2.4,vWD.y);
 outgoingLight*=1.+.045*smoothstep(.25,.95,uGouacheSun)*gHeight;
 outgoingLight+=vec3(1.,.64,.28)*gRim*uGouacheHor*.22*(.35+.65*gHeight);
+// Airborne in-scattering. Ground mist pools low, rain thickens it, and the
+// forward lobe warms toward the sun so lamps and windows gain visible haze.
+float atmoDens=uFogD*0.3+uRainF*0.16;
+if(atmoDens>0.002){
+vec3 toFrag=vWD-cameraPosition;
+float atmoDist=length(toFrag);
+vec3 atmoDir=toFrag/max(atmoDist,0.0001);
+// Mist hugs the ground: it thins quickly with height so rooftops stay crisp.
+float atmoLow=exp(-max(0.,vWD.y)*1.35);
+float fwd=pow(max(0.,dot(atmoDir,normalize(vec3(0.45,0.34,0.62)))),3.0);
+vec3 atmoCol=mix(uSkyF,vec3(1.,.72,.42),fwd*uGouacheHor);
+float ext=1.-exp(-atmoDist*0.04);
+outgoingLight+=atmoCol*(atmoDens*atmoLow*ext)*(0.35+fwd*0.8);
+}
 }
 #include <opaque_fragment>`
     );

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { registerBeacons } from '../beacons';
 import {
   add,
   B,
@@ -3036,6 +3037,21 @@ export function ponte(): THREE.Group {
     ]);
   }
   cableBatch(g, framePosts, 0.02, M('#b8bcc2', 0.4, 0.7));
+
+  // Rooftop obstruction beacons on the crown ring, blinking with the skyline.
+  registerBeacons(
+    g,
+    [0, 1, 2, 3].map((i) => {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      return {
+        x: Math.cos(a) * 1.5,
+        y: baseY + towerH + 0.78,
+        z: Math.sin(a) * 1.5,
+        color: '#ff4a3d',
+        size: 0.06,
+      };
+    })
+  );
 
   const ponteBuildingCoords: Array<[number, number]> = [];
   for (let i = 0; i < 14; i++) {

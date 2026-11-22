@@ -77,7 +77,10 @@ import {
   streetLampNightFactor,
   type StreetLampAnchor,
 } from './streetLights';
-import { updateWindowLights } from './windowLights';
+import { updateWindowLights, windowLitFraction } from './windowLights';
+import { collectBeacons, createBeaconMesh } from './beacons';
+import { nightPaletteForBiome, type NightPalette } from './nightPalette';
+
 
 export interface EngineCallbacks {
   onSelectLandmarkFromGlobe?: (index: number) => void;
@@ -137,6 +140,14 @@ export class CitylitEngine {
   private readonly miniaturePass: MiniaturePass;
   private readonly smaaPass: SMAAPass;
   private readonly ditherPass: ReturnType<typeof createDitherPass>;
+  /** Shared obstruction-beacon mesh for the active landmark. */
+  private beaconMesh: THREE.InstancedMesh | null = null;
+  /** Per-city night palette (spill, counter accent, sky pollution tint). */
+  private nightPalette: NightPalette = nightPaletteForBiome(undefined);
+  private readonly pollutionTintCol = new THREE.Color('#ff9a52');
+  private readonly paletteCounterCol = new THREE.Color('#cfe0ff');
+  /** Dim cool fill standing in for the moon, aimed at the moon disc. */
+  private readonly moonLight: THREE.DirectionalLight;
 
   private readonly keyLight: THREE.DirectionalLight;
   private readonly fillLight: THREE.DirectionalLight;
@@ -467,6 +478,15 @@ export class CitylitEngine {
     this.nightAccentLight.position.set(-1.5, 3.2, -1.2);
     this.nightAccentLight.castShadow = false;
     this.scene.add(this.nightAccentLight);
+
+    // Moonlight: the disc already existed, but it only ever showed up as a water
+    // highlight. A dim, shadowless directional light gives night silhouettes a
+    // direction to read against.
+    this.moonLight = new THREE.DirectionalLight('#a8c2f0', 0);
+    this.moonLight.position.set(-9, 14, -8);
+    this.moonLight.castShadow = false;
+    this.scene.add(this.moonLight);
+    this.scene.add(this.moonLight.target);
 
     // Post-processing pipeline (depth-aware DoF + N8AO + Bloom + Tilt-Shift + SMAA + Output)
     const composerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
@@ -1125,12 +1145,17 @@ export class CitylitEngine {
           .applyMatrix4(this.heroRoot.matrixWorld);
         // Per-biome night palette: sodium amber in the city, mercury blue on the
         // coast, warmer tungsten in the bushveld.
-        light.color.set(anchor.color).lerp(this.streetLampTint, 0.45);
+        light.color
+          .set(anchor.color)
+          .lerp(this.streetLampTint, 0.45)
+          // A slight push toward the city's counter accent keeps neighbouring
+          // cities from reading as the same lighting rig.
+          .lerp(this.paletteCounterCol, 0.1);
         light.distance = anchor.distance;
       }
       // Each fixture has its own photocell offset, so a street switches on over
       // a spread of minutes instead of in one frame.
-      const night = anchor ? streetLampNightFactor(hour, anchor.offset) : 0;
+      const night = anchor ? streetLampNightFactor(hour, anchor.offset, WU.season.value) : 0;
       const goal = anchor ? anchor.intensity * night : 0;
       const on = goal > 0.001;
       if (on && light.userData.lampOn !== true) light.userData.ignite = 1.4;
@@ -1467,6 +1492,9 @@ export class CitylitEngine {
     // the light count is constant, swapping between a lamp-heavy and a lamp-free
     // diorama cannot recompile a single material.
     this.streetLampTint.set(lampTintForBiome(LANDMARKS[index].biome));
+    this.nightPalette = nightPaletteForBiome(LANDMARKS[index].biome);
+    this.pollutionTintCol.set(this.nightPalette.pollution);
+    this.paletteCounterCol.set(this.nightPalette.counter);
     const denseAnchors = collectStreetLampAnchors(this.currentGroup);
     const wanted = Math.min(this.streetLampPool.length, denseAnchors.length);
     // Spread the pool across the whole diorama instead of lighting only the
@@ -1476,6 +1504,18 @@ export class CitylitEngine {
       (_, i) => denseAnchors[Math.floor(((i + 0.5) * denseAnchors.length) / wanted)]
     );
     this.syncStreetLamps(0, true);
+
+    // Obstruction beacons for this skyline, drawn as one instanced mesh that the
+    // beacon shader blinks on a shared clock with per-structure phase.
+    if (this.beaconMesh) {
+      this.heroRoot.remove(this.beaconMesh);
+      (this.beaconMesh.material as THREE.Material).dispose();
+      this.beaconMesh.dispose();
+      this.beaconMesh = null;
+    }
+    this.beaconMesh = createBeaconMesh(collectBeacons(this.currentGroup));
+    if (this.beaconMesh) this.heroRoot.add(this.beaconMesh);
+
     const lods: THREE.LOD[] = [];
     this.currentGroup.traverse((obj) => {
       if (obj instanceof THREE.LOD) {
@@ -1529,7 +1569,7 @@ export class CitylitEngine {
     const sLight = visual.nightLights.secondary;
     if (sLight) {
       this.nightSecondaryPos.set(sLight.pos[0], sLight.pos[1], sLight.pos[2]);
-      this.nightSecondaryCol.set(sLight.color);
+      this.nightSecondaryCol.set(sLight.color).lerp(this.paletteCounterCol, 0.28);
       this.nightSecondaryIntensity = sLight.intensity;
       this.nightSecondaryDistance = sLight.distance;
     } else {
@@ -1836,7 +1876,7 @@ export class CitylitEngine {
       (window.devicePixelRatio || 1) > 1.5;
     this.n8aoPass.enabled = highFx && !suspendAoForMotion;
     this.renderPass.enabled = midFx || (highFx && suspendAoForMotion);
-    this.bloomPass.enabled = postFx && this.studioWeight < 0.99;
+          this.bloomPass.enabled = postFx && this.studioWeight < 0.99;
     this.miniaturePass.enabled = postFx;
     this.smaaPass.enabled = postFx;
 
@@ -3591,6 +3631,13 @@ export class CitylitEngine {
       dt * this.motionScale,
       this.weather.current.cover
     );
+    // Sky glow tracks real occupancy: the more rooms are lit, the harder the city
+    // pushes sodium into the air, so it swells at 20:00 and dies back by 03:00.
+    const occupancyPollution =
+      windowLitFraction() * THREE.MathUtils.smoothstep(this.weather.current.night, 0.1, 0.75);
+    WU.pollution.value +=
+      (occupancyPollution - WU.pollution.value) *
+      (this.motionScale === 0 ? 1 : Math.min(1, dt * 1.5));
 
     // Auto quality monitor: drop a tier when clearly off target, then fine-tune
     // resolution so the 60fps budget is met without losing shadows or post FX.
@@ -3826,7 +3873,11 @@ export class CitylitEngine {
       const litStrength = WU.lit.value;
       // Window glow follows the solar clock (and hazes down in rain) instead of
       // the generic night lift, so occupied panes stay matte in daylight.
-      const windowGlow = streetLampNightFactor(this.weather.current.timeOfDay);
+      const windowGlow = streetLampNightFactor(
+        this.weather.current.timeOfDay,
+        0,
+        WU.season.value
+      );
       const windowHaze = 1 - this.weather.current.rain * 0.22;
       const glowKey = litStrength + windowGlow * 2;
       if (Math.abs(glowKey - this.lastGlowLit) >= 0.002) {
@@ -3987,6 +4038,15 @@ export class CitylitEngine {
       const secondaryGoal = nightGlowMix * this.nightSecondaryIntensity;
       this.nightAccentLight.intensity += (secondaryGoal - this.nightAccentLight.intensity) * ptLerp;
 
+      // Moonlight: only lifts the scene when the disc is actually up and visible.
+      const moonOpacity = (this.weather.moonDisc.material as THREE.MeshBasicMaterial).opacity;
+      const moonGoal = moonOpacity * nightVal * 0.5 * (1 - this.studioWeight);
+      this.moonLight.intensity += (moonGoal - this.moonLight.intensity) * ptLerp;
+      if (this.weather.moonDisc.position.lengthSq() > 0.001) {
+        this.moonLight.position.copy(this.weather.moonDisc.position).normalize().multiplyScalar(26);
+        this.moonLight.target.position.set(0, 0.8, 0);
+      }
+
       // Dynamic night readability lift in MiniaturePass so shaded landmark colors stay luminous at night
       const targetPostNight =
         this.isStudio() ? 0 : Math.min(1, Math.max(0, (1 - WU.sun.value) * visual.grade.nightLift * 3.2));
@@ -4008,9 +4068,12 @@ export class CitylitEngine {
         themeLerp;
       const nightBloomMix = THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8);
       const horVal = WU.sunHor.value;
+      // Emitter-gated bloom: the daylight threshold sits above pale sunlit masonry
+      // so only true light sources bloom by day; at night it drops back to let lit
+      // windows and lamps glow as before.
       const bloomGoalThreshold = this.isStudio()
         ? 1.15
-        : THREE.MathUtils.lerp(0.98, 0.78, nightBloomMix) - horVal * 0.06;
+        : THREE.MathUtils.lerp(1.22, 0.8, nightBloomMix) - horVal * 0.06;
       const bloomGoalStrength = this.isStudio()
         ? 0.14
         : THREE.MathUtils.lerp(0.16, 0.26, nightBloomMix) + horVal * 0.04;
@@ -4080,6 +4143,7 @@ export class CitylitEngine {
         fogColor,
         skyColor: this.weather.skyTopColor,
         sunGlow: this.weather.sunGlowColor,
+        pollutionTint: this.pollutionTintCol,
         hor: WU.sunHor.value,
         night: this.weather.current.night,
         rain: this.weather.current.rain,

@@ -17,21 +17,33 @@ import * as THREE from 'three';
 import type { LandmarkBiome } from '../types/citylit';
 
 /**
- * Mirrors the engine's sun path (`weatherScene`): the sun rises at 06:00,
- * peaks at noon and sets at 18:00.
+ * Half-length of the daylight arc in hours. The equinox reference is a 6 h
+ * half-day (sunrise 06:00, sunset 18:00); winter tightens it to ~4.7 h and
+ * summer stretches it to ~7.3 h, which is roughly South Africa's real swing.
  */
-export function sunAltitudeDeg(hour: number): number {
+export function solarHalfDay(season = 0.5): number {
+  const s = Math.max(0, Math.min(1, season));
+  return 6 * (0.78 + 0.44 * s);
+}
+
+/**
+ * The engine's sun path (`weatherScene` uses the same curve): solar noon is at
+ * 12:00, and the sun tracks a season-dependent arc around it.
+ */
+export function sunAltitudeDeg(hour: number, season = 0.5): number {
   const h = ((hour % 24) + 24) % 24;
-  const alt = Math.sin(((h - 6) * Math.PI) / 12);
+  const half = solarHalfDay(season);
+  const alt = Math.cos((((h - 12) / half) * Math.PI) / 2);
   return Math.asin(Math.max(-1, Math.min(1, alt))) * (180 / Math.PI);
 }
 
 /**
  * 0 while the sun is on or above the horizon, rising to 1 once it has sunk
- * about 7° below it. `offsetHours` shifts the curve per fixture (photocell).
+ * about 7° below it. `offsetHours` shifts the curve per fixture (photocell),
+ * `season` shortens winter days so lamps strike before an early sunset.
  */
-export function streetLampNightFactor(hour: number, offsetHours = 0): number {
-  return THREE.MathUtils.smoothstep(-sunAltitudeDeg(hour + offsetHours), 0.6, 7);
+export function streetLampNightFactor(hour: number, offsetHours = 0, season = 0.5): number {
+  return THREE.MathUtils.smoothstep(-sunAltitudeDeg(hour + offsetHours, season), 0.6, 7);
 }
 
 /** Lamp colour temperatures by biome: sodium city, mercury coast, warm bush. */
