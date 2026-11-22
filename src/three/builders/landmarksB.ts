@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { headingYaw, leftLaneOffset } from '../../lib/trafficMath';
 import { registerBeacons } from '../beacons';
 import {
   agulhas,
@@ -40,7 +41,6 @@ import {
   drift,
   G,
   gableRoofGeo,
-  gemsbok,
   gondola,
   grassTufts,
   halfmensTree,
@@ -74,6 +74,9 @@ import {
   type InstanceTransform,
 } from './primitives';
 import { prepareCanvasTexture } from '../shaders';
+import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
+import { awning, bench as benchProp, interpretiveSign, picnicTable } from './propKit';
+import { attachVehicleLights } from './vehicleLightKit';
 import {
   addLighthouseSweep,
   addStreetLampSet,
@@ -93,7 +96,14 @@ export function augrabies(): THREE.Group {
   add(g, B(15.2, 0.2, 15.2), MStone('#846a57', 0.95), 0, 0.1, 0);
 
   // Exfoliated pink-grey biotite-gneiss ("Moon Rock") dome flanks & sheer granite slot canyon
-  add(g, B(3.6, 0.08, 12.2), MWater('#747664', 0.1, 0.22), 0.1, 0.22, 0.4); // Silt-khaki Orange River slot
+  add(
+    g,
+    B(3.6, 0.08, 12.2),
+    MWater('#747664', 0.1, 0.22, 1, { x: 0.65, z: 0.76, speed: 1.2 }),
+    0.1,
+    0.22,
+    0.4
+  ); // Silt-khaki Orange River slot
   rock(g, 2.2, 2.9, 4.4, -3.7, -2.5, gneissBase, gneissTop, 0.14);
   rock(g, 2.3, 3.0, 4.3, 3.8, -2.3, gneissBase, gneissTop, 0.14);
   rock(g, 1.8, 2.6, 3.4, -3.9, 1.6, gneissBase, gneissTop, 0.16);
@@ -137,7 +147,7 @@ export function augrabies(): THREE.Group {
   ];
   const riverGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(riverPts), 64, 0.72, 10);
   riverGeo.scale(1, 0.16, 1);
-  add(g, riverGeo, MWater('#747664', 0.09, 0.22), 0, 0.26, 0);
+  add(g, riverGeo, MWater('#747664', 0.09, 0.22, 1, { x: 0.65, z: 0.76, speed: 1.35 }), 0, 0.26, 0);
   const riverCurve = new THREE.CatmullRomCurve3(riverPts.map((p) => p.clone().setY(0.3)));
 
   const ms = Array.from({ length: 9 }, (_, i) => {
@@ -462,12 +472,15 @@ export function bloukrans(): THREE.Group {
   const cd = add(g, B(0.02, 1, 0.02), M('#222'), 0, 4.1, 0);
   const bd = birds(g, 3, 4, 7);
   const cr = [0, 1, 2, 3].map((i) => {
-    const c = car(['#c33', '#fff', '#36c', '#222'][i], 0.5);
-    c.position.set(0, 4.84, i % 2 ? 0.2 : -0.2);
-    c.rotation.y = i % 2 ? 0 : Math.PI;
+    const d = i % 2 ? 1 : -1;
+    const lane = leftLaneOffset(d, 0, 0.2);
+    const c = car(['#c33', '#fff', '#36c', '#222'][i], 0.5, false);
+    c.position.set(0, 4.84, lane.z);
+    c.rotation.y = headingYaw(d, 0);
     g.add(c);
     return c;
   });
+  const crLights = attachVehicleLights(g, cr);
   const mist = drift(
     g,
     45,
@@ -490,6 +503,7 @@ export function bloukrans(): THREE.Group {
     cr.forEach((c, i) => {
       c.position.x = ((((t * (0.9 + i * 0.15) * (i % 2 ? 1 : -1) + i * 3.7) % 11) + 11) % 11) - 5.5;
     });
+    crLights.sync();
   };
   return g;
 }
@@ -908,10 +922,11 @@ export function chapman(): THREE.Group {
   addStreetLampSet(g, chapmanLamps);
 
   const cs = [0, 1, 2].map((i) => {
-    const c = car(['#c33', '#fff', '#36c'][i], 0.35);
+    const c = car(['#c33', '#fff', '#36c'][i], 0.35, false);
     g.add(c);
     return c;
   });
+  const csLights = attachVehicleLights(g, cs);
   add(g, C(3.05, 3.15, 0.1, 48), MStone('#74805e', 0.94), 0, 6.02, -1.8);
   const bushT: InstanceTransform[] = [];
   for (let i = 0; i < 16; i++) {
@@ -952,9 +967,11 @@ export function chapman(): THREE.Group {
       const p = cv.getPointAt(u);
       const tg = cv.getTangentAt(u);
       if (d < 0) tg.negate();
-      c.position.set(p.x, p.y + 0.1, p.z);
-      c.rotation.y = Math.atan2(-tg.z, tg.x);
+      const lane = leftLaneOffset(tg.x, tg.z, 0.14);
+      c.position.set(p.x + lane.x, p.y + 0.1, p.z + lane.z);
+      c.rotation.y = headingYaw(tg.x, tg.z);
     });
+    csLights.sync();
     sr(t);
     spray(t);
     bd(t);
@@ -1306,21 +1323,36 @@ export function kgalagadi(): THREE.Group {
     add(g, new THREE.IcosahedronGeometry(0.38, 1), Mc('#858764'), x + 0.48, hf(x, -z) + 0.16, z - 0.38);
   });
 
-  // Authentic Kgalagadi Gemsbok / Oryx herd grazing along the dry Nossob riverbed terrace
-  const gb = [0, 1, 2, 3].map((i) => gemsbok(g, 0, 0.3, 0, 1.45 + (i % 2) * 0.25, 0));
+  // Authentic Kgalagadi Gemsbok / Oryx herd on the dry Nossob riverbed. The
+  // scaffold batches the four animals into shared material buckets, adds one
+  // contact-shadow stamp batch, and gives each animal a graze idle with an
+  // optional southern-hemisphere month gate; the group still drifts as a herd.
+  const herd = createAnimalScaffold({
+    kind: 'gemsbok',
+    count: 4,
+    position: { x: 0, y: 0.3, z: 0 },
+    scale: 1.45,
+    spread: 0.55,
+    phaseSpread: 0.7,
+    idle: 'graze',
+    contact: true,
+    lods: { farDistance: 12, farScale: 0.9, cullDistance: 18 },
+  });
+  g.add(herd.group);
   const sn = drift(g, 80, '#e6a870', 0.08, (i, t) => [
     ((((R(i) * 14 - 7 + t * 0.8) % 14) + 14) % 14) - 7,
     0.5 + R(i + 3) * 1.2,
     R(i + 5) * 12 - 6,
   ]);
-  g.userData.tick = (t: number) => {
-    gb.forEach((o, i) => {
-      const q = t * 0.055 * (i % 2 ? 1 : -1) + i * 1.5;
-      const z = Math.sin(q) * 4.2;
-      const x = Math.sin(-z * 0.35) * 1.1 + (i - 1.5) * 0.55;
-      o.position.set(x, hf(x, -z), z);
-      o.rotation.y = (i % 2 ? 0 : Math.PI) + Math.cos(q) * 0.35;
-    });
+  g.userData.tick = (t: number, dt: number) => {
+    const q = t * 0.055;
+    const z = Math.sin(q) * 4.2;
+    const x = Math.sin(-z * 0.35) * 1.1;
+    herd.group.position.set(x, hf(x, -z), z);
+    herd.group.rotation.y = Math.cos(q) * 0.35;
+    // The engine already scales t/dt by motionScale. dt===0 means reduced
+    // motion, so pass 0 to freeze the scaffold on its deterministic rest pose.
+    herd.update(dt, t, dt > 0 ? 1 : 0, getAnimalSeasonMonth());
     sn(t);
   };
   return g;
@@ -1615,12 +1647,25 @@ export function groot(): THREE.Group {
   }
   addStreetLampSet(g, grootLamps);
 
-  const truck = car('#8d2f2b', 0.34);
+  const truck = car('#8d2f2b', 0.34, false);
   truck.position.set(-6.2, 0.36, -1.5);
   g.add(truck);
-  const bakkie = car('#d8d3c4', 0.3);
+  const bakkie = car('#d8d3c4', 0.3, false);
   bakkie.position.set(-2.5, 0.34, -0.9);
   g.add(bakkie);
+  attachVehicleLights(g, [truck, bakkie]);
+  const picnic = picnicTable();
+  picnic.position.set(3.2, 0.2 + hAt(3.2, 3.6), 3.6);
+  picnic.rotation.y = -0.4;
+  g.add(picnic);
+  const tastingShade = awning(1.8);
+  tastingShade.position.set(4.9, 0.2 + hAt(4.9, 4.3), 4.3);
+  tastingShade.rotation.y = -0.4;
+  g.add(tastingShade);
+  const cellarSign = interpretiveSign('#d8a64a');
+  cellarSign.position.set(2.4, 0.2 + hAt(2.4, 4.5), 4.5);
+  cellarSign.rotation.y = -0.4;
+  g.add(cellarSign);
 
   // Constantiaberg grey Table Mountain Sandstone crags
   rock(g, 2.8, 4.2, 3.4, 0.4, -6.4, '#6d7883', '#9aa7b2', 0.18);
@@ -1794,7 +1839,33 @@ export function hermanus(): THREE.Group {
   );
   const sr = seaRings(g, 0.12, 3.4, 3);
   const bd = birds(g, 4, 3.4, 6);
-  g.userData.tick = (t: number) => {
+
+  // Southern right whales calve off Hermanus in winter/early spring. A second,
+  // smaller pod uses the shared scaffold so the seasonal gate and submerged
+  // idle come from one place instead of another bespoke tick.
+  const winterPod = createAnimalScaffold({
+    kind: 'whale',
+    count: 2,
+    position: { x: -3.2, y: 0.1, z: 2.8 },
+    scale: 0.55,
+    spread: 1.5,
+    idle: 'submerge',
+    season: ['winter', 'spring'],
+    contact: false,
+    lods: { farDistance: 11, farScale: 0.9, cullDistance: 18 },
+  });
+  g.add(winterPod.group);
+  const viewSign = interpretiveSign('#d8a64a');
+  viewSign.position.set(3.8, 0.22, -3.4);
+  viewSign.rotation.y = -0.5;
+  viewSign.scale.setScalar(0.8);
+  g.add(viewSign);
+  const viewBench = benchProp();
+  viewBench.position.set(4.55, 0.22, -2.75);
+  viewBench.rotation.y = -0.5;
+  g.add(viewBench);
+
+  g.userData.tick = (t: number, dt: number) => {
     const a = t * 0.12;
     const sn = Math.sin(a);
     const cs = Math.cos(a);
@@ -1816,6 +1887,7 @@ export function hermanus(): THREE.Group {
     blow(t);
     sr(t);
     bd(t);
+    winterPod.update(dt, t, dt > 0 ? 1 : 0, getAnimalSeasonMonth());
   };
   return g;
 }
@@ -1971,10 +2043,11 @@ export function sani(): THREE.Group {
   }
   grassTufts(g, tuftT, ['#85855e', '#a79a69', '#8f9154']);
   const cs = [0, 1, 2].map((i) => {
-    const c = car(['#a6382e', '#d8d5cc', '#2e5d84'][i], 0.28);
+    const c = car(['#a6382e', '#d8d5cc', '#2e5d84'][i], 0.28, false);
     g.add(c);
     return c;
   });
+  const csLights = attachVehicleLights(g, cs);
   const mist = drift(g, 55, '#eaf2f8', 0.14, (i, t) => [
     Math.cos(i * 2.4 + t * 0.05) * 4,
     2 + R(i + 3) * 4 + Math.sin(t * 0.3 + i) * 0.3,
@@ -1987,9 +2060,11 @@ export function sani(): THREE.Group {
       const p = cv.getPointAt(u);
       const tg = cv.getTangentAt(u);
       if (d < 0) tg.negate();
-      c.position.set(p.x, p.y + 0.06, p.z);
-      c.rotation.y = Math.atan2(-tg.z, tg.x);
+      const lane = leftLaneOffset(tg.x, tg.z, 0.14);
+      c.position.set(p.x + lane.x, p.y + 0.06, p.z + lane.z);
+      c.rotation.y = headingYaw(tg.x, tg.z);
     });
+    csLights.sync();
     mist(t);
   };
   return g;
@@ -3013,16 +3088,18 @@ export function orlando(): THREE.Group {
   catenaryTube(g, [-6.2, 2.7, 2.6], [5.8, 2.5, 3.4], 0.45, 0.012, darkSteel, 18, 6);
   catenaryTube(g, [-6.2, 2.35, 2.6], [5.8, 2.15, 3.4], 0.45, 0.012, darkSteel, 18, 6);
 
-  [
+  const parkedCars = [
     [-3.6, 0.23, -3.4, 0.5],
     [3.7, 0.23, -2.6, -0.7],
     [0.2, 0.23, -4.4, 1.2],
-  ].forEach(([x, y, z, ry]) => {
-    const c = car('#e2ded2', 0.42);
+  ].map(([x, y, z, ry]) => {
+    const c = car('#e2ded2', 0.42, false);
     c.position.set(x, y, z);
     c.rotation.y = ry;
     g.add(c);
+    return c;
   });
+  attachVehicleLights(g, parkedCars);
   const stones: InstanceTransform[] = [];
   for (let i = 0; i < 24; i++) {
     const a = R(i + 11) * 6.28;

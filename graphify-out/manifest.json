@@ -19,9 +19,9 @@
     "ast_empty": true
   },
   "package.json": {
-    "mtime": 1795200085.139966,
-    "seen": 1795270207.9620082,
-    "ast_hash": "f47c4ce98b166e63995468a7bceb5b6f",
+    "mtime": 1795362543.4542856,
+    "seen": 1795364213.1726875,
+    "ast_hash": "ed92aa2e4e97e949eba40033c8d30244",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795352834.0489235,
-    "seen": 1795353130.6703298,
-    "ast_hash": "7b37efbd197cb42aa03aa15ebf840d83",
+    "mtime": 1795361003.6901329,
+    "seen": 1795361149.437614,
+    "ast_hash": "5b85f85802a838f54c8449485ea3775e",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -235,21 +235,21 @@
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795351641.7384613,
-    "seen": 1795353130.6703625,
-    "ast_hash": "ec80892340988335edb37b57c93c957f",
+    "mtime": 1795360839.2459471,
+    "seen": 1795361149.4376802,
+    "ast_hash": "618cbbb379cfb1fd7ff38b2476dc9a1f",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795351640.6088758,
-    "seen": 1795353130.6703722,
-    "ast_hash": "8f45575bcc024e7209075418a4a4dabf",
+    "mtime": 1795361106.6693058,
+    "seen": 1795361149.43769,
+    "ast_hash": "578fc24067a29bbf13b22097e8ca3b6e",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795351616.5254977,
-    "seen": 1795353130.67038,
-    "ast_hash": "2eb6b0881ab98a6aa8f93d32566b8f8b",
+    "mtime": 1795357671.3339932,
+    "seen": 1795357887.0976307,
+    "ast_hash": "9ba8d7969ea33a00887495c0b278eabe",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
@@ -289,15 +289,15 @@
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
-    "mtime": 1795352538.5297253,
-    "seen": 1795353130.6704948,
-    "ast_hash": "7be42f412263beebb8b55fbf9f7e8e6a",
+    "mtime": 1795360434.689062,
+    "seen": 1795360602.308225,
+    "ast_hash": "8479d287bcf4c8c28f47bf89b7304bac",
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
-    "mtime": 1795352812.5409665,
-    "seen": 1795353130.6705053,
-    "ast_hash": "3b374cdefedba812a25669b11329d8a2",
+    "mtime": 1795355575.1713889,
+    "seen": 1795355738.7264564,
+    "ast_hash": "cb959cc20d0f7b01aa3c3c680f294c78",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
@@ -343,9 +343,9 @@
     "semantic_hash": "943c31001f55bde83364c6c6c1cf0610"
   },
   "src/three/weatherScene.ts": {
-    "mtime": 1795351566.6802547,
-    "seen": 1795353130.670625,
-    "ast_hash": "40329e404569632b55a5d89e2e79f496",
+    "mtime": 1795360865.7877266,
+    "seen": 1795361149.4380286,
+    "ast_hash": "ca7c2653ed555c0e0f989917fc721b0f",
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
@@ -559,9 +559,9 @@
     "semantic_hash": ""
   },
   "src/three/horizonScenery.ts": {
-    "mtime": 1795351779.5613916,
-    "seen": 1795353130.670414,
-    "ast_hash": "501cec837e99e35e0d164885faf38b0d",
+    "mtime": 1795360844.8361015,
+    "seen": 1795361149.43776,
+    "ast_hash": "1ab1b51f13d3d1d316b74d933842f596",
     "semantic_hash": ""
   },
   "src/three/shaders/season.glsl.ts": {
@@ -823,9 +823,9 @@
     "semantic_hash": ""
   },
   "src/three/siteVisuals.ts": {
-    "mtime": 1795345403.9043658,
-    "seen": 1795346236.9771116,
-    "ast_hash": "5388c3bd0b48f00812ac1b07fa88181b",
+    "mtime": 1795355574.6145475,
+    "seen": 1795355738.7265353,
+    "ast_hash": "68497f585df17d0093464fa88ea1f1dc",
     "semantic_hash": ""
   },
   "src/three/streetLights.ts": {
@@ -850,6 +850,174 @@
     "mtime": 1795351490.5744343,
     "seen": 1795353130.670431,
     "ast_hash": "62646f177364d04efac54132861c9dae",
+    "semantic_hash": ""
+  },
+  "docs/baseline/baseline-stats.json": {
+    "mtime": 1795354920.9693415,
+    "seen": 1795355738.7256486,
+    "ast_hash": "c546edcc881b472f00098cd684b53627",
+    "semantic_hash": ""
+  },
+  "src/lib/biomePalette.test.ts": {
+    "mtime": 1795355552.9719694,
+    "seen": 1795355738.7260592,
+    "ast_hash": "21690655bd568e3c76df02351b02578e",
+    "semantic_hash": ""
+  },
+  "src/lib/biomePalette.ts": {
+    "mtime": 1795355541.8467436,
+    "seen": 1795355738.726069,
+    "ast_hash": "c9b2302b537b781d7f7e7a482c1d86ce",
+    "semantic_hash": ""
+  },
+  "src/lib/fitMath.test.ts": {
+    "mtime": 1795355435.935995,
+    "seen": 1795355738.7260785,
+    "ast_hash": "cacb4fa39acf660573c6586a6f9e5fc9",
+    "semantic_hash": ""
+  },
+  "src/lib/fitMath.ts": {
+    "mtime": 1795355660.1097069,
+    "seen": 1795355738.7260876,
+    "ast_hash": "6b13e65337e91b633d827b354efbb6d9",
+    "semantic_hash": ""
+  },
+  "src/lib/solarPosition.test.ts": {
+    "mtime": 1795355471.2709026,
+    "seen": 1795355738.7261775,
+    "ast_hash": "e2fbb8efb5f321e4f7acb40a74cf5b65",
+    "semantic_hash": ""
+  },
+  "src/lib/solarPosition.ts": {
+    "mtime": 1795355460.5880582,
+    "seen": 1795355738.726186,
+    "ast_hash": "03f69c438f596ca1815c33271c299dda",
+    "semantic_hash": ""
+  },
+  "src/lib/trafficMath.test.ts": {
+    "mtime": 1795355499.4254167,
+    "seen": 1795355738.726194,
+    "ast_hash": "2f4fa2aaee5346cd02395fb0a57bdd31",
+    "semantic_hash": ""
+  },
+  "src/lib/trafficMath.ts": {
+    "mtime": 1795355668.3102207,
+    "seen": 1795355738.7262013,
+    "ast_hash": "9127c6e6d9548362cab2bd52eafe15fc",
+    "semantic_hash": ""
+  },
+  "src/three/builders/vehicleLightKit.ts": {
+    "mtime": 1795359864.4251964,
+    "seen": 1795360602.3079908,
+    "ast_hash": "6422271ac9a192543cf13a91c880ca35",
+    "semantic_hash": ""
+  },
+  "docs/SCENERY-UPGRADE.md": {
+    "mtime": 1795364121.788875,
+    "seen": 1795364213.174623,
+    "ast_hash": "10da1b00d32a7c939c07b2462703255f",
+    "semantic_hash": ""
+  },
+  "docs/baseline/contact-sheet-dusk.png": {
+    "mtime": 1795354496.4938772,
+    "seen": 1795355738.7268865,
+    "ast_hash": "bcc23dea4349f8cd6dfd5d4fdfc3c0bc",
+    "semantic_hash": ""
+  },
+  "docs/baseline/contact-sheet-night.png": {
+    "mtime": 1795354500.0098567,
+    "seen": 1795355738.7268956,
+    "ast_hash": "ede3d0a4ce3788fcb46ed6aab8892a06",
+    "semantic_hash": ""
+  },
+  "docs/baseline/contact-sheet-noon.png": {
+    "mtime": 1795354295.218498,
+    "seen": 1795355738.7269046,
+    "ast_hash": "bebdd7f1590f3dbf53d4739a544f8318",
+    "semantic_hash": ""
+  },
+  "docs/phase1/phase1-stats.json": {
+    "mtime": 1795359427.9260168,
+    "seen": 1795359541.7911856,
+    "ast_hash": "3cbc7696d28edf0eb66e6e9176cac266",
+    "semantic_hash": ""
+  },
+  "src/lib/animalScaffold.test.ts": {
+    "mtime": 1795357094.7282033,
+    "seen": 1795357887.0973651,
+    "ast_hash": "434657502fdca02502b608dd308032f3",
+    "semantic_hash": ""
+  },
+  "src/three/builders/animalKit.ts": {
+    "mtime": 1795358696.764619,
+    "seen": 1795359541.7917905,
+    "ast_hash": "885466db49a42eba9d6ea1c80cf8fcde",
+    "semantic_hash": ""
+  },
+  "src/three/builders/propKit.ts": {
+    "mtime": 1795355789.9919205,
+    "seen": 1795357887.097639,
+    "ast_hash": "4e7de6b1dadc0ed13f6dd1809a7c0085",
+    "semantic_hash": ""
+  },
+  "docs/phase1/contact-sheet-dusk.png": {
+    "mtime": 1795359221.9337652,
+    "seen": 1795359541.792335,
+    "ast_hash": "4fcc18226db83eb5aa92b140c30016bd",
+    "semantic_hash": ""
+  },
+  "docs/phase1/contact-sheet-noon.png": {
+    "mtime": 1795359054.8692143,
+    "seen": 1795359541.7923522,
+    "ast_hash": "f482091648e5476197dd5888c581b5ef",
+    "semantic_hash": ""
+  },
+  "docs/phase1/contact-sheet-night.png": {
+    "mtime": 1795359384.531633,
+    "seen": 1795359541.7923439,
+    "ast_hash": "82d1271bd81a6895746e24c49a5b853d",
+    "semantic_hash": ""
+  },
+  "src/lib/albedoAudit.test.ts": {
+    "mtime": 1795360099.5251267,
+    "seen": 1795360602.307344,
+    "ast_hash": "eab5c23f1617a9672df72637a735f92a",
+    "semantic_hash": ""
+  },
+  "src/lib/albedoAudit.ts": {
+    "mtime": 1795360026.3413312,
+    "seen": 1795360602.3073545,
+    "ast_hash": "a7d64d1336a00b9eeff610f71ad198cd",
+    "semantic_hash": ""
+  },
+  "docs/phase2/phase2-stats.json": {
+    "mtime": 1795362993.2127774,
+    "seen": 1795364213.172599,
+    "ast_hash": "01afeac3ee3ec5d8119c875819ce6456",
+    "semantic_hash": ""
+  },
+  "scripts/capture-contact-sheets.mjs": {
+    "mtime": 1795363592.3093264,
+    "seen": 1795364213.1727355,
+    "ast_hash": "d5e995e04784f1eae27eca3941007c54",
+    "semantic_hash": ""
+  },
+  "scripts/README.md": {
+    "mtime": 1795362628.987671,
+    "seen": 1795364213.1747694,
+    "ast_hash": "c375916df5c77c93d4f72436bbd06447",
+    "semantic_hash": ""
+  },
+  "docs/phase2/contact-sheet-dusk.png": {
+    "mtime": 1795361846.281469,
+    "seen": 1795364213.174845,
+    "ast_hash": "4fb0c983126a4a6cb3e07322271e17a6",
+    "semantic_hash": ""
+  },
+  "docs/phase2/contact-sheet-noon.png": {
+    "mtime": 1795361642.0204716,
+    "seen": 1795364213.1754794,
+    "ast_hash": "90114fe9e3d820dd958b902f57ebb2ef",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

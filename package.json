@@ -12,7 +12,10 @@
     "lint": "oxlint && tsc --noEmit",
     "test": "node --test src/lib/*.test.ts",
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "qa:capture": "node scripts/capture-contact-sheets.mjs",
+    "qa:shots": "node scripts/capture-contact-sheets.mjs --shots-only",
+    "qa:stats": "node scripts/capture-contact-sheets.mjs --stats-only"
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",

@@ -1,3 +1,5 @@
+import type { RegionalPalette } from '../lib/biomePalette';
+import { resolveRegionalPalette } from '../lib/biomePalette';
 import type { LandmarkBiome } from '../types/citylit';
 
 export interface SitePointLightSpec {
@@ -1253,7 +1255,53 @@ const SITE_VISUALS_MAP: Record<string, SiteVisualProfile> = {
   },
 };
 
+type RegionalColourField = Exclude<keyof RegionalPalette, 'region'>;
+
+/** Small tints: sky/bounce/rim/plinth shift gently, AO barely moves. */
+const REGIONAL_BLEND_WEIGHTS: Readonly<Record<RegionalColourField, number>> = {
+  bounceDay: 0.18,
+  bounceNight: 0.16,
+  rimColor: 0.16,
+  skyTopTint: 0.18,
+  skyHorizonTint: 0.18,
+  aoShadowColor: 0.08,
+  plinthRingDay: 0.16,
+  plinthRingNight: 0.16,
+};
+
+function blendHex(base: string, tint: string, weight: number): string {
+  const from = Number.parseInt(base.slice(1), 16);
+  const to = Number.parseInt(tint.slice(1), 16);
+  const channel = (shift: number): string => {
+    const a = (from >> shift) & 0xff;
+    const b = (to >> shift) & 0xff;
+    const mixed = Math.max(0, Math.min(255, Math.round(a + (b - a) * weight)));
+    return mixed.toString(16).padStart(2, '0');
+  };
+  return `#${channel(16)}${channel(8)}${channel(0)}`;
+}
+
+function withRegionalPalette(
+  profile: SiteVisualProfile,
+  palette: RegionalPalette,
+): SiteVisualProfile {
+  const w = REGIONAL_BLEND_WEIGHTS;
+  return {
+    ...profile,
+    bounceDay: blendHex(profile.bounceDay, palette.bounceDay, w.bounceDay),
+    bounceNight: blendHex(profile.bounceNight, palette.bounceNight, w.bounceNight),
+    rimColor: blendHex(profile.rimColor, palette.rimColor, w.rimColor),
+    skyTopTint: blendHex(profile.skyTopTint, palette.skyTopTint, w.skyTopTint),
+    skyHorizonTint: blendHex(profile.skyHorizonTint, palette.skyHorizonTint, w.skyHorizonTint),
+    aoShadowColor: blendHex(profile.aoShadowColor, palette.aoShadowColor, w.aoShadowColor),
+    plinthRingDay: blendHex(profile.plinthRingDay, palette.plinthRingDay, w.plinthRingDay),
+    plinthRingNight: blendHex(profile.plinthRingNight, palette.plinthRingNight, w.plinthRingNight),
+  };
+}
+
 export function getSiteVisualProfile(key: string, biome: LandmarkBiome): SiteVisualProfile {
   const norm = normalizeSiteVisualKey(key);
-  return SITE_VISUALS_MAP[norm] ?? DEFAULT_BY_BIOME[biome] ?? DEFAULT_BY_BIOME.mountain;
+  const base = SITE_VISUALS_MAP[norm] ?? DEFAULT_BY_BIOME[biome] ?? DEFAULT_BY_BIOME.mountain;
+  const regional = resolveRegionalPalette(key, biome);
+  return regional ? withRegionalPalette(base, regional) : base;
 }

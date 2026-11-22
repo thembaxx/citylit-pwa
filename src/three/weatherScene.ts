@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { liveWeatherVisual, WEATHER_CONDITIONS } from '../data/weatherData';
 import { monthToSeasonWeights, type SeasonWeights } from '../lib/season';
+import { southernSunDirection } from '../lib/solarPosition';
 import type { LiveWeatherSample, ThemeSetting, WeatherConditionKey } from '../types/citylit';
 import { getSoftTexture, SKY_NOISE_GLSL, WU } from './shaders';
 import { solarHalfDay } from './streetLights';
@@ -33,6 +34,8 @@ export interface WeatherSceneController {
   /** Drive the scene from a real observation using continuous values. */
   applyLiveSample: (sample: LiveWeatherSample, timeOfDay: number) => void;
   setSeasonMonth: (month: number, immediate?: boolean) => void;
+  /** Physical latitude (negative south of the equator) for the visual sun path. */
+  setSiteLatitude: (latitude: number, immediate?: boolean) => void;
   setTheme: (theme: ThemeSetting, immediate?: boolean) => void;
   /** Blend subtle per-landmark atmospheric sky zenith & horizon tints. */
   setSiteSkyTint: (topHex: string, horizonHex: string, immediate?: boolean) => void;
@@ -44,6 +47,8 @@ export interface WeatherSceneController {
     options: {
       qualityIndex: number;
       motionScale: number;
+      /** Software GL skips the extra night-sky astronomy maths and events. */
+      lowDetail?: boolean;
       keyLight: THREE.DirectionalLight;
       fillLight: THREE.DirectionalLight;
       hemiLight: THREE.HemisphereLight;
@@ -78,14 +83,25 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       glow: { value: new THREE.Color('#ff9d5c') },
       hor: { value: 0 },
       rb: { value: 0 },
+      // Restrained southern-sky astronomy. All procedural: no textures/assets.
+      // `astro` is a uniform gate so software GL pays no per-fragment cost.
+      astro: { value: 1 },
+      uMeteorHead: { value: new THREE.Vector3(0, 0, 1) },
+      uMeteorTail: { value: new THREE.Vector3(0, 0, 1) },
+      uMeteorFade: { value: 0 },
     },
     vertexShader:
       'varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader: /* glsl */ `
       varying vec3 v;
       uniform float t, uSiteWeight, cv, uCirrus, uCumulus, uSkyStorm, uFlash, nt, hor, rb, uPol;
-      uniform vec3 top, bot, uSiteHor, sunDir, glow;
+      uniform float astro, uMeteorFade;
+      uniform vec3 top, bot, uSiteHor, sunDir, glow, uMeteorHead, uMeteorTail;
       ${SKY_NOISE_GLSL}
+      // Cheap angular falloff for point-like and diffuse southern-sky features.
+      float astroGlow(vec3 d, vec3 s, float sharp) {
+        return exp(-max(0.0, 1.0 - dot(d, s)) * sharp);
+      }
       void main() {
         float y = clamp(v.y, 0.0, 1.0);
         vec3 botBlend = mix(bot, uSiteHor * (0.28 + (1.0 - nt) * 0.44), uSiteWeight * 0.65);
@@ -107,6 +123,37 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
           float dustRift = smoothstep(0.32, 0.78, mwNoise);
           vec3 mwCol = mix(vec3(0.16, 0.24, 0.44), vec3(0.28, 0.34, 0.58), mwNoise);
           col += mwCol * bandMask * dustRift * nt * (1.0 - cv * 0.85) * 0.42;
+        }
+
+        // Restrained southern-sky astronomy. Everything is gated by astro
+        // (off on software GL) and by the existing night/cloud/studio fade, and
+        // stays far fainter than the sun, moon and landmark hero.
+        if (astro > 0.5 && nt > 0.12 && v.y > 0.0) {
+          // Crux: five soft stars around the south celestial pole (+Z).
+          float crux = astroGlow(d, normalize(vec3(0.146, 0.367, 0.923)), 9000.0)
+                     + astroGlow(d, normalize(vec3(0.163, 0.511, 0.850)), 7000.0) * 0.9
+                     + astroGlow(d, normalize(vec3(0.243, 0.439, 0.871)), 8200.0)
+                     + astroGlow(d, normalize(vec3(0.067, 0.421, 0.911)), 7600.0) * 0.85
+                     + astroGlow(d, normalize(vec3(0.201, 0.466, 0.865)), 14000.0) * 0.45;
+          col += vec3(0.56, 0.66, 0.92) * crux * nt * (1.0 - cv * 0.9) * 0.11;
+
+          // Magellanic Clouds: two muted, mottled patches in the southern sky.
+          float lmc = astroGlow(d, normalize(vec3(0.62, 0.18, 0.76)), 210.0);
+          float smc = astroGlow(d, normalize(vec3(0.34, 0.06, 0.94)), 470.0);
+          float mott = fbm(d.xz * 16.0 + vec2(d.y * 5.0, t * 0.0006));
+          col += vec3(0.30, 0.36, 0.54) * (lmc * 0.85 + smc * 0.5) * (0.55 + 0.45 * mott)
+               * nt * (1.0 - cv * 0.9) * 0.20;
+
+          // Occasional shooting star: a thin fading great-circle streak.
+          if (uMeteorFade > 0.001) {
+            vec3 md = normalize(uMeteorHead - uMeteorTail);
+            float segLen = max(1e-4, length(uMeteorHead - uMeteorTail));
+            float along = dot(d - uMeteorTail, md);
+            float seg = clamp(along / segLen, 0.0, 1.0);
+            float radial = length((d - uMeteorTail) - md * along);
+            float streak = exp(-radial * radial * 28000.0) * smoothstep(1.0, 0.45, seg) * seg;
+            col += vec3(0.74, 0.84, 1.0) * streak * uMeteorFade * nt * 0.5;
+          }
         }
 
         // City light pollution: a warm dome hugging the horizon that grows with
@@ -412,6 +459,22 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   let lightningFlash = 0;
   let thunderTimer = 3;
   let rainbowTimer = 0;
+
+  // Shooting-star scheduler. Fixed path table + preallocated vectors: the
+  // update loop only mutates these, never allocates colours/vectors/materials.
+  const METEOR_DURATION = 0.85;
+  const meteorPaths = new Float32Array([
+    0.146, 0.367, 0.923, 0.02, 0.20, 0.98,
+    -0.22, 0.46, 0.86, -0.52, 0.30, 0.80,
+    0.62, 0.30, 0.72, 0.42, 0.14, 0.90,
+    -0.60, 0.34, 0.72, -0.82, 0.18, 0.54,
+  ]);
+  const meteorStart = new THREE.Vector3();
+  const meteorEnd = new THREE.Vector3();
+  let meteorTimer = 8 + Math.random() * 12;
+  let meteorLife = 0;
+  let meteorIndex = 0;
+
   const themeTarget = { daylight: 0, studio: 0 };
   const themeCurrent = { daylight: 0, studio: 0 };
 
@@ -457,7 +520,11 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const overcastFogWarm = new THREE.Color('#908560');
 
   // Southern Hemisphere seasonal lighting palette helpers (zero-GC pre-allocated)
-  const initialSeason = monthToSeasonWeights(new Date().getMonth() + 1);
+  const initialMonth = new Date().getMonth() + 1;
+  let currentMonth = initialMonth;
+  let currentLatitude = -26;
+  let targetLatitude = -26;
+  const initialSeason = monthToSeasonWeights(initialMonth);
   const seasonCurrent: SeasonWeights = { ...initialSeason };
   const seasonTarget: SeasonWeights = { ...initialSeason };
   const summerKeyCol = new THREE.Color('#ffe2a8');
@@ -538,6 +605,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
 
   const setSeasonMonth = (month: number, immediate = false) => {
     const next = monthToSeasonWeights(month);
+    currentMonth = Math.max(1, Math.min(12, Number.isFinite(month) ? month : 1));
     seasonTarget.warmth = next.warmth;
     seasonTarget.autumn = next.autumn;
     seasonTarget.spring = next.spring;
@@ -546,6 +614,11 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       seasonCurrent.autumn = next.autumn;
       seasonCurrent.spring = next.spring;
     }
+  };
+
+  const setSiteLatitude = (latitude: number, immediate = false) => {
+    targetLatitude = Number.isFinite(latitude) ? Math.max(-90, Math.min(90, latitude)) : 0;
+    if (immediate) currentLatitude = targetLatitude;
   };
 
   const setTheme = (theme: ThemeSetting, immediate = false) => {
@@ -577,7 +650,17 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const update: WeatherSceneController['update'] = (
     dt,
     elapsed,
-    { qualityIndex, motionScale, keyLight, fillLight, hemiLight, scene: s, renderer, onThunder }
+    {
+      qualityIndex,
+      motionScale,
+      lowDetail = false,
+      keyLight,
+      fillLight,
+      hemiLight,
+      scene: s,
+      renderer,
+      onThunder,
+    }
   ) => {
     const safeDt = Math.max(0, dt);
     animTime += safeDt * motionScale;
@@ -605,11 +688,16 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     else if (dHour < -12) dHour += 24;
     current.timeOfDay = (((current.timeOfDay + dHour * k) % 24) + 24) % 24;
 
+    // Latitude eases on the same slow season/sky curve, and snaps when motion is off.
+    currentLatitude += (targetLatitude - currentLatitude) * sk;
     seasonCurrent.warmth += (seasonTarget.warmth - seasonCurrent.warmth) * sk;
     seasonCurrent.autumn += (seasonTarget.autumn - seasonCurrent.autumn) * sk;
     seasonCurrent.spring += (seasonTarget.spring - seasonCurrent.spring) * sk;
 
     const hr = current.timeOfDay;
+    // Physical solar direction for visual sun/moon/sky/key light. This is kept
+    // separate from the schedule arc below so lamp/window timing is unchanged.
+    const [sunX, sunY, sunZ] = southernSunDirection(hr, currentLatitude, currentMonth);
     // Season-dependent solar arc: winter days are short and the sun stays low,
     // summer days run long and climb high. Lamp ignition and the window
     // schedule read the same curve, so the whole scene agrees on sunset.
@@ -622,13 +710,13 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const hor = Math.max(0, 1 - Math.abs(alt) * 3.5);
     const day = Math.max(0, Math.min(1, alt * 2.5 + 0.35));
 
-    sunDisc.position.set(sx, sy, sz);
+    sunDisc.position.set(sunX * 40, sunY * 40, sunZ * 40);
     const sunTargetOpacity =
       THREE.MathUtils.smoothstep(sy, -3.5, 2.5) * (1 - current.cover * 0.72) * (1 - wStudio);
     sunMat.opacity += (sunTargetOpacity - sunMat.opacity) * skyLerp;
     sunDisc.visible = wStudio < 0.99 && sunMat.opacity > 0.005 && !renderer.xr.isPresenting;
 
-    moonDisc.position.set(-sx * 0.85, Math.max(12, -sy * 0.7 + 14), -16);
+    moonDisc.position.set(-sunX * 34, Math.max(12, -sunY * 24 + 14), -sunZ * 34);
     const moonTargetOpacity =
       THREE.MathUtils.smoothstep(day, 0.72, 0.18) * (1 - current.cover * 0.75) * (1 - wStudio);
     moonMat.opacity += (moonTargetOpacity - moonMat.opacity) * skyLerp;
@@ -696,7 +784,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     skyMat.uniforms.uFlash.value = lightningFlash * (1 - wStudio);
     skyMat.uniforms.nt.value += (targetNight - skyMat.uniforms.nt.value) * skyLerp;
 
-    sunDirTargetTmp.set(sx, sy, sz).normalize();
+    sunDirTargetTmp.set(sunX, sunY, sunZ);
     skyMat.uniforms.sunDir.value.lerp(sunDirTargetTmp, skyLerp).normalize();
 
     seasonGlowTmp.copy(winterGlowCol).lerp(summerGlowCol, seasonCurrent.warmth);
@@ -724,7 +812,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     if (sunShaftGroup.visible) {
       sunShaftTargetCol.copy(sunGlowTmp).lerp(dayColTmp, 0.38);
       sunShaftMat.color.lerp(sunShaftTargetCol, skyLerp);
-      sunShaftGroup.rotation.y = Math.atan2(sx, sz);
+      sunShaftGroup.rotation.y = Math.atan2(sunX, sunZ);
       sunShaftGroup.rotation.x = THREE.MathUtils.clamp((1 - alt) * 0.35, 0.08, 0.42);
     }
 
@@ -767,6 +855,41 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       (1 - wStudio) * Math.max(0, 1 - day - 0.15) * (1 - current.cover * 0.85) * 0.9;
     starMat.opacity += (starTargetOpacity - starMat.opacity) * skyLerp;
     starPoints.rotation.y = elapsed * 0.002 * motionScale;
+
+    // Southern-sky astronomy gate + occasional shooting-star event. All values
+    // are written into existing uniforms/vectors; no per-frame allocation. The
+    // whole block is skipped on software GL and whenever the sky is not dark.
+    skyMat.uniforms.astro.value = lowDetail ? 0 : 1;
+    const astroNight = (1 - day) * (1 - wStudio) * Math.max(0, 1 - current.cover * 1.4);
+    if (lowDetail || motionScale === 0 || astroNight < 0.4) {
+      skyMat.uniforms.uMeteorFade.value = 0;
+    } else if (meteorLife > 0) {
+      meteorLife -= safeDt;
+      const progress = THREE.MathUtils.clamp(1 - meteorLife / METEOR_DURATION, 0, 1);
+      skyMat.uniforms.uMeteorHead.value
+        .copy(meteorStart)
+        .lerp(meteorEnd, progress)
+        .normalize();
+      skyMat.uniforms.uMeteorTail.value
+        .copy(meteorStart)
+        .lerp(meteorEnd, Math.max(0, progress - 0.075))
+        .normalize();
+      skyMat.uniforms.uMeteorFade.value =
+        Math.sin(progress * Math.PI) * astroNight * 0.9;
+    } else {
+      skyMat.uniforms.uMeteorFade.value = 0;
+      meteorTimer -= safeDt;
+      if (meteorTimer <= 0) {
+        const base = (meteorIndex % (meteorPaths.length / 6)) * 6;
+        meteorStart.set(meteorPaths[base], meteorPaths[base + 1], meteorPaths[base + 2]).normalize();
+        meteorEnd
+          .set(meteorPaths[base + 3], meteorPaths[base + 4], meteorPaths[base + 5])
+          .normalize();
+        meteorIndex++;
+        meteorLife = METEOR_DURATION;
+        meteorTimer = 11 + Math.random() * 19;
+      }
+    }
 
     cloudTargetCol
       .set('#ffffff')
@@ -818,7 +941,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     sunColTmp.copy(dayColTmp).lerp(sunGlowTmp, hor * (0.75 + 0.2 * seasonCurrent.warmth));
     const seasonalIntensityScale = 0.88 + 0.22 * seasonCurrent.warmth;
     const dayBlend = THREE.MathUtils.smoothstep(day, 0.05, 0.45);
-    dayKeyPosTmp.set(sx * 0.45, Math.max(3, sy * 0.45), sz * 0.55);
+    dayKeyPosTmp.set(sunX * 18, Math.max(3, sunY * 20), sunZ * 18);
     keyPosTarget.copy(nightKeyPos).lerp(dayKeyPosTmp, dayBlend);
     keyColorTarget.copy(nightKeyCol).lerp(sunColTmp, dayBlend);
     const dayKeyIntensity =
@@ -916,6 +1039,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     applyCondition,
     applyLiveSample,
     setSeasonMonth,
+    setSiteLatitude,
     setTheme,
     setSiteSkyTint,
     triggerRainbow,

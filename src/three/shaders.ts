@@ -584,7 +584,28 @@ export function getWoodBumpTexture(): THREE.CanvasTexture {
   return tex;
 }
 
-export function waterize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+export interface WaterFlow {
+  /** World-space X/Z flow direction. Zero falls back to the default drift. */
+  readonly x?: number;
+  readonly z?: number;
+  /** Relative flow speed; 1 is the existing gentle default. */
+  readonly speed?: number;
+}
+
+export function waterize(
+  mat: THREE.MeshStandardMaterial,
+  flow?: WaterFlow
+): THREE.MeshStandardMaterial {
+  const rawX = flow?.x ?? 0;
+  const rawZ = flow?.z ?? 0;
+  const flowLen = Math.hypot(rawX, rawZ);
+  const flowX = flowLen > 1e-5 ? rawX / flowLen : 0;
+  const flowZ = flowLen > 1e-5 ? rawZ / flowLen : 1;
+  const flowSpeed = Math.max(0, flow?.speed ?? 1);
+  const flowXG = flowX.toFixed(3);
+  const flowZG = flowZ.toFixed(3);
+  const flowSpeedG = flowSpeed.toFixed(3);
+
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
     shader.uniforms.uSI = WU.sun;
@@ -625,14 +646,19 @@ float wRainRing(vec2 q,float t){
   float ring=smoothstep(0.055,0.0,abs(d-phase*0.42))*(1.0-phase);
   return ring*step(0.28,h);
 }
+const vec2 RIVER_DIR=vec2(${flowXG},${flowZG});
+const float RIVER_SPEED=${flowSpeedG};
+const float RIVER_ACTIVE=${flowLen > 1e-5 ? '1.0' : '0.0'};
 float wHeight(vec2 p,float t){
 float windN=min(2.5,max(0.0,uWdW));
 float chop=1.0+windN*0.28;
 float wt=t*(1.0+windN*0.18);
 vec2 windDrift=uWdDir*(t*(0.12+windN*0.24));
+vec2 riverDrift=RIVER_DIR*(t*RIVER_SPEED*(0.12+windN*0.10))*RIVER_ACTIVE;
 float alignWave=sin(dot(p,uWdDir)*2.75-wt*1.9)*(0.18+windN*0.16);
-float h=(sin(p.x*1.9+wt*1.25)*.5+sin(p.y*1.45-wt*.95)*.42+sin((p.x+p.y)*2.6+wt*1.7)*.2+alignWave)*chop;
-h+=(wFbm(p*2.1+windDrift+vec2(wt*.14,-wt*.10))-.5)*(.42+windN*.12);
+float riverWave=sin(dot(p,RIVER_DIR)*2.15-t*RIVER_SPEED*1.45)*0.17*RIVER_ACTIVE;
+float h=(sin(p.x*1.9+wt*1.25)*.5+sin(p.y*1.45-wt*.95)*.42+sin((p.x+p.y)*2.6+wt*1.7)*.2+alignWave+riverWave)*chop;
+h+=(wFbm(p*2.1+windDrift+riverDrift+vec2(wt*.14,-wt*.10))-.5)*(.42+windN*.12);
 h+=uRN*.18*sin((p.x*11.+p.y*9.)+t*9.)*sin((p.x*5.-p.y*13.)-t*7.);
 return h;
 }`
@@ -685,7 +711,7 @@ if(moonVis>0.01){
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'water_v7';
+  mat.customProgramCacheKey = () => `water_v8_${flowXG}_${flowZG}_${flowSpeedG}`;
   return mat;
 }
 

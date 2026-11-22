@@ -49,6 +49,8 @@ import {
   weatherVertexColors,
   type InstanceTransform,
 } from './primitives';
+import { headingYaw, leftLaneOffset } from '../../lib/trafficMath';
+import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
 import { getSoftTexture, prepareCanvasTexture } from '../shaders';
 import {
   addLighthouseSweep,
@@ -59,6 +61,8 @@ import {
   shopfrontBand,
   type StreetLampSpec,
 } from './dioramaKit';
+import { bench, crateStack, interpretiveSign, kraalFence } from './propKit';
+import { attachVehicleLights } from './vehicleLightKit';
 
 /** One deep Platteklip notch on the north-facing cliff, shared by cap and cliffs. */
 const platteklip = (x: number, z: number): number => {
@@ -225,6 +229,10 @@ export function table(): THREE.Group {
   add(g, C(0.17, 0.21, 0.18, 8), beaconStone, 2.55, 2.74, -0.8);
   add(g, C(0.11, 0.15, 0.16, 8), beaconStone, 2.58, 2.9, -0.8);
   add(g, C(0.05, 0.09, 0.13, 8), beaconStone, 2.52, 3.04, -0.8);
+  const trailSign = interpretiveSign('#d8a64a');
+  trailSign.position.set(3.15, 2.68, 0.35);
+  trailSign.scale.setScalar(0.7);
+  g.add(trailSign);
 
   // Lower & Upper Cableway stations with curved steel roof decks + volumetric sagged cables
   const cableMat = M('#2d333b', 0.38, 0.78);
@@ -314,7 +322,8 @@ export function union(): THREE.Group {
   const st = MStone('#b9a484', 0.85, 0.022);
   const dk = MStone('#6a635b', 0.88, 0.025);
   const rf = MPlaster('#8f513c', 0.78);
-  const cu = M('#556b60', 0.48, 0.42); // weathered copper patina cupolas
+  const cu = M('#556b60', 0.48, 0.42); // weathered copper patina globe
+  const domeStone = MStone('#b9a888', 0.85, 0.022);
   const gr = M('#66704a', 0.94);
   const plaza = MWet('#b9a484', 0.84, 0.16, 0.04, 'stone');
   const wn = G('#ffd58e', 1.1);
@@ -432,13 +441,13 @@ export function union(): THREE.Group {
     add(g, CB(2.86, 0.16, 2.6, 0.03), dk, s * 5.1, 2.86, -1.2);
     add(g, gableRoofGeo(2.58, 2.34, 0.52, 0.1), rf, s * 5.1, 2.92, -1.2);
 
-    // Baker Bell / Clock Tower with weathered bronze-copper cupola
+    // Baker Bell / Clock Tower with stone cupola
     add(g, CB(1.3, 3.6, 1.3, 0.04), st, s * 5.8, 2.6, -0.9);
     add(g, C(0.56, 0.66, 0.52, 24), st, s * 5.8, 4.65, -0.9);
     add(
       g,
       new THREE.SphereGeometry(0.7, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
-      cu,
+      domeStone,
       s * 5.8,
       4.9,
       -0.9
@@ -632,11 +641,15 @@ export function union(): THREE.Group {
   const laneT: InstanceTransform[] = [];
   for (let i = -7; i <= 7; i++) laneT.push({ x: i * 0.8, y: 0.08, z: 4.6 });
   instancedMeshes(g, CB(0.32, 0.012, 0.03, 0.006), M('#d8d2c4', 0.85), laneT);
-  const cars = ['#8d2f2b', '#dedad2', '#2a6fd3', '#d8a53a'].map((col) => {
-    const c = car(col, 0.26);
+  const cars = ['#8d2f2b', '#dedad2', '#2a6fd3', '#d8a53a'].map((col, i) => {
+    const c = car(col, 0.26, false);
+    const lane = leftLaneOffset(i % 2 ? 1 : -1, 0, 0.18);
+    c.position.set(0, 0.08, 4.6 + lane.z);
+    c.rotation.y = headingYaw(i % 2 ? 1 : -1, 0);
     g.add(c);
     return c;
   });
+  const carLights = attachVehicleLights(g, cars);
 
   const pet = drift(g, 70, '#b58be0', 0.07, (i, t) => {
     const u = ((R(i) * 3 + t * 0.3) % 3) / 3;
@@ -650,13 +663,10 @@ export function union(): THREE.Group {
     pet(t);
     cars.forEach((c, i) => {
       const d = i % 2 ? 1 : -1;
-      c.position.set(
-        ((((t * 0.5 * d + i * 3.2) % 12.4) + 12.4) % 12.4) - 6.2,
-        0.08,
-        4.6 + (i % 2 ? 0.18 : -0.18)
-      );
-      c.rotation.y = d > 0 ? 0 : Math.PI;
+      c.position.x = ((((t * 0.5 * d + i * 3.2) % 12.4) + 12.4) % 12.4) - 6.2;
+      c.rotation.y = headingYaw(d, 0);
     });
+    carLights.sync();
     flags.forEach((f, k) => {
       const p = f.geometry.attributes.position;
       for (let i = 0; i < p.count; i++) {
@@ -1020,12 +1030,17 @@ export function bridge(): THREE.Group {
   addStreetLampSet(g, bridgeLamps);
 
   const cars = [0, 1, 2, 3].map((i) => {
-    const c = car(['#c33', '#dedad2', '#36c', '#fc3'][i], 0.5);
-    c.position.set(0, 1.82, i % 2 ? 0.35 : -0.35);
-    c.rotation.y = i % 2 ? 0 : Math.PI;
+    // Left-hand traffic: eastbound keeps left (north, -Z), westbound keeps
+    // left (south, +Z). Lights are batched below instead of per-car meshes.
+    const dirX = i % 2 ? 1 : -1;
+    const lane = leftLaneOffset(dirX, 0, 0.35);
+    const c = car(['#c33', '#dedad2', '#36c', '#fc3'][i], 0.5, false);
+    c.position.set(0, 1.82, lane.z);
+    c.rotation.y = headingYaw(dirX, 0);
     g.add(c);
     return c;
   });
+  const carLights = attachVehicleLights(g, cars);
 
   // Hillbrow & Sentech concrete telecom towers
   add(g, C(0.18, 0.24, 5.4, 24), MStone('#9e9b93', 0.86), -6.5, 2.7, -3.5);
@@ -1046,6 +1061,7 @@ export function bridge(): THREE.Group {
         ((((t * (0.6 + i * 0.25) * (i % 2 ? -1 : 1) + (m.userData.x0 as number)) % 16) + 16) % 16) -
         8;
     });
+    carLights.sync();
   };
   g.scale.setScalar(0.92);
   return g;
@@ -1448,7 +1464,6 @@ export function voortrekker(): THREE.Group {
   const wheelT: InstanceTransform[] = [];
   for (let i = 0; i < 64; i++) {
     const a = (i / 64) * 6.2832;
-    if (Math.abs(a - 1.5708) < 0.2) continue;
     const x = 6.9 * Math.cos(a);
     const z = 6.9 * Math.sin(a);
     wagonT.push({ x, y: 0.3, z, ry: -a });
@@ -1600,10 +1615,11 @@ export function capePoint(): THREE.Group {
   }
   instancedMeshes(g, CB(0.18, 0.02, 0.04, 0.01), M('#dcd6c4', 0.85), dashT);
   const roadCars = ['#c33', '#e8c84a', '#e3e1da'].map((col, i) => {
-    const c = car(col, i === 1 ? 0.32 : 0.26);
+    const c = car(col, i === 1 ? 0.32 : 0.26, false);
     g.add(c);
     return c;
   });
+  const roadLights = attachVehicleLights(g, roadCars);
 
   // Flying Dutchman Funicular: volumetric TubeGeometry parallel steel rails + instanced timber sleepers
   add(g, C(0.85, 0.95, 0.06, 28), MStone('#8f8878', 0.96), 3.9, 0.3, -2.6);
@@ -1754,9 +1770,11 @@ export function capePoint(): THREE.Group {
       const p = roadCurve.getPointAt(u);
       const tg = roadCurve.getTangentAt(u);
       if (i % 2) tg.negate();
-      c.position.set(p.x, p.y + 0.16, p.z);
-      c.rotation.y = Math.atan2(-tg.z, tg.x);
+      const lane = leftLaneOffset(tg.x, tg.z, 0.2);
+      c.position.set(p.x + lane.x, p.y + 0.16, p.z + lane.z);
+      c.rotation.y = headingYaw(tg.x, tg.z);
     });
+    roadLights.sync();
     surf.forEach((r, i) => {
       const k = (t * 0.22 + i / 3) % 1;
       r.scale.setScalar(1 + k * 0.45);
@@ -2833,10 +2851,11 @@ export function golden(): THREE.Group {
   roadGeo.scale(1, 0.12, 1);
   add(g, roadGeo, MWet('#484d52', 0.86, 0.18, 0.05, 'plaster'), 0, 0.21, 0);
   const rvCars = [0, 1].map((i) => {
-    const c = car(i === 0 ? '#d8d4c8' : '#3a6289', 0.34);
+    const c = car(i === 0 ? '#d8d4c8' : '#3a6289', 0.34, false);
     g.add(c);
     return c;
   });
+  const rvLights = attachVehicleLights(g, rvCars);
 
   // Highland Themeda golden grass tufts
   const grassT: InstanceTransform[] = [];
@@ -2876,9 +2895,11 @@ export function golden(): THREE.Group {
       const p = r712.getPointAt(u);
       const tg = r712.getTangentAt(u);
       if (i % 2) tg.negate();
-      c.position.set(p.x, 0.24, p.z);
-      c.rotation.y = Math.atan2(-tg.z, tg.x);
+      const lane = leftLaneOffset(tg.x, tg.z, 0.3);
+      c.position.set(p.x + lane.x, 0.24, p.z + lane.z);
+      c.rotation.y = headingYaw(tg.x, tg.z);
     });
+    rvLights.sync();
   };
   return g;
 }
@@ -2909,6 +2930,15 @@ export function kruger(): THREE.Group {
     '#a38f70'
   );
   for (let i = 0; i < 6; i++) tree(g, -5.2 + i * 2.1, -3.9 + R(i) * 1.4, 1.15, 2, 0.2);
+  // Small ranger camp: reusable props keep human scale without new light sources.
+  const campFence = kraalFence(3.6, 6);
+  campFence.position.set(-5.3, 0.2, 3.9);
+  campFence.rotation.y = -0.24;
+  g.add(campFence);
+  const supplies = crateStack(3);
+  supplies.position.set(-4.35, 0.2, 4.55);
+  supplies.rotation.y = 0.3;
+  g.add(supplies);
 
   const grassT: InstanceTransform[] = [];
   for (let i = 0; i < 75; i++) {
@@ -3084,18 +3114,23 @@ export function ponte(): THREE.Group {
   }
   addStreetLampSet(g, ponteLamps);
   const cs = Array.from({ length: 8 }, (_, i) => {
-    const c = car(['#c33', '#eee', '#36c', '#fc3', '#2a9d8f', '#222', '#e76f51', '#ddd'][i], 0.45);
+    const c = car(['#c33', '#eee', '#36c', '#fc3', '#2a9d8f', '#222', '#e76f51', '#ddd'][i], 0.45, false);
     g.add(c);
     return c;
   });
+  const csLights = attachVehicleLights(g, cs);
   g.userData.tick = (t: number) => {
     cs.forEach((c, i) => {
       const d = i % 2 ? 1 : -1;
       const a = i * 0.8 + t * 0.22 * d;
       const r = i % 2 ? 5.1 : 5.45;
-      c.position.set(r * Math.cos(a), 0.2, r * Math.sin(a));
-      c.rotation.y = -a + (d > 0 ? -Math.PI / 2 : Math.PI / 2);
+      const tx = d > 0 ? -Math.sin(a) : Math.sin(a);
+      const tz = d > 0 ? Math.cos(a) : -Math.cos(a);
+      const lane = leftLaneOffset(tx, tz, 0.22);
+      c.position.set(r * Math.cos(a) + lane.x, 0.2, r * Math.sin(a) + lane.z);
+      c.rotation.y = headingYaw(tx, tz);
     });
+    csLights.sync();
   };
   return g;
 }
@@ -3197,6 +3232,29 @@ export function boulders(): THREE.Group {
   instancedMeshes(g, new THREE.SphereGeometry(0.032, 6, 5).translate(-0.075, 0.81, 0.085), pk, penT);
   instancedMeshes(g, CB(0.18, 0.035, 0.16, 0.01).translate(0, 0.02, 0.06), bk, penT);
 
+  // A small waddling colony demonstrates the shared animal scaffold: per-bird
+  // idle phase, one batched contact shadow tier and distance culling.
+  const waddleColony = createAnimalScaffold({
+    kind: 'penguin',
+    count: 4,
+    position: { x: 0.2, y: 0.2, z: -0.3 },
+    scale: 0.5,
+    spread: 0.72,
+    idle: 'waddle',
+    contact: false,
+    lods: { farDistance: 10, farScale: 0.9, cullDistance: 16 },
+  });
+  g.add(waddleColony.group);
+  const colonySign = interpretiveSign('#d8a64a');
+  colonySign.position.set(1.2, 0.32, -3.2);
+  colonySign.rotation.y = -Math.PI / 2;
+  colonySign.scale.setScalar(0.8);
+  g.add(colonySign);
+  const colonyBench = bench();
+  colonyBench.position.set(2.0, 0.3, -2.5);
+  colonyBench.rotation.y = -Math.PI / 2;
+  g.add(colonyBench);
+
   // Foxy Beach timber boardwalk
   const plankT: InstanceTransform[] = [];
   for (let z = -3.6; z <= 1.4; z += 0.24) plankT.push({ x: 1.2, y: 0.3, z });
@@ -3255,11 +3313,12 @@ export function boulders(): THREE.Group {
 
   const sr = seaRings(g, 0.14, 4, 3);
   const bd = birds(g, 3, 3, 5);
-  g.userData.tick = (t: number) => {
+  g.userData.tick = (t: number, dt: number) => {
     P.forEach((p, i) => {
       p.rotation.z = Math.sin(t * 4 + i * 2) * (i % 3 ? 0.04 : 0.1);
       p.position.y = 0.2 + (i % 3 ? 0 : Math.abs(Math.sin(t * 4 + i * 2)) * 0.04);
     });
+    waddleColony.update(dt, t, dt > 0 ? 1 : 0, getAnimalSeasonMonth());
     sr(t);
     bd(t);
     shoreFoam.forEach((ring, i) => {
@@ -3433,10 +3492,11 @@ export function orlando(): THREE.Group {
     0
   );
   const oc = [0, 1, 2, 3, 4].map((i) => {
-    const c = car(['#b85e50', '#ddd', '#458f96', '#be8655', '#6a7478'][i], 0.5);
+    const c = car(['#b85e50', '#ddd', '#458f96', '#be8655', '#6a7478'][i], 0.5, false);
     g.add(c);
     return c;
   });
+  const ocLights = attachVehicleLights(g, oc);
   g.userData.tick = (t: number) => {
     const y = 5.0 - 3.6 * Math.abs(Math.sin(t * 1.2));
     jp.position.y = y;
@@ -3445,9 +3505,13 @@ export function orlando(): THREE.Group {
     bd(t);
     oc.forEach((c, i) => {
       const a = i * 1.25 + t * 0.2;
-      c.position.set(4.9 * Math.cos(a), 0.21, 4.9 * Math.sin(a));
-      c.rotation.y = -a - Math.PI / 2;
+      const tx = -Math.sin(a);
+      const tz = Math.cos(a);
+      const lane = leftLaneOffset(tx, tz, 0.24);
+      c.position.set(4.9 * Math.cos(a) + lane.x, 0.21, 4.9 * Math.sin(a) + lane.z);
+      c.rotation.y = headingYaw(tx, tz);
     });
+    ocLights.sync();
   };
   return g;
 }

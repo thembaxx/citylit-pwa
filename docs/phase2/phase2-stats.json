@@ -1,0 +1,925 @@
+{
+  "captured": "2026-11-22",
+  "capture": "phase2",
+  "app": "Citylit contact sheet",
+  "urlTemplate": "http://localhost:3004/contact-sheet.html?hour={12|18|22}",
+  "engineState": {
+    "qualitySetting": "high",
+    "qualityIndex": 0,
+    "isSoftwareGl": false,
+    "theme": "daylight",
+    "composer": true,
+    "renderer": true
+  },
+  "method": "Fresh page per hour; after 43 landmarks render, applyQuality(high), renderer.info.autoReset=false; per-site showLandmarkImmediate; two warmup rAF frames; info.reset(); 8 rAF samples; calls/tris read after the 8-frame window; FPS=1000/mean(frame ms). Sampling split into five chunks to stay under the browser call timeout.",
+  "caveat": "Headless/remote browser on this host. FPS is a relative comparison only, not a mid-range-laptop or mobile certification. Calls/tris use the same post-window accumulation method as Phase 0 and Phase 1.",
+  "noon": [
+    {
+      "i": 0,
+      "name": "1. Table Mountain Cape Town",
+      "calls": 2516,
+      "tris": 1005040,
+      "fps": 12.8
+    },
+    {
+      "i": 1,
+      "name": "2. Union Buildings Pretoria",
+      "calls": 4780,
+      "tris": 3795948,
+      "fps": 6
+    },
+    {
+      "i": 2,
+      "name": "3. Moses Mabhida Stadium Durban",
+      "calls": 1656,
+      "tris": 1387792,
+      "fps": 10.2
+    },
+    {
+      "i": 3,
+      "name": "4. Nelson Mandela Bridge Johannesburg",
+      "calls": 3056,
+      "tris": 1466496,
+      "fps": 9.2
+    },
+    {
+      "i": 4,
+      "name": "5. The Big Hole Kimberley",
+      "calls": 1684,
+      "tris": 1029952,
+      "fps": 10
+    },
+    {
+      "i": 5,
+      "name": "6. Voortrekker Monument Pretoria",
+      "calls": 2304,
+      "tris": 2845120,
+      "fps": 10.6
+    },
+    {
+      "i": 6,
+      "name": "7. Cape Point Lighthouse Cape Peninsula",
+      "calls": 2874,
+      "tris": 1581520,
+      "fps": 9.7
+    },
+    {
+      "i": 7,
+      "name": "8. Bo-Kaap Cape Town",
+      "calls": 6556,
+      "tris": 8614512,
+      "fps": 9.1
+    },
+    {
+      "i": 8,
+      "name": "9. FNB Stadium (Soccer City) Johannesburg",
+      "calls": 1896,
+      "tris": 949712,
+      "fps": 11.5
+    },
+    {
+      "i": 9,
+      "name": "10. Three Rondavels Blyde River Canyon",
+      "calls": 1528,
+      "tris": 535336,
+      "fps": 12.8
+    },
+    {
+      "i": 10,
+      "name": "11. Baobab Lowveld",
+      "calls": 1524,
+      "tris": 549728,
+      "fps": 11.9
+    },
+    {
+      "i": 11,
+      "name": "12. Hole in the Wall Coffee Bay",
+      "calls": 1976,
+      "tris": 564208,
+      "fps": 11.7
+    },
+    {
+      "i": 12,
+      "name": "13. Castle of Good Hope Cape Town",
+      "calls": 3275,
+      "tris": 943298,
+      "fps": 11.2
+    },
+    {
+      "i": 13,
+      "name": "14. Drakensberg Amphitheatre Royal Natal National Park",
+      "calls": 1800,
+      "tris": 637504,
+      "fps": 13
+    },
+    {
+      "i": 14,
+      "name": "15. Palace of the Lost City Sun City",
+      "calls": 1876,
+      "tris": 595744,
+      "fps": 13.6
+    },
+    {
+      "i": 15,
+      "name": "16. Golden Gate Highlands Golden Gate",
+      "calls": 1310,
+      "tris": 467840,
+      "fps": 11.2
+    },
+    {
+      "i": 16,
+      "name": "17. Kruger National Park Kruger National Park",
+      "calls": 1328,
+      "tris": 544608,
+      "fps": 12.1
+    },
+    {
+      "i": 17,
+      "name": "18. Ponte City Johannesburg",
+      "calls": 2068,
+      "tris": 1163840,
+      "fps": 12.2
+    },
+    {
+      "i": 18,
+      "name": "19. Boulders Beach Simon’s Town",
+      "calls": 2234,
+      "tris": 2057680,
+      "fps": 14.8
+    },
+    {
+      "i": 19,
+      "name": "20. Cape Agulhas Lighthouse Cape Agulhas",
+      "calls": 2240,
+      "tris": 992496,
+      "fps": 13.1
+    },
+    {
+      "i": 20,
+      "name": "21. Orlando Towers Soweto",
+      "calls": 3032,
+      "tris": 1118032,
+      "fps": 12.5
+    },
+    {
+      "i": 21,
+      "name": "22. Bourke’s Luck Potholes Blyde River Canyon",
+      "calls": 1692,
+      "tris": 711600,
+      "fps": 12.6
+    },
+    {
+      "i": 22,
+      "name": "23. Augrabies Falls Augrabies Falls National Park",
+      "calls": 2412,
+      "tris": 686992,
+      "fps": 7.9
+    },
+    {
+      "i": 23,
+      "name": "24. SALT Telescope Sutherland",
+      "calls": 1536,
+      "tris": 871600,
+      "fps": 9.4
+    },
+    {
+      "i": 24,
+      "name": "25. Bloukrans Bridge Tsitsikamma",
+      "calls": 2216,
+      "tris": 581584,
+      "fps": 13
+    },
+    {
+      "i": 25,
+      "name": "26. Pilanesberg Crater Pilanesberg",
+      "calls": 1288,
+      "tris": 434256,
+      "fps": 13.4
+    },
+    {
+      "i": 26,
+      "name": "27. Robben Island Robben Island",
+      "calls": 3848,
+      "tris": 1479560,
+      "fps": 8.3
+    },
+    {
+      "i": 27,
+      "name": "28. Chapman’s Peak Drive Hout Bay",
+      "calls": 1896,
+      "tris": 552000,
+      "fps": 14.1
+    },
+    {
+      "i": 28,
+      "name": "29. Isandlwana Isandlwana",
+      "calls": 1020,
+      "tris": 440264,
+      "fps": 13.1
+    },
+    {
+      "i": 29,
+      "name": "30. Gariep Dam Gariep Dam",
+      "calls": 2160,
+      "tris": 725616,
+      "fps": 12
+    },
+    {
+      "i": 30,
+      "name": "31. Cradle of Humankind Maropeng",
+      "calls": 1588,
+      "tris": 615872,
+      "fps": 11.9
+    },
+    {
+      "i": 31,
+      "name": "32. Mapungubwe Hill Mapungubwe",
+      "calls": 1448,
+      "tris": 566924,
+      "fps": 13.7
+    },
+    {
+      "i": 32,
+      "name": "33. Kgalagadi Red Dunes Kgalagadi",
+      "calls": 1108,
+      "tris": 541328,
+      "fps": 13.9
+    },
+    {
+      "i": 33,
+      "name": "34. Storms River Mouth Tsitsikamma",
+      "calls": 2068,
+      "tris": 774464,
+      "fps": 10
+    },
+    {
+      "i": 34,
+      "name": "35. Groot Constantia Constantia",
+      "calls": 4208,
+      "tris": 5350880,
+      "fps": 8.6
+    },
+    {
+      "i": 35,
+      "name": "36. Hermanus Whale Watching Hermanus",
+      "calls": 2080,
+      "tris": 875680,
+      "fps": 11
+    },
+    {
+      "i": 36,
+      "name": "37. iSimangaliso Wetland Park St Lucia",
+      "calls": 2080,
+      "tris": 523072,
+      "fps": 13
+    },
+    {
+      "i": 37,
+      "name": "38. Sani Pass Drakensberg",
+      "calls": 1696,
+      "tris": 662960,
+      "fps": 11.6
+    },
+    {
+      "i": 38,
+      "name": "39. Richtersveld Richtersveld",
+      "calls": 1296,
+      "tris": 487000,
+      "fps": 11
+    },
+    {
+      "i": 39,
+      "name": "40. Vredefort Dome Vredefort",
+      "calls": 1144,
+      "tris": 409888,
+      "fps": 12.2
+    },
+    {
+      "i": 40,
+      "name": "41. Hartbeespoort Dam Hartbeespoort",
+      "calls": 2072,
+      "tris": 595964,
+      "fps": 12.3
+    },
+    {
+      "i": 41,
+      "name": "42. Knysna Heads Knysna",
+      "calls": 3504,
+      "tris": 1069048,
+      "fps": 8.7
+    },
+    {
+      "i": 42,
+      "name": "43. Donkin Reserve Gqeberha",
+      "calls": 2268,
+      "tris": 819888,
+      "fps": 12.6
+    }
+  ],
+  "golden": [
+    {
+      "i": 0,
+      "name": "1. Table Mountain Cape Town",
+      "calls": 2572,
+      "tris": 1002128,
+      "fps": 11.6
+    },
+    {
+      "i": 1,
+      "name": "2. Union Buildings Pretoria",
+      "calls": 4664,
+      "tris": 3629120,
+      "fps": 8
+    },
+    {
+      "i": 2,
+      "name": "3. Moses Mabhida Stadium Durban",
+      "calls": 1712,
+      "tris": 1384880,
+      "fps": 10.1
+    },
+    {
+      "i": 3,
+      "name": "4. Nelson Mandela Bridge Johannesburg",
+      "calls": 3112,
+      "tris": 1463584,
+      "fps": 10.7
+    },
+    {
+      "i": 4,
+      "name": "5. The Big Hole Kimberley",
+      "calls": 1740,
+      "tris": 1027040,
+      "fps": 11.5
+    },
+    {
+      "i": 5,
+      "name": "6. Voortrekker Monument Pretoria",
+      "calls": 2360,
+      "tris": 2842208,
+      "fps": 8
+    },
+    {
+      "i": 6,
+      "name": "7. Cape Point Lighthouse Cape Peninsula",
+      "calls": 2930,
+      "tris": 1578608,
+      "fps": 11.2
+    },
+    {
+      "i": 7,
+      "name": "8. Bo-Kaap Cape Town",
+      "calls": 6612,
+      "tris": 8611600,
+      "fps": 9.3
+    },
+    {
+      "i": 8,
+      "name": "9. FNB Stadium (Soccer City) Johannesburg",
+      "calls": 1952,
+      "tris": 946800,
+      "fps": 9.8
+    },
+    {
+      "i": 9,
+      "name": "10. Three Rondavels Blyde River Canyon",
+      "calls": 1584,
+      "tris": 532424,
+      "fps": 12.8
+    },
+    {
+      "i": 10,
+      "name": "11. Baobab Lowveld",
+      "calls": 1580,
+      "tris": 546816,
+      "fps": 14.7
+    },
+    {
+      "i": 11,
+      "name": "12. Hole in the Wall Coffee Bay",
+      "calls": 2032,
+      "tris": 561296,
+      "fps": 11.9
+    },
+    {
+      "i": 12,
+      "name": "13. Castle of Good Hope Cape Town",
+      "calls": 3076,
+      "tris": 860424,
+      "fps": 10.4
+    },
+    {
+      "i": 13,
+      "name": "14. Drakensberg Amphitheatre Royal Natal National Park",
+      "calls": 1856,
+      "tris": 634592,
+      "fps": 12.1
+    },
+    {
+      "i": 14,
+      "name": "15. Palace of the Lost City Sun City",
+      "calls": 1932,
+      "tris": 592832,
+      "fps": 11.6
+    },
+    {
+      "i": 15,
+      "name": "16. Golden Gate Highlands Golden Gate",
+      "calls": 1366,
+      "tris": 464928,
+      "fps": 12.1
+    },
+    {
+      "i": 16,
+      "name": "17. Kruger National Park Kruger National Park",
+      "calls": 1396,
+      "tris": 545920,
+      "fps": 10.6
+    },
+    {
+      "i": 17,
+      "name": "18. Ponte City Johannesburg",
+      "calls": 2124,
+      "tris": 1160928,
+      "fps": 11.7
+    },
+    {
+      "i": 18,
+      "name": "19. Boulders Beach Simon’s Town",
+      "calls": 2304,
+      "tris": 2059696,
+      "fps": 12.9
+    },
+    {
+      "i": 19,
+      "name": "20. Cape Agulhas Lighthouse Cape Agulhas",
+      "calls": 2040,
+      "tris": 815248,
+      "fps": 16
+    },
+    {
+      "i": 20,
+      "name": "21. Orlando Towers Soweto",
+      "calls": 3088,
+      "tris": 1115120,
+      "fps": 13.1
+    },
+    {
+      "i": 21,
+      "name": "22. Bourke’s Luck Potholes Blyde River Canyon",
+      "calls": 1748,
+      "tris": 708688,
+      "fps": 12.3
+    },
+    {
+      "i": 22,
+      "name": "23. Augrabies Falls Augrabies Falls National Park",
+      "calls": 2468,
+      "tris": 684080,
+      "fps": 11.3
+    },
+    {
+      "i": 23,
+      "name": "24. SALT Telescope Sutherland",
+      "calls": 1592,
+      "tris": 868688,
+      "fps": 11
+    },
+    {
+      "i": 24,
+      "name": "25. Bloukrans Bridge Tsitsikamma",
+      "calls": 2272,
+      "tris": 578672,
+      "fps": 8.9
+    },
+    {
+      "i": 25,
+      "name": "26. Pilanesberg Crater Pilanesberg",
+      "calls": 1344,
+      "tris": 431344,
+      "fps": 13.3
+    },
+    {
+      "i": 26,
+      "name": "27. Robben Island Robben Island",
+      "calls": 3920,
+      "tris": 1482280,
+      "fps": 9.2
+    },
+    {
+      "i": 27,
+      "name": "28. Chapman’s Peak Drive Hout Bay",
+      "calls": 1952,
+      "tris": 549088,
+      "fps": 12.9
+    },
+    {
+      "i": 28,
+      "name": "29. Isandlwana Isandlwana",
+      "calls": 1076,
+      "tris": 437352,
+      "fps": 13.4
+    },
+    {
+      "i": 29,
+      "name": "30. Gariep Dam Gariep Dam",
+      "calls": 2216,
+      "tris": 722704,
+      "fps": 12.7
+    },
+    {
+      "i": 30,
+      "name": "31. Cradle of Humankind Maropeng",
+      "calls": 1660,
+      "tris": 618592,
+      "fps": 12
+    },
+    {
+      "i": 31,
+      "name": "32. Mapungubwe Hill Mapungubwe",
+      "calls": 1424,
+      "tris": 509248,
+      "fps": 13
+    },
+    {
+      "i": 32,
+      "name": "33. Kgalagadi Red Dunes Kgalagadi",
+      "calls": 1180,
+      "tris": 544048,
+      "fps": 12
+    },
+    {
+      "i": 33,
+      "name": "34. Storms River Mouth Tsitsikamma",
+      "calls": 2124,
+      "tris": 771552,
+      "fps": 9.6
+    },
+    {
+      "i": 34,
+      "name": "35. Groot Constantia Constantia",
+      "calls": 4260,
+      "tris": 5347584,
+      "fps": 8.9
+    },
+    {
+      "i": 35,
+      "name": "36. Hermanus Whale Watching Hermanus",
+      "calls": 2100,
+      "tris": 832544,
+      "fps": 11.6
+    },
+    {
+      "i": 36,
+      "name": "37. iSimangaliso Wetland Park St Lucia",
+      "calls": 2136,
+      "tris": 520160,
+      "fps": 12.4
+    },
+    {
+      "i": 37,
+      "name": "38. Sani Pass Drakensberg",
+      "calls": 1752,
+      "tris": 660048,
+      "fps": 12.4
+    },
+    {
+      "i": 38,
+      "name": "39. Richtersveld Richtersveld",
+      "calls": 1352,
+      "tris": 484088,
+      "fps": 13.3
+    },
+    {
+      "i": 39,
+      "name": "40. Vredefort Dome Vredefort",
+      "calls": 1216,
+      "tris": 412608,
+      "fps": 13.6
+    },
+    {
+      "i": 40,
+      "name": "41. Hartbeespoort Dam Hartbeespoort",
+      "calls": 2128,
+      "tris": 593052,
+      "fps": 10.9
+    },
+    {
+      "i": 41,
+      "name": "42. Knysna Heads Knysna",
+      "calls": 3560,
+      "tris": 1066136,
+      "fps": 10.1
+    },
+    {
+      "i": 42,
+      "name": "43. Donkin Reserve Gqeberha",
+      "calls": 2324,
+      "tris": 816976,
+      "fps": 9.8
+    }
+  ],
+  "night": [
+    {
+      "i": 0,
+      "name": "1. Table Mountain Cape Town",
+      "calls": 2484,
+      "tris": 998928,
+      "fps": 10.3
+    },
+    {
+      "i": 1,
+      "name": "2. Union Buildings Pretoria",
+      "calls": 4576,
+      "tris": 3625920,
+      "fps": 7.8
+    },
+    {
+      "i": 2,
+      "name": "3. Moses Mabhida Stadium Durban",
+      "calls": 1624,
+      "tris": 1381680,
+      "fps": 8.1
+    },
+    {
+      "i": 3,
+      "name": "4. Nelson Mandela Bridge Johannesburg",
+      "calls": 3024,
+      "tris": 1460384,
+      "fps": 10.1
+    },
+    {
+      "i": 4,
+      "name": "5. The Big Hole Kimberley",
+      "calls": 1628,
+      "tris": 1023840,
+      "fps": 9.3
+    },
+    {
+      "i": 5,
+      "name": "6. Voortrekker Monument Pretoria",
+      "calls": 2240,
+      "tris": 2839008,
+      "fps": 8.5
+    },
+    {
+      "i": 6,
+      "name": "7. Cape Point Lighthouse Cape Peninsula",
+      "calls": 2810,
+      "tris": 1575408,
+      "fps": 9.2
+    },
+    {
+      "i": 7,
+      "name": "8. Bo-Kaap Cape Town",
+      "calls": 6492,
+      "tris": 8608400,
+      "fps": 9.2
+    },
+    {
+      "i": 8,
+      "name": "9. FNB Stadium (Soccer City) Johannesburg",
+      "calls": 1832,
+      "tris": 943600,
+      "fps": 9.4
+    },
+    {
+      "i": 9,
+      "name": "10. Three Rondavels Blyde River Canyon",
+      "calls": 1496,
+      "tris": 529224,
+      "fps": 9.5
+    },
+    {
+      "i": 10,
+      "name": "11. Baobab Lowveld",
+      "calls": 1476,
+      "tris": 543616,
+      "fps": 12.4
+    },
+    {
+      "i": 11,
+      "name": "12. Hole in the Wall Coffee Bay",
+      "calls": 1928,
+      "tris": 558096,
+      "fps": 9.6
+    },
+    {
+      "i": 12,
+      "name": "13. Castle of Good Hope Cape Town",
+      "calls": 2972,
+      "tris": 857224,
+      "fps": 6.9
+    },
+    {
+      "i": 13,
+      "name": "14. Drakensberg Amphitheatre Royal Natal National Park",
+      "calls": 1752,
+      "tris": 631392,
+      "fps": 11.1
+    },
+    {
+      "i": 14,
+      "name": "15. Palace of the Lost City Sun City",
+      "calls": 1824,
+      "tris": 589248,
+      "fps": 10.3
+    },
+    {
+      "i": 15,
+      "name": "16. Golden Gate Highlands Golden Gate",
+      "calls": 1276,
+      "tris": 461728,
+      "fps": 11.7
+    },
+    {
+      "i": 16,
+      "name": "17. Kruger National Park Kruger National Park",
+      "calls": 1292,
+      "tris": 542720,
+      "fps": 9.8
+    },
+    {
+      "i": 17,
+      "name": "18. Ponte City Johannesburg",
+      "calls": 2020,
+      "tris": 1157728,
+      "fps": 11.7
+    },
+    {
+      "i": 18,
+      "name": "19. Boulders Beach Simon’s Town",
+      "calls": 2184,
+      "tris": 2056496,
+      "fps": 7.7
+    },
+    {
+      "i": 19,
+      "name": "20. Cape Agulhas Lighthouse Cape Agulhas",
+      "calls": 1920,
+      "tris": 812048,
+      "fps": 9.6
+    },
+    {
+      "i": 20,
+      "name": "21. Orlando Towers Soweto",
+      "calls": 2968,
+      "tris": 1111920,
+      "fps": 11.5
+    },
+    {
+      "i": 21,
+      "name": "22. Bourke’s Luck Potholes Blyde River Canyon",
+      "calls": 1644,
+      "tris": 705488,
+      "fps": 10.6
+    },
+    {
+      "i": 22,
+      "name": "23. Augrabies Falls Augrabies Falls National Park",
+      "calls": 2364,
+      "tris": 680880,
+      "fps": 8.6
+    },
+    {
+      "i": 23,
+      "name": "24. SALT Telescope Sutherland",
+      "calls": 1488,
+      "tris": 865488,
+      "fps": 9.9
+    },
+    {
+      "i": 24,
+      "name": "25. Bloukrans Bridge Tsitsikamma",
+      "calls": 2168,
+      "tris": 575472,
+      "fps": 10.5
+    },
+    {
+      "i": 25,
+      "name": "26. Pilanesberg Crater Pilanesberg",
+      "calls": 1240,
+      "tris": 428144,
+      "fps": 12
+    },
+    {
+      "i": 26,
+      "name": "27. Robben Island Robben Island",
+      "calls": 3816,
+      "tris": 1479080,
+      "fps": 7.9
+    },
+    {
+      "i": 27,
+      "name": "28. Chapman’s Peak Drive Hout Bay",
+      "calls": 1832,
+      "tris": 545888,
+      "fps": 11.2
+    },
+    {
+      "i": 28,
+      "name": "29. Isandlwana Isandlwana",
+      "calls": 972,
+      "tris": 434152,
+      "fps": 12
+    },
+    {
+      "i": 29,
+      "name": "30. Gariep Dam Gariep Dam",
+      "calls": 2112,
+      "tris": 719504,
+      "fps": 10.3
+    },
+    {
+      "i": 30,
+      "name": "31. Cradle of Humankind Maropeng",
+      "calls": 1556,
+      "tris": 615392,
+      "fps": 8.7
+    },
+    {
+      "i": 31,
+      "name": "32. Mapungubwe Hill Mapungubwe",
+      "calls": 1320,
+      "tris": 506048,
+      "fps": 12.5
+    },
+    {
+      "i": 32,
+      "name": "33. Kgalagadi Red Dunes Kgalagadi",
+      "calls": 1076,
+      "tris": 540848,
+      "fps": 10.8
+    },
+    {
+      "i": 33,
+      "name": "34. Storms River Mouth Tsitsikamma",
+      "calls": 2020,
+      "tris": 768352,
+      "fps": 10.4
+    },
+    {
+      "i": 34,
+      "name": "35. Groot Constantia Constantia",
+      "calls": 4156,
+      "tris": 5344384,
+      "fps": 7.4
+    },
+    {
+      "i": 35,
+      "name": "36. Hermanus Whale Watching Hermanus",
+      "calls": 2032,
+      "tris": 869568,
+      "fps": 9.5
+    },
+    {
+      "i": 36,
+      "name": "37. iSimangaliso Wetland Park St Lucia",
+      "calls": 2032,
+      "tris": 516960,
+      "fps": 8.2
+    },
+    {
+      "i": 37,
+      "name": "38. Sani Pass Drakensberg",
+      "calls": 1648,
+      "tris": 656848,
+      "fps": 11.1
+    },
+    {
+      "i": 38,
+      "name": "39. Richtersveld Richtersveld",
+      "calls": 1248,
+      "tris": 480888,
+      "fps": 8.8
+    },
+    {
+      "i": 39,
+      "name": "40. Vredefort Dome Vredefort",
+      "calls": 1112,
+      "tris": 409408,
+      "fps": 8.8
+    },
+    {
+      "i": 40,
+      "name": "41. Hartbeespoort Dam Hartbeespoort",
+      "calls": 2024,
+      "tris": 589852,
+      "fps": 8.4
+    },
+    {
+      "i": 41,
+      "name": "42. Knysna Heads Knysna",
+      "calls": 3456,
+      "tris": 1062936,
+      "fps": 7.8
+    },
+    {
+      "i": 42,
+      "name": "43. Donkin Reserve Gqeberha",
+      "calls": 2220,
+      "tris": 813776,
+      "fps": 9
+    }
+  ]
+}

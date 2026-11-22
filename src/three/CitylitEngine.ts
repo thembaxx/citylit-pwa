@@ -23,6 +23,13 @@ import type {
   ThemeSetting,
   WeatherConditionKey,
 } from '../types/citylit';
+import {
+  boundsFitPlinth,
+  fitBoundsToPlinth,
+  PLINTH_HALF_EXTENT,
+  PLINTH_INNER_HALF_EXTENT,
+} from '../lib/fitMath';
+import { setAnimalSeasonMonth } from './builders/animalKit';
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
 import {
   glowMaterials,
@@ -203,6 +210,7 @@ export class CitylitEngine {
   private outgoingGroup: THREE.Group | null = null;
   private markerSprites: THREE.Sprite[] = [];
   private activeLods: THREE.LOD[] = [];
+  private activeAnimalLods: THREE.Object3D[] = [];
   private activeIndex = 0;
 
   private dissolvePhase = 0;
@@ -278,6 +286,7 @@ export class CitylitEngine {
   private lastLodQuality = -1;
   private readonly lastShadowKeyPos = new THREE.Vector3(Infinity, Infinity, Infinity);
   private readonly tmpCasterSize = new THREE.Vector3();
+  private readonly tmpAnimalLodPos = new THREE.Vector3();
   private readonly fitSizeTmp = new THREE.Vector3();
   private readonly fitCenterTmp = new THREE.Vector3();
 
@@ -317,13 +326,25 @@ export class CitylitEngine {
   private pinDropMode = false;
   private cutawayActive = false;
   private cutawayAmount = 0;
-  private cutawayEntries: Array<{ obj: THREE.Object3D; baseY: number; liftY: number }> = [];
+  /**
+   * Phase 2 cross-section reveal. A single reusable world-space plane sweeps in
+   * from just beyond the diorama's front face to its middle, cutting away the
+   * camera-facing half so the existing strata/rock geometry reads as a geological
+   * section. Materials are clipped locally (never globally) so markers, stars,
+   * weather and the studio plinth are untouched.
+   */
+  private readonly cutawayPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e4);
+  private readonly cutawayClippedMaterials = new Set<THREE.Material>();
+  private readonly cutawayCapMat: THREE.ShaderMaterial;
+  private readonly cutawayCap: THREE.Mesh;
+  private cutawayReady = false;
+  private cutawayFrontZ = 1e4;
+  private cutawaySectionZ = 0;
   private activePinCursor = -1;
   private readonly prevFrameCamPos = new THREE.Vector3();
   private readonly dropLocalTmp = new THREE.Vector3();
   private readonly dropWorldTmp = new THREE.Vector3();
   private readonly dropNormalTmp = new THREE.Vector3();
-  private readonly dropBoxTmp = new THREE.Box3();
   private readonly dropCenterTmp = new THREE.Vector3();
   private readonly dropSizeTmp = new THREE.Vector3();
 
@@ -555,16 +576,16 @@ export class CitylitEngine {
     this.ringMat.userData.i = 0.6;
     // Square emissive rim: a thin flat frame instead of the old torus ring.
     const rimShape = new THREE.Shape();
-    rimShape.moveTo(-8.52, -8.52);
-    rimShape.lineTo(8.52, -8.52);
-    rimShape.lineTo(8.52, 8.52);
-    rimShape.lineTo(-8.52, 8.52);
+    rimShape.moveTo(-PLINTH_HALF_EXTENT, -PLINTH_HALF_EXTENT);
+    rimShape.lineTo(PLINTH_HALF_EXTENT, -PLINTH_HALF_EXTENT);
+    rimShape.lineTo(PLINTH_HALF_EXTENT, PLINTH_HALF_EXTENT);
+    rimShape.lineTo(-PLINTH_HALF_EXTENT, PLINTH_HALF_EXTENT);
     rimShape.closePath();
     const rimHole = new THREE.Path();
-    rimHole.moveTo(-8.46, -8.46);
-    rimHole.lineTo(-8.46, 8.46);
-    rimHole.lineTo(8.46, 8.46);
-    rimHole.lineTo(8.46, -8.46);
+    rimHole.moveTo(-PLINTH_INNER_HALF_EXTENT, -PLINTH_INNER_HALF_EXTENT);
+    rimHole.lineTo(-PLINTH_INNER_HALF_EXTENT, PLINTH_INNER_HALF_EXTENT);
+    rimHole.lineTo(PLINTH_INNER_HALF_EXTENT, PLINTH_INNER_HALF_EXTENT);
+    rimHole.lineTo(PLINTH_INNER_HALF_EXTENT, -PLINTH_INNER_HALF_EXTENT);
     rimHole.closePath();
     rimShape.holes.push(rimHole);
     const plinthRing = new THREE.Mesh(
@@ -592,6 +613,60 @@ export class CitylitEngine {
 
     this.heroRoot = new THREE.Group();
     this.scene.add(this.heroRoot);
+
+    // Cutaway section face. One quad, one shader, no textures: soft horizontal
+    // strata banding that reads as a sliced rock face. It is world-fixed (added
+    // to the scene, not heroRoot) so orbiting does not spin the cut plane.
+    this.cutawayCapMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      uniforms: {
+        uAmount: { value: 0 },
+        uTop: { value: new THREE.Color('#6c6355') },
+        uBottom: { value: new THREE.Color('#241f1a') },
+      },
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        uniform float uAmount;
+        uniform vec3 uTop, uBottom;
+        void main() {
+          // Gently warped horizontal bands with thin lighter seams: a stylised
+          // sedimentary cross-section, deliberately low contrast.
+          float warp = sin(vUv.x * 9.0) * 0.018 + sin(vUv.x * 23.0 + 1.7) * 0.007;
+          float y = vUv.y + warp;
+          float bands = sin(y * 44.0) * 0.5 + 0.5;
+          float seam = smoothstep(0.46, 0.5, bands) - smoothstep(0.5, 0.54, bands);
+          vec3 col = mix(uBottom, uTop, clamp(y * 0.75 + bands * 0.25, 0.0, 1.0));
+          col += vec3(0.10, 0.085, 0.07) * seam * 0.55;
+          float edge = smoothstep(0.0, 0.06, vUv.x) * smoothstep(1.0, 0.94, vUv.x)
+                     * smoothstep(0.0, 0.04, vUv.y) * smoothstep(1.0, 0.96, vUv.y);
+          // Faint overall so the surviving back half stays readable; stronger
+          // toward the rock base where the section face matters most.
+          float vertical = smoothstep(1.0, 0.3, vUv.y);
+          gl_FragColor = vec4(col, uAmount * (0.10 + 0.26 * vertical) * edge);
+        }
+      `,
+    });
+    this.cutawayCapMat.userData.noDissolve = true;
+    this.cutawayCap = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.cutawayCapMat);
+    this.cutawayCap.visible = false;
+    this.cutawayCap.renderOrder = 3;
+    this.cutawayCap.frustumCulled = false;
+    this.cutawayCap.userData.noShadow = true;
+    this.cutawayCap.userData.cannotReceiveAO = true;
+    this.scene.add(this.cutawayCap);
+
+    // Local clipping is opt-in per material; global clipping would also slice
+    // markers, star points and weather, which must stay whole.
+    this.renderer.localClippingEnabled = true;
 
     // One fixed-size pool of streetlamp lights for the whole session. It lives
     // in the scene at all times (dark when unused) so the renderer's point-light
@@ -1031,9 +1106,7 @@ export class CitylitEngine {
     this.lastInteractAt = this.elapsed;
     if (this.motionScale === 0) {
       this.cutawayAmount = active ? 1 : 0;
-      for (const entry of this.cutawayEntries) {
-        entry.obj.position.y = entry.baseY + entry.liftY * this.cutawayAmount;
-      }
+      this.applyCutawayAmount(this.cutawayAmount);
       if (!this.isSoftwareGl) {
         this.renderer.shadowMap.needsUpdate = true;
       }
@@ -1394,59 +1467,82 @@ export class CitylitEngine {
   }
 
   private resetCutawayOffsets(): void {
-    for (let i = 0; i < this.cutawayEntries.length; i++) {
-      const entry = this.cutawayEntries[i];
-      entry.obj.position.y = entry.baseY;
-    }
-    this.cutawayEntries = [];
+    this.cutawayReady = false;
     this.cutawayAmount = 0;
+    this.cutawayCap.visible = false;
+    this.cutawayCapMat.uniforms.uAmount.value = 0;
+    // Park the plane just beyond any diorama so a disabled cutaway clips nothing.
+    this.cutawayPlane.constant = 1e4;
   }
 
+  /**
+   * Rebuild the section geometry for the newly shown landmark. Instead of
+   * lifting upper meshes apart, we attach one reusable clipping plane to the
+   * landmark's own materials (shared materials are tracked once for the whole
+   * session) and size a procedural cut-face to the hero bounds. No new assets,
+   * no per-frame allocation, and sky/horizon/markers keep their own materials.
+   */
   private computeCutawayEntries(group: THREE.Group): void {
-    this.cutawayEntries = [];
+    this.cutawayReady = false;
     this.cutawayAmount = 0;
+    this.cutawayCap.visible = false;
+    this.cutawayCapMat.uniforms.uAmount.value = 0;
     const heroBox = this.computeDioramaBounds(group);
     if (heroBox.isEmpty()) return;
-    heroBox.getSize(this.dropSizeTmp);
-    const minY = heroBox.min.y;
-    const sizeY = Math.max(0.8, this.dropSizeTmp.y);
-    const liftedSet = new Set<THREE.Object3D>();
 
-    const visit = (node: THREE.Object3D) => {
-      if (node !== group) {
-        if (
-          node.userData.noShadow ||
-          node.userData.cannotReceiveAO ||
-          node.userData.noDissolve ||
-          !node.visible
-        ) {
-          return;
-        }
-        // Lift self-contained elevated sub-assemblies or standalone upper meshes
-        this.dropBoxTmp.setFromObject(node);
-        if (!this.dropBoxTmp.isEmpty()) {
-          this.dropBoxTmp.getCenter(this.dropCenterTmp);
-          this.dropBoxTmp.getSize(this.dropSizeTmp);
-          const isWideBase =
-            this.dropSizeTmp.x > 10.5 && this.dropSizeTmp.z > 10.5 && this.dropSizeTmp.y < 1.2;
-          const relY = (this.dropCenterTmp.y - minY) / sizeY;
-          if (!isWideBase && relY > 0.42 && this.dropSizeTmp.y < sizeY * 0.72) {
-            liftedSet.add(node);
-            const liftY = THREE.MathUtils.clamp((relY - 0.34) * sizeY * 0.48, 0.4, 3.0);
-            this.cutawayEntries.push({
-              obj: node,
-              baseY: node.position.y,
-              liftY,
-            });
-            return;
-          }
-        }
+    heroBox.getSize(this.dropSizeTmp);
+    heroBox.getCenter(this.dropCenterTmp);
+    const sizeX = Math.max(1, this.dropSizeTmp.x);
+    const sizeY = Math.max(0.8, this.dropSizeTmp.y);
+
+    // Sweep from just in front of the hero to a little past its middle, so the
+    // front half is removed and the sliced strata face is exposed.
+    this.cutawayFrontZ = heroBox.max.z + Math.max(1, sizeX * 0.12);
+    this.cutawaySectionZ = heroBox.min.z + this.dropSizeTmp.z * 0.52;
+    this.cutawayPlane.constant = this.cutawayFrontZ;
+
+    // Size and place the cut face. Scale-only changes reuse one PlaneGeometry.
+    this.cutawayCap.scale.set(sizeX * 1.04, sizeY * 1.06, 1);
+    this.cutawayCap.position.set(this.dropCenterTmp.x, this.dropCenterTmp.y, this.cutawaySectionZ);
+
+    // Collect every material used by the hero group and clip it locally. Cached
+    // materials persist across landmarks, so each is only ever tagged once.
+    group.traverse((node) => {
+      const anyNode = node as THREE.Object3D & {
+        isMesh?: boolean;
+        isPoints?: boolean;
+        isLine?: boolean;
+        material?: THREE.Material | THREE.Material[];
+      };
+      if (!anyNode.isMesh && !anyNode.isPoints && !anyNode.isLine) return;
+      const mat = anyNode.material;
+      if (!mat) return;
+      const list = Array.isArray(mat) ? mat : [mat];
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        if (this.cutawayClippedMaterials.has(m)) continue;
+        this.cutawayClippedMaterials.add(m);
+        m.clippingPlanes = [this.cutawayPlane];
+        m.needsUpdate = true;
       }
-      for (let i = 0; i < node.children.length; i++) {
-        visit(node.children[i]);
-      }
-    };
-    visit(group);
+    });
+    this.cutawayReady = true;
+  }
+
+  /** Drive the sweep plane + cut face from the single eased cutaway amount. */
+  private applyCutawayAmount(amount: number): void {
+    this.cutawayPlane.constant = THREE.MathUtils.lerp(
+      this.cutawayFrontZ,
+      this.cutawaySectionZ,
+      amount
+    );
+    this.cutawayCap.position.z = this.cutawayPlane.constant;
+    this.cutawayCapMat.uniforms.uAmount.value = amount;
+    this.cutawayCap.visible =
+      amount > 0.01 &&
+      this.heroRoot.visible &&
+      !this.globe.isOpen &&
+      !this.places.isOpen;
   }
 
   showLandmarkImmediate(index: number): void {
@@ -1481,6 +1577,18 @@ export class CitylitEngine {
     } else {
       this.currentGroup = this.buildLandmarkGroup(index);
     }
+    // Non-visual fit-to-stand audit: future sites that exceed the plinth are
+    // discoverable from userData without silently rescaling the hero. Existing
+    // sites keep their authored scale and offset.
+    const plinthBox = this.computeDioramaBounds(this.currentGroup);
+    const plinthFootprint = {
+      minX: plinthBox.min.x,
+      maxX: plinthBox.max.x,
+      minZ: plinthBox.min.z,
+      maxZ: plinthBox.max.z,
+    };
+    this.currentGroup.userData.plinthFit = fitBoundsToPlinth(plinthFootprint);
+    this.currentGroup.userData.fitsPlinth = boundsFitPlinth(plinthFootprint);
     this.currentDynamic = cached
       ? { glow: cached.glow.slice(), sway: cached.sway.slice(), wet: cached.wet.slice() }
       : {
@@ -1517,12 +1625,17 @@ export class CitylitEngine {
     if (this.beaconMesh) this.heroRoot.add(this.beaconMesh);
 
     const lods: THREE.LOD[] = [];
+    const animalLods: THREE.Object3D[] = [];
     this.currentGroup.traverse((obj) => {
       if (obj instanceof THREE.LOD) {
         lods.push(obj);
       }
+      if (typeof obj.userData.updateAnimalLod === 'function') {
+        animalLods.push(obj);
+      }
     });
     this.activeLods = lods;
+    this.activeAnimalLods = animalLods;
     this.hasAnimatedShadowScene = Boolean(this.currentGroup.userData.hasAnimatedShadowMeshes);
     this.hoveredMarkerIndex = -1;
     this.hoveredHero = false;
@@ -1545,7 +1658,9 @@ export class CitylitEngine {
     this.windParticles.setBiome(lmMeta.biome, lmMeta.k);
     this.horizon.setBiome(lmMeta.biome);
     this.horizon.setSiteTint(visual.skyHorizonTint);
+    this.horizon.setSiteSignature(lmMeta.k, lmMeta.biome);
     this.weather.setSiteSkyTint(visual.skyTopTint, visual.skyHorizonTint, isInitialSwap);
+    this.weather.setSiteLatitude(lmMeta.coords[0], isInitialSwap);
     // Re-tint the soft bounce fill, chromatic N8AO shadow ink, plinth trim & dual night point lights.
     setBounceLightBiome(
       this.bounceLight,
@@ -1583,9 +1698,7 @@ export class CitylitEngine {
     this.computeCutawayEntries(this.currentGroup);
     if (this.cutawayActive) {
       this.cutawayAmount = this.motionScale === 0 ? 1 : 0;
-      for (const entry of this.cutawayEntries) {
-        entry.obj.position.y = entry.baseY + entry.liftY * this.cutawayAmount;
-      }
+      this.applyCutawayAmount(this.cutawayAmount);
     }
     this.switchSettle = 0;
     this.rebuildMarkers(index);
@@ -2100,6 +2213,7 @@ export class CitylitEngine {
 
   setSeasonMonth(month: number, immediate = false): void {
     this.lastInteractAt = this.elapsed;
+    setAnimalSeasonMonth(month);
     this.weather.setSeasonMonth(month, immediate);
     ambientAudio.setSeasonMonth(month, immediate);
   }
@@ -2120,6 +2234,7 @@ export class CitylitEngine {
     this.weather.update(12, this.elapsed, {
       qualityIndex: this.qualityIndex,
       motionScale: Math.max(0.01, this.motionScale),
+      lowDetail: this.isSoftwareGl,
       keyLight: this.keyLight,
       fillLight: this.fillLight,
       hemiLight: this.hemiLight,
@@ -2153,6 +2268,7 @@ export class CitylitEngine {
     this.heroRoot.visible = false;
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
+    this.cutawayCap.visible = false;
     // Park the streetlamps; the hero frame loop stops running in globe mode.
     this.syncStreetLamps(0, true);
     this.plinthGroup.visible = false;
@@ -2173,6 +2289,7 @@ export class CitylitEngine {
   closeGlobe(): void {
     this.globe.close();
     this.heroRoot.visible = true;
+    if (this.cutawayActive) this.applyCutawayAmount(this.cutawayAmount);
     this.updatePlinthVisibility();
     this.markerGroup.visible = true;
     this.weather.setHidden(false);
@@ -2203,6 +2320,7 @@ export class CitylitEngine {
     this.heroRoot.visible = false;
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
+    this.cutawayCap.visible = false;
     // Park the streetlamps; the hero frame loop stops running in Places mode.
     this.syncStreetLamps(0, true);
     this.plinthGroup.visible = false;
@@ -2253,6 +2371,7 @@ export class CitylitEngine {
     this.weather.groundShadow.visible = true;
     this.atmosphere.root.position.set(0, 0, 0);
     this.heroRoot.visible = true;
+    if (this.cutawayActive) this.applyCutawayAmount(this.cutawayAmount);
     this.updatePlinthVisibility();
     this.markerGroup.visible = true;
     this.weather.setHidden(false);
@@ -3669,6 +3788,7 @@ export class CitylitEngine {
       this.weather.update(dt, this.elapsed, {
         qualityIndex: this.qualityIndex,
         motionScale: this.motionScale,
+        lowDetail: this.isSoftwareGl,
         keyLight: this.keyLight,
         fillLight: this.fillLight,
         hemiLight: this.hemiLight,
@@ -3864,6 +3984,12 @@ export class CitylitEngine {
       if (tickFn) {
         tickFn(this.elapsed * this.motionScale, dt * this.motionScale);
       }
+      for (let i = 0; i < this.activeAnimalLods.length; i++) {
+        const target = this.activeAnimalLods[i];
+        const setLod = target.userData.updateAnimalLod as (distance: number) => void;
+        target.getWorldPosition(this.tmpAnimalLodPos);
+        setLod(this.camera.position.distanceTo(this.tmpAnimalLodPos));
+      }
       for (const sw of swayItems) {
         sw.o.rotation.z =
           Math.sin(this.elapsed * sw.sp * this.motionScale + sw.ph) *
@@ -3954,18 +4080,16 @@ export class CitylitEngine {
         this.directionGroup.visible = false;
       }
 
-      // Architectural cutaway / exploded layer lift (damped smoothly)
+      // Architectural cutaway: sweep a section plane through the diorama so the
+      // existing strata/rock reads as a sliced cross-section (damped smoothly).
       const cutawayGoal = this.cutawayActive && this.dissolvePhase === 0 ? 1 : 0;
       const cutawayPrev = this.cutawayAmount;
-      if (Math.abs(cutawayGoal - this.cutawayAmount) > 0.0005 && this.cutawayEntries.length > 0) {
+      if (Math.abs(cutawayGoal - this.cutawayAmount) > 0.0005 && this.cutawayReady) {
         this.cutawayAmount =
           this.motionScale === 0
             ? cutawayGoal
             : THREE.MathUtils.damp(this.cutawayAmount, cutawayGoal, 7, dt);
-        for (let i = 0; i < this.cutawayEntries.length; i++) {
-          const entry = this.cutawayEntries[i];
-          entry.obj.position.y = entry.baseY + entry.liftY * this.cutawayAmount;
-        }
+        this.applyCutawayAmount(this.cutawayAmount);
         if (!this.isSoftwareGl && Math.abs(this.cutawayAmount - cutawayPrev) > 0.01) {
           this.renderer.shadowMap.needsUpdate = true;
         }
@@ -3975,6 +4099,7 @@ export class CitylitEngine {
       this.weather.update(dt, this.elapsed, {
         qualityIndex: this.qualityIndex,
         motionScale: this.motionScale,
+        lowDetail: this.isSoftwareGl,
         keyLight: this.keyLight,
         fillLight: this.fillLight,
         hemiLight: this.hemiLight,
@@ -4263,6 +4388,13 @@ export class CitylitEngine {
     cancelAnimationFrame(this.rafId);
     window.clearTimeout(this.afterDrawTimer);
     this.unbindListeners();
+    this.scene.remove(this.cutawayCap);
+    this.cutawayCap.geometry.dispose();
+    this.cutawayCapMat.dispose();
+    for (const mat of this.cutawayClippedMaterials) {
+      mat.clippingPlanes = null;
+    }
+    this.cutawayClippedMaterials.clear();
     if (this.currentGroup) this.disposeTransientResources(this.currentGroup);
     if (this.outgoingGroup) this.disposeTransientResources(this.outgoingGroup);
     for (const cached of this.landmarkCache.values()) {

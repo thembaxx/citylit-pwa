@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { GRADE_GUARDRAILS } from '../lib/albedoAudit.ts';
 
 export interface MiniatureTuning {
   focusY: number;
@@ -34,6 +35,13 @@ const MiniatureShader = {
     uHighlightTint: { value: new THREE.Vector3(1.05, 1.01, 0.95) },
     uNightFactor: { value: 0.0 },
     uClarity: { value: 0.22 },
+    // Grade-domain albedo guardrails (see src/lib/albedoAudit.ts). Baked once
+    // at shader-object creation from the pure contract constants; never written
+    // per frame and never applied to material colours. There is no literal L*25
+    // material floor — this is the grade-only perceptual floor.
+    uAlbedoFloorLift: { value: GRADE_GUARDRAILS.shadowFloorLift },
+    uWhiteKnee: { value: GRADE_GUARDRAILS.whiteShoulderKnee },
+    uWhiteRange: { value: GRADE_GUARDRAILS.whiteShoulderRange },
     toneMappingExposure: { value: 1.08 },
   },
   vertexShader: /* glsl */ `
@@ -65,6 +73,9 @@ const MiniatureShader = {
     uniform vec3 uHighlightTint;
     uniform float uNightFactor;
     uniform float uClarity;
+    uniform float uAlbedoFloorLift;
+    uniform float uWhiteKnee;
+    uniform float uWhiteRange;
     varying vec2 vUv;
 
     float linearDepth(vec2 uv) {
@@ -82,8 +93,11 @@ const MiniatureShader = {
       // Per-landmark AAA split-tone grading (cool crevice ink / luminous key highlight).
       c *= mix(uShadowTint, uHighlightTint, smoothstep(0.14, 0.86, luma));
       // Lift dim material tones (more subtly during day, deeper relief at night) while keeping sky ink clean.
+      // uAlbedoFloorLift is the grade-only perceptual floor: a tiny additive
+      // amount in the darkest band so surfaces never crush to pure black under
+      // the vignette. It is NOT a material albedo floor and is bounded at 0.004.
       float dimBand = smoothstep(0.004, 0.026, luma) * (1.0 - smoothstep(0.075, 0.24, luma));
-      c += (uShadowLift + uNightFactor * 0.014) * dimBand;
+      c += (uShadowLift + uAlbedoFloorLift + uNightFactor * 0.014) * dimBand;
       return c;
     }
 
@@ -143,6 +157,13 @@ const MiniatureShader = {
         float lg = fwidth(0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b);
         float bs = mix(0.03, 0.012, smoothstep(0.03, 0.08, lg));
         const float a = 2.51, c2 = 2.43, d = 0.59, m = 1.46;
+        // Bounded white shoulder: gently compress only very bright LINEAR HDR
+        // (above uWhiteKnee) so physical whites / bloom accents keep a little
+        // separation instead of flattening at the final 8-bit clip. Knee 1.2 and
+        // range 0.65 leave the 0.75 albedo and 0.80-0.88 white bands untouched.
+        vec3 over = max(c - uWhiteKnee, vec3(0.0));
+        c = c - over + uWhiteRange * (over / (over + uWhiteRange));
+        // Keep the miniature-pass ~1.8x exposure (/ 0.6) and ACES curve verbatim.
         vec3 t = c * (toneMappingExposure / 0.6);
         gl_FragColor = vec4(clamp((t * (a * t + bs)) / (t * (c2 * t + d) + m), 0.0, 1.0), gl_FragColor.a);
       }
@@ -202,6 +223,9 @@ export function createDitherPass(): ShaderPass {
 export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}): MiniaturePass {
   const pass = new ShaderPass(MiniatureShader) as MiniaturePass;
   pass.material.toneMapped = true;
+  // Stable program cache key for the guardrail-augmented grade. Isolated to this
+  // ShaderPass material — WU and all shared/shader materials are untouched.
+  pass.material.customProgramCacheKey = () => GRADE_GUARDRAILS.cacheKey;
 
   pass.setResolution = (width: number, height: number) => {
     const res = pass.uniforms.uResolution.value as THREE.Vector2;

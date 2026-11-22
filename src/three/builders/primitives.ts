@@ -23,6 +23,7 @@ import {
   getBrushedNormalTexture,
   prepareCanvasTexture,
   waterize,
+  type WaterFlow,
   wetPuddleShader,
   windy,
   WU,
@@ -585,10 +586,17 @@ export function MWater(
   c: THREE.ColorRepresentation = '#1a7598',
   r = 0.1,
   m = 0.25,
-  opacity = 1
+  opacity = 1,
+  flow?: WaterFlow
 ): THREE.MeshStandardMaterial {
   const colHex = tmpColor.set(c).getHexString();
-  const key = `wat_${colHex}_${r.toFixed(2)}_${m.toFixed(2)}_${opacity.toFixed(2)}`;
+  const rawX = flow?.x ?? 0;
+  const rawZ = flow?.z ?? 0;
+  const len = Math.hypot(rawX, rawZ);
+  const fx = len > 1e-5 ? (rawX / len).toFixed(3) : '0.000';
+  const fz = len > 1e-5 ? (rawZ / len).toFixed(3) : '0.000';
+  const fs = Math.max(0, flow?.speed ?? 1).toFixed(3);
+  const key = `wat_${colHex}_${r.toFixed(2)}_${m.toFixed(2)}_${opacity.toFixed(2)}_${fx}_${fz}_${fs}`;
   if (matCache[key]) return matCache[key];
   const mat = new THREE.MeshStandardMaterial({
     color: c,
@@ -598,7 +606,7 @@ export function MWater(
     opacity,
   });
   mat.userData.naturalSurface = true;
-  waterize(mat);
+  waterize(mat, flow);
   return cacheMat(key, mat);
 }
 
@@ -2074,7 +2082,7 @@ let carPoolGeo: THREE.BufferGeometry | null = null;
  * Headlight light pooling on a wet road. Gated on rain so dry scenes pay a
  * single discard, and on the night ramp so daytime traffic lays no glow.
  */
-function getCarPoolMat(): THREE.ShaderMaterial {
+export function getCarPoolMat(): THREE.ShaderMaterial {
   if (carPoolMat) return carPoolMat;
   carPoolMat = new THREE.ShaderMaterial({
     uniforms: { uLit: WU.lit, uRain: WU.rain, uDY: WU.dy },
@@ -2115,7 +2123,7 @@ function getCarPoolMat(): THREE.ShaderMaterial {
   return carPoolMat;
 }
 
-function getCarHeadlightMat(): THREE.ShaderMaterial {
+export function getCarHeadlightMat(): THREE.ShaderMaterial {
   if (carHeadlightMat) return carHeadlightMat;
   carHeadlightMat = new THREE.ShaderMaterial({
     uniforms: { uLit: WU.lit, uDY: WU.dy },
@@ -2162,7 +2170,7 @@ function getCarHeadlightMat(): THREE.ShaderMaterial {
   return carHeadlightMat;
 }
 
-function getCarTaillightMat(): THREE.ShaderMaterial {
+export function getCarTaillightMat(): THREE.ShaderMaterial {
   if (carTaillightMat) return carTaillightMat;
   carTaillightMat = new THREE.ShaderMaterial({
     uniforms: { uLit: WU.lit, uDY: WU.dy },
@@ -2202,7 +2210,7 @@ function getCarTaillightMat(): THREE.ShaderMaterial {
   return carTaillightMat;
 }
 
-export function car(col: string, sc = 0.5): THREE.Group {
+export function car(col: string, sc = 0.5, withLights = true): THREE.Group {
   if (!carGeos) {
     const extrude = (sh: THREE.Shape, d: number, bs: number) =>
       new THREE.ExtrudeGeometry(sh, {
@@ -2251,10 +2259,6 @@ export function car(col: string, sc = 0.5): THREE.Group {
   const b = M(col, 0.35, 0.55);
   const gl = M('#1a2230', 0.1, 0.6);
   const wh = M('#15161a', 0.8);
-  const hl = G('#fff2c0', 1.5);
-  const tl = G('#ff2a2a', 1.5);
-  const hBeamMat = getCarHeadlightMat();
-  const tGlowMat = getCarTaillightMat();
   add(c, carGeos.body, b);
   add(c, carGeos.glass, gl);
   for (const [x, z] of [
@@ -2265,37 +2269,43 @@ export function car(col: string, sc = 0.5): THREE.Group {
   ]) {
     add(c, carGeos.wheel, wh, x, 0.075, z);
   }
-  for (const z of [-0.13, 0.13]) {
-    add(c, carGeos.lamp, hl, 0.53, 0.13, z);
-    add(c, carGeos.lamp, tl, -0.53, 0.15, z);
-    const beam = add(c, carGeos.beam, hBeamMat, 0.53, 0.13, z);
-    beam.rotation.z = -0.09;
-    beam.castShadow = false;
-    beam.receiveShadow = false;
-    beam.renderOrder = 4;
-    beam.userData.noShadow = true;
-    beam.userData.cannotReceiveAO = true;
-    beam.userData.noDissolve = true;
-    const tGlow = add(c, carGeos.tail, tGlowMat, -0.55, 0.15, z);
-    tGlow.castShadow = false;
-    tGlow.receiveShadow = false;
-    tGlow.renderOrder = 4;
-    tGlow.userData.noShadow = true;
-    tGlow.userData.cannotReceiveAO = true;
-    tGlow.userData.noDissolve = true;
+  if (withLights) {
+    const hl = G('#fff2c0', 1.5);
+    const tl = G('#ff2a2a', 1.5);
+    const hBeamMat = getCarHeadlightMat();
+    const tGlowMat = getCarTaillightMat();
+    for (const z of [-0.13, 0.13]) {
+      add(c, carGeos.lamp, hl, 0.53, 0.13, z);
+      add(c, carGeos.lamp, tl, -0.53, 0.15, z);
+      const beam = add(c, carGeos.beam, hBeamMat, 0.53, 0.13, z);
+      beam.rotation.z = -0.09;
+      beam.castShadow = false;
+      beam.receiveShadow = false;
+      beam.renderOrder = 4;
+      beam.userData.noShadow = true;
+      beam.userData.cannotReceiveAO = true;
+      beam.userData.noDissolve = true;
+      const tGlow = add(c, carGeos.tail, tGlowMat, -0.55, 0.15, z);
+      tGlow.castShadow = false;
+      tGlow.receiveShadow = false;
+      tGlow.renderOrder = 4;
+      tGlow.userData.noShadow = true;
+      tGlow.userData.cannotReceiveAO = true;
+      tGlow.userData.noDissolve = true;
+    }
+    if (!carPoolGeo) {
+      carPoolGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+      carPoolGeo.userData.sharedResource = true;
+    }
+    const pool = add(c, carPoolGeo, getCarPoolMat(), 1.02, 0.006, 0);
+    pool.scale.set(1.5, 1, 0.8);
+    pool.castShadow = false;
+    pool.receiveShadow = false;
+    pool.renderOrder = 3;
+    pool.userData.noShadow = true;
+    pool.userData.cannotReceiveAO = true;
+    pool.userData.noDissolve = true;
   }
-  if (!carPoolGeo) {
-    carPoolGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
-    carPoolGeo.userData.sharedResource = true;
-  }
-  const pool = add(c, carPoolGeo, getCarPoolMat(), 1.02, 0.006, 0);
-  pool.scale.set(1.5, 1, 0.8);
-  pool.castShadow = false;
-  pool.receiveShadow = false;
-  pool.renderOrder = 3;
-  pool.userData.noShadow = true;
-  pool.userData.cannotReceiveAO = true;
-  pool.userData.noDissolve = true;
 
   c.scale.setScalar(sc);
   return c;
