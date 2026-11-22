@@ -24,7 +24,7 @@ export const WU = {
   dy: { value: 100 },
 };
 
-function applyDissolveToShader(
+export function applyDissolveToShader(
   shader: THREE.WebGLProgramParametersWithUniforms,
   mat?: THREE.Material
 ): void {
@@ -629,11 +629,14 @@ vec2 q=vW.xz;float t=uWT;float h=wHeight(q,t);
 float fr=pow(1.-max(dot(normalize(vViewPosition),normal),0.),3.2);
 vec3 skyWash=mix(uSky*1.1,vec3(1.,.68,.38),uHorW*.48);
 outgoingLight=mix(outgoingLight,skyWash,fr*.62);
-// Subsurface sunlit caustics in clear/shallow water
-float caustic=wCaustic(q*0.85,t)*smoothstep(0.15,0.95,uSI);
-outgoingLight+=mix(vec3(0.42,0.88,0.95),vec3(1.0,0.84,0.52),uHorW*0.6)*caustic*0.24;
-// Crest foam + shoreline rim foam near the cut wall
+// Subsurface dual-layer sunlit caustics strongest in turquoise shallows near shore
 float rEdge=max(abs(vW.x),abs(vW.z));
+float shallowMask=smoothstep(0.14,0.48,diffuseColor.g)*smoothstep(7.4,2.4,rEdge);
+float cA=wCaustic(q*0.85,t);
+float cB=wCaustic(q*1.32+vec2(2.3,-1.6),t*0.78);
+float caustic=(cA*0.65+cB*0.55)*(0.38+0.62*shallowMask)*(smoothstep(0.15,0.95,uSI)+0.10*uHorW);
+outgoingLight+=mix(vec3(0.42,0.88,0.95),vec3(1.0,0.84,0.52),uHorW*0.6)*caustic*0.26;
+// Crest foam + shoreline rim foam near the cut wall
 float shoreNoise=wNoise(q*4.5+vec2(t*0.6,-t*0.45));
 float shoreFoam=smoothstep(6.7,8.05,rEdge)*smoothstep(0.32,0.75,shoreNoise+sin(t*1.8)*0.12);
 float crest=smoothstep(.58,.95,h*.5+.5);
@@ -645,12 +648,18 @@ if(uRN>0.05){
 float glint=pow(wNoise(q*7.+vec2(t*1.4,-t*1.1)),16.);
 vec3 glintCol=mix(vec3(1.,.96,.84),vec3(1.,.74,.36),uHorW*.72);
 outgoingLight+=glintCol*glint*(.85+.45*uHorW)*uSI;
+// Night moonlight silver sparkle across gentle wave crests
+float moonVis=smoothstep(0.38,0.04,uSI)*(1.0-uRN*0.7);
+if(moonVis>0.01){
+  float mGlint=pow(wNoise(q*5.8+vec2(-t*0.95,t*0.85)),13.)*smoothstep(0.38,0.85,h*0.5+0.5);
+  outgoingLight+=vec3(0.76,0.88,1.0)*mGlint*moonVis*0.52;
+}
 }
 #include <opaque_fragment>`
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'water_v6';
+  mat.customProgramCacheKey = () => 'water_v7';
   return mat;
 }
 
@@ -882,3 +891,122 @@ float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1.,0.)),f.x),mix(h(i+vec2(0.,1.)),h(i+vec2(1.,1.)),f.x),f.y);}
 float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*n(p);p=p*2.03+vec2(17.,9.);a*=.5;}return s;}
 `;
+
+/**
+ * World-space rain puddles & wet sheen on roads, cobblestone aprons, and stone plazas.
+ * Preserves the shared dissolve/gouache/seasonal hooks by delegating to applyDissolveToShader.
+ */
+export function wetPuddleShader(mat: THREE.MeshPhysicalMaterial): THREE.MeshPhysicalMaterial {
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uPuddleRain = WU.rain;
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+uniform float uPuddleRain;
+float wpHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float wpNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(wpHash(i),wpHash(i+vec2(1.,0.)),f.x),mix(wpHash(i+vec2(0.,1.)),wpHash(i+vec2(1.,1.)),f.x),f.y);}
+float wpMask(vec2 p,float r){
+  if(r<=0.02)return 0.0;
+  float n1=wpNoise(p*0.72);
+  float n2=wpNoise(p*1.95+vec2(5.2,3.1));
+  return smoothstep(0.48,0.74,n1*0.72+n2*0.28)*smoothstep(0.02,0.55,r);
+}`
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+{
+  float pd=wpMask(vWD.xz,uPuddleRain)*step(0.08,vWD.y);
+  roughnessFactor=mix(roughnessFactor,0.045,pd*0.92);
+}`
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+{
+  float pd=wpMask(vWD.xz,uPuddleRain)*step(0.08,vWD.y);
+  diffuseColor.rgb*=1.0-0.22*pd;
+}`
+      );
+    applyDissolveToShader(shader, mat);
+  };
+  mat.customProgramCacheKey = () => 'wet_puddle_v1';
+  return mat;
+}
+
+/**
+ * Adds subtle 3D tangent-space interior room parallax (recessed ceiling glow, warm back wall,
+ * blind slats & depth shadow) inside facade window panes without extra geometry.
+ */
+export function interiorParallaxShader(
+  mat: THREE.MeshStandardMaterial,
+  cols: number,
+  rows: number
+): THREE.MeshStandardMaterial {
+  const cVal = Math.max(1, Math.round(cols));
+  const rVal = Math.max(1, Math.round(rows));
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uWinGrid = { value: new THREE.Vector2(cVal, rVal) };
+    shader.uniforms.uWinLit = WU.lit;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec2 vWinUv;\nvarying vec3 vWinWorldPos;\nvarying vec3 vWinWorldNorm;'
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+vWinUv=uv;
+#ifdef USE_INSTANCING
+vWinWorldPos=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
+vWinWorldNorm=normalize(mat3(modelMatrix)*mat3(instanceMatrix)*objectNormal);
+#else
+vWinWorldPos=(modelMatrix*vec4(transformed,1.)).xyz;
+vWinWorldNorm=normalize(mat3(modelMatrix)*objectNormal);
+#endif`
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying vec2 vWinUv;
+varying vec3 vWinWorldPos;
+varying vec3 vWinWorldNorm;
+uniform vec2 uWinGrid;
+uniform float uWinLit;`
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+{
+  vec2 cellUv=fract(vWinUv*uWinGrid);
+  vec2 cellIdx=floor(vWinUv*uWinGrid);
+  float paneX=smoothstep(0.36,0.31,abs(cellUv.x-0.5));
+  float paneY=smoothstep(0.39,0.34,abs(cellUv.y-0.5));
+  float paneMask=paneX*paneY;
+  if(paneMask>0.01){
+    vec3 wN=normalize(vWinWorldNorm);
+    vec3 upAx=abs(wN.y)>0.92?vec3(0.,0.,1.):vec3(0.,1.,0.);
+    vec3 rightAx=normalize(cross(upAx,wN));
+    vec3 realUp=normalize(cross(wN,rightAx));
+    vec3 wView=normalize(vWinWorldPos-cameraPosition);
+    vec3 tv=vec3(dot(wView,rightAx),dot(wView,realUp),dot(wView,wN));
+    float roomDepth=0.28/max(0.28,abs(tv.z));
+    vec2 roomUv=clamp(cellUv+tv.xy*roomDepth*vec2(-0.55,0.45),0.04,0.96);
+    float ceilGlow=smoothstep(0.28,0.94,roomUv.y);
+    float wallShade=0.72+0.28*smoothstep(0.05,0.45,abs(roomUv.x-0.5));
+    float blindPhase=fract(sin(dot(cellIdx,vec2(19.7,43.3)))*43758.5453);
+    float blind=mix(1.0,smoothstep(0.35,0.65,roomUv.y),step(0.55,blindPhase)*0.45);
+    float depthMod=mix(1.0,(0.48+0.78*ceilGlow)*wallShade*blind,paneMask);
+    diffuseColor.rgb*=mix(1.0,0.68+0.42*ceilGlow,paneMask*(1.0-uWinLit*0.5));
+    totalEmissiveRadiance*=depthMod;
+  }
+}`
+      );
+    applyDissolveToShader(shader, mat);
+  };
+  mat.customProgramCacheKey = () => `win_parallax_v1_${cVal}x${rVal}`;
+  return mat;
+}
+

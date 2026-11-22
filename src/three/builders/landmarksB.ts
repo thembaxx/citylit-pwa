@@ -74,6 +74,7 @@ import {
 } from './primitives';
 import { prepareCanvasTexture } from '../shaders';
 import {
+  addLighthouseSweep,
   addStreetLampSet,
   applyDioramaUpgrade,
   corniceBand,
@@ -228,6 +229,14 @@ export function augrabies(): THREE.Group {
     }
     cableBatch(br, segs, 0.018, railMat);
   });
+  addStreetLampSet(g, [
+    { x: -2.86, y: 3.66, z: -1.32, kind: 'lantern', scale: 0.78, color: '#ffd688', poolRadius: 0.72 },
+    { x: -1.64, y: 3.66, z: -1.98, kind: 'lantern', scale: 0.78, color: '#ffd688', poolRadius: 0.72 },
+    { x: -0.5, y: 0.49, z: 0.98, kind: 'bollard', scale: 0.72, color: '#ffd080', poolRadius: 0.6 },
+    { x: 1.2, y: 0.49, z: 0.62, kind: 'bollard', scale: 0.72, color: '#ffd080', poolRadius: 0.6 },
+    { x: -0.4, y: 0.49, z: 3.18, kind: 'bollard', scale: 0.72, color: '#ffd080', poolRadius: 0.6 },
+    { x: 1.3, y: 0.49, z: 2.78, kind: 'bollard', scale: 0.72, color: '#ffd080', poolRadius: 0.6 },
+  ]);
 
   const sr = seaRings(g, 0.32, 1.1, 4);
   const bd = birds(g, 3, 3.5, 6);
@@ -647,6 +656,7 @@ export function robben(): THREE.Group {
     c.rotation.y = a;
     bm.add(c);
   });
+  const sweep = addLighthouseSweep(g, -2.2, 0.32, 0.4, 5.4, '#ffefb2');
 
   // Maximum Security Prison Compound: clean H-block cell wings + perimeter walls + watchtowers
   const fcx = 1.0;
@@ -780,6 +790,7 @@ export function robben(): THREE.Group {
   const bd = birds(g, 4, 3.5, 5);
   g.userData.tick = (t: number) => {
     bm.rotation.y = t * 1.1;
+    sweep.rotation.y = bm.rotation.y;
     bt.position.set(5.7, 0.1 + Math.sin(t * 1.2) * 0.03, 2.3);
     bt.rotation.y = -0.24 + Math.sin(t * 0.6) * 0.06;
     bt2.position.set(4.6, 0.1 + Math.sin(t * 1.0 + 1) * 0.03, 3.2);
@@ -1153,6 +1164,13 @@ export function maropeng(): THREE.Group {
     sy: 0.9 + (i % 3) * 0.25,
   }));
   instancedMeshes(g, CB(0.09, 1, 0.32, 0.02), M('#79786e', 0.9), finT);
+  addStreetLampSet(g, [
+    { x: -1.45, y: 0.22, z: 2.05, kind: 'uplight', scale: 0.95, color: '#ffb96e', coneHeight: 1.55, coneRadius: 0.56 },
+    { x: 1.45, y: 0.22, z: 2.05, kind: 'uplight', scale: 0.95, color: '#ffb96e', coneHeight: 1.55, coneRadius: 0.56 },
+    { x: -0.42, y: 0.34, z: 3.45, kind: 'bollard', scale: 0.82, color: '#ffd480', poolRadius: 0.72 },
+    { x: 0.42, y: 0.34, z: 3.45, kind: 'bollard', scale: 0.82, color: '#ffd480', poolRadius: 0.72 },
+    { x: -3.25, y: 0.37, z: 0.85, kind: 'lantern', scale: 0.78, color: '#ffd280', poolRadius: 0.72 },
+  ]);
   for (let i = 0; i < 7; i++) tree(g, -5.5 + i * 1.9, -5, 1, 2, 0.2);
   g.userData.tick = drift(g, 50, '#e0c890', 0.07, (i, t) => [
     R(i) * 10 - 5 + Math.sin(t * 0.3 + i) * 0.4,
@@ -1350,6 +1368,12 @@ export function storms(): THREE.Group {
     }
   }
   cableBatch(g, hangerSegs, 0.011, steelMat);
+  addStreetLampSet(g, [
+    { x: -2.6, y: 1.54, z: -0.26, kind: 'lantern', scale: 0.74, color: '#ffd080', poolRadius: 0.66 },
+    { x: -2.6, y: 1.54, z: 0.26, kind: 'lantern', scale: 0.74, color: '#ffd080', poolRadius: 0.66 },
+    { x: 2.6, y: 1.54, z: -0.26, kind: 'lantern', scale: 0.74, color: '#ffd080', poolRadius: 0.66 },
+    { x: 2.6, y: 1.54, z: 0.26, kind: 'lantern', scale: 0.74, color: '#ffd080', poolRadius: 0.66 },
+  ]);
 
   for (let i = 0; i < 10; i++) {
     tree(g, (i % 2 ? 4.6 : -4.6) + (R(i) - 0.5) * 1.2, (R(i + 5) - 0.5) * 4, 1.1, 1, 3.6);
@@ -1682,6 +1706,11 @@ export function hermanus(): THREE.Group {
     add(bench, CB(0.04, 0.08, 0.04, 0.005), M('#2a2c30', 0.6), 0, 0.04, 0.15);
     g.add(bench);
   }
+  addStreetLampSet(g, [
+    { x: -2.05, y: 3.27, z: -0.95, kind: 'bollard', scale: 0.74, color: '#ffd080', poolRadius: 0.62 },
+    { x: -2.15, y: 3.27, z: 0.2, kind: 'bollard', scale: 0.74, color: '#ffd080', poolRadius: 0.62 },
+    { x: -2.45, y: 3.27, z: 1.35, kind: 'bollard', scale: 0.74, color: '#ffd080', poolRadius: 0.62 },
+  ]);
 
   // Coastal fynbos & milkwood scrub along cliff crest
   const bushT: InstanceTransform[] = [];
@@ -1842,6 +1871,11 @@ export function isimangaliso(): THREE.Group {
   }
   add(g, CB(0.76, 0.42, 0.62, 0.02), wood, -2.6, 0.66, 3.6);
   add(g, gableRoofGeo(0.78, 0.64, 0.22, 0.06), MBark('#685842', 0.94), -2.6, 0.87, 3.6);
+  addStreetLampSet(g, [
+    { x: -2.6, y: 0.47, z: 5.95, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64 },
+    { x: -2.6, y: 0.47, z: 4.7, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64 },
+    { x: -2.18, y: 0.47, z: 3.65, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64 },
+  ]);
 
   // Authentic St. Lucia semi-submerged Hippopotamus pod with periscope eyes, ears & nostrils
   const hp = (
@@ -1922,6 +1956,11 @@ export function sani(): THREE.Group {
   add(g, CB(0.14, 0.12, 0.03, 0.005), G('#ffd58a', 1.1), 0.3, 6.4, -2.02);
   rondavel(g, -0.85, -2.35, 6.28, 0.62, '#6b6962', '#635540');
   rondavel(g, -1.45, -1.85, 6.28, 0.54, '#6b6962', '#635540');
+  addStreetLampSet(g, [
+    { x: 0.05, y: 6.26, z: -1.92, kind: 'lantern', scale: 0.72, color: '#ffca72', poolRadius: 0.65 },
+    { x: 0.55, y: 6.26, z: -1.92, kind: 'lantern', scale: 0.72, color: '#ffca72', poolRadius: 0.65 },
+    { x: -0.55, y: 6.28, z: -2.05, kind: 'lantern', scale: 0.7, color: '#ffca72', poolRadius: 0.62 },
+  ]);
 
   const tuftT: InstanceTransform[] = [];
   for (let i = 0; i < 55; i++) {
@@ -2337,6 +2376,11 @@ export function knysna(): THREE.Group {
     '#4a5f70',
   ]);
   add(g, CB(0.65, 0.06, 0.42, 0.015), MWood('#856846', 0.88), 2.35, 3.44, -0.5);
+  addStreetLampSet(g, [
+    { x: 2.1, y: 3.47, z: -0.35, kind: 'lantern', scale: 0.76, color: '#ffd482', poolRadius: 0.68 },
+    { x: 2.65, y: 3.47, z: -0.7, kind: 'lantern', scale: 0.76, color: '#ffd482', poolRadius: 0.68 },
+    { x: 3.25, y: 3.47, z: -0.45, kind: 'lantern', scale: 0.76, color: '#ffd482', poolRadius: 0.68 },
+  ]);
 
   // Dense lush indigenous Outeniqua coastal canopy crowning West Head & steep slopes
   const bushT: InstanceTransform[] = [];
@@ -2565,6 +2609,7 @@ export function donkin(): THREE.Group {
     c.rotation.y = a;
     bm.add(c);
   });
+  const sweep = addLighthouseSweep(g, 1.2, 1.49, -0.4, 5.8, '#ffefb2');
 
   // National Flagpole flying detailed South African flag
   add(g, C(0.02, 0.02, 1.7, 6), M('#999', 0.4, 0.8), -2.4, 2.25, 1.4);
@@ -2646,6 +2691,7 @@ export function donkin(): THREE.Group {
   const bd = birds(g, 4, 3.4, 6);
   g.userData.tick = (t: number) => {
     bm.rotation.y = t * 1.2;
+    sweep.rotation.y = bm.rotation.y;
     const a = t * 0.09;
     ship.position.set(6.6 * Math.cos(a), 0.1, 6.6 * Math.sin(a));
     ship.rotation.y = -a - Math.PI / 2;
@@ -2920,6 +2966,21 @@ export function orlando(): THREE.Group {
   }
   addStreetLampSet(g, orlandoLamps);
 
+  // Subtle red aviation lip beacons atop both cooling towers & glowing skybridge deck marker
+  const beaconMat = G('#ff4a3d', 1.4);
+  for (const tx of [-2.4, 2.4]) {
+    for (const ang of [0, Math.PI * 0.67, Math.PI * 1.33]) {
+      add(
+        g,
+        new THREE.SphereGeometry(0.06, 8, 6),
+        beaconMat,
+        tx + Math.cos(ang) * 1.91,
+        6.2,
+        Math.sin(ang) * 1.91
+      );
+    }
+  }
+
   // Lattice electricity pylons + gravity-sagged overhead power wires (ZERO lines()!)
   const pylonSegs: Array<readonly [[number, number, number], [number, number, number]]> = [];
   const pylons: Array<[number, number, number]> = [
@@ -2972,6 +3033,8 @@ export function orlando(): THREE.Group {
   g.userData.tick = (t: number) => {
     baseTick(t);
     dust(t);
+    const pulse = 0.72 + 0.28 * Math.sin(t * 2.6);
+    beaconMat.emissiveIntensity = 1.4 * pulse;
   };
   return g;
 }

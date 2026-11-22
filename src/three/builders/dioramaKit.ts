@@ -6,7 +6,14 @@ import type {
   LandmarkBiome,
   SpatialAudioSource,
 } from '../../types/citylit';
-import { WU, flagWindy, getSoftTexture, normalMapsActive, waterize } from '../shaders';
+import {
+  applyDissolveToShader,
+  WU,
+  flagWindy,
+  getSoftTexture,
+  normalMapsActive,
+  waterize,
+} from '../shaders';
 import {
   add,
   boostBuiltVibrancy,
@@ -862,6 +869,29 @@ function getUndersideMaterial(): THREE.MeshStandardMaterial {
       side: THREE.DoubleSide,
       ...surfaceDetail('stone', 0.015),
     });
+    undersideMaterial.onBeforeCompile = (shader) => {
+      shader.uniforms.uSkyUnder = WU.sky;
+      shader.uniforms.uLitUnder = WU.lit;
+      shader.uniforms.uHorUnder = WU.sunHor;
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform vec3 uSkyUnder;uniform float uLitUnder,uHorUnder;'
+        )
+        .replace(
+          '#include <opaque_fragment>',
+          `{
+  vec3 uView = normalize(vViewPosition);
+  float uRim = pow(1.0 - abs(dot(uView, normal)), 2.2);
+  float strataMask = smoothstep(-8.4, -1.2, vWD.y);
+  vec3 bounceCol = mix(uSkyUnder * 0.42 + vec3(0.06, 0.09, 0.14), vec3(0.45, 0.28, 0.14), uHorUnder * 0.65);
+  outgoingLight += bounceCol * (0.09 + 0.12 * uLitUnder) * uRim * (0.35 + 0.65 * strataMask);
+}
+#include <opaque_fragment>`
+        );
+      applyDissolveToShader(shader, undersideMaterial!);
+    };
+    undersideMaterial.customProgramCacheKey = () => 'underside_rim_v1';
     undersideMaterial.userData.sharedResource = true;
   }
   return undersideMaterial;
@@ -2108,10 +2138,12 @@ let lampBulbGeoShared: THREE.SphereGeometry | null = null;
 let lampPoolGeoShared: THREE.BufferGeometry | null = null;
 let lampDownConeGeoShared: THREE.BufferGeometry | null = null;
 let lampUpConeGeoShared: THREE.BufferGeometry | null = null;
+let lampHaloGeoShared: THREE.BufferGeometry | null = null;
 let lampBulbMatShared: THREE.ShaderMaterial | null = null;
 let lampPoolMatShared: THREE.ShaderMaterial | null = null;
 let lampDownConeMatShared: THREE.ShaderMaterial | null = null;
 let lampUpConeMatShared: THREE.ShaderMaterial | null = null;
+let lampHaloMatShared: THREE.ShaderMaterial | null = null;
 
 function markSharedGeo<T extends THREE.BufferGeometry>(geo: T): T {
   geo.userData.sharedResource = true;
@@ -2177,6 +2209,13 @@ function getLampPoolGeo(): THREE.BufferGeometry {
     lampPoolGeoShared = markSharedGeo(new THREE.CircleGeometry(1, 22).rotateX(-Math.PI / 2));
   }
   return lampPoolGeoShared;
+}
+
+function getLampHaloGeo(): THREE.BufferGeometry {
+  if (!lampHaloGeoShared) {
+    lampHaloGeoShared = markSharedGeo(new THREE.PlaneGeometry(1, 1));
+  }
+  return lampHaloGeoShared;
 }
 
 function getLampConeGeo(upward: boolean): THREE.BufferGeometry {
@@ -2390,6 +2429,67 @@ function getLampConeMat(upward: boolean): THREE.ShaderMaterial {
   return mat;
 }
 
+function getLampHaloMat(): THREE.ShaderMaterial {
+  if (lampHaloMatShared) return lampHaloMatShared;
+  lampHaloMatShared = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uDY: WU.dy,
+      uWT: WU.t,
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        vUv = uv;
+        #ifdef USE_INSTANCING_COLOR
+          vLampCol = instanceColor;
+        #else
+          vLampCol = vec3(1.0, 0.82, 0.50);
+        #endif
+        #ifdef USE_INSTANCING
+          vec4 worldCenter = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float haloSize = length(vec3(instanceMatrix[0][0], instanceMatrix[0][1], instanceMatrix[0][2]));
+        #else
+          vec4 worldCenter = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+          float haloSize = 0.4;
+        #endif
+        vWorldPos = worldCenter.xyz;
+        vec4 mvCenter = viewMatrix * worldCenter;
+        mvCenter.xy += position.xy * haloSize;
+        gl_Position = projectionMatrix * mvCenter;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uDY, uWT;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float litVis = smoothstep(0.08, 0.88, uLit);
+        if (litVis <= 0.004) discard;
+        float r = length((vUv - 0.5) * 2.0);
+        if (r >= 1.0) discard;
+        float core = exp(-r * r * 7.5);
+        float corona = pow(1.0 - r, 2.4) * 0.42;
+        float pulse = 0.94 + 0.06 * sin(uWT * 2.3 + vWorldPos.x * 2.1 + vWorldPos.z * 1.7);
+        float alpha = (core * 0.42 + corona * 0.28) * litVis * pulse;
+        gl_FragColor = vec4(vLampCol * alpha * 1.35, alpha);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    toneMapped: false,
+  });
+  lampHaloMatShared.userData.sharedResource = true;
+  lampHaloMatShared.userData.noDissolve = true;
+  return lampHaloMatShared;
+}
+
 const lampPoolColorTmp = new THREE.Color();
 
 /**
@@ -2539,6 +2639,98 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
       upIm.userData.noDissolve = true;
     }
   }
+
+  // Soft batched camera-facing airglow halo sprite around every lit lamp bulb
+  const haloTransforms: InstanceTransform[] = bulbTransforms.map((b) => {
+    const rad = Math.max(0.28, Math.max(b.sx ?? 0.04, b.sy ?? 0.04) * 7.5);
+    return { x: b.x, y: b.y, z: b.z, sx: rad, sy: rad, sz: rad };
+  });
+  const haloIm = instancedMeshes(g, getLampHaloGeo(), getLampHaloMat(), haloTransforms, bulbColors);
+  if (haloIm) {
+    haloIm.castShadow = false;
+    haloIm.receiveShadow = false;
+    haloIm.renderOrder = 5;
+    haloIm.frustumCulled = false;
+    haloIm.userData.noShadow = true;
+    haloIm.userData.cannotReceiveAO = true;
+    haloIm.userData.noDissolve = true;
+  }
+}
+
+let lighthouseSweepGeoShared: THREE.BufferGeometry | null = null;
+
+/**
+ * Adds a dual-lobe additive light sweep crescent projected onto water or headland
+ * ground, synced cleanly to a rotating lighthouse beacon.
+ */
+export function addLighthouseSweep(
+  g: THREE.Object3D,
+  x: number,
+  yGround: number,
+  z: number,
+  radius = 5.6,
+  color: THREE.ColorRepresentation = '#ffeaa2'
+): THREE.Mesh {
+  if (!lighthouseSweepGeoShared) {
+    lighthouseSweepGeoShared = markSharedGeo(
+      new THREE.RingGeometry(0.14, 1.0, 56, 1).rotateX(-Math.PI / 2)
+    );
+  }
+  const col = new THREE.Color(color);
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uDY: WU.dy,
+      uCol: { value: col },
+    },
+    vertexShader: `
+      varying vec2 vLocal;
+      varying vec3 vWorldPos;
+      void main() {
+        vLocal = position.xz;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uDY;
+      uniform vec3 uCol;
+      varying vec2 vLocal;
+      varying vec3 vWorldPos;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float r = length(vLocal);
+        if (r <= 0.14 || r >= 1.0) discard;
+        vec2 dir = vLocal / r;
+        float lobe = pow(abs(dir.x), 8.5);
+        float radial = smoothstep(0.14, 0.28, r) * pow(1.0 - r, 1.35);
+        float strength = 0.08 + 0.34 * smoothstep(0.05, 0.85, uLit);
+        float a = lobe * radial * strength;
+        if (a <= 0.002) discard;
+        gl_FragColor = vec4(uCol * a * 1.4, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    toneMapped: false,
+  });
+  mat.userData.noDissolve = true;
+  const mesh = new THREE.Mesh(lighthouseSweepGeoShared, mat);
+  mesh.position.set(x, yGround, z);
+  mesh.scale.set(radius, 1, radius);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.renderOrder = 3;
+  mesh.userData.noShadow = true;
+  mesh.userData.cannotReceiveAO = true;
+  mesh.userData.noDissolve = true;
+  g.add(mesh);
+  return mesh;
 }
 
 /* ------------------------------------------------------------------ */

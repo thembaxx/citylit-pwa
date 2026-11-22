@@ -49,7 +49,14 @@ import {
   type InstanceTransform,
 } from './primitives';
 import { getSoftTexture, prepareCanvasTexture } from '../shaders';
-import { addStreetLampSet, corniceBand, doorSurround, facadeWindow, type StreetLampSpec } from './dioramaKit';
+import {
+  addLighthouseSweep,
+  addStreetLampSet,
+  corniceBand,
+  doorSurround,
+  facadeWindow,
+  type StreetLampSpec,
+} from './dioramaKit';
 
 /** One deep Platteklip notch on the north-facing cliff, shared by cap and cliffs. */
 const platteklip = (x: number, z: number): number => {
@@ -840,7 +847,7 @@ export function stadium(): THREE.Group {
     const x = -5.2 + 10.4 * (Math.sin(t * 0.25) * 0.5 + 0.5);
     sk.position.set(x, yFn(x) - 0.1, 0);
     sk.rotation.z = Math.cos(t * 0.25) * 0.12;
-    gl.color.set('#bfe4f2');
+    gl.color.setHSL(0.54 + 0.03 * Math.sin(t * 0.55), 0.78, 0.72);
     gl.emissive.copy(gl.color);
   };
   g.scale.setScalar(0.95);
@@ -1181,6 +1188,15 @@ export function hole(): THREE.Group {
     wall: '#ebe4d3',
     roof: '#8d4e38',
   });
+  addStreetLampSet(g, [
+    { x: -3.2, y: 0, z: 6.45, kind: 'lantern', scale: 0.88, color: '#ffd588', poolRadius: 0.82 },
+    { x: -1.8, y: 0, z: 6.45, kind: 'lantern', scale: 0.88, color: '#ffd588', poolRadius: 0.82 },
+    { x: -0.95, y: 0.16, z: 4.75, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
+    { x: 0.95, y: 0.16, z: 4.75, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
+    { x: -0.95, y: 0.16, z: 6.45, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
+    { x: 0.95, y: 0.16, z: 6.45, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
+    { x: 6.3, y: 0, z: -1.05, kind: 'uplight', scale: 1.0, color: '#ffb868', coneHeight: 1.75, coneRadius: 0.62 },
+  ]);
 
   const dN = 90;
   const dA: number[] = [];
@@ -1666,6 +1682,7 @@ export function capePoint(): THREE.Group {
     c.rotation.y = a;
     bmNew.add(c);
   });
+  const sweepNew = addLighthouseSweep(g, 1.9, 0.17, 0.7, 6.2, '#ffefb2');
   const sr = seaRings(g, 0.12, 3.4, 4);
   const spray = drift(
     g,
@@ -1687,6 +1704,7 @@ export function capePoint(): THREE.Group {
   const bd = birds(g, 4, 4, 6);
   g.userData.tick = (t: number) => {
     bmNew.rotation.y = -t * 1.5;
+    sweepNew.rotation.y = bmNew.rotation.y;
     const fu = 0.5 + 0.46 * Math.sin(t * 0.14);
     const fp = funicularCurve.getPointAt(fu);
     const ftg = funicularCurve.getTangentAt(fu);
@@ -3131,6 +3149,12 @@ export function boulders(): THREE.Group {
     add(g, CB(0.07, 0.07, 5.1, 0.015), MWood('#7d6443', 0.9), x, 0.86, -1.1);
     add(g, CB(0.12, 0.12, 5.1, 0.02), MWood('#8a7050', 0.9), x, 0.25, -1.1);
   });
+  addStreetLampSet(g, [
+    { x: 0.72, y: 0.33, z: -3.2, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+    { x: 1.68, y: 0.33, z: -1.6, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+    { x: 0.72, y: 0.33, z: 0.0, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+    { x: 1.68, y: 0.33, z: 1.2, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+  ]);
 
   const shrubT: InstanceTransform[] = [];
   for (let i = 0; i < 34; i++) {
@@ -3267,6 +3291,7 @@ export function agulhas(): THREE.Group {
     c.rotation.y = a;
     bm.add(c);
   });
+  const sweep = addLighthouseSweep(g, -0.4, 0.5, 0, 6.0, '#ffefb2');
   const sr = seaRings(g, 0.12, 3.6, 3);
   const spray = drift(
     g,
@@ -3284,6 +3309,7 @@ export function agulhas(): THREE.Group {
   const bd = birds(g, 4, 4, 6);
   g.userData.tick = (t: number) => {
     bm.rotation.y = t * 1.2;
+    sweep.rotation.y = bm.rotation.y;
     sr(t);
     spray(t);
     bd(t);
@@ -3457,6 +3483,12 @@ export function bourke(): THREE.Group {
   };
   addFootbridge(0, 1.38, 0.15, 5.2, 0.12);
   addFootbridge(-0.65, 1.56, -1.65, 3.8, -0.58);
+  addStreetLampSet(g, [
+    { x: -2.55, y: 1.43, z: -0.15, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
+    { x: 2.55, y: 1.43, z: 0.45, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
+    { x: -2.2, y: 1.61, z: -0.5, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
+    { x: 0.9, y: 1.61, z: -2.8, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
+  ]);
 
   rock(g, 1.5, 2.2, 3.2, -5.4, -3, '#8f7a5e', '#c0a078', 0.14);
   rock(g, 1.2, 1.9, 2.6, 5.2, -3.6, '#8f7a5e', '#c0a078', 0.14);

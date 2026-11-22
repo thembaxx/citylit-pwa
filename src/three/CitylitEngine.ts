@@ -117,6 +117,9 @@ export class CitylitEngine {
 
   private readonly pmrem: THREE.PMREMGenerator;
   private envTex: THREE.Texture;
+  private dayEnvTex: THREE.Texture;
+  private readonly goldenEnvTex: THREE.Texture;
+  private readonly nightEnvTex: THREE.Texture;
   private readonly composer: EffectComposer;
   private readonly renderPass: RenderPass;
   private readonly n8aoPass: N8AOPass;
@@ -194,6 +197,7 @@ export class CitylitEngine {
   private targetRingCol = new THREE.Color('#e8b04a');
   private targetRingEmissive = 0.35;
   private targetBloomThreshold = 0.9;
+  private targetBloomStrength = 0.18;
   private motionScale = 1;
   private autoRotateSpeed = 0.3;
   private contextLost = false;
@@ -353,7 +357,10 @@ export class CitylitEngine {
 
     this.pmrem = new THREE.PMREMGenerator(this.renderer);
     this.roomEnvTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.envTex = this.roomEnvTex;
+    this.dayEnvTex = this.createProceduralSkyEnv('#5c95d6', '#cce2f2', '#fff3d6', '#545044', [10, 14, 8], 1.15);
+    this.goldenEnvTex = this.createProceduralSkyEnv('#465f92', '#f39f5e', '#ffd280', '#453129', [14, 4, 8], 1.35);
+    this.nightEnvTex = this.createProceduralSkyEnv('#0d1830', '#253c66', '#98b9e8', '#101724', [-9, 10, -8], 0.95);
+    this.envTex = this.dayEnvTex;
     this.scene.environment = this.envTex;
     this.scene.environmentIntensity = 0.6;
 
@@ -390,19 +397,22 @@ export class CitylitEngine {
           }
           hdrTex.needsUpdate = true;
         }
-        const prevEnv = this.envTex;
+        const prevDay = this.dayEnvTex;
         const pmremOut = this.pmrem.fromEquirectangular(hdrTex);
         hdrTex.dispose();
-        this.envTex = pmremOut.texture;
+        this.dayEnvTex = pmremOut.texture;
         this.usingSkyHdr = true;
-        if (!this.isStudio()) this.scene.environment = this.envTex;
-        if (prevEnv && prevEnv !== this.envTex && prevEnv !== this.roomEnvTex) {
-          prevEnv.dispose();
+        if (this.envTex === prevDay) {
+          this.envTex = this.dayEnvTex;
+          if (!this.isStudio()) this.scene.environment = this.envTex;
+        }
+        if (prevDay && prevDay !== this.dayEnvTex && prevDay !== this.roomEnvTex) {
+          prevDay.dispose();
         }
       },
       undefined,
       () => {
-        // Keep RoomEnvironment fallback when offline or unavailable
+        // Keep procedural sky PMREM fallback when offline or unavailable
       }
     );
 
@@ -1745,6 +1755,58 @@ export class CitylitEngine {
     this.composer.setSize(window.innerWidth, window.innerHeight);
   }
 
+  private createProceduralSkyEnv(
+    zenithHex: string,
+    horizonHex: string,
+    sunGlowHex: string,
+    groundHex: string,
+    sunPos: [number, number, number],
+    sunStrength: number
+  ): THREE.Texture {
+    const tmpScene = new THREE.Scene();
+    const domeGeo = new THREE.SphereGeometry(12, 24, 16);
+    const sunDir = new THREE.Vector3(sunPos[0], sunPos[1], sunPos[2]).normalize();
+    const domeMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      uniforms: {
+        uZenith: { value: new THREE.Color(zenithHex) },
+        uHorizon: { value: new THREE.Color(horizonHex) },
+        uSunGlow: { value: new THREE.Color(sunGlowHex) },
+        uGround: { value: new THREE.Color(groundHex) },
+        uSunDir: { value: sunDir },
+        uSunStrength: { value: sunStrength },
+      },
+      vertexShader: `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uZenith, uHorizon, uSunGlow, uGround, uSunDir;
+        uniform float uSunStrength;
+        varying vec3 vDir;
+        void main() {
+          vec3 d = normalize(vDir);
+          float up = d.y;
+          vec3 col = up >= 0.0
+            ? mix(uHorizon, uZenith, pow(clamp(up, 0.0, 1.0), 0.58))
+            : mix(uHorizon, uGround, pow(clamp(-up, 0.0, 1.0), 0.5));
+          float mu = max(0.0, dot(d, uSunDir));
+          col += uSunGlow * (pow(mu, 18.0) * 1.15 + pow(mu, 4.0) * 0.24) * uSunStrength;
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
+    });
+    const dome = new THREE.Mesh(domeGeo, domeMat);
+    tmpScene.add(dome);
+    const tex = this.pmrem.fromScene(tmpScene, 0.035).texture;
+    domeGeo.dispose();
+    domeMat.dispose();
+    return tex;
+  }
+
   private isStudio(): boolean {
     return this.theme === 'studio';
   }
@@ -1767,9 +1829,11 @@ export class CitylitEngine {
     if (theme === 'studio') {
       this.scene.environment = this.roomEnvTex;
       this.targetBloomThreshold = 1.15;
+      this.targetBloomStrength = 0.14;
       if (immediate) {
         this.studioWeight = 1;
         this.bloomPass.threshold = this.targetBloomThreshold;
+        this.bloomPass.strength = this.targetBloomStrength;
         (this.scene.background as THREE.Color).set('#f7f7f4');
       }
       // A narrow FOV from far away reads as orthographic without changing any camera paths.
@@ -1795,11 +1859,13 @@ export class CitylitEngine {
     if (theme === 'daylight') {
       this.targetRingCol.set(this.activeSiteVisual.plinthRingDay);
       this.targetRingEmissive = 0.16;
-      this.targetBloomThreshold = 1.0;
+      this.targetBloomThreshold = 0.98;
+      this.targetBloomStrength = 0.16;
     } else {
       this.targetRingCol.set(this.activeSiteVisual.plinthRingNight);
       this.targetRingEmissive = 0.42;
-      this.targetBloomThreshold = 0.88;
+      this.targetBloomThreshold = 0.78;
+      this.targetBloomStrength = 0.25;
     }
 
     if (immediate) {
@@ -1808,6 +1874,7 @@ export class CitylitEngine {
       this.ringMat.emissive.copy(this.targetRingCol);
       this.ringMat.emissiveIntensity = this.targetRingEmissive;
       this.bloomPass.threshold = this.targetBloomThreshold;
+      this.bloomPass.strength = this.targetBloomStrength;
     }
   }
 
@@ -3782,22 +3849,45 @@ export class CitylitEngine {
       this.ringMat.emissiveIntensity +=
         (this.targetRingEmissive + this.hoverRimBoost * 0.18 - this.ringMat.emissiveIntensity) *
         themeLerp;
-      this.bloomPass.threshold +=
-        (this.targetBloomThreshold - this.bloomPass.threshold) * themeLerp;
+      const nightBloomMix = THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8);
+      const horVal = WU.sunHor.value;
+      const bloomGoalThreshold = this.isStudio()
+        ? 1.15
+        : THREE.MathUtils.lerp(0.98, 0.78, nightBloomMix) - horVal * 0.06;
+      const bloomGoalStrength = this.isStudio()
+        ? 0.14
+        : THREE.MathUtils.lerp(0.16, 0.26, nightBloomMix) + horVal * 0.04;
+      this.bloomPass.threshold += (bloomGoalThreshold - this.bloomPass.threshold) * themeLerp;
+      this.bloomPass.strength += (bloomGoalStrength - this.bloomPass.strength) * themeLerp;
 
-      const envCeiling = this.usingSkyHdr ? 0.34 : 0.6;
-      const envFloor = this.usingSkyHdr ? 0.14 : 0.28;
+      // Dynamic day / golden-hour / night IBL regime switch (zero per-frame PMREM cost)
+      const desiredSkyProbe =
+        nightVal > 0.55
+          ? this.nightEnvTex
+          : horVal > 0.35
+            ? this.goldenEnvTex
+            : this.dayEnvTex;
+      this.envTex = desiredSkyProbe;
+      const desiredEnv = this.studioWeight > 0.5 ? this.roomEnvTex : desiredSkyProbe;
+      if (this.scene.environment !== desiredEnv) {
+        this.scene.environment = desiredEnv;
+      }
+
+      const envCeiling = this.usingSkyHdr && desiredSkyProbe === this.dayEnvTex ? 0.36 : 0.62;
+      const envFloor = desiredSkyProbe === this.nightEnvTex ? 0.34 : this.usingSkyHdr ? 0.18 : 0.3;
+      const rainSpecularBoost = 1 + this.weather.current.rain * 0.28;
       const skyEnvIntensity =
-        envFloor +
-        (envCeiling - envFloor) *
-          (1 - this.weather.current.night) *
-          (1 - this.weather.current.cover * 0.35);
+        (envFloor +
+          (envCeiling - envFloor) *
+            (1 - this.weather.current.night * 0.85) *
+            (1 - this.weather.current.cover * 0.32)) *
+        rainSpecularBoost;
       const targetEnvIntensity = skyEnvIntensity + (0.55 - skyEnvIntensity) * this.studioWeight;
       this.scene.environmentIntensity +=
         (targetEnvIntensity - this.scene.environmentIntensity) * envLerp;
       updateWetSurfaces(this.weather.current.rain);
 
-      // Localized atmosphere shell: ridge fog, heat shimmer, sea and spray mist
+      // Localized atmosphere shell: ridge fog, heat shimmer, valley mist, sea and spray mist
       const fog = this.scene.fog;
       const fogColor =
         fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color);
@@ -3810,6 +3900,7 @@ export class CitylitEngine {
         cover: this.weather.current.cover,
         wind: this.weather.current.wind,
         fogColor,
+        studioWeight: this.studioWeight,
       });
 
       // Wind-driven leaves & grass wisps + distant biome horizon relief
@@ -3983,8 +4074,10 @@ export class CitylitEngine {
     this.horizon.dispose();
     this.atmosphere.dispose();
     this.pmrem.dispose();
-    this.envTex.dispose();
-    if (this.roomEnvTex !== this.envTex) this.roomEnvTex.dispose();
+    this.dayEnvTex.dispose();
+    this.goldenEnvTex.dispose();
+    this.nightEnvTex.dispose();
+    this.roomEnvTex.dispose();
     this.n8aoPass.dispose();
     this.bloomPass.dispose();
     this.miniaturePass.dispose();

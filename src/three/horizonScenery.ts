@@ -151,11 +151,16 @@ function createHorizonRing(
           col += winCol * wLit * bandMask * uWeights.w * uNight * twinkle * 0.46;
         }
 
-        // Distant coastal sea horizon shimmer catching twilight / moonlight
+        // Distant coastal sea horizon shimmer + urban harbour sky-glow catching twilight / moonlight
         if (uWeights.z > 0.2) {
           float seaBelt = smoothstep(0.22, 0.02, vElev) * smoothstep(-1.35, -0.7, vWorldPos.y);
           float shimmer = 0.5 + 0.5 * sin(vAngle * 24.0 + uTime * 1.1 + uSeed);
-          col += mix(uGlowCol, vec3(0.72, 0.88, 1.0), uNight * 0.7) * seaBelt * shimmer * uWeights.z * (0.14 + uHor * 0.25);
+          col += mix(uGlowCol, vec3(0.74, 0.89, 1.0), uNight * 0.72) * seaBelt * shimmer * uWeights.z * (0.14 + uHor * 0.26 + uNight * 0.14);
+        }
+        if (uNight > 0.12 && (uWeights.w > 0.15 || uWeights.z > 0.35)) {
+          float belt = smoothstep(-1.35, -0.5, vWorldPos.y) * (1.0 - smoothstep(0.05, 0.42, vElev));
+          vec3 glowTint = mix(vec3(0.32, 0.46, 0.72), vec3(0.95, 0.62, 0.32), uWeights.w);
+          col += glowTint * belt * uNight * 0.18;
         }
 
         // Vertical atmospheric fade: soft at the top ridge crest and solid near horizon bottom.
@@ -188,18 +193,60 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
   const farRidge = createHorizonRing(57, 9.6, 2.9, 0.2);
   root.add(nearRidge.mesh, midRidge.mesh, farRidge.mesh);
 
-  // Subtle wet ground reflection / shadow catcher disc directly below the plinth base.
-  const groundMat = new THREE.MeshStandardMaterial({
-    color: '#0e131d',
-    map: getSoftTexture(),
+  // Distant stage sheen & moonlight / sunset specular water path outside the floating island footprint.
+  const groundMat = new THREE.ShaderMaterial({
     transparent: true,
-    opacity: 0.42,
-    roughness: 0.85,
-    metalness: 0.08,
     depthWrite: false,
+    uniforms: {
+      uGroundCol: { value: new THREE.Color('#0e131d') },
+      uGlowCol: { value: new THREE.Color('#ff9d5c') },
+      uOpacity: { value: 0.4 },
+      uNight: { value: 0 },
+      uHor: { value: 0 },
+      uRain: { value: 0 },
+      uCoastal: { value: 0 },
+      uTime: { value: 0 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uGroundCol, uGlowCol;
+      uniform float uOpacity, uNight, uHor, uRain, uCoastal, uTime;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        float r = length((vUv - 0.5) * 2.0);
+        if (r >= 1.0) discard;
+        float radialFade = pow(1.0 - r, 1.65);
+        vec3 col = uGroundCol;
+        float alpha = radialFade * uOpacity;
+        // Outer stage moonlit / golden-hour ripple sheen on coastal sites and wet nights
+        float waterMix = max(uCoastal, uRain * 0.75);
+        if (waterMix > 0.05 && r > 0.34) {
+          vec2 dir = normalize(vWorldPos.xz + vec2(0.0001));
+          float trackAlign = pow(max(0.0, dot(dir, normalize(vec2(-0.52, -0.85)))), 4.0);
+          float ripple = 0.5 + 0.5 * sin(vWorldPos.x * 2.4 + vWorldPos.z * 3.1 - uTime * 1.4);
+          float rippleFine = 0.5 + 0.5 * cos(vWorldPos.x * 5.1 - vWorldPos.z * 4.4 + uTime * 1.9);
+          float sheen = trackAlign * (ripple * 0.6 + rippleFine * 0.4) * smoothstep(0.34, 0.56, r) * (1.0 - r);
+          vec3 sheenCol = mix(vec3(0.68, 0.84, 1.0), uGlowCol, uHor * (1.0 - uNight * 0.6));
+          float sheenAmt = sheen * waterMix * (0.28 * uNight + 0.36 * uHor + 0.18 * uRain);
+          col += sheenCol * sheenAmt * 1.4;
+          alpha += sheenAmt * 0.35;
+        }
+        gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.88));
+      }
+    `,
   });
   groundMat.userData.noDissolve = true;
-  const groundCatcher = new THREE.Mesh(new THREE.CircleGeometry(19.5, 48), groundMat);
+  const groundCatcher = new THREE.Mesh(new THREE.CircleGeometry(21.5, 56), groundMat);
   groundCatcher.rotation.x = -Math.PI / 2;
   groundCatcher.position.y = -0.715;
   groundCatcher.receiveShadow = false;
@@ -299,15 +346,17 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
       u.uAlpha.value += (targetAlpha - u.uAlpha.value) * k;
     }
 
-    // Ground catcher takes subtle rain wetness sheen & ambient sky bounce under the plinth.
+    // Ground catcher takes subtle rain wetness sheen, ambient sky bounce, & coastal moon track.
     tmpGround.copy(opts.fogColor).multiplyScalar(0.32 + (1 - opts.night) * 0.18);
-    groundMat.color.lerp(tmpGround, k);
-    const targetRoughness = THREE.MathUtils.lerp(0.88, 0.18, opts.rain);
-    const targetMetalness = THREE.MathUtils.lerp(0.06, 0.24, opts.rain);
     const targetOpacity = (0.36 + opts.rain * 0.16) * studioFade;
-    groundMat.roughness += (targetRoughness - groundMat.roughness) * k;
-    groundMat.metalness += (targetMetalness - groundMat.metalness) * k;
-    groundMat.opacity += (targetOpacity - groundMat.opacity) * k;
+    groundMat.uniforms.uGroundCol.value.lerp(tmpGround, k);
+    groundMat.uniforms.uGlowCol.value.lerp(opts.sunGlow, k);
+    groundMat.uniforms.uOpacity.value += (targetOpacity - groundMat.uniforms.uOpacity.value) * k;
+    groundMat.uniforms.uNight.value += (opts.night - groundMat.uniforms.uNight.value) * k;
+    groundMat.uniforms.uHor.value += (opts.hor - groundMat.uniforms.uHor.value) * k;
+    groundMat.uniforms.uRain.value += (opts.rain - groundMat.uniforms.uRain.value) * k;
+    groundMat.uniforms.uCoastal.value = currentWeights.coastal;
+    groundMat.uniforms.uTime.value = elapsed;
 
     stageAuraMat.opacity = (0.32 + (1 - opts.night) * 0.08) * studioFade;
   };

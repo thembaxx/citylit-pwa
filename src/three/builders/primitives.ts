@@ -17,12 +17,15 @@ import {
   getWoodBumpTexture,
   getWoodNormalTexture,
   grassWindy,
+  interiorParallaxShader,
   lights,
   normalMapsActive,
   getBrushedNormalTexture,
   prepareCanvasTexture,
   waterize,
+  wetPuddleShader,
   windy,
+  WU,
 } from '../shaders';
 
 export interface SwayItem {
@@ -403,6 +406,7 @@ export function litWindowMaterial(opts: {
     side: THREE.DoubleSide,
   });
   mat.userData.sharedResource = true;
+  interiorParallaxShader(mat, cols, rows);
   litWindowCache.set(key, mat);
   glowMaterials.push(mat);
   return mat;
@@ -629,6 +633,8 @@ export function MWet(
     ...(tex !== 'plain' ? surfaceDetail(tex, tex === 'stone' ? 0.022 : 0.01) : {}),
   });
   mat.userData.naturalSurface = true;
+  mat.userData.puddleWet = true;
+  wetPuddleShader(mat);
   wetMaterials.push({ mat, dryColor, wetColor, rDry, rWet });
   return mat;
 }
@@ -2047,7 +2053,98 @@ let carGeos: {
   glass: THREE.BufferGeometry;
   wheel: THREE.BufferGeometry;
   lamp: THREE.BufferGeometry;
+  beam: THREE.BufferGeometry;
+  tail: THREE.BufferGeometry;
 } | null = null;
+let carHeadlightMat: THREE.ShaderMaterial | null = null;
+let carTaillightMat: THREE.ShaderMaterial | null = null;
+
+function getCarHeadlightMat(): THREE.ShaderMaterial {
+  if (carHeadlightMat) return carHeadlightMat;
+  carHeadlightMat = new THREE.ShaderMaterial({
+    uniforms: { uLit: WU.lit, uDY: WU.dy },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vNorm;
+      varying vec3 vViewDir;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vec4 mv = viewMatrix * wp;
+        vNorm = normalize(normalMatrix * normal);
+        vViewDir = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uDY;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vNorm;
+      varying vec3 vViewDir;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float litVis = smoothstep(0.12, 0.85, uLit);
+        if (litVis <= 0.005) discard;
+        float axial = pow(clamp(vUv.y, 0.0, 1.0), 1.65) * smoothstep(1.0, 0.82, vUv.y);
+        float edge = pow(abs(dot(normalize(vNorm), normalize(vViewDir))), 1.4);
+        float a = axial * edge * litVis * 0.24;
+        vec3 col = mix(vec3(1.0, 0.90, 0.65), vec3(1.0, 0.97, 0.88), vUv.y);
+        gl_FragColor = vec4(col * a * 1.4, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  carHeadlightMat.userData.sharedResource = true;
+  carHeadlightMat.userData.noDissolve = true;
+  return carHeadlightMat;
+}
+
+function getCarTaillightMat(): THREE.ShaderMaterial {
+  if (carTaillightMat) return carTaillightMat;
+  carTaillightMat = new THREE.ShaderMaterial({
+    uniforms: { uLit: WU.lit, uDY: WU.dy },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        vUv = uv;
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uDY;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float litVis = smoothstep(0.12, 0.85, uLit);
+        if (litVis <= 0.005) discard;
+        float r = length((vUv - 0.5) * 2.0);
+        if (r >= 1.0) discard;
+        float glow = exp(-r * r * 3.8) * smoothstep(1.0, 0.15, r);
+        float a = glow * litVis * 0.42;
+        gl_FragColor = vec4(vec3(1.0, 0.16, 0.12) * a * 1.6, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  carTaillightMat.userData.sharedResource = true;
+  carTaillightMat.userData.noDissolve = true;
+  return carTaillightMat;
+}
 
 export function car(col: string, sc = 0.5): THREE.Group {
   if (!carGeos) {
@@ -2083,11 +2180,16 @@ export function car(col: string, sc = 0.5): THREE.Group {
       glass: extrude(w, 0.43, 0.005),
       wheel: new THREE.CylinderGeometry(0.075, 0.075, 0.08, 16).rotateX(Math.PI / 2),
       lamp: new THREE.BoxGeometry(0.02, 0.035, 0.08),
+      // Forward (+X) additive headlight cone; tip sits at headlight lens, flares smoothly outward
+      beam: new THREE.ConeGeometry(0.24, 1.35, 10, 1, true).rotateZ(Math.PI / 2).translate(0.675, 0, 0),
+      tail: new THREE.PlaneGeometry(0.26, 0.26).rotateY(Math.PI / 2),
     };
     carGeos.body.userData.sharedResource = true;
     carGeos.glass.userData.sharedResource = true;
     carGeos.wheel.userData.sharedResource = true;
     carGeos.lamp.userData.sharedResource = true;
+    carGeos.beam.userData.sharedResource = true;
+    carGeos.tail.userData.sharedResource = true;
   }
   const c = new THREE.Group();
   const b = M(col, 0.35, 0.55);
@@ -2095,6 +2197,8 @@ export function car(col: string, sc = 0.5): THREE.Group {
   const wh = M('#15161a', 0.8);
   const hl = G('#fff2c0', 1.5);
   const tl = G('#ff2a2a', 1.5);
+  const hBeamMat = getCarHeadlightMat();
+  const tGlowMat = getCarTaillightMat();
   add(c, carGeos.body, b);
   add(c, carGeos.glass, gl);
   for (const [x, z] of [
@@ -2108,6 +2212,21 @@ export function car(col: string, sc = 0.5): THREE.Group {
   for (const z of [-0.13, 0.13]) {
     add(c, carGeos.lamp, hl, 0.53, 0.13, z);
     add(c, carGeos.lamp, tl, -0.53, 0.15, z);
+    const beam = add(c, carGeos.beam, hBeamMat, 0.53, 0.13, z);
+    beam.rotation.z = -0.09;
+    beam.castShadow = false;
+    beam.receiveShadow = false;
+    beam.renderOrder = 4;
+    beam.userData.noShadow = true;
+    beam.userData.cannotReceiveAO = true;
+    beam.userData.noDissolve = true;
+    const tGlow = add(c, carGeos.tail, tGlowMat, -0.55, 0.15, z);
+    tGlow.castShadow = false;
+    tGlow.receiveShadow = false;
+    tGlow.renderOrder = 4;
+    tGlow.userData.noShadow = true;
+    tGlow.userData.cannotReceiveAO = true;
+    tGlow.userData.noDissolve = true;
   }
   c.scale.setScalar(sc);
   return c;
