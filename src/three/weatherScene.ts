@@ -2,7 +2,13 @@ import * as THREE from 'three';
 import { liveWeatherVisual, WEATHER_CONDITIONS } from '../data/weatherData';
 import { monthToSeasonWeights, type SeasonWeights } from '../lib/season';
 import { southernSunDirection } from '../lib/solarPosition';
-import type { LiveWeatherSample, ThemeSetting, WeatherConditionKey } from '../types/citylit';
+import type {
+  LiveWeatherSample,
+  SkyEvent,
+  ThemeSetting,
+  WeatherConditionKey,
+  WeatherMoment,
+} from '../types/citylit';
 import { getSoftTexture, SKY_NOISE_GLSL, WU } from './shaders';
 import { solarHalfDay } from './streetLights';
 
@@ -39,6 +45,10 @@ export interface WeatherSceneController {
   setTheme: (theme: ThemeSetting, immediate?: boolean) => void;
   /** Blend subtle per-landmark atmospheric sky zenith & horizon tints. */
   setSiteSkyTint: (topHex: string, horizonHex: string, immediate?: boolean) => void;
+  /** Drive the dated sky calendar (meteor showers, eclipses, comets). */
+  setSkyEvent: (event: SkyEvent | null) => void;
+  /** Amplify the scene for a place-specific, observation-driven weather moment. */
+  setWeatherMoment: (moment: WeatherMoment | null) => void;
   triggerRainbow: (duration?: number) => void;
   setHidden: (hidden: boolean) => void;
   update: (
@@ -54,6 +64,8 @@ export interface WeatherSceneController {
       hemiLight: THREE.HemisphereLight;
       scene: THREE.Scene;
       renderer: THREE.WebGLRenderer;
+      /** Used to keep the eclipse disc aligned between camera and sun. */
+      camera: THREE.Camera;
       onThunder?: () => void;
     }
   ) => void;
@@ -338,6 +350,116 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   moonHalo.scale.set(9.5, 9.5, 1);
   moonDisc.add(moonHalo);
 
+  // Solar eclipse: a dark silhouette held just in front of the sun disc, with
+  // a faint corona. Positioned toward the camera each frame so it stays centred.
+  const eclipseMat = new THREE.MeshBasicMaterial({
+    color: '#04050a',
+    fog: false,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const eclipseDisc = new THREE.Mesh(new THREE.CircleGeometry(2.35, 40), eclipseMat);
+  eclipseDisc.renderOrder = 6;
+  eclipseDisc.frustumCulled = false;
+  root.add(eclipseDisc);
+  const coronaMat = new THREE.SpriteMaterial({
+    map: getSoftTexture(),
+    color: '#dbe6ff',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  const corona = new THREE.Sprite(coronaMat);
+  corona.scale.set(13, 13, 1);
+  corona.position.z = 0.2;
+  eclipseDisc.add(corona);
+
+  // Comet: a soft coma plus a tapered dust tail, parked in the evening sky and
+  // only shown on a dated apparition from the sky calendar.
+  const cometGroup = new THREE.Group();
+  cometGroup.position.set(-31, 27, -25);
+  cometGroup.visible = false;
+  const comaMat = new THREE.SpriteMaterial({
+    map: getSoftTexture(),
+    color: '#d8e8ff',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  const coma = new THREE.Sprite(comaMat);
+  coma.scale.set(5.2, 5.2, 1);
+  cometGroup.add(coma);
+  const tailMat = new THREE.MeshBasicMaterial({
+    color: '#9dbce8',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    fog: false,
+  });
+  const cometTail = new THREE.Mesh(new THREE.ConeGeometry(1.15, 9, 12, 1, true), tailMat);
+  cometTail.rotation.x = -Math.PI / 2;
+  cometTail.position.z = -4.6;
+  cometGroup.add(cometTail);
+  root.add(cometGroup);
+
+  // Snowfall for the Drakensberg snow moment. GPU-animated from a seed buffer,
+  // so the update loop only writes uniforms and a draw range.
+  const SNOW_COUNT = 700;
+  const snowSeed = new Float32Array(SNOW_COUNT * 3);
+  for (let i = 0; i < SNOW_COUNT; i++) {
+    snowSeed[i * 3] = (Math.random() - 0.5) * 32;
+    snowSeed[i * 3 + 1] = Math.random() * 20;
+    snowSeed[i * 3 + 2] = (Math.random() - 0.5) * 32;
+  }
+  const snowGeo = new THREE.BufferGeometry()
+    .setAttribute('position', new THREE.BufferAttribute(snowSeed, 3))
+    .setAttribute('aSeed', new THREE.BufferAttribute(snowSeed, 3));
+  const snowMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      uTime: { value: 0 },
+      uOpacity: { value: 0 },
+      uWind: { value: 0 },
+      uColor: { value: new THREE.Color('#f2f6ff') },
+    },
+    vertexShader: /* glsl */ `
+      attribute vec3 aSeed;
+      uniform float uTime;
+      uniform float uWind;
+      varying float vFade;
+      void main() {
+        float fall = mod(aSeed.y - uTime * 2.2, 20.0);
+        float drift = sin(uTime * 0.45 + aSeed.z * 0.7) * 0.8 + uWind * 0.14;
+        vec3 p = vec3(aSeed.x + drift, fall, aSeed.z);
+        vFade = smoothstep(0.0, 1.0, fall) * smoothstep(20.0, 17.0, fall);
+        gl_PointSize = 2.4;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform float uOpacity;
+      uniform vec3 uColor;
+      varying float vFade;
+      void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float a = smoothstep(0.5, 0.1, d);
+        gl_FragColor = vec4(uColor, a * uOpacity * vFade);
+      }
+    `,
+  });
+  const snowPoints = new THREE.Points(snowGeo, snowMat);
+  snowPoints.frustumCulled = false;
+  snowPoints.visible = false;
+  root.add(snowPoints);
+
   const cloudMat = new THREE.MeshStandardMaterial({
     color: '#ffffff',
     roughness: 1,
@@ -570,6 +692,12 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const siteHorTarget = new THREE.Color('#6fa6cc');
   let windDirectionDeg = 0;
   let animTime = 0;
+  let activeSkyEvent: SkyEvent | null = null;
+  let activeWeatherMoment: WeatherMoment | null = null;
+  const moonBaseColor = new THREE.Color('#eaf1ff');
+  const lunarEclipseColor = new THREE.Color('#c4614a');
+  const eclipseTowardCamera = new THREE.Vector3();
+  const cameraWorldPos = new THREE.Vector3();
 
   const applyCondition = (key: WeatherConditionKey, night: boolean, timeOfDay?: number) => {
     const cond = WEATHER_CONDITIONS[key] ?? WEATHER_CONDITIONS.sun;
@@ -639,6 +767,20 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     }
   };
 
+  const setSkyEvent = (event: SkyEvent | null) => {
+    activeSkyEvent = event;
+    if (!event || event.kind !== 'meteor-shower') {
+      // Let any in-flight streak finish naturally rather than cutting mid-frame.
+      return;
+    }
+    // Start the schedule close so a shower is visible soon after selection.
+    meteorTimer = Math.min(meteorTimer, 0.4 + Math.random() * 1.2);
+  };
+
+  const setWeatherMoment = (moment: WeatherMoment | null) => {
+    activeWeatherMoment = moment;
+  };
+
   const triggerRainbow = (duration = 12) => {
     rainbowTimer = duration;
   };
@@ -659,6 +801,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       hemiLight,
       scene: s,
       renderer,
+      camera,
       onThunder,
     }
   ) => {
@@ -672,6 +815,24 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const wDay = themeCurrent.daylight;
     const wStudio = themeCurrent.studio;
     const wDark = Math.max(0, 1 - wDay - wStudio);
+
+    // Place-specific moments are driven by real observations. Fold them into
+    // the same continuous targets so the existing cloud/fog/lightning systems
+    // render them instead of needing a parallel weather pipeline.
+    if (activeWeatherMoment) {
+      const strength = activeWeatherMoment.intensity;
+      if (activeWeatherMoment.kind === 'highveld-lightning') {
+        target.storm = Math.max(target.storm, strength * 0.95);
+        target.rain = Math.max(target.rain, strength * 0.7);
+        target.cover = Math.max(target.cover, 0.9);
+      } else if (activeWeatherMoment.kind === 'cape-point-mist') {
+        target.fog = Math.max(target.fog, strength);
+        target.cover = Math.max(target.cover, 0.78);
+      } else {
+        target.fog = Math.max(target.fog, strength * 0.4);
+        target.cover = Math.max(target.cover, 0.72);
+      }
+    }
 
     skyDome.visible = wStudio < 0.995;
     const k = motionScale === 0 ? 1 : 1 - Math.exp(-safeDt * 1.8);
@@ -722,6 +883,27 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     moonMat.opacity += (moonTargetOpacity - moonMat.opacity) * skyLerp;
     moonHaloMat.opacity = moonMat.opacity * 0.36;
     moonDisc.visible = wStudio < 0.99 && moonMat.opacity > 0.005;
+
+    // Dated eclipses: the moon reddens, the sun gains a dark silhouette and a
+    // thin corona, and the sun's glow/light dim with the eclipse strength.
+    const solarEclipse = activeSkyEvent?.kind === 'solar-eclipse' ? activeSkyEvent.intensity : 0;
+    const lunarEclipse = activeSkyEvent?.kind === 'lunar-eclipse' ? activeSkyEvent.intensity : 0;
+    const eclipseAmount = solarEclipse * sunMat.opacity * (1 - wStudio);
+    eclipseMat.opacity += (eclipseAmount - eclipseMat.opacity) * skyLerp;
+    eclipseDisc.visible = wStudio < 0.99 && eclipseMat.opacity > 0.01;
+    if (eclipseDisc.visible) {
+      camera.getWorldPosition(cameraWorldPos);
+      eclipseTowardCamera.copy(cameraWorldPos).sub(sunDisc.position).normalize();
+      eclipseDisc.position
+        .copy(sunDisc.position)
+        .addScaledVector(eclipseTowardCamera, 2.2);
+      eclipseDisc.quaternion.copy(camera.quaternion);
+      coronaMat.opacity = eclipseMat.opacity * 0.55;
+    } else {
+      coronaMat.opacity = 0;
+    }
+    moonMat.color.copy(moonBaseColor).lerp(lunarEclipseColor, lunarEclipse * moonMat.opacity);
+    moonHaloMat.color.copy(moonBaseColor).lerp(lunarEclipseColor, lunarEclipse * 0.6);
 
     if (current.storm > 0.4) {
       thunderTimer -= safeDt;
@@ -793,6 +975,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .lerp(seasonGlowTmp, 0.45)
       .lerp(sunRedTmp, Math.max(0, 0.5 - alt) * (1.4 + 0.6 * seasonCurrent.warmth));
     skyMat.uniforms.glow.value.lerp(sunGlowTmp, skyLerp);
+    if (eclipseAmount > 0) skyMat.uniforms.glow.value.lerp(nightSkyTmp, eclipseAmount * 0.4);
     const targetHor = hor * (1 - current.cover * 0.5) * (1 - wStudio);
     skyMat.uniforms.hor.value += (targetHor - skyMat.uniforms.hor.value) * skyLerp;
 
@@ -861,6 +1044,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     // whole block is skipped on software GL and whenever the sky is not dark.
     skyMat.uniforms.astro.value = lowDetail ? 0 : 1;
     const astroNight = (1 - day) * (1 - wStudio) * Math.max(0, 1 - current.cover * 1.4);
+    const showerBoost = activeSkyEvent?.kind === 'meteor-shower' ? activeSkyEvent.intensity : 0;
     if (lowDetail || motionScale === 0 || astroNight < 0.4) {
       skyMat.uniforms.uMeteorFade.value = 0;
     } else if (meteorLife > 0) {
@@ -875,7 +1059,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
         .lerp(meteorEnd, Math.max(0, progress - 0.075))
         .normalize();
       skyMat.uniforms.uMeteorFade.value =
-        Math.sin(progress * Math.PI) * astroNight * 0.9;
+        Math.sin(progress * Math.PI) * astroNight * (0.9 + showerBoost * 0.35);
     } else {
       skyMat.uniforms.uMeteorFade.value = 0;
       meteorTimer -= safeDt;
@@ -887,9 +1071,21 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
           .normalize();
         meteorIndex++;
         meteorLife = METEOR_DURATION;
-        meteorTimer = 11 + Math.random() * 19;
+        // A live shower fires several times per minute instead of every ~20 s.
+        meteorTimer =
+          showerBoost > 0
+            ? 0.55 + Math.random() * (2.4 - showerBoost * 1.7)
+            : 11 + Math.random() * 19;
       }
     }
+
+    const cometStrength = activeSkyEvent?.kind === 'comet' ? activeSkyEvent.intensity : 0;
+    const cometOpacity =
+      !lowDetail && cometStrength > 0 && astroNight > 0.25 ? cometStrength * astroNight : 0;
+    comaMat.opacity += (cometOpacity - comaMat.opacity) * skyLerp;
+    tailMat.opacity += (cometOpacity * 0.5 - tailMat.opacity) * skyLerp;
+    cometGroup.visible = comaMat.opacity > 0.01;
+    if (cometGroup.visible) cometGroup.rotation.y = elapsed * 0.003 * motionScale;
 
     cloudTargetCol
       .set('#ffffff')
@@ -947,6 +1143,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const dayKeyIntensity =
       3.05 * seasonalIntensityScale * day * (1 - current.cover * 0.5) * (0.68 + 0.32 * (1 - hor));
     let keyIntensityTarget = THREE.MathUtils.lerp(1.45, dayKeyIntensity, dayBlend);
+    if (eclipseAmount > 0) keyIntensityTarget *= 1 - eclipseAmount * 0.55;
 
     seasonFillTmp.copy(winterFillCol).lerp(summerFillCol, seasonCurrent.warmth);
     let fillTarget = (1.35 + 0.12 * seasonCurrent.warmth) * day + 0.85 * (1 - day) + hor * 0.3;
@@ -1002,6 +1199,17 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     stMat.uniforms.fl.value = lightningFlash * (1 - wStudio);
     stormCurtain.visible = wStudio < 0.995 && stMat.uniforms.st.value > 0.02;
 
+    const snowStrength =
+      !lowDetail && activeWeatherMoment?.kind === 'drakensberg-snow'
+        ? activeWeatherMoment.intensity
+        : 0;
+    const snowOpacity = snowStrength * (1 - wStudio);
+    snowMat.uniforms.uOpacity.value += (snowOpacity - snowMat.uniforms.uOpacity.value) * skyLerp;
+    snowMat.uniforms.uTime.value = animTime;
+    snowMat.uniforms.uWind.value = current.wind;
+    snowGeo.setDrawRange(0, Math.floor(SNOW_COUNT * Math.min(1, snowMat.uniforms.uOpacity.value * 1.6)));
+    snowPoints.visible = snowMat.uniforms.uOpacity.value > 0.008;
+
     const targetSun = day * (1 - current.cover * 0.65);
     const targetSunHor = hor * (1 - wStudio);
     const targetLit = Math.min(1, Math.max(0, (1 - day) * 1.4 + current.cover * 0.3));
@@ -1042,6 +1250,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     setSiteLatitude,
     setTheme,
     setSiteSkyTint,
+    setSkyEvent,
+    setWeatherMoment,
     triggerRainbow,
     setHidden,
     update,

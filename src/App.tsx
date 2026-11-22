@@ -26,6 +26,8 @@ import { TopBar } from './components/TopBar';
 import { WeatherWidget } from './components/WeatherWidget';
 import { LANDMARKS, PROVINCES, slugifyLandmark } from './data/landmarks';
 import { HERITAGE_ROUTES } from './data/routes';
+import { getSkyEvent, getUpcomingSkyEvents } from './data/skyEvents';
+import { getWeatherMoment } from './data/weatherMoments';
 import {
   fetchLiveWeather,
   getBestMonths,
@@ -49,8 +51,10 @@ import type {
   LiveWeatherSample,
   NoteCategory,
   SavedCustomPlace,
+  SkyEvent,
   WeatherConditionKey,
   WeatherDisplayState,
+  WeatherMoment,
 } from './types/citylit';
 
 function readInitialLandmarkIndex(): number {
@@ -210,6 +214,9 @@ export function App() {
   const [timeLapseActive, setTimeLapseActive] = useState(false);
   const timeHourRef = useRef(timeHour);
   const [month, setMonth] = useState(() => new Date().getMonth() + 1);
+  /** Calendar day/year used by the curated sky-event calendar. */
+  const [calendarDay, setCalendarDay] = useState(() => new Date().getDate());
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear());
   /** Real hourly forecast, used instead of the climate estimate when available. */
   const [liveForecast, setLiveForecast] = useState<ForecastSlot[] | null>(null);
   /** Most recent real observation, reused while a refresh is in flight. */
@@ -681,6 +688,32 @@ export function App() {
     }
     return undefined;
   }, [index, month, timeHour, isOnline, timeLapseActive]);
+
+  // The dated sky calendar and the real-condition weather moments both feed
+  // the same weather scene: one drives the sky, the other the ground weather.
+  const skyEvent = useMemo<SkyEvent | null>(
+    () => getSkyEvent(month, calendarDay, calendarYear),
+    [month, calendarDay, calendarYear]
+  );
+  const upcomingSkyEvents = useMemo(
+    () => getUpcomingSkyEvents(month, calendarDay, calendarYear, 3),
+    [month, calendarDay, calendarYear]
+  );
+  const weatherMoment = useMemo<WeatherMoment | null>(
+    () =>
+      weatherState.live
+        ? getWeatherMoment(LANDMARKS[index]?.k ?? '', weatherState.live)
+        : null,
+    [index, weatherState.live]
+  );
+
+  // `booted` is read here so the scene effects are replayed once the
+  // dynamically imported engine finishes initialising.
+  useEffect(() => {
+    if (!booted) return;
+    engineRef.current?.setSkyEvent(skyEvent);
+    engineRef.current?.setWeatherMoment(weatherMoment);
+  }, [skyEvent, weatherMoment, booted]);
 
   useEffect(() => {
     timeHourRef.current = timeHour;
@@ -1481,6 +1514,22 @@ export function App() {
           visible={!fullscreen}
           globeOpen={globeOpen || placesOpen}
           reducedMotion={reducedMotion}
+          skyEvent={skyEvent}
+          upcomingSkyEvents={upcomingSkyEvents}
+          weatherMoment={weatherMoment}
+          calendarDay={calendarDay}
+          calendarYear={calendarYear}
+          onChangeCalendarDate={(year, m, day) => {
+            setCalendarYear(year);
+            setMonth(m);
+            setCalendarDay(day);
+          }}
+          onResetCalendarDate={() => {
+            const today = new Date();
+            setCalendarYear(today.getFullYear());
+            setMonth(today.getMonth() + 1);
+            setCalendarDay(today.getDate());
+          }}
           onToggleExpand={() => {
             setWeatherExpanded((v) => !v);
             window.requestAnimationFrame(() => engineRef.current?.refreshFraming());
@@ -1495,7 +1544,10 @@ export function App() {
             setTimeScrubbed(true);
             setTimeLapseActive((v) => !v);
           }}
-          onChangeMonth={(m) => setMonth(m)}
+          onChangeMonth={(m) => {
+            setMonth(m);
+            setCalendarDay((d) => Math.min(d, new Date(calendarYear, m, 0).getDate()));
+          }}
           onTriggerRainbow={() => engineRef.current?.toggleRainRainbow()}
           onToggleGlobe={toggleGlobe}
         />

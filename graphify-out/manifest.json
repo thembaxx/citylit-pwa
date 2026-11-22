@@ -19,9 +19,9 @@
     "ast_empty": true
   },
   "package.json": {
-    "mtime": 1795362543.4542856,
-    "seen": 1795364213.1726875,
-    "ast_hash": "ed92aa2e4e97e949eba40033c8d30244",
+    "mtime": 1795370719.382384,
+    "seen": 1795371222.924201,
+    "ast_hash": "de64a58f62ade82b46ea3a38f27f05c6",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795274814.6693816,
-    "seen": 1795274934.2543087,
-    "ast_hash": "c05954d4f027b9bbd54cf04b2e09a4bd",
+    "mtime": 1795371234.5534692,
+    "seen": 1795371312.3882208,
+    "ast_hash": "afb3a880c9d29cb74c99ec067dc53073",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -127,9 +127,9 @@
     "semantic_hash": "9a9d9aaf6fba8f765bac5012208ff7f6"
   },
   "src/components/WeatherWidget.tsx": {
-    "mtime": 1795270173.5696156,
-    "seen": 1795270207.9620557,
-    "ast_hash": "9386b19c33c7df6cae3734b194bddb29",
+    "mtime": 1795370631.2641773,
+    "seen": 1795371222.9244425,
+    "ast_hash": "80017dc0b7d796064314b61d3a1cf07d",
     "semantic_hash": ""
   },
   "src/components/ui/AnimatedNumber.tsx": {
@@ -187,8 +187,8 @@
     "semantic_hash": ""
   },
   "src/data/weatherData.ts": {
-    "mtime": 1795180654.750156,
-    "seen": 1795270207.962088,
+    "mtime": 1795370789.4126213,
+    "seen": 1795371222.9245625,
     "ast_hash": "1193a74503c831335b8701d876a56a6d",
     "semantic_hash": "1193a74503c831335b8701d876a56a6d"
   },
@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795366546.138248,
-    "seen": 1795367782.9405196,
-    "ast_hash": "bef8acffe017b20518a561dd383f8273",
+    "mtime": 1795370499.6840045,
+    "seen": 1795371222.924906,
+    "ast_hash": "5d87d391b9ef756fd4d91618d145678d",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -343,15 +343,15 @@
     "semantic_hash": "943c31001f55bde83364c6c6c1cf0610"
   },
   "src/three/weatherScene.ts": {
-    "mtime": 1795360865.7877266,
-    "seen": 1795361149.4380286,
-    "ast_hash": "ca7c2653ed555c0e0f989917fc721b0f",
+    "mtime": 1795370406.9161193,
+    "seen": 1795371222.9251635,
+    "ast_hash": "25685cde773d9e667e9267a72a8d80dc",
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
-    "mtime": 1795345403.9228058,
-    "seen": 1795346236.9771633,
-    "ast_hash": "be3b4ebc38faddb8872438e9bfa08555",
+    "mtime": 1795370189.7869866,
+    "seen": 1795371222.9251974,
+    "ast_hash": "a1dba0b7cc28f5b1472b138add364d8b",
     "semantic_hash": ""
   },
   "src/types/n8ao.d.ts": {
@@ -1030,6 +1030,30 @@
     "mtime": 1795364445.184887,
     "seen": 1795367782.9413116,
     "ast_hash": "aff04157c1215f6dd30636e2c03252cd",
+    "semantic_hash": ""
+  },
+  "src/data/skyEvents.test.ts": {
+    "mtime": 1795370871.78163,
+    "seen": 1795371222.924548,
+    "ast_hash": "03bf096bb189fad398709c9aea20196f",
+    "semantic_hash": ""
+  },
+  "src/data/skyEvents.ts": {
+    "mtime": 1795370935.09309,
+    "seen": 1795371222.924555,
+    "ast_hash": "b4fadb2dd5dc305a9400840c9ae8b67e",
+    "semantic_hash": ""
+  },
+  "src/data/weatherMoments.test.ts": {
+    "mtime": 1795370823.0901177,
+    "seen": 1795371222.9245691,
+    "ast_hash": "895c4d2069137666c79a6a4aa6cb0dae",
+    "semantic_hash": ""
+  },
+  "src/data/weatherMoments.ts": {
+    "mtime": 1795370768.6001906,
+    "seen": 1795371222.924575,
+    "ast_hash": "7cf35102ab27b9f7040613bf3774a32e",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

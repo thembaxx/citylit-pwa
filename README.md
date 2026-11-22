@@ -9,7 +9,7 @@ Files: index.html, manifest.webmanifest, sw.js, icons/.
 - Install: `pnpm install`
 - Dev server: `pnpm dev` (http://localhost:3000)
 - Lint and type-check: `pnpm lint`
-- Unit tests: `pnpm test` (Node's test runner over `src/lib/*.test.ts`)
+- Unit tests: `pnpm test` (Node's test runner over `src/lib/*.test.ts` and `src/data/*.test.ts`)
 - Production build: `pnpm build` (runs `tsc --noEmit` then `vite build`, output in `dist/`)
 - Serve the production build locally: `pnpm preview` — use this to test the service worker, since the dev SW is intentionally disabled.
 - `pnpm start` serves `dist/` via the Express fallback in `server.js`.
@@ -33,6 +33,23 @@ Files: index.html, manifest.webmanifest, sw.js, icons/.
 - Updates use `registerType: 'autoUpdate'` in `vite.config.ts`; the service worker is regenerated on each build, so there is no version string to bump by hand.
 - three.js is pinned to a single version (`three@0.187.0` / `@types/three@0.187.0`) via `pnpm-workspace.yaml` overrides and bundled at build time — no CDN dependency and no duplicate Three.js instances.
 - Rendering uses PCF shadows only (`PCFShadowMap`), exponential fog, ACES filmic tone mapping, and sky-matched dissolve particles.
+
+## Sky calendar and weather moments
+
+The expanded weather panel includes a **Sky calendar** date picker. `src/data/skyEvents.ts`
+holds a small curated calendar of real events — annual meteor showers (Quadrantids,
+Perseids, Geminids, …), dated solar/lunar eclipses and comet apparitions. Choosing a
+date renders the active event in the 3D scene: denser meteor streaks during a shower,
+the Moon reddening during a lunar eclipse, a dark disc and corona across the Sun during
+a solar eclipse, and a tailed comet in the night sky. The next three events are listed
+for navigation; quiet dates simply show the ordinary sky.
+
+Separately, `src/data/weatherMoments.ts` turns real Open-Meteo observations into
+place-specific extremes: thunderstorms become **Highveld lightning** over Gauteng,
+snowfall or freezing readings become **Drakensberg snow**, and fog or moist, still air
+becomes **Cape Point mist**. These moments amplify the existing storm/fog systems and
+add GPU-animated snowfall at the relevant landmark. They only appear when a live
+observation is available; offline and climate-model weather stay unchanged.
 
 ## 3D globe
 

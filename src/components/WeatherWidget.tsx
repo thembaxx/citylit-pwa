@@ -1,10 +1,16 @@
 import {
+  CalendarBlank,
+  CloudFog,
   CloudLightning,
   CloudRain,
   GlobeHemisphereEast,
+  Lightning,
+  Meteor,
   Moon,
   Pause,
   Play,
+  Snowflake,
+  Sparkle,
   Sun,
   SunDim,
   SunHorizon,
@@ -20,7 +26,14 @@ import {
   MONTHS,
   type ExtremeWeatherWarningKind,
 } from '../data/weatherData';
-import type { ForecastSlot, WeatherDisplayState } from '../types/citylit';
+import type {
+  ForecastSlot,
+  SkyEvent,
+  SkyEventKind,
+  WeatherDisplayState,
+  WeatherMoment,
+  WeatherMomentKind,
+} from '../types/citylit';
 import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, swapTransition } from '../lib/motion';
 import { useFinePointer } from '../hooks/useFinePointer';
 import { WeatherIcon } from './WeatherIcon';
@@ -38,6 +51,13 @@ interface WeatherWidgetProps {
   visible: boolean;
   globeOpen: boolean;
   reducedMotion?: boolean;
+  skyEvent: SkyEvent | null;
+  upcomingSkyEvents: SkyEvent[];
+  weatherMoment: WeatherMoment | null;
+  calendarDay: number;
+  calendarYear: number;
+  onChangeCalendarDate: (year: number, month: number, day: number) => void;
+  onResetCalendarDate: () => void;
   onToggleExpand: () => void;
   onSelectTimePreset: (hour: number) => void;
   onToggleTimeLapse: () => void;
@@ -91,6 +111,21 @@ const WARNING_STYLE: Record<
   },
 };
 
+const SKY_EVENT_ICON: Record<SkyEventKind, typeof Sun> = {
+  'meteor-shower': Meteor,
+  'solar-eclipse': Sun,
+  'lunar-eclipse': Moon,
+  comet: Sparkle,
+};
+
+const WEATHER_MOMENT_ICON: Record<WeatherMomentKind, typeof Sun> = {
+  'highveld-lightning': Lightning,
+  'drakensberg-snow': Snowflake,
+  'cape-point-mist': CloudFog,
+};
+
+const pad2 = (value: number): string => String(value).padStart(2, '0');
+
 export function WeatherWidget({
   weather,
   expanded,
@@ -102,6 +137,13 @@ export function WeatherWidget({
   visible,
   globeOpen,
   reducedMotion = false,
+  skyEvent,
+  upcomingSkyEvents,
+  weatherMoment,
+  calendarDay,
+  calendarYear,
+  onChangeCalendarDate,
+  onResetCalendarDate,
   onToggleExpand,
   onSelectTimePreset,
   onToggleTimeLapse,
@@ -371,6 +413,117 @@ export function WeatherWidget({
                     <span>Oct</span>
                     <span>Dec</span>
                   </div>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between text-[11px] text-[#a9a69e]">
+                    <span className="inline-flex items-center gap-1.5">
+                      <CalendarBlank size={13} /> Sky calendar
+                    </span>
+                    <motion.button
+                      type="button"
+                      whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                      onClick={onResetCalendarDate}
+                      className="text-[10px] text-[#e8b04a] hover:underline cursor-pointer"
+                    >
+                      Today
+                    </motion.button>
+                  </div>
+
+                  <input
+                    type="date"
+                    value={`${calendarYear}-${pad2(month)}-${pad2(calendarDay)}`}
+                    onChange={(e) => {
+                      const [y, m, d] = e.target.value.split('-').map(Number);
+                      if (y && m && d) onChangeCalendarDate(y, m, d);
+                      ambientAudio.playUi('tick');
+                    }}
+                    aria-label="Select date for real sky events"
+                    style={{ colorScheme: 'dark' }}
+                    className="w-full bg-white/[0.04] border border-white/12 rounded-lg px-2 py-1.5 text-[11px] text-[#f3efe6] cursor-pointer"
+                  />
+
+                  <AnimatePresence mode="wait" initial={false}>
+                    {skyEvent ? (
+                      <motion.div
+                        key={skyEvent.id}
+                        initial={reducedMotion ? false : { opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4 }}
+                        transition={reducedMotion ? { duration: 0 } : SPRING.snappy}
+                        className="px-2.5 py-2 rounded-lg border border-[#e8b04a]/35 bg-[#e8b04a]/10"
+                      >
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const Icon = SKY_EVENT_ICON[skyEvent.kind];
+                            return <Icon size={16} weight="fill" className="text-[#e8b04a] shrink-0" />;
+                          })()}
+                          <div className="min-w-0">
+                            <div className="text-[12px] font-semibold text-[#f3efe6] truncate">
+                              {skyEvent.title}
+                            </div>
+                            <div className="text-[10px] font-mono text-[#e8b04a]">
+                              {skyEvent.when} · {skyEvent.cadence} · {Math.round(skyEvent.intensity * 100)}%
+                            </div>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-[10.5px] leading-snug text-[#d6d1c6]">
+                          {skyEvent.detail}
+                        </p>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="quiet-sky"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="text-[10.5px] text-[#7f7d77]"
+                      >
+                        No rare sky event on this date.
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {weatherMoment && (
+                    <div
+                      role="status"
+                      className="flex items-start gap-2 px-2.5 py-2 rounded-lg border border-sky-400/30 bg-sky-400/10"
+                    >
+                      {(() => {
+                        const Icon = WEATHER_MOMENT_ICON[weatherMoment.kind];
+                        return <Icon size={15} weight="fill" className="text-sky-200 shrink-0 mt-px" />;
+                      })()}
+                      <span className="text-[10.5px] leading-snug text-sky-100">
+                        <span className="font-semibold">{weatherMoment.label}:</span>{' '}
+                        {weatherMoment.detail}
+                      </span>
+                    </div>
+                  )}
+
+                  {upcomingSkyEvents.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] uppercase tracking-wider text-[#7f7d77]">
+                        Next in the sky
+                      </div>
+                      {upcomingSkyEvents.map((event) => {
+                        const Icon = SKY_EVENT_ICON[event.kind];
+                        return (
+                          <div
+                            key={event.id}
+                            className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/[0.03]"
+                          >
+                            <span className="inline-flex items-center gap-1.5 min-w-0 text-[10.5px] text-[#d6d1c6]">
+                              <Icon size={12} className="shrink-0 text-[#a9a69e]" />
+                              <span className="truncate">{event.title}</span>
+                            </span>
+                            <span className="shrink-0 font-mono text-[10px] text-[#e8b04a]">
+                              {event.when}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-[10px] text-[#7f7d77]">

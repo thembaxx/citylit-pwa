@@ -1,7 +1,11 @@
+allowBuilds:
+  puppeteer: true
+
 # Targeted override: workbox-build@7.4.1 pins glob@11, which pulls a minimatch
 # version affected by two moderate advisories (GHSA-3g3m-2fjr-6pw4 and
 # GHSA-g3hv-75wg-m249). glob@14 is API-compatible with workbox's globSync usage
 # and depends on the patched minimatch@11.
+# Puppeteer's postinstall fetches the Chrome build it drives.
 overrides:
   "workbox-build>glob": "^14.0.6"
   # Keep a single Three.js instance across the app and its peers (n8ao,

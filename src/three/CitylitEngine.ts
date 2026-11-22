@@ -20,8 +20,10 @@ import type {
   NoteCategory,
   QualityIndex,
   QualitySetting,
+  SkyEvent,
   ThemeSetting,
   WeatherConditionKey,
+  WeatherMoment,
 } from '../types/citylit';
 import {
   boundsFitPlinth,
@@ -2218,6 +2220,18 @@ export class CitylitEngine {
     this.weather.applyLiveSample(sample, timeOfDay);
   }
 
+  /** Show the dated sky-calendar event (meteor shower, eclipse or comet). */
+  setSkyEvent(event: SkyEvent | null): void {
+    this.lastInteractAt = this.elapsed;
+    this.weather.setSkyEvent(event);
+  }
+
+  /** Amplify the scene for a real-condition weather moment at this landmark. */
+  setWeatherMoment(moment: WeatherMoment | null): void {
+    this.lastInteractAt = this.elapsed;
+    this.weather.setWeatherMoment(moment);
+  }
+
   setSeasonMonth(month: number, immediate = false): void {
     this.lastInteractAt = this.elapsed;
     setAnimalSeasonMonth(month);
@@ -2248,6 +2262,7 @@ export class CitylitEngine {
       hemiLight: this.hemiLight,
       scene: this.scene,
       renderer: this.renderer,
+      camera: this.camera,
     });
   }
 
@@ -3816,6 +3831,7 @@ export class CitylitEngine {
         hemiLight: this.hemiLight,
         scene: this.scene,
         renderer: this.renderer,
+        camera: this.camera,
         onThunder: () => {
           ambientAudio.playSfx('thunder');
           this.callbacks.onThunder?.();
@@ -4127,6 +4143,7 @@ export class CitylitEngine {
         hemiLight: this.hemiLight,
         scene: this.scene,
         renderer: this.renderer,
+        camera: this.camera,
         onThunder: () => {
           ambientAudio.playSfx('thunder');
           this.callbacks.onThunder?.();

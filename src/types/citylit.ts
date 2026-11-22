@@ -80,6 +80,33 @@ export interface WeatherDisplayState {
   live?: LiveWeatherSample;
 }
 
+/** Real astronomical phenomena the small sky calendar can show in the scene. */
+export type SkyEventKind = 'meteor-shower' | 'solar-eclipse' | 'lunar-eclipse' | 'comet';
+
+export interface SkyEvent {
+  id: string;
+  kind: SkyEventKind;
+  title: string;
+  detail: string;
+  /** Date label of the event's peak, e.g. "12 Aug" or "12 Aug 2026". */
+  when: string;
+  /** "Annual" for recurring showers, otherwise the event year. */
+  cadence: string;
+  /** 0–1. How strong the visual should be on the selected date. */
+  intensity: number;
+}
+
+/** A place-specific extreme-weather moment driven by a real observation. */
+export type WeatherMomentKind = 'highveld-lightning' | 'drakensberg-snow' | 'cape-point-mist';
+
+export interface WeatherMoment {
+  kind: WeatherMomentKind;
+  label: string;
+  detail: string;
+  /** 0–1. Strength derived from the real measurement. */
+  intensity: number;
+}
+
 export type AmbientKind = 'c' | 'b' | 's' | 'f';
 export type LandmarkBiome =
   | 'coastal'
