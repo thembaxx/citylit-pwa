@@ -18,7 +18,6 @@ import {
   gondola,
   grassTufts,
   instancedMeshes,
-  lampPost,
   litWindowMaterial,
   M,
   MBark,
@@ -50,7 +49,7 @@ import {
   type InstanceTransform,
 } from './primitives';
 import { getSoftTexture, prepareCanvasTexture } from '../shaders';
-import { corniceBand, doorSurround, facadeWindow } from './dioramaKit';
+import { addStreetLampSet, corniceBand, doorSurround, facadeWindow, type StreetLampSpec } from './dioramaKit';
 
 /** One deep Platteklip notch on the north-facing cliff, shared by cap and cliffs. */
 const platteklip = (x: number, z: number): number => {
@@ -227,6 +226,12 @@ export function table(): THREE.Group {
   // Twin volumetric haul + track cables
   catenaryTube(g, [1.0, 1.08, 6.4], [1.0, 2.92, 3.4], 0.14, 0.016, cableMat, 20);
   catenaryTube(g, [1.4, 1.08, 6.4], [1.4, 2.92, 3.4], 0.14, 0.016, cableMat, 20);
+  addStreetLampSet(g, [
+    { x: 0.48, y: 0.54, z: 6.18, kind: 'bollard', scale: 0.9, color: '#ffd58a' },
+    { x: 1.54, y: 0.54, z: 6.18, kind: 'bollard', scale: 0.9, color: '#ffd58a' },
+    { x: 0.52, y: 2.66, z: 3.15, kind: 'bollard', scale: 0.82, color: '#ffd58a' },
+    { x: 1.48, y: 2.66, z: 3.15, kind: 'bollard', scale: 0.82, color: '#ffd58a' },
+  ]);
 
   for (let i = 0; i < 8; i++) {
     const a = 3 + i * 0.2;
@@ -587,8 +592,19 @@ export function union(): THREE.Group {
     add(g, new THREE.TubeGeometry(armCurve, 8, 0.042, 6), bz);
   }
 
-  // Garden lamp posts + Jacaranda avenues
-  for (const lx of [-3.4, -1.4, 1.4, 3.4]) lampPost(g, lx, 0.62, 0.9, 0.48);
+  // Garden Victorian streetlamps, Mandela statue uplights + promenade bollards
+  addStreetLampSet(g, [
+    { x: -3.4, y: 0.62, z: 0.9, kind: 'victorian', scale: 0.92, color: '#ffd488' },
+    { x: -1.4, y: 0.62, z: 0.9, kind: 'victorian', scale: 0.92, color: '#ffd488' },
+    { x: 1.4, y: 0.62, z: 0.9, kind: 'victorian', scale: 0.92, color: '#ffd488' },
+    { x: 3.4, y: 0.62, z: 0.9, kind: 'victorian', scale: 0.92, color: '#ffd488' },
+    { x: -0.62, y: 0.78, z: -0.36, kind: 'uplight', scale: 0.95, color: '#ffe09c', coneHeight: 1.35 },
+    { x: 0.62, y: 0.78, z: -0.36, kind: 'uplight', scale: 0.95, color: '#ffe09c', coneHeight: 1.35 },
+    { x: -4.2, y: 0.07, z: 3.92, kind: 'victorian', scale: 1.02, color: '#ffd080' },
+    { x: -1.9, y: 0.07, z: 3.92, kind: 'victorian', scale: 1.02, color: '#ffd080' },
+    { x: 1.9, y: 0.07, z: 3.92, kind: 'victorian', scale: 1.02, color: '#ffd080' },
+    { x: 4.2, y: 0.07, z: 3.92, kind: 'victorian', scale: 1.02, color: '#ffd080' },
+  ]);
   for (let i = 0; i < 12; i++) {
     tree(g, (i < 6 ? -1 : 1) * (3.6 + (i % 6) * 0.8), 3.2 + (i % 2) * 0.5, 1.15 + R(i) * 0.4, 0);
   }
@@ -778,8 +794,36 @@ export function stadium(): THREE.Group {
   }
   cableBatch(bowl, roofTrussSegs, 0.018, M('#9ea8b4', 0.4, 0.65));
 
-  // Wettable Durban coastal concourse apron
+  // Wettable Durban coastal concourse apron + radial promenade bollards
   add(g, B(11.4, 0.12, 11.4), MWet('#beb8ac', 0.84, 0.18, 0.05, 'stone'), 0, 0.06, 0);
+  const stadiumLamps: StreetLampSpec[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.16;
+    stadiumLamps.push({
+      x: Math.cos(a) * 5.05,
+      y: 0.12,
+      z: Math.sin(a) * 5.05,
+      kind: 'bollard',
+      scale: 0.96,
+      color: '#d8f2ff',
+      poolRadius: 0.92,
+    });
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.5708 + 0.785;
+    stadiumLamps.push({
+      x: Math.cos(a) * 4.82,
+      y: 0.12,
+      z: Math.sin(a) * 4.82,
+      kind: 'uplight',
+      scale: 1.15,
+      color: '#bfe8ff',
+      coneHeight: 2.35,
+      coneRadius: 0.85,
+      poolRadius: 1.05,
+    });
+  }
+  addStreetLampSet(g, stadiumLamps);
   [-1, 1].forEach((s) =>
     add(g, CB(0.65, 0.5, 0.65, 0.04), MStone('#9e9d98', 0.88), -5.6, 0.25, s * 1.7)
   );
@@ -898,18 +942,39 @@ export function bridge(): THREE.Group {
   for (let i = 0; i < 20; i++) dashT.push({ x: -7 + i * 0.75, y: 1.79, z: 0 });
   instancedMeshes(g, B(0.4, 0.01, 0.05), yl, dashT);
 
-  const poleT: InstanceTransform[] = [];
-  const bulbT: InstanceTransform[] = [];
+  const bridgeLamps: StreetLampSpec[] = [];
   [-0.8, 0.8].forEach((z) => {
     add(g, CB(15, 0.1, 0.05, 0.015), wh, 0, 1.82, z);
+    const ry = z > 0 ? Math.PI / 2 : -Math.PI / 2;
     for (let i = 0; i < 5; i++) {
       const x = -5.4 + i * 2.7;
-      poleT.push({ x, y: 2.05, z });
-      bulbT.push({ x, y: 2.35, z });
+      bridgeLamps.push({
+        x,
+        y: 1.82,
+        z,
+        kind: 'cobra',
+        ry,
+        scale: 0.78,
+        color: '#ffbc6b',
+        poolRadius: 1.05,
+      });
     }
   });
-  instancedMeshes(g, C(0.015, 0.02, 0.55, 6), dk, poleT);
-  instancedMeshes(g, new THREE.SphereGeometry(0.05, 8, 8), bd, bulbT);
+  for (const px of [-2.3, 2.5]) {
+    for (const pz of [-0.92, 0.92]) {
+      bridgeLamps.push({
+        x: px,
+        y: 1.8,
+        z: pz,
+        kind: 'uplight',
+        scale: 0.9,
+        color: '#a8d4ff',
+        coneHeight: 2.1,
+        coneRadius: 0.62,
+      });
+    }
+  }
+  addStreetLampSet(g, bridgeLamps);
 
   const cars = [0, 1, 2, 3].map((i) => {
     const c = car(['#c33', '#dedad2', '#36c', '#fc3'][i], 0.5);
@@ -1349,6 +1414,16 @@ export function voortrekker(): THREE.Group {
   instancedMeshes(g, C(0.11, 0.11, 0.56, 8, 1, false, 0, Math.PI).rotateZ(Math.PI / 2), gr, tiltT);
   instancedMeshes(g, new THREE.TorusGeometry(0.1, 0.018, 5, 12), bz, wheelT);
 
+  addStreetLampSet(g, [
+    { x: -0.92, y: 0.2, z: 6.4, kind: 'victorian', scale: 1.02, color: '#ffc970' },
+    { x: 0.92, y: 0.2, z: 6.4, kind: 'victorian', scale: 1.02, color: '#ffc970' },
+    { x: -0.92, y: 0.2, z: 4.35, kind: 'lantern', scale: 0.95, color: '#ffca72' },
+    { x: 0.92, y: 0.2, z: 4.35, kind: 'lantern', scale: 0.95, color: '#ffca72' },
+    { x: -2.42, y: 0.8, z: 2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
+    { x: 2.42, y: 0.8, z: 2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
+    { x: -2.42, y: 0.8, z: -2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
+    { x: 2.42, y: 0.8, z: -2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
+  ]);
   for (let i = 0; i < 6; i++) {
     const a = i * 1.05 + 0.4;
     tree(g, 7.1 * Math.cos(a), 7.1 * Math.sin(a), 0.82, 2);
@@ -1505,6 +1580,12 @@ export function capePoint(): THREE.Group {
   add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railRightPts), 40, 0.018, 6, false), railMat);
   instancedMeshes(g, CB(0.05, 0.022, 0.24, 0.005), MWood('#5c4632', 0.88), sleeperT);
   const funicularCar = add(g, CB(0.24, 0.16, 0.18, 0.02), M('#d8d2c4', 0.68), 3.9, 0.55, -2.6);
+  addStreetLampSet(g, [
+    { x: 3.35, y: 0.33, z: -2.15, kind: 'lantern', scale: 0.9, color: '#ffcf80' },
+    { x: 4.35, y: 0.33, z: -2.95, kind: 'lantern', scale: 0.9, color: '#ffcf80' },
+    { x: 3.65, y: 0.33, z: -3.2, kind: 'bollard', scale: 0.9, color: '#ffcf80' },
+    { x: -1.18, y: 3.56, z: -0.42, kind: 'lantern', scale: 0.82, color: '#ffd98e' },
+  ]);
 
   // Sandy cove with turquoise shallows and drifting surf rings.
   const beachX = 4.6;
@@ -1682,9 +1763,18 @@ export function bokaap(): THREE.Group {
       add(g, CB(1.68, 0.09, 0.14, 0.02), MPlaster('#ddd5c4', 0.8), x, b0 + h + 0.04, z + 0.66);
     }
     if (r === 0) {
-      lampPost(g, -5.1, b0, z + 0.85, 0.55);
-      lampPost(g, 0, b0, z + 0.85, 0.55);
-      lampPost(g, 5.1, b0, z + 0.85, 0.55);
+      addStreetLampSet(g, [
+        { x: -5.0, y: b0, z: z + 0.86, kind: 'victorian', scale: 0.95, color: '#ffd280' },
+        { x: -1.65, y: b0, z: z + 0.86, kind: 'victorian', scale: 0.95, color: '#ffd280' },
+        { x: 1.65, y: b0, z: z + 0.86, kind: 'victorian', scale: 0.95, color: '#ffd280' },
+        { x: 5.0, y: b0, z: z + 0.86, kind: 'victorian', scale: 0.95, color: '#ffd280' },
+      ]);
+    } else if (r === 1) {
+      addStreetLampSet(g, [
+        { x: -3.3, y: b0, z: z + 0.86, kind: 'victorian', scale: 0.88, color: '#ffc970' },
+        { x: 0.0, y: b0, z: z + 0.86, kind: 'victorian', scale: 0.88, color: '#ffc970' },
+        { x: 3.3, y: b0, z: z + 0.86, kind: 'victorian', scale: 0.88, color: '#ffc970' },
+      ]);
     }
   }
   instancedMeshes(g, CB(0.4, 0.07, 0.16, 0.02), MWood('#6a4a32', 0.86), benchT);
@@ -1700,6 +1790,10 @@ export function bokaap(): THREE.Group {
   for (const dx of [-0.28, 0.28]) {
     add(g, CB(0.24, 0.68, 0.06, 0.02), darkGreen, 5.9 + dx, 0.68, -0.45);
   }
+  addStreetLampSet(g, [
+    { x: 5.35, y: 0.3, z: -0.34, kind: 'lantern', scale: 0.92, color: '#ffe094' },
+    { x: 6.45, y: 0.3, z: -0.34, kind: 'lantern', scale: 0.92, color: '#ffe094' },
+  ]);
   // Slender 3-tier square minaret with sage cornice gallery + octagonal cupola + brass spire
   add(g, CB(0.32, 1.6, 0.32, 0.02), wh, 6.65, 1.1, -2.05);
   add(g, CB(0.42, 0.08, 0.42, 0.02), sage, 6.65, 1.92, -2.05);
@@ -1805,6 +1899,34 @@ export function soccer(): THREE.Group {
     lampT.push({ x: 5.05 * Math.cos(a), y: 0.27, z: 5.05 * Math.sin(a) });
   }
   instancedMeshes(g, new THREE.SphereGeometry(0.09, 8, 6), fire, lampT);
+  const soccerLamps: StreetLampSpec[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    soccerLamps.push({
+      x: 4.74 * Math.cos(a),
+      y: 0.2,
+      z: 4.74 * Math.sin(a),
+      kind: 'uplight',
+      scale: 1.05,
+      color: '#ffaa55',
+      coneHeight: 2.1,
+      coneRadius: 0.72,
+    });
+  }
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.39;
+    soccerLamps.push({
+      x: 5.55 * Math.cos(a),
+      y: 0.2,
+      z: 5.55 * Math.sin(a),
+      kind: 'flood',
+      ry: -a + Math.PI,
+      scale: 0.95,
+      color: '#ffd999',
+      poolRadius: 1.45,
+    });
+  }
+  addStreetLampSet(g, soccerLamps);
   for (let i = 0; i < 8; i++) {
     const a = i * 0.785 + 0.3;
     tree(g, 6.9 * Math.cos(a), 6.9 * Math.sin(a), 0.9, 2);
@@ -2327,6 +2449,14 @@ export function castle(): THREE.Group {
   add(g, new THREE.SphereGeometry(0.1, 12, 8), M('#5a624f', 0.48, 0.6), 0, 1.9, gateZ);
   add(g, new THREE.ConeGeometry(0.56, 0.44, 4), rf, 0, 2.44, gateZ).rotation.y = Math.PI / 4;
 
+  addStreetLampSet(g, [
+    { x: -0.78, y: 0.2, z: 3.92, kind: 'lantern', scale: 0.95, color: '#ffce75' },
+    { x: 0.78, y: 0.2, z: 3.92, kind: 'lantern', scale: 0.95, color: '#ffce75' },
+    { x: -0.84, y: 0.2, z: 1.48, kind: 'victorian', scale: 0.88, color: '#ffd382' },
+    { x: 0.84, y: 0.2, z: 1.48, kind: 'victorian', scale: 0.88, color: '#ffd382' },
+    { x: -1.18, y: 0.2, z: 1.88, kind: 'lantern', scale: 0.85, color: '#ffd382' },
+    { x: 0, y: 0.2, z: 2.6, kind: 'uplight', scale: 0.9, color: '#ffcb74', coneHeight: 1.35 },
+  ]);
   for (let i = 0; i < 6; i++) {
     const a = i * 1.05 + 0.5;
     tree(g, 6.6 * Math.cos(a), 6.6 * Math.sin(a), 0.8, 1);
@@ -2572,6 +2702,16 @@ export function palace(): THREE.Group {
   }
   add(g, C(2.9, 3.05, 0.09, 36, 1, false, -Math.PI / 2, Math.PI), MStone('#dbcaa0', 0.92), 0, 0.21, 3.5);
   add(g, C(2.45, 2.45, 0.07, 36, 1, false, -Math.PI / 2, Math.PI), MWater('#4e989c', 0.08, 0.22), 0, 0.23, 3.5);
+  addStreetLampSet(g, [
+    { x: -3.6, y: 0.2, z: 4.45, kind: 'lantern', scale: 1.0, color: '#ffd278' },
+    { x: -1.65, y: 0.2, z: 4.55, kind: 'lantern', scale: 1.0, color: '#ffd278' },
+    { x: 1.65, y: 0.2, z: 4.55, kind: 'lantern', scale: 1.0, color: '#ffd278' },
+    { x: 3.6, y: 0.2, z: 4.45, kind: 'lantern', scale: 1.0, color: '#ffd278' },
+    { x: -1.28, y: 0.2, z: 2.65, kind: 'bollard', scale: 0.95, color: '#ffe092' },
+    { x: 1.28, y: 0.2, z: 2.65, kind: 'bollard', scale: 0.95, color: '#ffe092' },
+    { x: -4.25, y: 0.54, z: -1.15, kind: 'uplight', scale: 1.05, color: '#ffd078', coneHeight: 2.0 },
+    { x: 4.25, y: 0.54, z: -1.15, kind: 'uplight', scale: 1.05, color: '#ffd078', coneHeight: 2.0 },
+  ]);
   for (let i = 0; i < 8; i++) tree(g, -5.2 + i * 1.5, 5.25, 0.95, 3, 0.2);
 
   g.userData.tick = drift(g, 50, '#ffe08a', 0.07, (i, t) => [
@@ -2832,12 +2972,36 @@ export function ponte(): THREE.Group {
   }
   cableBatch(g, framePosts, 0.02, M('#b8bcc2', 0.4, 0.7));
 
+  const ponteBuildingCoords: Array<[number, number]> = [];
   for (let i = 0; i < 14; i++) {
     const a = i * 0.9;
     const r = 3.3 + R(i) * 2.9;
     const h = 1 + R(i + 4) * 3;
-    add(g, CB(0.92, h, 0.92, 0.04), wm, r * Math.cos(a), 0.2 + h / 2, r * Math.sin(a));
+    const bx = r * Math.cos(a);
+    const bz = r * Math.sin(a);
+    ponteBuildingCoords.push([bx, bz]);
+    add(g, CB(0.92, h, 0.92, 0.04), wm, bx, 0.2 + h / 2, bz);
   }
+  const ponteLamps: StreetLampSpec[] = [];
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + 0.14;
+    const lx = 4.78 * Math.cos(a);
+    const lz = 4.78 * Math.sin(a);
+    const blocked = ponteBuildingCoords.some(([bx, bz]) => Math.hypot(bx - lx, bz - lz) < 0.78);
+    if (!blocked) {
+      ponteLamps.push({
+        x: lx,
+        y: 0.2,
+        z: lz,
+        kind: 'cobra',
+        ry: -a,
+        scale: 0.9,
+        color: '#ff9c3c',
+        poolRadius: 1.22,
+      });
+    }
+  }
+  addStreetLampSet(g, ponteLamps);
   const cs = Array.from({ length: 8 }, (_, i) => {
     const c = car(['#c33', '#eee', '#36c', '#fc3', '#2a9d8f', '#222', '#e76f51', '#ddd'][i], 0.45);
     g.add(c);
@@ -3077,6 +3241,12 @@ export function agulhas(): THREE.Group {
   add(g, C(0.18, 0.26, 0.38, 8), MStone('#686058', 0.94), 2.35, 0.78, 2.25);
   add(g, CB(0.24, 0.18, 0.03, 0.005), M('#c9a24b', 0.35, 0.8), 2.35, 0.76, 2.46);
   add(g, CB(1.75, 0.08, 0.44, 0.02), MWood('#8a6d48', 0.88), 1.3, 0.5, 1.9).rotation.y = -0.25;
+  addStreetLampSet(g, [
+    { x: -1.45, y: 0.42, z: 1.05, kind: 'lantern', scale: 0.85, color: '#ffd990' },
+    { x: 0.55, y: 0.53, z: 1.56, kind: 'bollard', scale: 0.8, color: '#ffcf7d' },
+    { x: 1.25, y: 0.53, z: 1.74, kind: 'bollard', scale: 0.8, color: '#ffcf7d' },
+    { x: 1.95, y: 0.53, z: 1.92, kind: 'bollard', scale: 0.8, color: '#ffcf7d' },
+  ]);
 
   const bm = new THREE.Group();
   bm.position.set(-0.4, 4.57, 0);

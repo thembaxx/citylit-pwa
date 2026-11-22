@@ -30,6 +30,10 @@ const MiniatureShader = {
     uContrast: { value: 1.0 },
     uSaturation: { value: 1.05 },
     uShadowLift: { value: 0.0 },
+    uShadowTint: { value: new THREE.Vector3(0.95, 0.98, 1.06) },
+    uHighlightTint: { value: new THREE.Vector3(1.05, 1.01, 0.95) },
+    uNightFactor: { value: 0.0 },
+    uClarity: { value: 0.22 },
     toneMappingExposure: { value: 1.08 },
   },
   vertexShader: /* glsl */ `
@@ -57,6 +61,10 @@ const MiniatureShader = {
     uniform float uContrast;
     uniform float uSaturation;
     uniform float uShadowLift;
+    uniform vec3 uShadowTint;
+    uniform vec3 uHighlightTint;
+    uniform float uNightFactor;
+    uniform float uClarity;
     varying vec2 vUv;
 
     float linearDepth(vec2 uv) {
@@ -69,14 +77,13 @@ const MiniatureShader = {
       float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
       c = mix(vec3(luma), c, uSaturation);
       // Pivot contrast in linear HDR. This separates pale masonry from dark
-      // rock without changing the authored albedo hues of any landmark.
+      // rock without washing out crisp silhouette edges.
       c = max(vec3(0.0), (c - 0.10) * uContrast + 0.10);
-      // Gentle cool-shadow / warm-highlight split for a photographic finish.
-      c *= mix(vec3(0.97, 0.99, 1.05), vec3(1.04, 1.01, 0.96), smoothstep(0.15, 0.85, luma));
-      // Lift only dim material tones, never the near-black night sky. The band
-      // starts above the background level and falls off before the midtones.
-      float dimBand = smoothstep(0.004, 0.024, luma) * (1.0 - smoothstep(0.06, 0.18, luma));
-      c += uShadowLift * dimBand;
+      // Per-landmark AAA split-tone grading (cool crevice ink / luminous key highlight).
+      c *= mix(uShadowTint, uHighlightTint, smoothstep(0.14, 0.86, luma));
+      // Lift dim material tones (more subtly during day, deeper relief at night) while keeping sky ink clean.
+      float dimBand = smoothstep(0.004, 0.026, luma) * (1.0 - smoothstep(0.075, 0.24, luma));
+      c += (uShadowLift + uNightFactor * 0.014) * dimBand;
       return c;
     }
 
@@ -106,6 +113,18 @@ const MiniatureShader = {
           total += 0.084;
         }
         col /= total;
+      } else if (uClarity > 0.005) {
+        // Fast 4-tap focal micro-clarity inside the sharp plane so fine stonework, leaves,
+        // and architectural moldings stay razor-crisp against the soft bokeh fringe.
+        vec2 stepUv = 1.0 / max(uResolution, vec2(1.0));
+        vec3 nSum =
+          texture2D(tDiffuse, clamp(vUv + vec2(stepUv.x, 0.0), 0.001, 0.999)).rgb +
+          texture2D(tDiffuse, clamp(vUv - vec2(stepUv.x, 0.0), 0.001, 0.999)).rgb +
+          texture2D(tDiffuse, clamp(vUv + vec2(0.0, stepUv.y), 0.001, 0.999)).rgb +
+          texture2D(tDiffuse, clamp(vUv - vec2(0.0, stepUv.y), 0.001, 0.999)).rgb;
+        vec3 detail = col.rgb - nSum * 0.25;
+        float focusMask = 1.0 - smoothstep(0.0, 0.02, blurAmt);
+        col.rgb = max(vec3(0.0), col.rgb + detail * (uClarity * focusMask));
       }
 
       col.rgb = grade(col.rgb);
@@ -132,12 +151,22 @@ const MiniatureShader = {
   `,
 };
 
+export interface MiniatureGradeOptions {
+  contrast?: number;
+  saturation?: number;
+  shadowLift?: number;
+  shadowTint?: readonly [number, number, number];
+  highlightTint?: readonly [number, number, number];
+  clarity?: number;
+  nightFactor?: number;
+}
+
 export interface MiniaturePass extends ShaderPass {
   setResolution(width: number, height: number): void;
   setDepth(texture: THREE.Texture | null, near: number, far: number): void;
   setFocus(distance: number, depthRange?: number, aperture?: number): void;
   setExposure(exposure: number): void;
-  setGrade(grade: { contrast?: number; saturation?: number; shadowLift?: number }): void;
+  setGrade(grade: MiniatureGradeOptions): void;
   applyTuning(tuning: Partial<MiniatureTuning>): void;
 }
 
@@ -210,6 +239,22 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
     if (grade.contrast !== undefined) pass.uniforms.uContrast.value = grade.contrast;
     if (grade.saturation !== undefined) pass.uniforms.uSaturation.value = grade.saturation;
     if (grade.shadowLift !== undefined) pass.uniforms.uShadowLift.value = grade.shadowLift;
+    if (grade.shadowTint !== undefined) {
+      (pass.uniforms.uShadowTint.value as THREE.Vector3).set(
+        grade.shadowTint[0],
+        grade.shadowTint[1],
+        grade.shadowTint[2]
+      );
+    }
+    if (grade.highlightTint !== undefined) {
+      (pass.uniforms.uHighlightTint.value as THREE.Vector3).set(
+        grade.highlightTint[0],
+        grade.highlightTint[1],
+        grade.highlightTint[2]
+      );
+    }
+    if (grade.clarity !== undefined) pass.uniforms.uClarity.value = grade.clarity;
+    if (grade.nightFactor !== undefined) pass.uniforms.uNightFactor.value = grade.nightFactor;
   };
 
   pass.applyTuning = (tuning: Partial<MiniatureTuning>) => {
@@ -223,3 +268,4 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
   pass.applyTuning(initialTuning);
   return pass;
 }
+

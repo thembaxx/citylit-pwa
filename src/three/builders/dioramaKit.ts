@@ -1404,12 +1404,11 @@ function addWindpump(g: THREE.Group, angle: number): Update[] {
 
 function addBollards(g: THREE.Group, angle: number): Update[] {
   const grp = anchorGroup(g, angle, 0);
-  const steel = MSteel('#3c4248', 0.55, 0.75);
-  for (let i = 0; i < 3; i++) {
-    const z = (i - 1) * 0.55;
-    add(grp, C(0.05, 0.06, 0.22, 10), steel, 7.2, 0.3, z);
-    add(grp, new THREE.SphereGeometry(0.055, 10, 8), G('#ffd9a0', 1.0), 7.2, 0.42, z);
-  }
+  addStreetLampSet(grp, [
+    { x: 7.2, y: 0.19, z: -0.55, kind: 'bollard', scale: 1.0, color: '#ffd9a0', poolRadius: 0.72 },
+    { x: 7.2, y: 0.19, z: 0, kind: 'bollard', scale: 1.0, color: '#ffd9a0', poolRadius: 0.72 },
+    { x: 7.2, y: 0.19, z: 0.55, kind: 'bollard', scale: 1.0, color: '#ffd9a0', poolRadius: 0.72 },
+  ]);
   add(grp, CB(0.5, 0.2, 0.3, 0.02), MStone('#8a8378', 0.9), 7.1, 0.29, 0);
   mergeByMaterial(grp);
   grassTufts(grp, [{ x: 7.1, y: 0.4, z: 0 }], ['#5c7a42', '#7a8f4c']);
@@ -2010,6 +2009,536 @@ export function doorSurround(g: THREE.Group, spec: DoorSurroundSpec): THREE.Grou
   add(grp, CB(w + bar * 2, bar, d, 0.012), jamb, 0, h * 0.5 + bar * 0.5, 0);
   add(grp, CB(w + bar * 2, 0.03, d * 1.2, 0.008), jamb, 0, -h * 0.5 - 0.015, d * 0.1);
   return mergeByMaterial(grp);
+}
+
+/* ------------------------------------------------------------------ */
+/* Batched streetlights, bollards & night illumination pools           */
+/* ------------------------------------------------------------------ */
+
+export type StreetLampKind = 'victorian' | 'cobra' | 'bollard' | 'flood' | 'lantern' | 'uplight';
+
+export interface StreetLampSpec {
+  x: number;
+  y: number;
+  z: number;
+  kind?: StreetLampKind;
+  /** Yaw around Y in radians (orients cobra arm / flood face). */
+  ry?: number;
+  /** Uniform fixture scale (default 1). */
+  scale?: number;
+  /** Bulb, cone & ground-pool tint (default warm tungsten/amber). */
+  color?: THREE.ColorRepresentation;
+  /** Ground light pool radius (default chosen per kind). */
+  poolRadius?: number;
+  /** Volumetric haze cone height (default chosen per kind). */
+  coneHeight?: number;
+  /** Volumetric haze cone outer radius (default chosen per kind). */
+  coneRadius?: number;
+}
+
+interface LampArchetype {
+  bulbOffset: readonly [number, number, number];
+  bulbRadius: readonly [number, number, number];
+  poolOffset: readonly [number, number];
+  poolRadius: number;
+  coneHeight: number;
+  coneRadius: number;
+  upward: boolean;
+}
+
+const LAMP_ARCHETYPES: Record<StreetLampKind, LampArchetype> = {
+  victorian: {
+    bulbOffset: [0, 0.62, 0],
+    bulbRadius: [0.046, 0.052, 0.046],
+    poolOffset: [0, 0],
+    poolRadius: 0.98,
+    coneHeight: 0.6,
+    coneRadius: 0.56,
+    upward: false,
+  },
+  cobra: {
+    bulbOffset: [0.16, 0.78, 0],
+    bulbRadius: [0.048, 0.028, 0.036],
+    poolOffset: [0.16, 0],
+    poolRadius: 1.28,
+    coneHeight: 0.76,
+    coneRadius: 0.74,
+    upward: false,
+  },
+  bollard: {
+    bulbOffset: [0, 0.255, 0],
+    bulbRadius: [0.048, 0.042, 0.048],
+    poolOffset: [0, 0],
+    poolRadius: 0.68,
+    coneHeight: 0.25,
+    coneRadius: 0.36,
+    upward: false,
+  },
+  flood: {
+    bulbOffset: [0.06, 0.58, 0],
+    bulbRadius: [0.055, 0.042, 0.075],
+    poolOffset: [0.12, 0],
+    poolRadius: 1.65,
+    coneHeight: 0.62,
+    coneRadius: 0.96,
+    upward: false,
+  },
+  lantern: {
+    bulbOffset: [0, 0.38, 0],
+    bulbRadius: [0.042, 0.048, 0.042],
+    poolOffset: [0, 0],
+    poolRadius: 0.82,
+    coneHeight: 0.37,
+    coneRadius: 0.44,
+    upward: false,
+  },
+  uplight: {
+    bulbOffset: [0, 0.038, 0],
+    bulbRadius: [0.044, 0.018, 0.044],
+    poolOffset: [0, 0],
+    poolRadius: 0.52,
+    coneHeight: 1.05,
+    coneRadius: 0.52,
+    upward: true,
+  },
+};
+
+const lampGeoCache: Partial<Record<StreetLampKind, THREE.BufferGeometry>> = {};
+let lampBulbGeoShared: THREE.SphereGeometry | null = null;
+let lampPoolGeoShared: THREE.BufferGeometry | null = null;
+let lampDownConeGeoShared: THREE.BufferGeometry | null = null;
+let lampUpConeGeoShared: THREE.BufferGeometry | null = null;
+let lampBulbMatShared: THREE.ShaderMaterial | null = null;
+let lampPoolMatShared: THREE.ShaderMaterial | null = null;
+let lampDownConeMatShared: THREE.ShaderMaterial | null = null;
+let lampUpConeMatShared: THREE.ShaderMaterial | null = null;
+
+function markSharedGeo<T extends THREE.BufferGeometry>(geo: T): T {
+  geo.userData.sharedResource = true;
+  return geo;
+}
+
+function getLampHardwareGeo(kind: StreetLampKind): THREE.BufferGeometry {
+  const existing = lampGeoCache[kind];
+  if (existing) return existing;
+
+  const parts: THREE.BufferGeometry[] = [];
+  if (kind === 'victorian') {
+    parts.push(new THREE.CylinderGeometry(0.042, 0.058, 0.12, 8).translate(0, 0.06, 0));
+    parts.push(new THREE.CylinderGeometry(0.018, 0.032, 0.46, 8).translate(0, 0.35, 0));
+    parts.push(new THREE.CylinderGeometry(0.045, 0.024, 0.04, 8).translate(0, 0.58, 0));
+    parts.push(new THREE.ConeGeometry(0.068, 0.075, 6).translate(0, 0.695, 0));
+    parts.push(new THREE.BoxGeometry(0.11, 0.014, 0.014).translate(0, 0.52, 0));
+  } else if (kind === 'cobra') {
+    parts.push(new THREE.CylinderGeometry(0.038, 0.05, 0.09, 8).translate(0, 0.045, 0));
+    parts.push(new THREE.CylinderGeometry(0.018, 0.03, 0.72, 8).translate(0, 0.41, 0));
+    const arm = new THREE.CylinderGeometry(0.013, 0.016, 0.19, 6);
+    arm.rotateZ(-Math.PI / 2.25);
+    arm.translate(0.085, 0.785, 0);
+    parts.push(arm);
+    parts.push(new THREE.BoxGeometry(0.11, 0.026, 0.064).translate(0.165, 0.805, 0));
+  } else if (kind === 'bollard') {
+    parts.push(new THREE.CylinderGeometry(0.046, 0.056, 0.24, 10).translate(0, 0.12, 0));
+    parts.push(new THREE.CylinderGeometry(0.052, 0.052, 0.028, 10).translate(0, 0.295, 0));
+  } else if (kind === 'flood') {
+    parts.push(new THREE.CylinderGeometry(0.036, 0.048, 0.08, 8).translate(0, 0.04, 0));
+    parts.push(new THREE.CylinderGeometry(0.02, 0.03, 0.52, 8).translate(0, 0.3, 0));
+    parts.push(new THREE.BoxGeometry(0.09, 0.07, 0.15).rotateZ(-0.28).translate(0.035, 0.59, 0));
+  } else if (kind === 'lantern') {
+    parts.push(new THREE.CylinderGeometry(0.028, 0.04, 0.06, 8).translate(0, 0.03, 0));
+    parts.push(new THREE.CylinderGeometry(0.014, 0.022, 0.31, 8).translate(0, 0.19, 0));
+    parts.push(new THREE.ConeGeometry(0.062, 0.065, 6).translate(0, 0.445, 0));
+  } else {
+    parts.push(new THREE.CylinderGeometry(0.068, 0.076, 0.036, 12).translate(0, 0.018, 0));
+  }
+
+  const merged = mergeGeometries(parts, false);
+  for (const p of parts) p.dispose();
+  if (!merged) {
+    const fallback = markSharedGeo(new THREE.CylinderGeometry(0.02, 0.03, 0.4, 6).translate(0, 0.2, 0));
+    lampGeoCache[kind] = fallback;
+    return fallback;
+  }
+  merged.computeBoundingSphere();
+  markSharedGeo(merged);
+  lampGeoCache[kind] = merged;
+  return merged;
+}
+
+function getLampBulbGeo(): THREE.SphereGeometry {
+  if (!lampBulbGeoShared) {
+    lampBulbGeoShared = markSharedGeo(new THREE.SphereGeometry(1, 10, 8));
+  }
+  return lampBulbGeoShared;
+}
+
+function getLampPoolGeo(): THREE.BufferGeometry {
+  if (!lampPoolGeoShared) {
+    lampPoolGeoShared = markSharedGeo(new THREE.CircleGeometry(1, 22).rotateX(-Math.PI / 2));
+  }
+  return lampPoolGeoShared;
+}
+
+function getLampConeGeo(upward: boolean): THREE.BufferGeometry {
+  if (upward) {
+    if (!lampUpConeGeoShared) {
+      lampUpConeGeoShared = markSharedGeo(
+        new THREE.CylinderGeometry(1.0, 0.14, 1.0, 16, 1, true).translate(0, 0.5, 0)
+      );
+    }
+    return lampUpConeGeoShared;
+  }
+  if (!lampDownConeGeoShared) {
+    lampDownConeGeoShared = markSharedGeo(
+      new THREE.CylinderGeometry(0.16, 1.0, 1.0, 16, 1, true).translate(0, -0.5, 0)
+    );
+  }
+  return lampDownConeGeoShared;
+}
+
+function getLampBulbMat(): THREE.ShaderMaterial {
+  if (lampBulbMatShared) return lampBulbMatShared;
+  lampBulbMatShared = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uWT: WU.t,
+      uDY: WU.dy,
+    },
+    vertexShader: `
+      varying vec3 vWorldPos;
+      varying vec3 vNorm;
+      varying vec3 vViewDir;
+      varying vec3 vLampCol;
+      void main() {
+        #ifdef USE_INSTANCING_COLOR
+          vLampCol = instanceColor;
+        #else
+          vLampCol = vec3(1.0, 0.8, 0.45);
+        #endif
+        vec4 localPos = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+          vec4 worldPos = modelMatrix * instanceMatrix * localPos;
+          vec3 instN = mat3(instanceMatrix) * normal;
+        #else
+          vec4 worldPos = modelMatrix * localPos;
+          vec3 instN = normal;
+        #endif
+        vWorldPos = worldPos.xyz;
+        vec4 mvPos = viewMatrix * worldPos;
+        vNorm = normalize(normalMatrix * instN);
+        vViewDir = normalize(-mvPos.xyz);
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit;
+      uniform float uWT;
+      uniform float uDY;
+      varying vec3 vWorldPos;
+      varying vec3 vNorm;
+      varying vec3 vViewDir;
+      varying vec3 vLampCol;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        vec3 cc = floor(vWorldPos * 3.0);
+        float hh = fract(sin(dot(cc, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        float on = smoothstep(hh * 0.45, hh * 0.45 + 0.28, uLit);
+        float shimmer = 0.93 + 0.07 * sin(uWT * (2.8 + hh * 3.2) + hh * 24.0);
+        float fresnel = pow(clamp(dot(normalize(vNorm), normalize(vViewDir)), 0.0, 1.0), 0.7);
+        vec3 core = mix(vLampCol * 0.58, vLampCol * 1.45 + vec3(0.24, 0.18, 0.08), on * shimmer);
+        vec3 col = mix(core * 0.85, core * 1.18, fresnel);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    toneMapped: true,
+  });
+  lampBulbMatShared.userData.sharedResource = true;
+  lampBulbMatShared.userData.noDissolve = true;
+  return lampBulbMatShared;
+}
+
+function getLampPoolMat(): THREE.ShaderMaterial {
+  if (lampPoolMatShared) return lampPoolMatShared;
+  lampPoolMatShared = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uWT: WU.t,
+      uDY: WU.dy,
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        vUv = uv;
+        #ifdef USE_INSTANCING_COLOR
+          vLampCol = instanceColor;
+        #else
+          vLampCol = vec3(1.0, 0.78, 0.44);
+        #endif
+        vec4 localPos = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+          vec4 worldPos = modelMatrix * instanceMatrix * localPos;
+        #else
+          vec4 worldPos = modelMatrix * localPos;
+        #endif
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit;
+      uniform float uWT;
+      uniform float uDY;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float litVis = smoothstep(0.06, 0.86, uLit);
+        if (litVis <= 0.002) discard;
+        float r = length((vUv - 0.5) * 2.0);
+        if (r >= 1.0) discard;
+        float falloff = pow(1.0 - r, 2.15);
+        float hotspot = exp(-r * r * 5.2) * 0.42;
+        float pulse = 0.95 + 0.05 * sin(uWT * 2.1 + vWorldPos.x * 1.7 + vWorldPos.z * 1.3);
+        float alpha = (falloff * 0.44 + hotspot) * litVis * pulse;
+        gl_FragColor = vec4(vLampCol * alpha * 1.35, alpha);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
+    toneMapped: false,
+  });
+  lampPoolMatShared.userData.sharedResource = true;
+  lampPoolMatShared.userData.noDissolve = true;
+  return lampPoolMatShared;
+}
+
+function getLampConeMat(upward: boolean): THREE.ShaderMaterial {
+  if (upward && lampUpConeMatShared) return lampUpConeMatShared;
+  if (!upward && lampDownConeMatShared) return lampDownConeMatShared;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uDY: WU.dy,
+      uUpward: { value: upward ? 1.0 : 0.0 },
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vNorm;
+      varying vec3 vViewDir;
+      varying vec3 vLampCol;
+      void main() {
+        vUv = uv;
+        #ifdef USE_INSTANCING_COLOR
+          vLampCol = instanceColor;
+        #else
+          vLampCol = vec3(1.0, 0.8, 0.45);
+        #endif
+        vec4 localPos = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+          vec4 worldPos = modelMatrix * instanceMatrix * localPos;
+          vec3 instN = mat3(instanceMatrix) * normal;
+        #else
+          vec4 worldPos = modelMatrix * localPos;
+          vec3 instN = normal;
+        #endif
+        vWorldPos = worldPos.xyz;
+        vec4 mvPos = viewMatrix * worldPos;
+        vNorm = normalize(normalMatrix * instN);
+        vViewDir = normalize(-mvPos.xyz);
+        gl_Position = projectionMatrix * mvPos;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit;
+      uniform float uDY;
+      uniform float uUpward;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vNorm;
+      varying vec3 vViewDir;
+      varying vec3 vLampCol;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float litVis = smoothstep(0.08, 0.9, uLit);
+        if (litVis <= 0.002) discard;
+        float t = mix(vUv.y, 1.0 - vUv.y, uUpward);
+        float axial = pow(clamp(t, 0.0, 1.0), 1.05) * smoothstep(0.0, 0.3, t) * smoothstep(1.0, 0.86, t);
+        float edge = pow(abs(dot(normalize(vNorm), normalize(vViewDir))), 1.4);
+        float strength = uUpward > 0.5 ? 0.16 : 0.125;
+        float alpha = axial * edge * litVis * strength;
+        gl_FragColor = vec4(vLampCol * alpha * 1.3, alpha);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  mat.userData.sharedResource = true;
+  mat.userData.noDissolve = true;
+  if (upward) lampUpConeMatShared = mat;
+  else lampDownConeMatShared = mat;
+  return mat;
+}
+
+const lampPoolColorTmp = new THREE.Color();
+
+/**
+ * Adds instanced streetlamps, bollards, lanterns, floodlights or architectural
+ * uplights with GPU-driven `WU.lit` bulbs, additive haze cones and soft
+ * ground light pools. Costs only a handful of batched draw calls per landmark.
+ */
+export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSpec[]): void {
+  if (!specs.length) return;
+
+  const byKind = new Map<StreetLampKind, InstanceTransform[]>();
+  const bulbTransforms: InstanceTransform[] = [];
+  const bulbColors: THREE.ColorRepresentation[] = [];
+  const poolTransforms: InstanceTransform[] = [];
+  const poolColors: THREE.ColorRepresentation[] = [];
+  const downConeTransforms: InstanceTransform[] = [];
+  const downConeColors: THREE.ColorRepresentation[] = [];
+  const upConeTransforms: InstanceTransform[] = [];
+  const upConeColors: THREE.ColorRepresentation[] = [];
+
+  for (let i = 0; i < specs.length; i++) {
+    const s = specs[i];
+    const kind: StreetLampKind = s.kind ?? 'victorian';
+    const arch = LAMP_ARCHETYPES[kind];
+    const sc = s.scale ?? 1;
+    const ry = s.ry ?? 0;
+    const cosR = Math.cos(ry);
+    const sinR = Math.sin(ry);
+    const col = s.color ?? (kind === 'cobra' ? '#ffb25c' : kind === 'flood' ? '#e2f0ff' : '#ffd280');
+
+    let kindList = byKind.get(kind);
+    if (!kindList) {
+      kindList = [];
+      byKind.set(kind, kindList);
+    }
+    kindList.push({ x: s.x, y: s.y, z: s.z, ry, sx: sc, sy: sc, sz: sc });
+
+    // Local [lx, lz] rotated around Y by ry: x' = lx*cos(ry) + lz*sin(ry), z' = -lx*sin(ry) + lz*cos(ry)
+    const [bx, by, bz] = arch.bulbOffset;
+    const worldBx = s.x + (bx * cosR + bz * sinR) * sc;
+    const worldBy = s.y + by * sc;
+    const worldBz = s.z + (-bx * sinR + bz * cosR) * sc;
+    bulbTransforms.push({
+      x: worldBx,
+      y: worldBy,
+      z: worldBz,
+      ry,
+      sx: arch.bulbRadius[0] * sc,
+      sy: arch.bulbRadius[1] * sc,
+      sz: arch.bulbRadius[2] * sc,
+    });
+    bulbColors.push(col);
+
+    const [px, pz] = arch.poolOffset;
+    const poolR = (s.poolRadius ?? arch.poolRadius) * sc;
+    poolTransforms.push({
+      x: s.x + (px * cosR + pz * sinR) * sc,
+      y: s.y + 0.016,
+      z: s.z + (-px * sinR + pz * cosR) * sc,
+      sx: poolR,
+      sy: 1,
+      sz: poolR,
+    });
+    poolColors.push(lampPoolColorTmp.set(col).getHex());
+
+    const coneH = (s.coneHeight ?? arch.coneHeight) * sc;
+    const coneR = (s.coneRadius ?? arch.coneRadius) * sc;
+    if (coneH > 0.02 && coneR > 0.02) {
+      const coneTransform: InstanceTransform = {
+        x: worldBx,
+        y: worldBy,
+        z: worldBz,
+        ry,
+        sx: coneR,
+        sy: coneH,
+        sz: coneR,
+      };
+      if (arch.upward) {
+        upConeTransforms.push(coneTransform);
+        upConeColors.push(col);
+      } else {
+        downConeTransforms.push(coneTransform);
+        downConeColors.push(col);
+      }
+    }
+  }
+
+  const ironMat = MSteel('#232830', 0.44, 0.78);
+  const galvMat = MSteel('#58626d', 0.42, 0.82);
+  byKind.forEach((transforms, kind) => {
+    const mat = kind === 'cobra' || kind === 'flood' ? galvMat : ironMat;
+    const im = instancedMeshes(g, getLampHardwareGeo(kind), mat, transforms);
+    if (im) im.castShadow = true;
+  });
+
+  const bulbIm = instancedMeshes(g, getLampBulbGeo(), getLampBulbMat(), bulbTransforms, bulbColors);
+  if (bulbIm) {
+    bulbIm.castShadow = false;
+    bulbIm.receiveShadow = false;
+    bulbIm.userData.noShadow = true;
+    bulbIm.userData.cannotReceiveAO = true;
+    bulbIm.userData.noDissolve = true;
+  }
+
+  const poolIm = instancedMeshes(g, getLampPoolGeo(), getLampPoolMat(), poolTransforms, poolColors);
+  if (poolIm) {
+    poolIm.castShadow = false;
+    poolIm.receiveShadow = false;
+    poolIm.renderOrder = 2;
+    poolIm.userData.noShadow = true;
+    poolIm.userData.cannotReceiveAO = true;
+    poolIm.userData.noDissolve = true;
+  }
+
+  if (downConeTransforms.length > 0) {
+    const coneIm = instancedMeshes(
+      g,
+      getLampConeGeo(false),
+      getLampConeMat(false),
+      downConeTransforms,
+      downConeColors
+    );
+    if (coneIm) {
+      coneIm.castShadow = false;
+      coneIm.receiveShadow = false;
+      coneIm.renderOrder = 4;
+      coneIm.userData.noShadow = true;
+      coneIm.userData.cannotReceiveAO = true;
+      coneIm.userData.noDissolve = true;
+    }
+  }
+
+  if (upConeTransforms.length > 0) {
+    const upIm = instancedMeshes(
+      g,
+      getLampConeGeo(true),
+      getLampConeMat(true),
+      upConeTransforms,
+      upConeColors
+    );
+    if (upIm) {
+      upIm.castShadow = false;
+      upIm.receiveShadow = false;
+      upIm.renderOrder = 4;
+      upIm.userData.noShadow = true;
+      upIm.userData.cannotReceiveAO = true;
+      upIm.userData.noDissolve = true;
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ */

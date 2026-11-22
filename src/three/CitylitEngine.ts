@@ -60,8 +60,11 @@ import {
   createRimLight,
   fitDioramaShadowBounds,
   setBounceLightBiome,
+  updateBounceLightMood,
   updateRimLight,
+  updateShadowMood,
 } from './lightingRig';
+import { getSiteVisualProfile, type SiteVisualProfile } from './siteVisuals';
 import { createHorizonScenery, type HorizonSceneryController } from './horizonScenery';
 import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtmosphere';
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
@@ -132,6 +135,18 @@ export class CitylitEngine {
   private readonly hemiLight: THREE.HemisphereLight;
   /** Subtle warm ground/apron spill lighting architectural facades at dusk & night. */
   private readonly nightApronLight: THREE.PointLight;
+  /** Pooled secondary non-shadowing accent light anchored to each site's focal landmark light. */
+  private readonly nightAccentLight: THREE.PointLight;
+  private activeSiteVisual: SiteVisualProfile = getSiteVisualProfile('Table Mountain', 'mountain');
+  private readonly nightPrimaryPos = new THREE.Vector3(1.0, 2.0, 5.8);
+  private readonly nightSecondaryPos = new THREE.Vector3(0.8, 3.8, 2.6);
+  private readonly nightPrimaryCol = new THREE.Color('#ffd394');
+  private readonly nightSecondaryCol = new THREE.Color('#9cc4ff');
+  private nightPrimaryIntensity = 1.85;
+  private nightSecondaryIntensity = 1.35;
+  private nightPrimaryDistance = 16;
+  private nightSecondaryDistance = 16;
+  private lastPostNightFactor = -1;
   private readonly plinthGroup: THREE.Group;
   private readonly ringMat: THREE.MeshStandardMaterial;
   /** Kept alive so Studio mode can switch away from the sky HDRI without breaking it. */
@@ -419,6 +434,11 @@ export class CitylitEngine {
     this.nightApronLight.castShadow = false;
     this.scene.add(this.nightApronLight);
 
+    this.nightAccentLight = new THREE.PointLight('#8ab8ff', 0, 15, 1.5);
+    this.nightAccentLight.position.set(-1.5, 3.2, -1.2);
+    this.nightAccentLight.castShadow = false;
+    this.scene.add(this.nightAccentLight);
+
     // Post-processing pipeline (depth-aware DoF + N8AO + Bloom + Tilt-Shift + SMAA + Output)
     const composerTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight, {
       type: THREE.HalfFloatType,
@@ -436,7 +456,7 @@ export class CitylitEngine {
     this.n8aoPass.configuration.aoRadius = 0.58;
     this.n8aoPass.configuration.distanceFalloff = 1.05;
     this.n8aoPass.configuration.intensity = 2.4;
-    this.n8aoPass.configuration.color.set('#000000');
+    this.n8aoPass.configuration.color.set('#0c1528');
     this.n8aoPass.setQualityMode('Performance');
     // Depth-aware AO is the backstop for every landmark interior; hardware
     // gets the much sharper pass. Software GL stays cheap for the main view.
@@ -1325,21 +1345,54 @@ export class CitylitEngine {
     this.lastLodCamPos.set(Infinity, Infinity, Infinity);
     this.lastShadowKeyPos.set(Infinity, Infinity, Infinity);
     this.lastGlowLit = -1;
+    const lmMeta = LANDMARKS[index];
+    const visual = getSiteVisualProfile(lmMeta.k, lmMeta.biome);
+    this.activeSiteVisual = visual;
+    const isInitialSwap = !this.currentGroup;
+
     setContactShadowFade(this.currentGroup, 1);
     ambientAudio.setSiteProfile(
       (this.currentGroup.userData.audioProfile as AmbientSiteProfile | undefined) ?? null
     );
     this.atmosphere.setSite({
-      key: LANDMARKS[index].k,
-      biome: LANDMARKS[index].biome,
+      key: lmMeta.k,
+      biome: lmMeta.biome,
     });
-    this.windParticles.setBiome(LANDMARKS[index].biome, LANDMARKS[index].k);
-    this.horizon.setBiome(LANDMARKS[index].biome);
-    // Re-tint the soft bounce fill to the newly loaded site's biome.
+    this.windParticles.setBiome(lmMeta.biome, lmMeta.k);
+    this.horizon.setBiome(lmMeta.biome);
+    this.horizon.setSiteTint(visual.skyHorizonTint);
+    this.weather.setSiteSkyTint(visual.skyTopTint, visual.skyHorizonTint, isInitialSwap);
+    // Re-tint the soft bounce fill, chromatic N8AO shadow ink, plinth trim & dual night point lights.
     setBounceLightBiome(
       this.bounceLight,
-      (this.currentGroup.userData.biome as string | undefined) ?? LANDMARKS[index].biome
+      (this.currentGroup.userData.biome as string | undefined) ?? lmMeta.biome
     );
+    if (!this.isStudio()) {
+      this.n8aoPass.configuration.color.set(visual.aoShadowColor);
+      this.targetRingCol.set(
+        this.theme === 'daylight' ? visual.plinthRingDay : visual.plinthRingNight
+      );
+      if (isInitialSwap) {
+        this.ringMat.color.copy(this.targetRingCol);
+        this.ringMat.emissive.copy(this.targetRingCol);
+      }
+    }
+    const pLight = visual.nightLights.primary;
+    this.nightPrimaryPos.set(pLight.pos[0], pLight.pos[1], pLight.pos[2]);
+    this.nightPrimaryCol.set(pLight.color);
+    this.nightPrimaryIntensity = pLight.intensity;
+    this.nightPrimaryDistance = pLight.distance;
+    const sLight = visual.nightLights.secondary;
+    if (sLight) {
+      this.nightSecondaryPos.set(sLight.pos[0], sLight.pos[1], sLight.pos[2]);
+      this.nightSecondaryCol.set(sLight.color);
+      this.nightSecondaryIntensity = sLight.intensity;
+      this.nightSecondaryDistance = sLight.distance;
+    } else {
+      this.nightSecondaryIntensity = 0;
+    }
+    this.applyPostGrade();
+
     this.heroRoot.add(this.currentGroup);
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
@@ -1502,8 +1555,9 @@ export class CitylitEngine {
     this.miniaturePass.setExposure(this.autoExposureValue);
   }
 
-  /** Apply the per-theme miniature grade (DoF band, vignette, AO and exposure). */
+  /** Apply the per-theme + per-landmark miniature grade (DoF band, vignette, AO and exposure). */
   private applyPostGrade(): void {
+    const g = this.activeSiteVisual.grade;
     if (this.theme === 'studio') {
       // Preserved verbatim from the original Studio preset.
       this.baseAperture = 0.7;
@@ -1514,38 +1568,59 @@ export class CitylitEngine {
         focusRange: 0.34,
         focusY: 0.5,
       });
-      this.miniaturePass.setGrade({ contrast: 1.0, saturation: 1.05, shadowLift: 0 });
+      this.miniaturePass.setGrade({
+        contrast: 1.0,
+        saturation: 1.05,
+        shadowLift: 0,
+        shadowTint: [1, 1, 1],
+        highlightTint: [1, 1, 1],
+        clarity: 0.14,
+        nightFactor: 0,
+      });
+      this.n8aoPass.configuration.color.set('#141820');
     } else if (this.theme === 'daylight') {
-      // Clean, bright tabletop: light blur and a shallow vignette.
+      // Clean, crisp AAA tabletop: calibrated micro-clarity & per-site split tone.
       this.baseAperture = 0.78;
       this.miniaturePass.applyTuning({
-        blur: 1.05,
-        vignette: 0.1,
+        blur: 1.02,
+        vignette: 0.09,
         aperture: 0.78,
-        focusRange: 0.3,
+        focusRange: 0.31,
         focusY: 0.5,
       });
-      // Brighter key can flatten pale stone against a bright sky; add punch
-      // without moving any of the authored landmark albedos.
-      this.miniaturePass.setGrade({ contrast: 1.1, saturation: 1.08, shadowLift: 0 });
+      this.miniaturePass.setGrade({
+        contrast: g.contrast,
+        saturation: g.saturation,
+        shadowLift: 0.004,
+        shadowTint: g.shadowTint,
+        highlightTint: g.highlightTint,
+        clarity: g.clarity,
+      });
+      this.n8aoPass.configuration.color.set(this.activeSiteVisual.aoShadowColor);
     } else {
-      // Dark: a wider focus band and much lighter vignette keep shaded detail
-      // legible instead of crushing the diorama into a silhouette.
+      // Dark: wider focus band, gentle vignette, and chromatic shadow relief keep architecture vivid.
       this.baseAperture = 0.82;
       this.miniaturePass.applyTuning({
-        blur: 1.2,
+        blur: 1.15,
         vignette: 0.05,
         aperture: 0.82,
-        focusRange: 0.28,
+        focusRange: 0.29,
         focusY: 0.5,
       });
-      // Moonlit stone and dark sky sat too close in value. Lift only dim
-      // material tones (never the near-black sky) and open up the midtones.
-      this.miniaturePass.setGrade({ contrast: 1.14, saturation: 1.1, shadowLift: 0.022 });
+      this.miniaturePass.setGrade({
+        contrast: Math.min(1.16, g.contrast + 0.03),
+        saturation: g.saturation + 0.02,
+        shadowLift: g.shadowLift,
+        shadowTint: g.shadowTint,
+        highlightTint: g.highlightTint,
+        clarity: g.clarity * 0.92,
+      });
+      this.n8aoPass.configuration.color.set(this.activeSiteVisual.aoShadowColor);
     }
+    this.lastPostNightFactor = -1;
     // Shadow-casting lights stay at their weather-driven night levels; the
     // non-shadowing bounce adds separation to the miniature's shaded faces.
-    this.bounceLight.intensity = this.theme === 'dark' ? 0.95 : 0.7;
+    this.bounceLight.intensity = this.theme === 'dark' ? 1.02 : 0.74;
     this.n8aoPass.configuration.intensity = this.n8aoThemeIntensity();
     this.renderer.toneMappingExposure = this.themeExposure();
     this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
@@ -1624,15 +1699,14 @@ export class CitylitEngine {
     const shadowsOn = !this.isSoftwareGl && idx < 2;
     this.renderer.shadowMap.enabled = shadowsOn;
     if (shadowsOn) {
-      this.setShadowMapSize(1024);
+      this.setShadowMapSize(idx === 0 ? 2048 : 1024);
       this.renderer.shadowMap.needsUpdate = true;
     }
 
     if (this.cinematic && !this.isSoftwareGl) {
-      // Best-effort WebGL stand-in for a native path tracer: bigger shadow
-      // maps, higher-quality AO, slightly warmer exposure. A native ThreeRT
-      // host overrides this through setCinematic() and traces every light.
-      this.setShadowMapSize(2048);
+      // Best-effort WebGL stand-in for a native path tracer: crisp 4096 shadow
+      // maps, full-res AO, warm cinema exposure.
+      this.setShadowMapSize(4096);
       this.renderer.shadowMap.needsUpdate = true;
       this.renderer.toneMappingExposure = this.themeExposure();
       this.n8aoPass.configuration.halfRes = false;
@@ -1719,13 +1793,13 @@ export class CitylitEngine {
     }
 
     if (theme === 'daylight') {
-      this.targetRingCol.set('#b8842f');
-      this.targetRingEmissive = 0.14;
+      this.targetRingCol.set(this.activeSiteVisual.plinthRingDay);
+      this.targetRingEmissive = 0.16;
       this.targetBloomThreshold = 1.0;
     } else {
-      this.targetRingCol.set('#e8b04a');
-      this.targetRingEmissive = 0.35;
-      this.targetBloomThreshold = 0.9;
+      this.targetRingCol.set(this.activeSiteVisual.plinthRingNight);
+      this.targetRingEmissive = 0.42;
+      this.targetBloomThreshold = 0.88;
     }
 
     if (immediate) {
@@ -3640,25 +3714,62 @@ export class CitylitEngine {
       this.hoverRimBoost += ((this.hoveredHero ? 1 : 0) - this.hoverRimBoost) * hoverLerp;
       this.rackFocusBlend +=
         ((this.hasCustomFocus ? 1 : 0) - this.rackFocusBlend) * Math.min(1, dt * 5);
+      const nightVal = this.weather.current.night;
+      const visual = this.activeSiteVisual;
+      updateShadowMood(
+        this.keyLight,
+        nightVal,
+        WU.sunHor.value,
+        this.studioWeight,
+        dt,
+        this.motionScale
+      );
       updateRimLight(
         this.rimLight,
-        this.weather.current.night,
+        nightVal,
         WU.sun.value,
         WU.sunHor.value,
         dt,
         this.motionScale,
-        this.hoverRimBoost * 0.32 + (this.theme === 'dark' ? 0.22 : 0)
+        this.hoverRimBoost * 0.32 + (this.theme === 'dark' ? 0.22 : 0),
+        this.studioWeight < 0.5 ? visual.rimColor : undefined,
+        this.studioWeight < 0.5 ? visual.rimBoost : 1
+      );
+      updateBounceLightMood(
+        this.bounceLight,
+        visual.bounceDay,
+        visual.bounceNight,
+        nightVal,
+        this.studioWeight,
+        dt,
+        this.motionScale
       );
 
-      // Night warm architectural ground spill on the plinth (no shadow caster overhead)
-      const targetApron =
-        !this.isStudio() && this.weather.current.night > 0.25
-          ? THREE.MathUtils.smoothstep(this.weather.current.night, 0.25, 0.85) *
-            (1.65 + litStrength * 1.15)
+      // Pooled dual non-shadowing night point lights anchored to each landmark's focal architecture
+      const nightGlowMix =
+        !this.isStudio() && nightVal > 0.15
+          ? THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8) * (0.45 + litStrength * 0.55) * (1 - this.studioWeight)
           : 0;
-      this.nightApronLight.intensity +=
-        (targetApron - this.nightApronLight.intensity) *
-        (this.motionScale === 0 ? 1 : Math.min(1, dt * 3));
+      const ptLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 3.5);
+      this.nightApronLight.position.lerp(this.nightPrimaryPos, ptLerp);
+      this.nightApronLight.color.lerp(this.nightPrimaryCol, ptLerp);
+      this.nightApronLight.distance += (this.nightPrimaryDistance - this.nightApronLight.distance) * ptLerp;
+      const primaryGoal = nightGlowMix * this.nightPrimaryIntensity;
+      this.nightApronLight.intensity += (primaryGoal - this.nightApronLight.intensity) * ptLerp;
+
+      this.nightAccentLight.position.lerp(this.nightSecondaryPos, ptLerp);
+      this.nightAccentLight.color.lerp(this.nightSecondaryCol, ptLerp);
+      this.nightAccentLight.distance += (this.nightSecondaryDistance - this.nightAccentLight.distance) * ptLerp;
+      const secondaryGoal = nightGlowMix * this.nightSecondaryIntensity;
+      this.nightAccentLight.intensity += (secondaryGoal - this.nightAccentLight.intensity) * ptLerp;
+
+      // Dynamic night readability lift in MiniaturePass so shaded landmark colors stay luminous at night
+      const targetPostNight =
+        this.isStudio() ? 0 : Math.min(1, Math.max(0, (1 - WU.sun.value) * visual.grade.nightLift * 3.2));
+      if (Math.abs(targetPostNight - this.lastPostNightFactor) > 0.01) {
+        this.lastPostNightFactor = targetPostNight;
+        this.miniaturePass.setGrade({ nightFactor: targetPostNight });
+      }
 
       const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
       const envLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
@@ -3675,7 +3786,7 @@ export class CitylitEngine {
         (this.targetBloomThreshold - this.bloomPass.threshold) * themeLerp;
 
       const envCeiling = this.usingSkyHdr ? 0.34 : 0.6;
-      const envFloor = this.usingSkyHdr ? 0.12 : 0.26;
+      const envFloor = this.usingSkyHdr ? 0.14 : 0.28;
       const skyEnvIntensity =
         envFloor +
         (envCeiling - envFloor) *

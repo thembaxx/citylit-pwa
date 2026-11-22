@@ -33,6 +33,8 @@ export interface WeatherSceneController {
   applyLiveSample: (sample: LiveWeatherSample, timeOfDay: number) => void;
   setSeasonMonth: (month: number, immediate?: boolean) => void;
   setTheme: (theme: ThemeSetting, immediate?: boolean) => void;
+  /** Blend subtle per-landmark atmospheric sky zenith & horizon tints. */
+  setSiteSkyTint: (topHex: string, horizonHex: string, immediate?: boolean) => void;
   triggerRainbow: (duration?: number) => void;
   setHidden: (hidden: boolean) => void;
   update: (
@@ -62,6 +64,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       t: { value: 0 },
       top: { value: new THREE.Color('#27476e') },
       bot: { value: new THREE.Color('#0c0e16') },
+      uSiteHor: { value: new THREE.Color('#6fa6cc') },
+      uSiteWeight: { value: 0.24 },
       cv: { value: 0.2 },
       uCirrus: { value: 0.16 },
       uCumulus: { value: 0.12 },
@@ -77,16 +81,31 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       'varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader: /* glsl */ `
       varying vec3 v;
-      uniform float t, cv, uCirrus, uCumulus, uSkyStorm, uFlash, nt, hor, rb;
-      uniform vec3 top, bot, sunDir, glow;
+      uniform float t, uSiteWeight, cv, uCirrus, uCumulus, uSkyStorm, uFlash, nt, hor, rb;
+      uniform vec3 top, bot, uSiteHor, sunDir, glow;
       ${SKY_NOISE_GLSL}
       void main() {
         float y = clamp(v.y, 0.0, 1.0);
-        vec3 col = mix(bot, top, pow(y, 0.55));
+        vec3 botBlend = mix(bot, uSiteHor * (0.28 + (1.0 - nt) * 0.44), uSiteWeight * 0.65);
+        vec3 col = mix(botBlend, top, pow(y, 0.55));
         vec3 d = normalize(v), sd = normalize(sunDir);
         float sdDot = max(0.0, dot(d, sd));
         float sunUp = smoothstep(-0.02, 0.08, sd.y);
         float horMask = smoothstep(-0.22, 0.02, v.y);
+
+        // Subtle atmospheric horizon scattering belt so foreground dioramas pop cleanly.
+        float horBand = pow(1.0 - y, 5.2) * horMask;
+        col += mix(uSiteHor * 0.22, glow * 0.32, hor) * horBand * (1.0 - nt * 0.55) * uSiteWeight;
+
+        // Clear-night Milky Way dust diagonal & gentle upper-sky airglow.
+        if (nt > 0.04 && v.y > 0.02) {
+          float bandCoord = d.x * 0.64 - d.y * 0.52 + d.z * 0.56;
+          float bandMask = exp(-bandCoord * bandCoord * 13.0) * smoothstep(0.04, 0.45, d.y);
+          float mwNoise = fbm(d.xz * 3.4 + vec2(d.y * 2.1, t * 0.002));
+          float dustRift = smoothstep(0.32, 0.78, mwNoise);
+          vec3 mwCol = mix(vec3(0.16, 0.24, 0.44), vec3(0.28, 0.34, 0.58), mwNoise);
+          col += mwCol * bandMask * dustRift * nt * (1.0 - cv * 0.85) * 0.42;
+        }
 
         // Warm directional horizon & Mie-like solar bloom
         col += glow * (hor * pow(1.0 - y, 4.0) * (0.45 + 0.55 * sdDot) + pow(sdDot, 18.0) * 0.35) * sunUp * horMask;
@@ -101,14 +120,14 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
           // Layer 1: High-altitude wispy cirrus streaks
           float cirNoise = fbm(vec2(p.x * 1.55 + t * 0.022, p.y * 0.95 + t * 0.008));
           float cirMask = smoothstep(0.66 - uCirrus * 0.32, 0.90 - uCirrus * 0.22, cirNoise) * altMask * uCirrus;
-          vec3 cirCol = mix(vec3(0.92, 0.95, 1.0), vec3(0.32, 0.36, 0.45), nt * 0.72) + glow * hor * 0.58;
+          vec3 cirCol = mix(vec3(0.92, 0.95, 1.0), vec3(0.34, 0.39, 0.52), nt * 0.72) + glow * hor * 0.58;
           col = mix(col, cirCol, cirMask * 0.56);
 
           // Layer 2: Lower cumulus/nimbus cloud deck with storm under-belly & lightning scatter
           float cumNoise = fbm(p * 0.74 + vec2(t * 0.011, -t * 0.004));
           float cumMask = smoothstep(0.62 - uCumulus * 0.44, 0.86 - uCumulus * 0.32, cumNoise) * altMask * uCumulus;
           vec3 cumDay = mix(vec3(0.90, 0.93, 0.97), vec3(0.28, 0.31, 0.38), uSkyStorm * 0.78);
-          vec3 cumCol = mix(cumDay, vec3(0.16, 0.19, 0.27), nt * 0.78 + cv * 0.22);
+          vec3 cumCol = mix(cumDay, vec3(0.18, 0.22, 0.33), nt * 0.78 + cv * 0.22);
           cumCol += glow * hor * (0.48 * (1.0 - uSkyStorm * 0.65));
           cumCol += vec3(0.65, 0.76, 1.0) * uFlash * smoothstep(0.35, 0.85, cumNoise) * 0.85;
           col = mix(col, cumCol, cumMask * 0.84);
@@ -239,7 +258,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   root.add(sunDisc);
 
   const moonMat = new THREE.MeshBasicMaterial({
-    color: '#dde7ff',
+    color: '#eaf1ff',
     fog: false,
     transparent: true,
     opacity: 0,
@@ -247,6 +266,20 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   });
   const moonDisc = new THREE.Mesh(new THREE.SphereGeometry(1.1, 16, 12), moonMat);
   root.add(moonDisc);
+
+  const moonHaloMat = new THREE.SpriteMaterial({
+    map: getSoftTexture(),
+    color: '#9ec4ff',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  moonHaloMat.userData.noDissolve = true;
+  const moonHalo = new THREE.Sprite(moonHaloMat);
+  moonHalo.scale.set(9.5, 9.5, 1);
+  moonDisc.add(moonHalo);
 
   const cloudMat = new THREE.MeshStandardMaterial({
     color: '#ffffff',
@@ -454,6 +487,10 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const bgTargetCol = new THREE.Color('#0c0e16');
   const fogTargetCol = new THREE.Color('#97a5b7');
   const sunShaftTargetCol = new THREE.Color('#ffd49c');
+  const siteTopCurrent = new THREE.Color('#27476e');
+  const siteTopTarget = new THREE.Color('#27476e');
+  const siteHorCurrent = new THREE.Color('#6fa6cc');
+  const siteHorTarget = new THREE.Color('#6fa6cc');
   let windDirectionDeg = 0;
   let animTime = 0;
 
@@ -507,6 +544,15 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     if (immediate) {
       themeCurrent.daylight = themeTarget.daylight;
       themeCurrent.studio = themeTarget.studio;
+    }
+  };
+
+  const setSiteSkyTint = (topHex: string, horizonHex: string, immediate = false) => {
+    siteTopTarget.set(topHex);
+    siteHorTarget.set(horizonHex);
+    if (immediate) {
+      siteTopCurrent.copy(siteTopTarget);
+      siteHorCurrent.copy(siteHorTarget);
     }
   };
 
@@ -572,6 +618,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const moonTargetOpacity =
       THREE.MathUtils.smoothstep(day, 0.72, 0.18) * (1 - current.cover * 0.75) * (1 - wStudio);
     moonMat.opacity += (moonTargetOpacity - moonMat.opacity) * skyLerp;
+    moonHaloMat.opacity = moonMat.opacity * 0.36;
     moonDisc.visible = wStudio < 0.99 && moonMat.opacity > 0.005;
 
     if (current.storm > 0.4) {
@@ -584,6 +631,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     }
     lightningFlash = Math.max(0, lightningFlash - safeDt * 6);
 
+    siteTopCurrent.lerp(siteTopTarget, skyLerp);
+    siteHorCurrent.lerp(siteHorTarget, skyLerp);
+
     seasonSkyTmp
       .copy(winterSkyTint)
       .lerp(summerSkyTint, seasonCurrent.warmth)
@@ -591,12 +641,13 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     dayTopTmp
       .copy(current.sky)
       .lerp(seasonSkyTmp, 0.38)
+      .lerp(siteTopCurrent, 0.24 * (1 - current.storm * 0.6) * (1 - wStudio))
       .lerp(duskSkyTmp, hor * (0.58 + 0.14 * seasonCurrent.warmth));
     skyTmp.copy(dayTopTmp).lerp(nightSkyTmp, 1 - day);
     skyDarkTmp.copy(skyTmp).multiplyScalar(0.5);
 
     if (wDay > 0.001) {
-      dayTopTmp.lerp(daylightSkyTopCol, 0.72 * (1 - current.storm * 0.5) * wDay);
+      dayTopTmp.lerp(daylightSkyTopCol, 0.68 * (1 - current.storm * 0.5) * wDay);
     }
     skyTmp
       .copy(dayTopTmp)
@@ -605,6 +656,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
 
     // Smooth linear interpolation across all skybox colors & dual cloud layer uniforms
     skyMat.uniforms.top.value.lerp(skyTmp, skyLerp);
+    skyMat.uniforms.uSiteHor.value.copy(siteHorCurrent);
+    skyMat.uniforms.uSiteWeight.value = 0.26 * (1 - wStudio) * (1 - current.storm * 0.55);
 
     botTmp
       .copy(botDayTmp)
@@ -849,6 +902,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     applyLiveSample,
     setSeasonMonth,
     setTheme,
+    setSiteSkyTint,
     triggerRainbow,
     setHidden,
     update,

@@ -73,7 +73,14 @@ import {
   type InstanceTransform,
 } from './primitives';
 import { prepareCanvasTexture } from '../shaders';
-import { applyDioramaUpgrade, corniceBand, doorSurround, facadeWindow } from './dioramaKit';
+import {
+  addStreetLampSet,
+  applyDioramaUpgrade,
+  corniceBand,
+  doorSurround,
+  facadeWindow,
+  type StreetLampSpec,
+} from './dioramaKit';
 
 export function augrabies(): THREE.Group {
   const g = new THREE.Group();
@@ -323,6 +330,13 @@ export function salt(): THREE.Group {
     wall: '#d8d2c4',
     roof: '#465260',
   });
+  addStreetLampSet(g, [
+    { x: 2.75, y: 0.18, z: -2.02, kind: 'bollard', scale: 0.82, color: '#ff7022', poolRadius: 0.56 },
+    { x: 4.45, y: 0.18, z: -2.02, kind: 'bollard', scale: 0.82, color: '#ff7022', poolRadius: 0.56 },
+    { x: 2.15, y: 0.18, z: -1.35, kind: 'bollard', scale: 0.8, color: '#ff7022', poolRadius: 0.54 },
+    { x: 1.4, y: 0.18, z: -0.7, kind: 'bollard', scale: 0.8, color: '#ff7022', poolRadius: 0.54 },
+    { x: -2.55, y: 0.18, z: 1.85, kind: 'bollard', scale: 0.8, color: '#ff7022', poolRadius: 0.54 },
+  ]);
 
   for (let i = 0; i < 4; i++) {
     const a = i * 1.7 + 0.3;
@@ -402,6 +416,34 @@ export function bloukrans(): THREE.Group {
     }
   }
   cableBatch(g, catwalkSusp, 0.014, M('#8c949c', 0.4, 0.7));
+  const bloukransLamps: StreetLampSpec[] = [];
+  for (const x of [-4.2, -1.4, 1.4, 4.2]) {
+    bloukransLamps.push({
+      x,
+      y: 4.82,
+      z: -0.4,
+      kind: 'cobra',
+      ry: -Math.PI / 2,
+      scale: 0.68,
+      color: '#ffbe6b',
+      poolRadius: 0.88,
+    });
+    bloukransLamps.push({
+      x,
+      y: 4.82,
+      z: 0.4,
+      kind: 'cobra',
+      ry: Math.PI / 2,
+      scale: 0.68,
+      color: '#ffbe6b',
+      poolRadius: 0.88,
+    });
+  }
+  bloukransLamps.push(
+    { x: -0.45, y: 4.2, z: -0.22, kind: 'lantern', scale: 0.65, color: '#e2f2ff', poolRadius: 0.65 },
+    { x: 0.45, y: 4.2, z: 0.22, kind: 'lantern', scale: 0.65, color: '#e2f2ff', poolRadius: 0.65 }
+  );
+  addStreetLampSet(g, bloukransLamps);
 
   for (let i = 0; i < 8; i++) {
     tree(g, (i % 2 ? 5.2 : -5.2) + (R(i) - 0.5) * 1.2, (R(i + 5) - 0.5) * 2.4, 1.1, 1, 4.6);
@@ -670,6 +712,12 @@ export function robben(): THREE.Group {
   // Murray's Bay harbour stone breakwater & ferry timber jetty
   add(g, CB(2.1, 0.22, 0.45, 0.02), st, 4.1, 0.24, 1.15).rotation.y = -0.24;
   const jetty = MWood('#8a6b47', 0.9);
+  const robbenLamps: StreetLampSpec[] = [
+    { x: -0.25, y: 0.3, z: 1.66, kind: 'flood', ry: Math.PI * 0.5, scale: 0.82, color: '#e6e8d4' },
+    { x: 1.4, y: 0.3, z: 1.66, kind: 'flood', ry: Math.PI * 0.5, scale: 0.82, color: '#e6e8d4' },
+    { x: 2.75, y: 0.3, z: 1.66, kind: 'flood', ry: Math.PI * 0.5, scale: 0.82, color: '#e6e8d4' },
+    { x: -1.02, y: 0.3, z: 1.98, kind: 'lantern', scale: 0.82, color: '#ffd586' },
+  ];
   for (let i = 0; i < 12; i++) {
     const u = i / 11;
     const x = 3.2 + u * 2.3;
@@ -679,7 +727,19 @@ export function robben(): THREE.Group {
       add(g, C(0.05, 0.06, 0.45, 8), jetty, x - 0.22, 0.23, z);
       add(g, C(0.05, 0.06, 0.45, 8), jetty, x + 0.22, 0.23, z);
     }
+    if (i === 2 || i === 6 || i === 10) {
+      robbenLamps.push({
+        x,
+        y: 0.36,
+        z: z - 0.22,
+        kind: 'bollard',
+        scale: 0.72,
+        color: '#ffd07d',
+        poolRadius: 0.62,
+      });
+    }
   }
+  addStreetLampSet(g, robbenLamps);
 
   const bushT: InstanceTransform[] = [];
   for (let i = 0; i < 30; i++) {
@@ -801,6 +861,39 @@ export function chapman(): THREE.Group {
     fenceSegs.push([[a.x, a.y + 0.08, a.z + 0.24], [a.x, a.y + 0.46, a.z + 0.24]]);
   }
   cableBatch(g, fenceSegs, 0.015, M('#50565c', 0.5, 0.6));
+  const chapmanLamps: StreetLampSpec[] = [
+    {
+      x: canopyP.x - Math.cos(canopyYaw) * 0.35,
+      y: canopyP.y + 0.08,
+      z: canopyP.z + Math.sin(canopyYaw) * 0.35,
+      kind: 'lantern',
+      scale: 0.72,
+      color: '#ffaa4a',
+      poolRadius: 0.72,
+    },
+    {
+      x: canopyP.x + Math.cos(canopyYaw) * 0.35,
+      y: canopyP.y + 0.08,
+      z: canopyP.z - Math.sin(canopyYaw) * 0.35,
+      kind: 'lantern',
+      scale: 0.72,
+      color: '#ffaa4a',
+      poolRadius: 0.72,
+    },
+  ];
+  for (const u of [0.16, 0.56, 0.78]) {
+    const pt = cv.getPointAt(u);
+    chapmanLamps.push({
+      x: pt.x,
+      y: pt.y + 0.08,
+      z: pt.z + 0.16,
+      kind: 'bollard',
+      scale: 0.74,
+      color: '#ffc670',
+      poolRadius: 0.66,
+    });
+  }
+  addStreetLampSet(g, chapmanLamps);
 
   const cs = [0, 1, 2].map((i) => {
     const c = car(['#c33', '#fff', '#36c'][i], 0.35);
@@ -973,6 +1066,25 @@ export function gariep(): THREE.Group {
   add(g, C(0.28, 0.34, 1.85, 16), cn, -1.6, 1.02, -1.15);
   add(g, C(0.38, 0.38, 0.12, 16), M('#4b5258', 0.5), -1.6, 2.0, -1.15);
   add(g, CB(0.14, 0.06, 0.95, 0.01), cn, -1.6, 1.92, -0.68);
+  const gariepLamps: StreetLampSpec[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI * 0.76 + (i / 5) * (Math.PI * 0.48);
+    gariepLamps.push({
+      x: Math.sin(a) * 4.28,
+      y: 1.95,
+      z: 3.9 + Math.cos(a) * 4.28,
+      kind: 'cobra',
+      ry: a - Math.PI / 2,
+      scale: 0.78,
+      color: '#ffc36a',
+      poolRadius: 0.95,
+    });
+  }
+  gariepLamps.push(
+    { x: -3.95, y: 1.9, z: 1.06, kind: 'bollard', scale: 0.82, color: '#ffd07d' },
+    { x: 3.95, y: 1.9, z: 1.06, kind: 'bollard', scale: 0.82, color: '#ffd07d' }
+  );
+  addStreetLampSet(g, gariepLamps);
 
   rock(g, 1.6, 2.4, 3.1, -5.6, -1.2, '#a0805f', '#c0a078', 0.14);
   rock(g, 1.8, 2.6, 3.4, 5.6, -0.8, '#a0805f', '#c0a078', 0.14);
@@ -1458,6 +1570,25 @@ export function groot(): THREE.Group {
     roadT.push({ x, y: 0.23 + hAt(x, z), z, ry: -0.12 * Math.cos(t * Math.PI * 0.9) });
   }
   instancedMeshes(g, CB(0.3, 0.03, 0.17, 0.01), MStone('#b8a98c', 0.95), roadT);
+  const grootLamps: StreetLampSpec[] = [
+    { x: -0.62, y: 0.315, z: 0.88, kind: 'lantern', scale: 0.88, color: '#ffd584' },
+    { x: 0.62, y: 0.315, z: 0.88, kind: 'lantern', scale: 0.88, color: '#ffd584' },
+    { x: -5.22, y: 0.35, z: -1.66, kind: 'lantern', scale: 0.82, color: '#ffd584' },
+    { x: -3.78, y: 0.35, z: -1.66, kind: 'lantern', scale: 0.82, color: '#ffd584' },
+  ];
+  for (const x of [-5.6, -3.9, -2.2]) {
+    const t = (x + 6.6) / 6.4;
+    const z = -1.5 + 0.85 * Math.sin(t * Math.PI * 0.9) + 0.24;
+    grootLamps.push({
+      x,
+      y: 0.22 + hAt(x, z),
+      z,
+      kind: 'victorian',
+      scale: 0.86,
+      color: '#ffcf7c',
+    });
+  }
+  addStreetLampSet(g, grootLamps);
 
   const truck = car('#8d2f2b', 0.34);
   truck.position.set(-6.2, 0.36, -1.5);
@@ -2048,6 +2179,27 @@ export function harties(): THREE.Group {
   add(g, CB(0.86, 0.1, 0.42, 0.015), cn, archX, 2.42, archZ).rotation.y = 0.72;
   add(g, new THREE.TorusGeometry(0.24, 0.06, 8, 18, Math.PI), cn, archX, 1.98, archZ).rotation.y = 0.72;
   add(g, CB(0.55, 0.48, 0.42, 0.02), M('#181c20', 0.95), -4.15, 1.98, -0.25).rotation.y = 0.65;
+  const hartiesLamps: StreetLampSpec[] = [];
+  for (let i = 0; i < 6; i++) {
+    const a = Math.PI * 0.7 + (i / 5) * Math.PI * 0.6;
+    hartiesLamps.push({
+      x: 4.22 * Math.sin(a),
+      y: 1.86,
+      z: 4.1 + 4.22 * Math.cos(a),
+      kind: 'cobra',
+      ry: a - Math.PI / 2,
+      scale: 0.78,
+      color: '#ffc670',
+      poolRadius: 0.96,
+    });
+  }
+  hartiesLamps.push(
+    { x: -2.42, y: 1.86, z: 1.38, kind: 'lantern', scale: 0.85, color: '#ffd688' },
+    { x: -3.08, y: 1.86, z: 0.72, kind: 'lantern', scale: 0.85, color: '#ffd688' },
+    { x: -3.85, y: 0.2, z: 5.2, kind: 'bollard', scale: 0.85, color: '#ffd480' },
+    { x: -2.95, y: 0.2, z: 5.2, kind: 'bollard', scale: 0.85, color: '#ffd480' }
+  );
+  addStreetLampSet(g, hartiesLamps);
 
   // Emerald floating water-hyacinth mats near upstream face
   const hyT = Array.from({ length: 24 }, (_, i) => ({
@@ -2445,6 +2597,37 @@ export function donkin(): THREE.Group {
     '#789496',
   ]);
   instancedMeshes(g, gableRoofGeo(0.52, 0.42, 0.14, 0.03), MPlaster('#7a4534', 0.8), roofT);
+  const donkinLamps: StreetLampSpec[] = [
+    { x: -1.48, y: 1.56, z: -0.28, kind: 'uplight', scale: 0.86, color: '#ffd27a', coneHeight: 1.35 },
+    { x: -0.12, y: 1.56, z: -0.28, kind: 'uplight', scale: 0.86, color: '#ffd27a', coneHeight: 1.35 },
+    { x: -1.48, y: 1.56, z: 1.08, kind: 'uplight', scale: 0.86, color: '#ffd27a', coneHeight: 1.35 },
+    { x: -0.12, y: 1.56, z: 1.08, kind: 'uplight', scale: 0.86, color: '#ffd27a', coneHeight: 1.35 },
+  ];
+  for (const u of [0.08, 0.38, 0.68, 0.94]) {
+    const p = routeCurve.getPointAt(u);
+    donkinLamps.push({
+      x: p.x,
+      y: 1.46,
+      z: p.z + 0.18,
+      kind: 'lantern',
+      scale: 0.8,
+      color: '#ffcf76',
+    });
+  }
+  for (const i of [1, 5, 9, 13, 16]) {
+    const a = -0.35 + i * 0.26 + R(i) * 0.05;
+    const r = 3.84;
+    const ty = 0.78 + (i % 3) * 0.06;
+    donkinLamps.push({
+      x: r * Math.cos(a),
+      y: ty - 0.02,
+      z: r * Math.sin(a),
+      kind: 'victorian',
+      scale: 0.76,
+      color: '#ffd080',
+    });
+  }
+  addStreetLampSet(g, donkinLamps);
 
   for (let i = 0; i < 5; i++) tree(g, -3 + i * 1.1, -1.8 + R(i) * 0.6, 0.8, 1, 1.45);
   const ship = boat('#b23a2c', 2.2);
@@ -2711,6 +2894,31 @@ export function orlando(): THREE.Group {
   for (const gx of [-hw + 0.04, hw - 0.04]) {
     add(g, CB(0.05, 0.16, 0.42, 0.008), chalk, gx, yL + 0.08, pz);
   }
+  const orlandoLamps: StreetLampSpec[] = [
+    { x: -hw - 0.16, y: 0.22, z: pz - hd - 0.12, kind: 'flood', ry: -0.78, scale: 0.92, color: '#e6f4ff' },
+    { x: hw + 0.16, y: 0.22, z: pz - hd - 0.12, kind: 'flood', ry: -2.35, scale: 0.92, color: '#e6f4ff' },
+    { x: -hw - 0.16, y: 0.22, z: pz + hd + 0.12, kind: 'flood', ry: 0.78, scale: 0.92, color: '#e6f4ff' },
+    { x: hw + 0.16, y: 0.22, z: pz + hd + 0.12, kind: 'flood', ry: 2.35, scale: 0.92, color: '#e6f4ff' },
+    { x: -2.4, y: 0.22, z: 1.55, kind: 'uplight', scale: 1.05, color: '#ffae48', coneHeight: 2.15 },
+    { x: 2.4, y: 0.22, z: 1.55, kind: 'uplight', scale: 1.05, color: '#ff8a4c', coneHeight: 2.15 },
+    { x: -2.4, y: 0.22, z: -1.55, kind: 'uplight', scale: 1.05, color: '#ffae48', coneHeight: 2.15 },
+    { x: 2.4, y: 0.22, z: -1.55, kind: 'uplight', scale: 1.05, color: '#ff8a4c', coneHeight: 2.15 },
+  ];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + 0.32;
+    if (Math.abs(Math.cos(a) * 4.55) < 2.2 && Math.sin(a) > 0.35) continue;
+    orlandoLamps.push({
+      x: Math.cos(a) * 4.46,
+      y: 0.2,
+      z: Math.sin(a) * 4.46,
+      kind: 'cobra',
+      ry: -a,
+      scale: 0.85,
+      color: '#ffa03c',
+      poolRadius: 1.16,
+    });
+  }
+  addStreetLampSet(g, orlandoLamps);
 
   // Lattice electricity pylons + gravity-sagged overhead power wires (ZERO lines()!)
   const pylonSegs: Array<readonly [[number, number, number], [number, number, number]]> = [];

@@ -16,13 +16,11 @@ export function configureDioramaShadow(light: THREE.DirectionalLight): void {
   cam.near = 0.5;
   cam.far = 60;
   cam.updateProjectionMatrix();
-  light.shadow.bias = -0.0004;
-  light.shadow.normalBias = 0.03;
-  // Wider PCF kernel for a soft miniature-tabletop penumbra. The 4096 map has
-  // enough resolution for a radius of 5 without visible banding, and the lower
-  // intensity keeps the contact from reading as a hard black cut-out.
-  light.shadow.radius = 5;
-  light.shadow.intensity = 0.5;
+  light.shadow.bias = -0.00028;
+  light.shadow.normalBias = 0.022;
+  // Soft miniature penumbra balanced against high-res PCF maps for crisp contact shadows.
+  light.shadow.radius = 4.2;
+  light.shadow.intensity = 0.66;
 }
 
 const tmpShadowSize = new THREE.Vector3();
@@ -32,9 +30,9 @@ export function fitDioramaShadowBounds(light: THREE.DirectionalLight, box: THREE
   if (box.isEmpty()) return;
   box.getSize(tmpShadowSize);
   const extent = THREE.MathUtils.clamp(
-    Math.max(tmpShadowSize.x, tmpShadowSize.z, tmpShadowSize.y) * 0.56,
-    3.4,
-    8.8
+    Math.max(tmpShadowSize.x, tmpShadowSize.z, tmpShadowSize.y) * 0.54,
+    3.2,
+    8.2
   );
   const cam = light.shadow.camera;
   cam.left = -extent;
@@ -44,7 +42,24 @@ export function fitDioramaShadowBounds(light: THREE.DirectionalLight, box: THREE
   cam.updateProjectionMatrix();
 }
 
-/** Subtle cool back light that separates cliffs, domes and trees from the sky. */
+/** Modulate directional shadow softness & density cleanly across day, dusk, night, and studio. */
+export function updateShadowMood(
+  light: THREE.DirectionalLight,
+  night: number,
+  hor: number,
+  studioWeight: number,
+  dt = 0.016,
+  motionScale = 1
+): void {
+  const k = motionScale === 0 ? 1 : 1 - Math.exp(-Math.max(0, dt) * 2.4);
+  const outdoorIntensity = THREE.MathUtils.lerp(0.68, 0.44, THREE.MathUtils.clamp(night, 0, 1)) - hor * 0.06;
+  const targetIntensity = THREE.MathUtils.lerp(outdoorIntensity, 0.5, studioWeight);
+  const targetRadius = THREE.MathUtils.lerp(4.0 + hor * 0.7 + night * 0.6, 5.0, studioWeight);
+  light.shadow.intensity += (targetIntensity - light.shadow.intensity) * k;
+  light.shadow.radius += (targetRadius - light.shadow.radius) * k;
+}
+
+/** Subtle cool/warm back light that separates cliffs, domes and trees from the sky. */
 export function createRimLight(): THREE.DirectionalLight {
   const rim = new THREE.DirectionalLight('#b9d4ff', 0.6);
   rim.position.set(-9, 7, -11);
@@ -54,6 +69,7 @@ export function createRimLight(): THREE.DirectionalLight {
 }
 
 const rimBaseCol = new THREE.Color('#b9d4ff');
+const rimSiteCol = new THREE.Color('#b9d4ff');
 const rimWarmCol = new THREE.Color('#ffd3a6');
 
 export function updateRimLight(
@@ -63,15 +79,19 @@ export function updateRimLight(
   hor = 0,
   dt = 0.016,
   motionScale = 1,
-  boost = 0
+  boost = 0,
+  siteRimHex?: string,
+  siteRimScale = 1
 ): void {
   const k = motionScale === 0 ? 1 : 1 - Math.exp(-Math.max(0, dt) * 2.8);
   const prevBase = (rim.userData.baseIntensity as number | undefined) ?? rim.intensity;
-  const targetIntensity = 0.3 + 0.6 * night + 0.1 * (1 - sun) + 0.14 * hor;
+  const targetIntensity = (0.34 + 0.68 * night + 0.12 * (1 - sun) + 0.16 * hor) * siteRimScale;
   const nextBase = prevBase + (targetIntensity - prevBase) * k;
   rim.userData.baseIntensity = nextBase;
   rim.intensity = nextBase + boost;
-  rim.color.lerpColors(rimBaseCol, rimWarmCol, hor * 0.65);
+  if (siteRimHex) rimSiteCol.set(siteRimHex);
+  else rimSiteCol.copy(rimBaseCol);
+  rim.color.lerpColors(rimSiteCol, rimWarmCol, hor * 0.58);
 }
 
 /**
@@ -90,6 +110,9 @@ const BIOME_BOUNCE_COLORS: Record<string, string> = {
 };
 
 const DEFAULT_BOUNCE_COLOR = '#dfe8f2';
+const bounceDayTmp = new THREE.Color();
+const bounceNightTmp = new THREE.Color();
+const bounceMixTmp = new THREE.Color();
 
 /** Low, non-shadow-casting bounce fill that carries the site's biome tint. */
 export function createBounceLight(): THREE.DirectionalLight {
@@ -104,3 +127,25 @@ export function createBounceLight(): THREE.DirectionalLight {
 export function setBounceLightBiome(light: THREE.DirectionalLight, biome?: string): void {
   light.color.set(BIOME_BOUNCE_COLORS[biome ?? ''] ?? DEFAULT_BOUNCE_COLOR);
 }
+
+/** Smoothly transition bounce fill color between a landmark's day and night bounce colors. */
+export function updateBounceLightMood(
+  light: THREE.DirectionalLight,
+  dayHex: string,
+  nightHex: string,
+  nightWeight: number,
+  studioWeight: number,
+  dt = 0.016,
+  motionScale = 1
+): void {
+  const k = motionScale === 0 ? 1 : 1 - Math.exp(-Math.max(0, dt) * 2.8);
+  bounceDayTmp.set(dayHex);
+  bounceNightTmp.set(nightHex);
+  bounceMixTmp.copy(bounceDayTmp).lerp(bounceNightTmp, THREE.MathUtils.clamp(nightWeight, 0, 1));
+  if (studioWeight > 0.001) {
+    bounceDayTmp.set(DEFAULT_BOUNCE_COLOR);
+    bounceMixTmp.lerp(bounceDayTmp, studioWeight);
+  }
+  light.color.lerp(bounceMixTmp, k);
+}
+
