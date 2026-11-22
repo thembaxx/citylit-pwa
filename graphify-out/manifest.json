@@ -19,15 +19,15 @@
     "ast_empty": true
   },
   "package.json": {
-    "mtime": 1795370719.382384,
-    "seen": 1795371222.924201,
-    "ast_hash": "de64a58f62ade82b46ea3a38f27f05c6",
+    "mtime": 1795371557.1085188,
+    "seen": 1795376091.5897808,
+    "ast_hash": "351381aef83b2a59dae9e07cdeeddcbf",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
-    "mtime": 1795195652.060102,
-    "seen": 1795270207.962011,
-    "ast_hash": "8af43b921fdd3c2ec91e20ab83cb1cbd",
+    "mtime": 1795371622.846665,
+    "seen": 1795376091.589792,
+    "ast_hash": "e4b5b8fd9c1a07c43df3b4adaad5d578",
     "semantic_hash": ""
   },
   "server.js": {
@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795371234.5534692,
-    "seen": 1795371312.3882208,
-    "ast_hash": "afb3a880c9d29cb74c99ec067dc53073",
+    "mtime": 1795375337.5034409,
+    "seen": 1795376091.5898378,
+    "ast_hash": "f5ba7bc34ab0f3bbc18ade138be7c3ee",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -73,9 +73,9 @@
     "semantic_hash": ""
   },
   "src/components/InfoDrawer.tsx": {
-    "mtime": 1795345403.7429845,
-    "seen": 1795346236.9765773,
-    "ast_hash": "0e6421c6d8ec61add03b8bb191a045fa",
+    "mtime": 1795375192.4872987,
+    "seen": 1795376091.5899017,
+    "ast_hash": "a8b54f19031554fdbeeb300565ef9c5d",
     "semantic_hash": ""
   },
   "src/components/LandmarkCard.tsx": {
@@ -85,9 +85,9 @@
     "semantic_hash": ""
   },
   "src/components/PassportModal.tsx": {
-    "mtime": 1795270166.9855103,
-    "seen": 1795270207.9620397,
-    "ast_hash": "b572592083cad2bd08ba814b13500d62",
+    "mtime": 1795374337.1262338,
+    "seen": 1795376091.5899181,
+    "ast_hash": "eed67ad172b2eae5c9fa82da9d9203c6",
     "semantic_hash": ""
   },
   "src/components/PlacesOverlay.tsx": {
@@ -103,21 +103,21 @@
     "semantic_hash": ""
   },
   "src/components/SearchSheet.tsx": {
-    "mtime": 1795345403.7487774,
-    "seen": 1795346236.97662,
-    "ast_hash": "da205aecf7fcbc907c977293a9d2a621",
+    "mtime": 1795374406.8044343,
+    "seen": 1795376091.5899532,
+    "ast_hash": "57a01ff5f0156c794a634002e9d85f4a",
     "semantic_hash": ""
   },
   "src/components/SettingsModal.tsx": {
-    "mtime": 1795270181.1238213,
-    "seen": 1795270207.962049,
-    "ast_hash": "5c67600fff86dad4b16ec628c39464fa",
+    "mtime": 1795374022.3361447,
+    "seen": 1795376091.589961,
+    "ast_hash": "ecdd9116e25aebb934f64f4376540f87",
     "semantic_hash": ""
   },
   "src/components/TopBar.tsx": {
-    "mtime": 1795274448.350249,
-    "seen": 1795274578.644598,
-    "ast_hash": "b54a8997b4cec32d0fd235d50753c6da",
+    "mtime": 1795374071.824909,
+    "seen": 1795376091.589968,
+    "ast_hash": "88391b996e9cc598d2c99855fdcbe542",
     "semantic_hash": ""
   },
   "src/components/WeatherIcon.tsx": {
@@ -223,27 +223,27 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795370499.6840045,
-    "seen": 1795371222.924906,
-    "ast_hash": "5d87d391b9ef756fd4d91618d145678d",
+    "mtime": 1795374510.4721484,
+    "seen": 1795376091.5907707,
+    "ast_hash": "e9db8c27f6157d653db7f814736a944a",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795352814.8964274,
-    "seen": 1795353130.670354,
-    "ast_hash": "35ed423c6144e16bf8f2a4d95206dfec",
+    "mtime": 1795375304.8989854,
+    "seen": 1795376091.5907948,
+    "ast_hash": "9ab21709c8407bd406692e981e50e272",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795360839.2459471,
-    "seen": 1795361149.4376802,
-    "ast_hash": "618cbbb379cfb1fd7ff38b2476dc9a1f",
+    "mtime": 1795373936.8372047,
+    "seen": 1795376091.5908015,
+    "ast_hash": "71c701ccc4738359fc25b22d51c966a2",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795361106.6693058,
-    "seen": 1795361149.43769,
-    "ast_hash": "578fc24067a29bbf13b22097e8ca3b6e",
+    "mtime": 1795373878.8247716,
+    "seen": 1795376091.5908082,
+    "ast_hash": "266a8691b9ddd3fd2e14325205f5554b",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
@@ -349,9 +349,9 @@
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
-    "mtime": 1795370189.7869866,
-    "seen": 1795371222.9251974,
-    "ast_hash": "a1dba0b7cc28f5b1472b138add364d8b",
+    "mtime": 1795373344.7076023,
+    "seen": 1795376091.5910633,
+    "ast_hash": "3a5aa81bd34a72ef110e42e59598f42b",
     "semantic_hash": ""
   },
   "src/types/n8ao.d.ts": {
@@ -385,9 +385,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795200830.131246,
-    "seen": 1795270207.962203,
-    "ast_hash": "43fff5879f382765b33532e757444f0a",
+    "mtime": 1795371348.320185,
+    "seen": 1795376091.5911274,
+    "ast_hash": "670725c1b387ef7ef17c629fe9933617",
     "semantic_hash": ""
   },
   "docs/vite-framework-research.md": {
@@ -1056,10 +1056,64 @@
     "ast_hash": "7cf35102ab27b9f7040613bf3774a32e",
     "semantic_hash": ""
   },
+  "src/components/ScaleRulerModal.tsx": {
+    "mtime": 1795374128.6025126,
+    "seen": 1795376091.5899436,
+    "ast_hash": "7b68edbf09c497ddce1364dc6e008fab",
+    "semantic_hash": ""
+  },
+  "src/data/easterEggData.test.ts": {
+    "mtime": 1795375020.0644727,
+    "seen": 1795376091.5901773,
+    "ast_hash": "5a47e7c6552e7b8bffd29e6df565f6cb",
+    "semantic_hash": ""
+  },
+  "src/data/easterEggs.ts": {
+    "mtime": 1795373444.0881844,
+    "seen": 1795376091.5901885,
+    "ast_hash": "a04a936a63fbdd866b0fa059dfe5f7c3",
+    "semantic_hash": ""
+  },
+  "src/data/scaleFacts.test.ts": {
+    "mtime": 1795374989.3948345,
+    "seen": 1795376091.590244,
+    "ast_hash": "652565cc5a5c0b7e3991ee72d5e808f4",
+    "semantic_hash": ""
+  },
+  "src/data/scaleFacts.ts": {
+    "mtime": 1795375919.7016778,
+    "seen": 1795376091.5902517,
+    "ast_hash": "b8407a1bce18ab48372d6f61046267e9",
+    "semantic_hash": ""
+  },
+  "src/data/wildlife.test.ts": {
+    "mtime": 1795375045.4438243,
+    "seen": 1795376091.5903513,
+    "ast_hash": "03acff918627e9b17fc388ba5ce9060d",
+    "semantic_hash": ""
+  },
+  "src/data/wildlife.ts": {
+    "mtime": 1795373406.1804047,
+    "seen": 1795376091.5903986,
+    "ast_hash": "cea419b551d3c1a435c6faaf84b123aa",
+    "semantic_hash": ""
+  },
+  "src/lib/scale.ts": {
+    "mtime": 1795375094.8786025,
+    "seen": 1795376091.590662,
+    "ast_hash": "ec38962763865e3a9e0c391986f0296d",
+    "semantic_hash": ""
+  },
+  "plans/011-diorama-scale-wildlife-and-hidden-details.md": {
+    "mtime": 1795373104.1717386,
+    "seen": 1795376091.5915408,
+    "ast_hash": "112d2e3132349ded2d702032e4d7301b",
+    "semantic_hash": ""
+  },
   "pnpm-lock.yaml": {
-    "mtime": 1795200104.1966462,
-    "seen": 1795270207.9622583,
-    "ast_hash": "ce11b50d1be83c4ece15266b1081f9c7",
+    "mtime": 1795371556.3295844,
+    "seen": 1795376091.5920236,
+    "ast_hash": "e9f15951148e68846ad13f62bfb9baef",
     "semantic_hash": ""
   }
 }

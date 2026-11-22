@@ -3,6 +3,7 @@ import {
   CornersOut,
   Crop,
   MagnifyingGlass,
+  Ruler,
   SpeakerHigh,
   SpeakerSlash,
   SunHorizon,
@@ -19,7 +20,9 @@ interface TopBarProps {
   idleInFullscreen: boolean;
   globeOpen: boolean;
   theme?: ThemeSetting;
+  scaleMode?: boolean;
   reducedMotion?: boolean;
+  onToggleScale?: () => void;
   onToggleSound: () => void;
   onToggleTod: () => void;
   onToggleFullscreen: () => void;
@@ -87,7 +90,9 @@ export function TopBar({
   idleInFullscreen,
   globeOpen,
   theme = 'dark',
+  scaleMode = false,
   reducedMotion = false,
+  onToggleScale,
   onToggleSound,
   onToggleTod,
   onToggleFullscreen,
@@ -128,6 +133,16 @@ export function TopBar({
               onClick={onToggleTod}
               reducedMotion={reducedMotion}
             />
+            {onToggleScale && (
+              <IconButton
+                label={scaleMode ? 'Turn off scale mode' : 'Turn on scale mode'}
+                title="Scale mode (S)"
+                icon={Ruler}
+                active={scaleMode}
+                onClick={onToggleScale}
+                reducedMotion={reducedMotion}
+              />
+            )}
             <IconButton
               label="Toggle fullscreen view"
               icon={CornersOut}

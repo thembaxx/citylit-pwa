@@ -3,24 +3,27 @@ import {
   ChartBar,
   CheckCircle,
   Compass,
+  Eye,
   GlobeHemisphereEast,
   MagnifyingGlass,
   MapPin,
   NotePencil,
   Path,
+  Ruler,
   X,
 } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
+import { EASTER_EGGS } from '../data/easterEggs';
 import { HERITAGE_ROUTES, routeDistanceKm } from '../data/routes';
 import { PRESS_SCALE, SPRING, revealItem, revealVariants } from '../lib/motion';
 import type { LandmarkNote, NoteCategory } from '../types/citylit';
 import { PillNavigation, type PillOption } from './ui/PillNavigation';
 import { SettleModal } from './ui/SettleModal';
 
-type PassportTab = 'stamps' | 'stats' | 'notes' | 'routes';
+type PassportTab = 'stamps' | 'stats' | 'hidden' | 'notes' | 'routes';
 
 const PASSPORT_TABS: PillOption<PassportTab>[] = [
   {
@@ -42,6 +45,16 @@ const PASSPORT_TABS: PillOption<PassportTab>[] = [
       </>
     ),
     ariaLabel: 'Discovery stats chart',
+  },
+  {
+    value: 'hidden',
+    label: (
+      <>
+        <Eye size={14} weight="bold" />
+        <span>Hidden</span>
+      </>
+    ),
+    ariaLabel: 'Hidden details found',
   },
   {
     value: 'notes',
@@ -74,11 +87,14 @@ const CATEGORY_COLORS: Record<NoteCategory, { label: string; color: string }> = 
 interface PassportModalProps {
   open: boolean;
   visited: Set<number>;
+  foundEggs?: ReadonlySet<string>;
   notesByLandmark?: Record<number, LandmarkNote[]>;
   activeRouteId?: string | null;
   reducedMotion?: boolean;
   onClose: () => void;
   onResetPassport: () => void;
+  onResetEggs?: () => void;
+  onOpenRuler?: () => void;
   onJumpToNote?: (landmarkIndex: number, noteId: string) => void;
   onSelectRoute?: (routeId: string | null) => void;
   onViewRouteOnGlobe?: (routeId: string) => void;
@@ -155,11 +171,14 @@ function StatsTooltip({ active, payload }: StatsTooltipProps) {
 export function PassportModal({
   open,
   visited,
+  foundEggs = new Set<string>(),
   notesByLandmark = {},
   activeRouteId = null,
   reducedMotion = false,
   onClose,
   onResetPassport,
+  onResetEggs,
+  onOpenRuler,
   onJumpToNote,
   onSelectRoute,
   onViewRouteOnGlobe,
@@ -171,6 +190,14 @@ export function PassportModal({
   const provinces = useMemo(() => PROVINCES.filter((p) => p !== 'All'), []);
   const totalVisited = visited.size;
   const totalCount = LANDMARKS.length;
+  const totalEggs = LANDMARKS.length;
+  const eggRows = useMemo(
+    () =>
+      LANDMARKS.map((lm, index) => ({ lm, index, egg: EASTER_EGGS[lm.k] })).filter(
+        (row) => Boolean(row.egg)
+      ),
+    []
+  );
 
   const provinceStats = useMemo<ProvinceStatRow[]>(() => {
     return provinces.map((pv) => {
@@ -269,6 +296,25 @@ export function PassportModal({
           </motion.div>
         </div>
 
+        <div className="px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[12.5px] text-[#f3efe6]">
+              Hidden details <span className="font-mono tabular-nums text-[#e8b04a]">{foundEggs.size}/{totalEggs}</span>
+            </div>
+            <div className="text-[11px] text-[#a9a69e] mt-0.5">
+              Tiny props, one per diorama. Find them in the 3D scene.
+            </div>
+          </div>
+          <div className="w-20 h-1.5 rounded-full bg-white/10 overflow-hidden shrink-0">
+            <motion.div
+              className="h-full bg-[#7dffb0]"
+              initial={reducedMotion ? false : { width: 0 }}
+              animate={{ width: `${(foundEggs.size / Math.max(1, totalEggs)) * 100}%` }}
+              transition={reducedMotion ? { duration: 0 } : { duration: 0.5 }}
+            />
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2">
           <PillNavigation
             options={PASSPORT_TABS}
@@ -278,9 +324,11 @@ export function PassportModal({
             reducedMotion={reducedMotion}
           />
           <span className="text-[11px] font-mono tabular-nums text-[#a9a69e]">
-            {activeTab === 'notes'
-              ? `${flatNotes.length} note${flatNotes.length === 1 ? '' : 's'}`
-              : activeTab === 'routes'
+            {activeTab === 'hidden'
+              ? `${foundEggs.size}/${totalEggs} found`
+              : activeTab === 'notes'
+                ? `${flatNotes.length} note${flatNotes.length === 1 ? '' : 's'}`
+                : activeTab === 'routes'
                 ? `${HERITAGE_ROUTES.length} curated trails`
                 : `${provinces.length - unexploredProvinces.length}/${provinces.length} provinces`}
           </span>
@@ -307,6 +355,19 @@ export function PassportModal({
           </motion.div>
         ) : activeTab === 'stats' ? (
           <div key="stats-tab" className="space-y-3">
+            {onOpenRuler && (
+              <button
+                type="button"
+                onClick={onOpenRuler}
+                className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#e8b04a]/10 border border-[#e8b04a]/30 text-[12.5px] text-[#f3efe6] hover:border-[#e8b04a] cursor-pointer"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Ruler size={15} className="text-[#e8b04a]" />
+                  Compare all landmark heights on a ruler
+                </span>
+                <ArrowUpRight size={14} className="text-[#e8b04a]" />
+              </button>
+            )}
             <div className="rounded-2xl bg-white/[0.03] border border-white/10 p-3.5">
               <div className="flex items-center justify-between text-[11px] text-[#a9a69e] mb-2">
                 <span>Visited landmarks by province</span>
@@ -391,6 +452,55 @@ export function PassportModal({
                 </span>
               )}
             </div>
+          </div>
+        ) : activeTab === 'hidden' ? (
+          <div key="hidden-tab" className="space-y-3">
+            <p className="text-[12px] text-[#a9a69e] leading-relaxed m-0">
+              Each diorama hides one tiny prop. Visited sites show their clue; the rest stay a
+              surprise. Tap one in the 3D scene to add it to your passport.
+            </p>
+            <ul className="m-0 p-0 list-none divide-y divide-white/10 max-h-[44vh] overflow-y-auto overscroll-contain rounded-xl border border-white/10 bg-white/[0.02]">
+              {eggRows.map(({ lm, index, egg }) => {
+                if (!egg) return null;
+                const found = foundEggs.has(egg.id);
+                return (
+                  <li key={egg.id} className="px-3.5 py-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[12.5px] text-[#f3efe6]">
+                          {lm.k}
+                          {found && (
+                            <span className="ml-2 text-[11px] text-[#7dffb0]">
+                              · {egg.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-[#a9a69e] mt-0.5">
+                          {found
+                            ? egg.fact
+                            : visited.has(index)
+                              ? egg.hint
+                              : 'Visit this landmark to unlock its clue.'}
+                        </div>
+                      </div>
+                      <span
+                        className={`mt-0.5 w-2 h-2 rounded-full shrink-0 ${found ? 'bg-[#7dffb0]' : 'bg-white/20'}`}
+                        aria-hidden="true"
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {onResetEggs && (
+              <button
+                type="button"
+                onClick={onResetEggs}
+                className="text-[11.5px] text-[#a9a69e] hover:text-[#ff7a8a] transition-colors cursor-pointer"
+              >
+                Reset hidden details
+              </button>
+            )}
           </div>
         ) : activeTab === 'notes' ? (
           <div key="notes-tab" className="space-y-3">

@@ -2,6 +2,7 @@ import { MapPin, Sparkle, Trash, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { DURATION, EASE_SMOOTH_OUT, SPRING, toastVariants } from './lib/motion';
+import { referenceDisplayFactor } from './lib/scale';
 import {
   readInitialCoordinate,
   readInitialGlobeState,
@@ -20,11 +21,14 @@ import { LandmarkCard } from './components/LandmarkCard';
 import { PassportModal } from './components/PassportModal';
 import { PlacesOverlay } from './components/PlacesOverlay';
 import { PostcardModal } from './components/PostcardModal';
+import { ScaleRulerModal } from './components/ScaleRulerModal';
 import { SearchSheet } from './components/SearchSheet';
 import { SettingsModal } from './components/SettingsModal';
 import { TopBar } from './components/TopBar';
 import { WeatherWidget } from './components/WeatherWidget';
+import { EASTER_EGGS } from './data/easterEggs';
 import { LANDMARKS, PROVINCES, slugifyLandmark } from './data/landmarks';
+import { formatMetres, referenceHeightM, SCALE_FACTS, scaleRatio } from './data/scaleFacts';
 import { HERITAGE_ROUTES } from './data/routes';
 import { getSkyEvent, getUpcomingSkyEvents } from './data/skyEvents';
 import { getWeatherMoment } from './data/weatherMoments';
@@ -50,6 +54,7 @@ import type {
   LandmarkNote,
   LiveWeatherSample,
   NoteCategory,
+  ScaleReferenceKind,
   SavedCustomPlace,
   SkyEvent,
   WeatherConditionKey,
@@ -77,6 +82,21 @@ function readStoredSet(key: string): Set<number> {
     );
   } catch {
     return new Set();
+  }
+}
+
+const EGGS_STORAGE_KEY = 'cl-eggs';
+
+function readStoredEggs(): Set<string> {
+  try {
+    const raw = localStorage.getItem(EGGS_STORAGE_KEY);
+    if (!raw) return new Set<string>();
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return new Set<string>();
+    const valid = new Set(Object.values(EASTER_EGGS).map((egg) => egg.id));
+    return new Set(arr.filter((v): v is string => typeof v === 'string' && valid.has(v)));
+  } catch {
+    return new Set<string>();
   }
 }
 
@@ -168,6 +188,15 @@ function readSettings(): CitylitSettings {
             ? parsed.theme
             : 'daylight',
         cinematic: parsed.cinematic ?? false,
+        scaleMode: parsed.scaleMode ?? false,
+        scaleReference:
+          parsed.scaleReference === 'person' ||
+          parsed.scaleReference === 'springbok' ||
+          parsed.scaleReference === 'eiffel'
+            ? parsed.scaleReference
+            : 'person',
+        wildlife: parsed.wildlife ?? true,
+        hiddenDetails: parsed.hiddenDetails ?? true,
       };
     }
   } catch {
@@ -183,6 +212,10 @@ function readSettings(): CitylitSettings {
     tilt: false,
     theme: 'daylight',
     cinematic: false,
+    scaleMode: false,
+    scaleReference: 'person',
+    wildlife: true,
+    hiddenDetails: true,
   };
 }
 
@@ -198,9 +231,13 @@ export function App() {
   const [index, setIndex] = useState<number>(readInitialLandmarkIndex);
   const [favorites, setFavorites] = useState<Set<number>>(() => readStoredSet('cl-f'));
   const [visited, setVisited] = useState<Set<number>>(() => readStoredSet('cl-vs'));
+  const [foundEggs, setFoundEggs] = useState<Set<string>>(readStoredEggs);
+  const foundEggsRef = useRef(foundEggs);
+  const [rulerOpen, setRulerOpen] = useState(false);
   // Captured at mount for the engine's one-time setup effect (deep-link open).
   const visitedRef = useRef(visited);
   const [settings, setSettings] = useState<CitylitSettings>(readSettings);
+  const settingsRef = useRef(settings);
   const [thumbnails, setThumbnails] = useState<Record<number, string>>({});
 
   const [soundOn, setSoundOn] = useState(false);
@@ -367,6 +404,32 @@ export function App() {
     factTimerRef.current = window.setTimeout(() => setFactText(null), 5200);
   }, []);
 
+  const addFoundEgg = useCallback((id: string) => {
+    setFoundEggs((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem(EGGS_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {
+        // Ignore storage failures
+      }
+      engineRef.current?.setFoundEggs(next);
+      return next;
+    });
+  }, []);
+
+  const resetEggs = useCallback(() => {
+    setFoundEggs(new Set<string>());
+    try {
+      localStorage.removeItem(EGGS_STORAGE_KEY);
+    } catch {
+      // Ignore storage failures
+    }
+    engineRef.current?.setFoundEggs(new Set<string>());
+    showToast('Hidden details cleared');
+  }, [showToast]);
+
   const showUserNoteCallout = useCallback((landmarkIndex: number, noteId: string) => {
     ambientAudio.playUi('subtle', { intensity: 0.8 });
     setFactText(null);
@@ -467,6 +530,20 @@ export function App() {
         const instance = new Engine(host, {
           onFirstInteract: () => setHintVisible(false),
           onFactDot: (text) => showFact(text),
+          onWildlifeTap: (_id, fact) => {
+            ambientAudio.vibrate(10);
+            showFact(fact);
+          },
+          onHiddenDetailFound: (id, label, fact) => {
+            addFoundEgg(id);
+            ambientAudio.playUi('success', { intensity: 0.85 });
+            ambientAudio.vibrate(18);
+            setFactText(`${label} — ${fact}`);
+            if (factTimerRef.current) window.clearTimeout(factTimerRef.current);
+            factTimerRef.current = window.setTimeout(() => setFactText(null), 6200);
+            launchConfetti();
+            showToast('Hidden detail found');
+          },
           onUserNotePin: (noteId) => showUserNoteCallout(indexRef.current, noteId),
           onPinDropPosition: (pos) => {
             setPinDropMode(false);
@@ -516,6 +593,13 @@ export function App() {
         document.documentElement.dataset.theme = initialTheme;
         instance.setTheme(initialTheme, true);
         instance.setSeasonMonth(new Date().getMonth() + 1, true);
+        instance.setFoundEggs(foundEggsRef.current);
+        const initialSettings = settingsRef.current;
+        instance.setWildlifeEnabled(initialSettings.wildlife ?? true);
+        instance.setHiddenDetailsEnabled(initialSettings.hiddenDetails ?? true);
+        instance.setScaleReference(
+          initialSettings.scaleMode ? initialSettings.scaleReference ?? 'person' : null
+        );
         for (const [lmKey, lmNotes] of Object.entries(notesByLandmarkRef.current)) {
           instance.setUserNotes(Number(lmKey), lmNotes);
         }
@@ -583,7 +667,7 @@ export function App() {
       engine?.dispose();
       engineRef.current = null;
     };
-  }, [selectLandmark, showFact, showToast, showUserNoteCallout]);
+  }, [selectLandmark, showFact, showToast, showUserNoteCallout, addFoundEgg, launchConfetti]);
 
   // Pause WebGL render loop while tab is hidden or full-screen opaque gallery covers viewport
   useEffect(() => {
@@ -607,12 +691,23 @@ export function App() {
     engineRef.current?.setMotionPreferences(reducedMotion);
     engineRef.current?.setTiltEnabled(settings.tilt);
     engineRef.current?.setCinematic(settings.cinematic);
+    settingsRef.current = settings;
+    engineRef.current?.setScaleReference(
+      settings.scaleMode ? settings.scaleReference ?? 'person' : null
+    );
+    engineRef.current?.setWildlifeEnabled(settings.wildlife ?? true);
+    engineRef.current?.setHiddenDetailsEnabled(settings.hiddenDetails ?? true);
     try {
       localStorage.setItem('cl-st', JSON.stringify(settings));
     } catch {
       // Ignore storage failures
     }
   }, [settings, reducedMotion]);
+
+  useEffect(() => {
+    foundEggsRef.current = foundEggs;
+    engineRef.current?.setFoundEggs(foundEggs);
+  }, [foundEggs]);
 
   // Update weather & Three.js sky whenever index/month/timeHour changes
   useEffect(() => {
@@ -930,6 +1025,21 @@ export function App() {
         ) {
           engineRef.current?.frameCurrentLandmark();
         }
+      } else if (e.key === 's' || e.key === 'S') {
+        if (
+          !globeOpen &&
+          !placesOpen &&
+          !settingsOpen &&
+          !passportOpen &&
+          !searchOpen &&
+          !postcardOpen &&
+          !infoOpen &&
+          !rulerOpen
+        ) {
+          e.preventDefault();
+          ambientAudio.playUi('toggle');
+          setSettings((prev) => ({ ...prev, scaleMode: !prev.scaleMode }));
+        }
       } else if (e.key === '/') {
         e.preventDefault();
         setInstantOpen(true);
@@ -948,6 +1058,8 @@ export function App() {
           ambientAudio.playUi('close');
           engineRef.current?.closeGlobe();
           setGlobeOpen(false);
+        } else if (rulerOpen) {
+          setRulerOpen(false);
         } else if (activeNoteCallout) {
           setActiveNoteCallout(null);
         } else if (fullscreen) exitFullscreen();
@@ -967,6 +1079,7 @@ export function App() {
     passportOpen,
     settingsOpen,
     postcardOpen,
+    rulerOpen,
     activeNoteCallout,
     fullscreen,
     exitFullscreen,
@@ -1408,6 +1521,11 @@ export function App() {
     [liveForecast, index, month]
   );
   const bestMonths = useMemo(() => getBestMonths(index), [index]);
+  const scaleFact = SCALE_FACTS[LANDMARKS[index].k];
+  const scaleKind: ScaleReferenceKind = settings.scaleReference ?? 'person';
+  const referenceFactor = scaleFact?.modelUnits
+    ? referenceDisplayFactor(scaleFact.magnitudeM, scaleFact.modelUnits, scaleKind)
+    : null;
 
   return (
     <LayoutGroup>
@@ -1441,7 +1559,12 @@ export function App() {
           idleInFullscreen={idleInFullscreen}
           globeOpen={globeOpen || placesOpen}
           theme={settings.theme}
+          scaleMode={settings.scaleMode ?? false}
           reducedMotion={reducedMotion}
+          onToggleScale={() => {
+            ambientAudio.playUi('toggle');
+            setSettings((prev) => ({ ...prev, scaleMode: !prev.scaleMode }));
+          }}
           onToggleSound={handleToggleSound}
           onToggleTod={() => {
             ambientAudio.playUi(todOpen ? 'close' : 'open');
@@ -1457,6 +1580,27 @@ export function App() {
             setSearchOpen(true);
           }}
         />
+
+        {/* Scale-mode badge */}
+        {settings.scaleMode &&
+          !globeOpen &&
+          !placesOpen &&
+          !fullscreen &&
+          scaleFact?.magnitudeM && (
+            <div className="fixed left-4 top-[calc(70px+env(safe-area-inset-top,0px))] z-10 max-w-[min(320px,calc(100vw-32px))] px-3 py-2 rounded-xl bg-[#121319]/90 border border-[#e8b04a]/35 text-[11.5px] text-[#f3efe6] pointer-events-none">
+              <div className="font-medium">
+                {formatMetres(scaleFact.magnitudeM)} {scaleFact.label} · ≈
+                {Math.round(scaleRatio(scaleFact.magnitudeM, referenceHeightM(scaleKind))).toLocaleString('en-ZA')}{' '}
+                {scaleKind === 'eiffel' ? 'Eiffel Towers' : `${scaleKind}s`} tall
+              </div>
+              {referenceFactor !== null && Math.abs(referenceFactor - 1) >= 0.02 && (
+                <div className="mt-0.5 text-[10.5px] text-[#a9a69e]">
+                  Silhouette {referenceFactor > 1 ? 'enlarged' : 'reduced'} ×
+                  {referenceFactor.toFixed(1)} for legibility
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Quick Time-of-Day Scrubber */}
         {todOpen && !fullscreen && !globeOpen && !placesOpen && (
@@ -1948,6 +2092,7 @@ export function App() {
           onToggleFavorite={toggleFavorite}
           onOpenPassport={() => setPassportOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenRuler={() => setRulerOpen(true)}
           onExploreCoordinates={(center) => void exploreCoordinates(center)}
           exploring={exploring}
           onInstalledToast={showToast}
@@ -1957,7 +2102,9 @@ export function App() {
           open={infoOpen}
           index={index}
           bestMonths={bestMonths}
+          month={month}
           reducedMotion={reducedMotion}
+          onWildlifeFact={showFact}
           onClose={() => setInfoOpen(false)}
           onOpenGallery={() => {
             setInfoOpen(false);
@@ -1977,11 +2124,14 @@ export function App() {
         <PassportModal
           open={passportOpen}
           visited={visited}
+          foundEggs={foundEggs}
           notesByLandmark={notesByLandmark}
           activeRouteId={activeRouteId}
           reducedMotion={reducedMotion}
           onClose={() => setPassportOpen(false)}
           onJumpToNote={handleJumpToNote}
+          onOpenRuler={() => setRulerOpen(true)}
+          onResetEggs={resetEggs}
           onSelectRoute={handleSelectRoute}
           onViewRouteOnGlobe={handleViewRouteOnGlobe}
           onResetPassport={() => {
@@ -1992,6 +2142,22 @@ export function App() {
               // Ignore storage errors
             }
             showToast('Passport stamps cleared');
+            resetEggs();
+          }}
+        />
+
+        <ScaleRulerModal
+          open={rulerOpen}
+          visited={visited}
+          reference={scaleKind}
+          reducedMotion={reducedMotion}
+          onChangeReference={(kind) => setSettings((prev) => ({ ...prev, scaleReference: kind }))}
+          onClose={() => setRulerOpen(false)}
+          onSelectLandmark={(i) => {
+            setRulerOpen(false);
+            setPassportOpen(false);
+            setSearchOpen(false);
+            selectLandmark(i);
           }}
         />
 

@@ -31,7 +31,17 @@ export interface CitylitSettings {
    * path tracing; in the browser it applies a best-effort WebGL approximation.
    */
   cinematic: boolean;
+  /** Show a real-world scale silhouette beside the active diorama. */
+  scaleMode?: boolean;
+  /** Which silhouette scale mode uses. */
+  scaleReference?: ScaleReferenceKind;
+  /** Show season-aware wildlife and make it tappable for facts. */
+  wildlife?: boolean;
+  /** Show hidden details (they are still discoverable when off via Passport). */
+  hiddenDetails?: boolean;
 }
+
+export type ScaleReferenceKind = 'person' | 'springbok' | 'eiffel';
 
 export type WeatherConditionKey = 'sun' | 'partly' | 'cloud' | 'rain' | 'storm' | 'fog' | 'wind';
 

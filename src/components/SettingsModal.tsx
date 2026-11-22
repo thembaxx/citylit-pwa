@@ -3,7 +3,10 @@ import {
   Bird,
   BookmarkSimple,
   Car,
+  Eye,
+  PawPrint,
   Plus,
+  Ruler,
   SlidersHorizontal,
   SpeakerHigh,
   Waveform,
@@ -21,6 +24,7 @@ import type {
   CitylitSettings,
   MotionSetting,
   QualitySetting,
+  ScaleReferenceKind,
   ThemeSetting,
 } from '../types/citylit';
 import { AnimatedNumber } from './ui/AnimatedNumber';
@@ -111,6 +115,15 @@ const THEME_OPTIONS = [
   { value: 'dark' as const, label: 'Dark' },
   { value: 'daylight' as const, label: 'Daylight' },
   { value: 'studio' as const, label: 'Studio' },
+];
+
+const SCALE_REFERENCE_OPTIONS: Array<{
+  value: ScaleReferenceKind;
+  label: string;
+}> = [
+  { value: 'person', label: 'Person' },
+  { value: 'springbok', label: 'Springbok' },
+  { value: 'eiffel', label: 'Eiffel' },
 ];
 
 const MIXER_CHANNELS: Array<{
@@ -240,6 +253,61 @@ export function SettingsModal({
             }}
             reducedMotion={reducedMotion}
           />
+        </div>
+
+        <div className="pt-4.5 border-t border-white/10 space-y-3.5">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <div className="min-w-0">
+              <span className="text-[14px] whitespace-nowrap text-[#f3efe6] inline-flex items-center gap-2">
+                <Ruler size={15} className="text-[#e8b04a]" />
+                Scale mode
+              </span>
+              <p className="mt-0.5 text-[11.5px] text-[#a9a69e]/80 m-0">
+                Put a familiar silhouette beside the diorama
+              </p>
+            </div>
+            <LiquidToggle
+              label="Scale mode"
+              value={settings.scaleMode ?? false}
+              onChange={(scaleMode) => onUpdate({ scaleMode })}
+              reducedMotion={reducedMotion}
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <span className="text-[13px] text-[#a9a69e]">Compare with</span>
+            <PillNavigation<ScaleReferenceKind>
+              layoutId="settings-scale-reference"
+              reducedMotion={reducedMotion}
+              value={settings.scaleReference ?? 'person'}
+              onChange={(scaleReference) => onUpdate({ scaleReference })}
+              options={SCALE_REFERENCE_OPTIONS}
+              compact
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6] inline-flex items-center gap-2">
+              <PawPrint size={15} className="text-[#e8b04a]" />
+              Wildlife layer
+            </span>
+            <LiquidToggle
+              label="Wildlife layer"
+              value={settings.wildlife ?? true}
+              onChange={(wildlife) => onUpdate({ wildlife })}
+              reducedMotion={reducedMotion}
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6] inline-flex items-center gap-2">
+              <Eye size={15} className="text-[#e8b04a]" />
+              Hidden details
+            </span>
+            <LiquidToggle
+              label="Hidden details"
+              value={settings.hiddenDetails ?? true}
+              onChange={(hiddenDetails) => onUpdate({ hiddenDetails })}
+              reducedMotion={reducedMotion}
+            />
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">

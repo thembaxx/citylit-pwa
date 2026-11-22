@@ -50,7 +50,6 @@ import {
   type InstanceTransform,
 } from './primitives';
 import { headingYaw, leftLaneOffset } from '../../lib/trafficMath';
-import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
 import { getSoftTexture, prepareCanvasTexture } from '../shaders';
 import {
   addLighthouseSweep,
@@ -3232,19 +3231,8 @@ export function boulders(): THREE.Group {
   instancedMeshes(g, new THREE.SphereGeometry(0.032, 6, 5).translate(-0.075, 0.81, 0.085), pk, penT);
   instancedMeshes(g, CB(0.18, 0.035, 0.16, 0.01).translate(0, 0.02, 0.06), bk, penT);
 
-  // A small waddling colony demonstrates the shared animal scaffold: per-bird
-  // idle phase, one batched contact shadow tier and distance culling.
-  const waddleColony = createAnimalScaffold({
-    kind: 'penguin',
-    count: 4,
-    position: { x: 0.2, y: 0.2, z: -0.3 },
-    scale: 0.5,
-    spread: 0.72,
-    idle: 'waddle',
-    contact: false,
-    lods: { farDistance: 10, farScale: 0.9, cullDistance: 16 },
-  });
-  g.add(waddleColony.group);
+  // Penguin colony is supplied by the data-driven wildlife layer in
+  // dioramaKit (see src/data/wildlife.ts), keeping one scaffold per site.
   const colonySign = interpretiveSign('#d8a64a');
   colonySign.position.set(1.2, 0.32, -3.2);
   colonySign.rotation.y = -Math.PI / 2;
@@ -3313,12 +3301,11 @@ export function boulders(): THREE.Group {
 
   const sr = seaRings(g, 0.14, 4, 3);
   const bd = birds(g, 3, 3, 5);
-  g.userData.tick = (t: number, dt: number) => {
+  g.userData.tick = (t: number) => {
     P.forEach((p, i) => {
       p.rotation.z = Math.sin(t * 4 + i * 2) * (i % 3 ? 0.04 : 0.1);
       p.position.y = 0.2 + (i % 3 ? 0 : Math.abs(Math.sin(t * 4 + i * 2)) * 0.04);
     });
-    waddleColony.update(dt, t, dt > 0 ? 1 : 0, getAnimalSeasonMonth());
     sr(t);
     bd(t);
     shoreFoam.forEach((ring, i) => {

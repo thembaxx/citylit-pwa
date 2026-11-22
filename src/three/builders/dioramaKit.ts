@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { EASTER_EGGS } from '../../data/easterEggs';
+import { REFERENCE_HEIGHTS, SCALE_FACTS } from '../../data/scaleFacts';
+import { WILDLIFE } from '../../data/wildlife';
 import type {
   AmbientEvent,
   AmbientSiteProfile,
   LandmarkBiome,
+  ScaleReferenceKind,
   SpatialAudioSource,
 } from '../../types/citylit';
 import {
@@ -14,8 +18,11 @@ import {
   normalMapsActive,
   waterize,
 } from '../shaders';
+import { MAX_REFERENCE_UNITS, MIN_REFERENCE_UNITS } from '../../lib/scale';
+import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
 import {
   add,
+  B,
   boostBuiltVibrancy,
   C,
   CB,
@@ -48,9 +55,24 @@ import {
 } from './primitives';
 import type { StreetLampAnchor } from '../streetLights';
 
-type Update = (t: number) => void;
+type Update = (t: number, dt: number) => void;
 type Tick = (t: number, dt: number) => void;
 type AnchorKind = 'jetty' | 'windpump' | 'bollards' | 'deck' | 'reedbed';
+
+/** Structural mirror of the engine's InteractiveTarget, without importing the engine. */
+interface LayerTarget {
+  object: THREE.Object3D;
+  kind: 'wildlife' | 'egg';
+  id: string;
+  text: string;
+  touchRadius: number;
+  isEnabled?: () => boolean;
+}
+
+interface ScaleReferenceEntry {
+  kind: ScaleReferenceKind;
+  object: THREE.Object3D;
+}
 export type DioramaFx =
   | 'surf'
   | 'spray'
@@ -3336,6 +3358,249 @@ function addSoaringBirds(g: THREE.Group, profile: SiteProfile, seedAngle: number
   ];
 }
 
+/* ------------------------------------------------------------------ */
+/* Discovery layers: scale reference, wildlife, hidden details           */
+/* ------------------------------------------------------------------ */
+
+const SCALE_REF_POSITION = [6.2, 0, 5.2] as const;
+
+function silhouetteFor(kind: ScaleReferenceKind, height: number): THREE.Group {
+  const holder = new THREE.Group();
+  const dark = M('#26262c', 0.92);
+  const tan = M('#c9a06f', 0.9);
+  const iron = MSteel('#5c626b', 0.62, 0.45);
+
+  if (kind === 'person') {
+    add(holder, C(height * 0.075, height * 0.095, height * 0.5, 10), dark, 0, height * 0.42, 0);
+    add(holder, new THREE.SphereGeometry(height * 0.075, 12, 10), dark, 0, height * 0.78, 0);
+    for (const s of [-1, 1]) {
+      add(
+        holder,
+        C(height * 0.028, height * 0.032, height * 0.36, 8),
+        dark,
+        s * height * 0.045,
+        height * 0.18,
+        0
+      );
+      const arm = add(
+        holder,
+        C(height * 0.022, height * 0.024, height * 0.34, 8),
+        dark,
+        s * height * 0.115,
+        height * 0.55,
+        0
+      );
+      arm.rotation.z = s * 0.16;
+    }
+  } else if (kind === 'springbok') {
+    const body = add(holder, new THREE.SphereGeometry(height * 0.19, 12, 10), tan, 0, height * 0.58, 0);
+    body.scale.set(1.5, 0.72, 0.62);
+    add(holder, C(height * 0.06, height * 0.09, height * 0.3, 8), tan, height * 0.22, height * 0.72, 0).rotation.z = -0.55;
+    const head = add(holder, new THREE.SphereGeometry(height * 0.08, 10, 8), tan, height * 0.33, height * 0.85, 0);
+    head.scale.set(1.2, 0.85, 0.7);
+    for (const sx of [-0.16, 0.16]) {
+      for (const sz of [-0.07, 0.07]) {
+        add(
+          holder,
+          C(height * 0.018, height * 0.022, height * 0.47, 6),
+          dark,
+          height * sx,
+          height * 0.24,
+          height * sz
+        );
+      }
+    }
+    for (const s of [-1, 1]) {
+      add(
+        holder,
+        C(height * 0.012, height * 0.016, height * 0.18, 6),
+        dark,
+        height * 0.36,
+        height * 0.95,
+        s * height * 0.04
+      ).rotation.z = 0.25;
+    }
+  } else {
+    const legHeight = height * 0.42;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const leg = add(
+          holder,
+          C(height * 0.012, height * 0.03, legHeight, 8),
+          iron,
+          sx * height * 0.16,
+          legHeight * 0.5,
+          sz * height * 0.16
+        );
+        leg.rotation.z = sx * 0.09;
+        leg.rotation.x = sz * 0.09;
+      }
+    }
+    add(holder, CB(height * 0.42, height * 0.035, height * 0.42, height * 0.008), iron, 0, legHeight, 0);
+    add(holder, CB(height * 0.26, height * 0.028, height * 0.26, height * 0.008), iron, 0, height * 0.68, 0);
+    add(holder, C(height * 0.012, height * 0.055, height * 0.28, 8), iron, 0, height * 0.84, 0);
+    add(holder, C(height * 0.004, height * 0.006, height * 0.06, 6), iron, 0, height * 1.0, 0);
+  }
+
+  mergeByMaterial(holder);
+  holder.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    obj.userData.noShadow = true;
+    obj.userData.cannotReceiveAO = true;
+    obj.userData.noDissolve = true;
+    obj.castShadow = false;
+    obj.receiveShadow = false;
+  });
+  return holder;
+}
+
+/** One legible silhouette per reference kind, hidden until scale mode is on. */
+function addScaleReference(group: THREE.Group, key: string): void {
+  const fact = SCALE_FACTS[key];
+  const refs: ScaleReferenceEntry[] = [];
+  group.userData.scaleReferences = refs;
+  if (!fact?.magnitudeM || fact.magnitudeM <= 0) return;
+
+  // Measure before the (hidden) silhouettes are attached so they cannot
+  // inflate their own bounds.
+  const box = new THREE.Box3().setFromObject(group);
+  const modelUnits = fact.modelUnits ?? (box.isEmpty() ? 3 : Math.max(0.5, box.max.y));
+  const unitsPerMetre = modelUnits / fact.magnitudeM;
+
+  // The wrapper stays in the graph; only the three holder groups toggle. This
+  // keeps the silhouettes out of the hero fit bounds while hidden.
+  const wrapper = new THREE.Group();
+  wrapper.visible = true;
+  wrapper.position.set(SCALE_REF_POSITION[0], SCALE_REF_POSITION[1], SCALE_REF_POSITION[2]);
+  (['person', 'springbok', 'eiffel'] as const).forEach((kind) => {
+    const trueHeight = REFERENCE_HEIGHTS[kind] * unitsPerMetre;
+    const height = THREE.MathUtils.clamp(trueHeight, MIN_REFERENCE_UNITS, MAX_REFERENCE_UNITS);
+    const holder = silhouetteFor(kind, height);
+    holder.userData.displayFactor = height / trueHeight;
+    wrapper.add(holder);
+    refs.push({ kind, object: holder });
+  });
+  group.add(wrapper);
+}
+
+/** Season-aware animal scaffolds plus a small invisible tap proxy per spot. */
+function addWildlifeLayer(group: THREE.Group, key: string): Update[] {
+  const spots = WILDLIFE.filter((spot) => spot.siteKey === key);
+  if (spots.length === 0) return [];
+
+  const updates: Update[] = [];
+  const wrappers: Array<{ object: THREE.Group; inner: THREE.Object3D }> = [];
+  const targets: LayerTarget[] = [];
+  for (const spot of spots) {
+    const scaffold = createAnimalScaffold({
+      kind: spot.species,
+      count: spot.count ?? 3,
+      position: { x: spot.position[0], y: spot.position[1], z: spot.position[2] },
+      scale: spot.scale ?? 0.6,
+      idle: spot.idle ?? 'graze',
+      color: spot.color,
+      month: spot.months,
+      season: spot.seasons,
+      contact: false,
+      lods: { farDistance: 18, farScale: 0.75, cullDistance: 34 },
+    });
+    const wrapper = new THREE.Group();
+    wrapper.visible = true;
+    wrapper.add(scaffold.group);
+
+    // Transparent proxy keeps the existing raycast/hover pipeline; the real
+    // animals keep their own seasonal visibility on the inner group.
+    const proxy = new THREE.Mesh(
+      new THREE.SphereGeometry(0.28, 8, 6),
+      new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        colorWrite: false,
+      })
+    );
+    proxy.position.set(spot.position[0], spot.position[1] + 0.4, spot.position[2]);
+    proxy.userData.cannotReceiveAO = true;
+    wrapper.add(proxy);
+    group.add(wrapper);
+
+    wrappers.push({ object: wrapper, inner: scaffold.group });
+    targets.push({
+      object: proxy,
+      kind: 'wildlife',
+      id: spot.id,
+      text: spot.fact,
+      touchRadius: 18,
+      isEnabled: () => wrapper.visible && scaffold.group.visible,
+    });
+    updates.push((_t, dt) => {
+      scaffold.update(dt, _t, dt > 0 ? 1 : 0, getAnimalSeasonMonth());
+    });
+  }
+
+  group.userData.wildlifeGroups = wrappers;
+  appendLayerTargets(group, targets);
+  return updates;
+}
+
+/** A single tiny, unmarked prop per diorama — exact-hit only. */
+function addHiddenDetail(group: THREE.Group, key: string): void {
+  const egg = EASTER_EGGS[key];
+  if (!egg) return;
+  const holder = new THREE.Group();
+  holder.position.set(egg.position[0], egg.position[1], egg.position[2]);
+  const metal = M('#8d8372', 0.82, 0.2);
+  const warm = M('#d5a94f', 0.78);
+  const dark = M('#332d28', 0.92);
+  const small = 0.075;
+
+  if (egg.kind === 'keeper' || egg.kind === 'tool') {
+    add(holder, B(small * 1.4, small * 2, small), metal, 0, small, 0);
+    add(holder, new THREE.SphereGeometry(small * 0.55, 8, 6), warm, 0, small * 2.2, 0);
+    add(holder, C(small * 0.08, small * 0.08, small * 0.9, 6), metal, small * 0.5, small * 1.4, 0);
+  } else if (egg.kind === 'baboon' || egg.kind === 'tortoise' || egg.kind === 'bird') {
+    const body = add(holder, new THREE.SphereGeometry(small, 10, 8), dark, 0, small, 0);
+    body.scale.set(1.3, 0.8, 0.9);
+    add(holder, new THREE.SphereGeometry(small * 0.5, 8, 6), dark, small, small * 1.5, 0);
+    for (const s of [-1, 1]) {
+      add(holder, C(small * 0.09, small * 0.09, small * 0.8, 6), dark, s * small * 0.5, small * 0.4, 0);
+    }
+  } else {
+    add(holder, C(small, small * 0.8, small * 1.6, 8), warm, 0, small * 0.8, 0);
+    add(holder, new THREE.SphereGeometry(small * 0.4, 8, 6), metal, 0, small * 1.8, 0);
+    add(holder, B(small * 1.2, small * 0.2, small * 0.6), dark, 0, small * 0.1, 0);
+  }
+
+  holder.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    obj.userData.noShadow = true;
+    obj.userData.cannotReceiveAO = true;
+    obj.castShadow = false;
+    obj.receiveShadow = false;
+  });
+  group.add(holder);
+  const eggs: Array<{ object: THREE.Object3D; id: string }> =
+    (group.userData.eggGroups as Array<{ object: THREE.Object3D; id: string }> | undefined) ?? [];
+  eggs.push({ object: holder, id: egg.id });
+  group.userData.eggGroups = eggs;
+  holder.userData.eggLabel = egg.label;
+  appendLayerTargets(group, [
+    {
+      object: holder,
+      kind: 'egg',
+      id: egg.id,
+      text: `${egg.label} — ${egg.fact}`,
+      touchRadius: 0,
+      isEnabled: () => holder.visible,
+    },
+  ]);
+}
+
+function appendLayerTargets(group: THREE.Group, targets: LayerTarget[]): void {
+  const existing = (group.userData.interactiveTargets as LayerTarget[] | undefined) ?? [];
+  group.userData.interactiveTargets = [...existing, ...targets];
+}
+
 /**
  * Applies the shared crafted-diorama layer to a landmark group: stratified
  * base rim, biome ground cover, a secondary anchor prop, micro-weather and
@@ -3345,6 +3610,7 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   // LANDMARKS keys use curly apostrophes (Bourke’s, Chapman’s) while the
   // curated site profiles use straight ones. Normalize once so both lookups
   // resolve to the intended biome, rim palette, FX and spatial audio.
+  const sourceKey = key;
   key = normalizeProfileKey(key);
   const profile = getSiteProfile(key);
   const angle = keyAngle(key) + 0.6;
@@ -3358,6 +3624,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   addBaseScatter(group, profile);
   addTreeRing(group, profile, angle);
   const updates = addAnchor(group, profile, angle);
+  const wildlife = addWildlifeLayer(group, sourceKey);
+  for (let i = 0; i < wildlife.length; i++) updates.push(wildlife[i]);
   finalizeTreeBatch(group);
   stampContactShadowsFromMeshes(group);
   finalizeContactShadows(group);
@@ -3380,12 +3648,17 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   boostBuiltVibrancy(group);
   addVibrantAccents(group, key, profile);
 
+  // These stay out of the shadow/AO/vibrancy passes: the egg is deliberately
+  // tiny and the silhouettes must not inflate the hero fit bounds.
+  addHiddenDetail(group, sourceKey);
+  addScaleReference(group, sourceKey);
+
   const prev = group.userData.tick as Tick | undefined;
   group.userData.hasAnimatedShadowMeshes =
     Boolean(prev) || profile.anchor === 'windpump' || swayItems.length > 0;
   group.userData.tick = (t: number, dt: number) => {
     if (prev) prev(t, dt);
-    for (let i = 0; i < updates.length; i++) updates[i](t);
+    for (let i = 0; i < updates.length; i++) updates[i](t, dt);
   };
   group.userData.audioProfile = {
     ...profile.audio,

@@ -20,6 +20,7 @@ import type {
   NoteCategory,
   QualityIndex,
   QualitySetting,
+  ScaleReferenceKind,
   SkyEvent,
   ThemeSetting,
   WeatherConditionKey,
@@ -92,6 +93,26 @@ import { collectBeacons, createBeaconMesh } from './beacons';
 import { nightPaletteForBiome, type NightPalette } from './nightPalette';
 
 
+export type InteractiveKind = 'fact' | 'note' | 'wildlife' | 'egg';
+
+/**
+ * One tappable object in the diorama. Pins, wildlife herds and hidden details
+ * all share the same hover/tap pipeline; `touchRadius` is 0 for eggs so they
+ * can only be found by an exact hit.
+ */
+export interface InteractiveTarget {
+  object: THREE.Object3D;
+  kind: InteractiveKind;
+  /** Stable id used by wildlife and hidden-detail bookkeeping. */
+  id?: string;
+  text?: string;
+  noteId?: string;
+  /** CSS-pixel screen-space tolerance; 0 disables the fallback entirely. */
+  touchRadius: number;
+  /** Hides a target while its animal is out of season or its layer is off. */
+  isEnabled?: () => boolean;
+}
+
 export interface EngineCallbacks {
   onSelectLandmarkFromGlobe?: (index: number) => void;
   onGlobePinHover?: (index: number | null, clientX?: number, clientY?: number) => void;
@@ -100,6 +121,8 @@ export interface EngineCallbacks {
   onOpenLandmarkFromPlaces?: (index: number) => void;
   onFactDot?: (text: string) => void;
   onUserNotePin?: (noteId: string) => void;
+  onWildlifeTap?: (id: string, fact: string) => void;
+  onHiddenDetailFound?: (id: string, label: string, fact: string) => void;
   onPinDropPosition?: (pos: [number, number, number] | null) => void;
   onFirstInteract?: () => void;
   onThunder?: () => void;
@@ -212,6 +235,14 @@ export class CitylitEngine {
   private currentGroup: THREE.Group | null = null;
   private outgoingGroup: THREE.Group | null = null;
   private markerSprites: THREE.Sprite[] = [];
+  private interactives: InteractiveTarget[] = [];
+  private foundEggIds: ReadonlySet<string> = new Set<string>();
+  private scaleReference: ScaleReferenceKind | null = null;
+  private wildlifeEnabled = true;
+  private hiddenDetailsEnabled = true;
+  private readonly pickRaycaster = new THREE.Raycaster();
+  private readonly pickNdc = new THREE.Vector2();
+  private readonly pickWorld = new THREE.Vector3();
   private activeLods: THREE.LOD[] = [];
   private activeAnimalLods: THREE.Object3D[] = [];
   private activeIndex = 0;
@@ -1196,6 +1227,119 @@ export class CitylitEngine {
       this.markerGroup.add(sprite);
       this.markerSprites.push(sprite);
     });
+    this.rebuildInteractives();
+  }
+
+  /** Pick the closest enabled interactive, with a touch-friendly pixel fallback. */
+  private pickInteractive(
+    clientX: number,
+    clientY: number,
+    isTouch: boolean
+  ): InteractiveTarget | null {
+    const ndcX = (clientX / window.innerWidth) * 2 - 1;
+    const ndcY = -(clientY / window.innerHeight) * 2 + 1;
+    this.pickNdc.set(ndcX, ndcY);
+    this.pickRaycaster.setFromCamera(this.pickNdc, this.camera);
+    const enabled = this.interactives.filter((t) => t.isEnabled?.() !== false);
+    if (enabled.length === 0) return null;
+
+    const hits = this.pickRaycaster.intersectObjects(
+      enabled.map((t) => t.object),
+      false
+    );
+    if (hits.length > 0) {
+      const picked = enabled.find((t) => t.object === hits[0].object);
+      if (picked) return picked;
+    }
+
+    // Screen-space fallback: fingers never miss small pins or animals. Hidden
+    // details have touchRadius 0 and deliberately stay exact-hit only.
+    let best: InteractiveTarget | null = null;
+    let bestDist = Infinity;
+    for (const target of enabled) {
+      if (target.touchRadius <= 0) continue;
+      target.object.getWorldPosition(this.pickWorld);
+      this.pickWorld.project(this.camera);
+      if (this.pickWorld.z > 1) continue;
+      const sx = (this.pickWorld.x * 0.5 + 0.5) * window.innerWidth;
+      const sy = (-this.pickWorld.y * 0.5 + 0.5) * window.innerHeight;
+      const dist = Math.hypot(sx - clientX, sy - clientY);
+      const radius = isTouch ? Math.max(28, target.touchRadius) : target.touchRadius;
+      if (dist <= radius && dist < bestDist) {
+        best = target;
+        bestDist = dist;
+      }
+    }
+    return best;
+  }
+
+  /** Rebuild the shared pick list from pins plus the active diorama's layers. */
+  private rebuildInteractives(): void {
+    const fromSprites: InteractiveTarget[] = this.markerSprites.map((sp) => ({
+      object: sp,
+      kind: sp.userData.pinKind === 'note' ? 'note' : 'fact',
+      text: sp.userData.factText as string | undefined,
+      noteId: sp.userData.noteId as string | undefined,
+      touchRadius: 16,
+    }));
+    const fromGroup =
+      (this.currentGroup?.userData.interactiveTargets as InteractiveTarget[] | undefined) ?? [];
+    this.interactives = [...fromSprites, ...fromGroup];
+    this.applyLayerVisibility();
+  }
+
+  /** Toggle scale/wildlife/egg groups without rebuilding the cached diorama. */
+  private applyLayerVisibility(): void {
+    const group = this.currentGroup;
+    if (!group) return;
+    const refs = group.userData.scaleReferences as
+      | Array<{ kind: ScaleReferenceKind; object: THREE.Object3D }>
+      | undefined;
+    refs?.forEach((ref) => {
+      ref.object.visible = this.scaleReference === ref.kind;
+    });
+    const wildlife = group.userData.wildlifeGroups as
+      | Array<{ object: THREE.Object3D; inner: THREE.Object3D }>
+      | undefined;
+    wildlife?.forEach((w) => {
+      w.object.visible = this.wildlifeEnabled;
+    });
+    const eggs = group.userData.eggGroups as
+      | Array<{ object: THREE.Object3D; id: string }>
+      | undefined;
+    eggs?.forEach((e) => {
+      e.object.visible = this.hiddenDetailsEnabled && !this.foundEggIds.has(e.id);
+    });
+  }
+
+  setScaleReference(kind: ScaleReferenceKind | null): void {
+    this.scaleReference = kind;
+    this.applyLayerVisibility();
+  }
+
+  /** How far the visible silhouette was enlarged (or reduced) for legibility. */
+  getScaleDisplayFactor(): number | null {
+    const refs = this.currentGroup?.userData.scaleReferences as
+      | Array<{ kind: ScaleReferenceKind; object: THREE.Object3D }>
+      | undefined;
+    const active = refs?.find((ref) => ref.kind === this.scaleReference && ref.object.visible);
+    const factor = active?.object.userData.displayFactor as number | undefined;
+    return typeof factor === 'number' && Number.isFinite(factor) ? factor : null;
+  }
+
+  setWildlifeEnabled(enabled: boolean): void {
+    this.wildlifeEnabled = enabled;
+    this.applyLayerVisibility();
+  }
+
+  setHiddenDetailsEnabled(enabled: boolean): void {
+    this.hiddenDetailsEnabled = enabled;
+    this.applyLayerVisibility();
+  }
+
+  setFoundEggs(ids: ReadonlySet<string>): void {
+    this.foundEggIds = ids;
+    this.applyLayerVisibility();
   }
 
   /**
@@ -3316,7 +3460,6 @@ export class CitylitEngine {
     this.controls.addEventListener('end', onControlEnd);
 
     const raycaster = new THREE.Raycaster();
-    const projPos = new THREE.Vector3();
     const onPointerDown = (e: PointerEvent) => {
       this.camGoal = null;
       this.targetGoalActive = false;
@@ -3383,31 +3526,13 @@ export class CitylitEngine {
         this.cursorStrengthTarget = 0;
       }
 
-      // Check fact-pin sprites (raycast + tight screen-space proximity)
-      let markerIdx = -1;
-      if (this.markerSprites.length > 0) {
-        this.hoverHits.length = 0;
-        this.hoverRaycaster.intersectObjects(this.markerSprites, false, this.hoverHits);
-        if (this.hoverHits.length > 0) {
-          markerIdx = this.markerSprites.indexOf(this.hoverHits[0].object as THREE.Sprite);
-        } else {
-          let bestDist = 16;
-          for (let i = 0; i < this.markerSprites.length; i++) {
-            const sp = this.markerSprites[i];
-            projPos.copy(sp.position).project(this.camera);
-            if (projPos.z > 1) continue;
-            const sx = (projPos.x * 0.5 + 0.5) * window.innerWidth;
-            const sy = (-projPos.y * 0.5 + 0.5) * window.innerHeight;
-            const dist = Math.hypot(sx - e.clientX, sy - e.clientY);
-            if (dist < bestDist) {
-              bestDist = dist;
-              markerIdx = i;
-            }
-          }
-        }
-      }
-      this.hoveredMarkerIndex = markerIdx;
-      if (markerIdx >= 0) {
+      // Shared pick list: fact/note pins plus wildlife and hidden details.
+      const hovered = this.pickInteractive(e.clientX, e.clientY, false);
+      this.hoveredMarkerIndex =
+        hovered && (hovered.kind === 'fact' || hovered.kind === 'note')
+          ? this.markerSprites.indexOf(hovered.object as THREE.Sprite)
+          : -1;
+      if (hovered) {
         this.hoveredHero = false;
       } else if (now - this.lastHeroHoverCheck >= 48) {
         this.lastHeroHoverCheck = now;
@@ -3415,7 +3540,13 @@ export class CitylitEngine {
         this.hoverRaycaster.intersectObject(this.currentGroup, true, this.hoverHits);
         this.hoveredHero = this.hoverHits.length > 0;
       }
-      canvas.style.cursor = this.pinDropMode ? 'crosshair' : markerIdx >= 0 ? 'pointer' : 'default';
+      canvas.style.cursor = this.pinDropMode
+        ? 'crosshair'
+        : hovered?.kind === 'egg'
+          ? 'help'
+          : hovered
+            ? 'pointer'
+            : 'default';
     };
 
     const onPointerLeave = () => {
@@ -3515,48 +3646,29 @@ export class CitylitEngine {
           return;
         }
 
-        const hits = raycaster.intersectObjects(this.markerSprites, false);
-        let hitSprite: THREE.Sprite | undefined = hits.length
-          ? (hits[0].object as THREE.Sprite)
-          : undefined;
-        // Touch-friendly screen-space radius fallback so fingers never miss small pins.
-        if (!hitSprite && this.markerSprites.length > 0) {
-          const hitRadius = e.pointerType === 'touch' ? 28 : 16;
-          let bestDist = hitRadius;
-          for (let i = 0; i < this.markerSprites.length; i++) {
-            const sp = this.markerSprites[i];
-            projPos.copy(sp.position).project(this.camera);
-            if (projPos.z > 1) continue;
-            const sx = (projPos.x * 0.5 + 0.5) * window.innerWidth;
-            const sy = (-projPos.y * 0.5 + 0.5) * window.innerHeight;
-            const dist = Math.hypot(sx - e.clientX, sy - e.clientY);
-            if (dist < bestDist) {
-              bestDist = dist;
-              hitSprite = sp;
-            }
-          }
+        const target = this.pickInteractive(e.clientX, e.clientY, e.pointerType === 'touch');
+        if (!target) return;
+        if (target.kind === 'fact' || target.kind === 'note') {
+          const idx = this.markerSprites.indexOf(target.object as THREE.Sprite);
+          if (idx >= 0) this.activePinCursor = idx;
         }
-        if (hitSprite) {
-          this.activePinCursor = this.markerSprites.indexOf(hitSprite);
-        }
-        const pinKind = hitSprite?.userData.pinKind as 'fact' | 'note' | undefined;
-        if (pinKind === 'note' && hitSprite) {
-          const noteId = hitSprite.userData.noteId as string | undefined;
-          if (noteId) {
-            ambientAudio.playSfx('ping');
-            ambientAudio.vibrate(10);
-            this.userPinPopTimers.set(noteId, 0.85);
-            this.focusOnFactPoint(hitSprite.position);
-            this.callbacks.onUserNotePin?.(noteId);
-          }
-        } else {
-          const text = hitSprite?.userData.factText as string | undefined;
-          if (text && hitSprite) {
-            ambientAudio.playSfx('ping');
-            ambientAudio.vibrate(10);
-            this.focusOnFactPoint(hitSprite.position);
-            this.callbacks.onFactDot?.(text);
-          }
+        ambientAudio.playSfx('ping');
+        ambientAudio.vibrate(10);
+        if (target.kind === 'note' && target.noteId) {
+          this.userPinPopTimers.set(target.noteId, 0.85);
+          this.focusOnFactPoint(target.object.position);
+          this.callbacks.onUserNotePin?.(target.noteId);
+        } else if (target.kind === 'fact' && target.text) {
+          this.focusOnFactPoint(target.object.position);
+          this.callbacks.onFactDot?.(target.text);
+        } else if (target.kind === 'wildlife' && target.id && target.text) {
+          this.focusOnFactPoint(target.object.position);
+          this.callbacks.onWildlifeTap?.(target.id, target.text);
+        } else if (target.kind === 'egg' && target.id && target.text) {
+          this.foundEggIds = new Set([...this.foundEggIds, target.id]);
+          this.applyLayerVisibility();
+          const label = (target.object.userData.eggLabel as string | undefined) ?? target.id;
+          this.callbacks.onHiddenDetailFound?.(target.id, label, target.text);
         }
       }
     };
@@ -4445,6 +4557,7 @@ export class CitylitEngine {
       s.material.dispose();
     });
     this.markerSprites = [];
+    this.interactives = [];
     this.markerTexture?.dispose();
     this.markerTexture = null;
     for (const tex of Object.values(this.userPinTextures)) {

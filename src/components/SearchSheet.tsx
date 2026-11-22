@@ -5,6 +5,7 @@ import {
   GearSix,
   Heart,
   MapPin,
+  Ruler,
   ShareNetwork,
   Stamp,
   Tag,
@@ -34,6 +35,7 @@ interface SearchSheetProps {
   onToggleFavorite: (index: number) => void;
   onOpenPassport: () => void;
   onOpenSettings: () => void;
+  onOpenRuler?: () => void;
   onExploreCoordinates: (center: LatLon) => void;
   exploring?: boolean;
   onInstalledToast: (msg: string) => void;
@@ -53,6 +55,7 @@ export function SearchSheet({
   onToggleFavorite,
   onOpenPassport,
   onOpenSettings,
+  onOpenRuler,
   onExploreCoordinates,
   exploring = false,
   onInstalledToast,
@@ -198,6 +201,9 @@ export function SearchSheet({
             onClick: () => void exploreQuery(),
           },
           { label: 'Explorer Passport', icon: Stamp, onClick: onOpenPassport },
+          ...(onOpenRuler
+            ? [{ label: 'Compare heights on a ruler', icon: Ruler, onClick: onOpenRuler }]
+            : []),
           { label: 'Settings', icon: GearSix, onClick: onOpenSettings },
           { label: 'Close search sheet', icon: X, onClick: onClose },
         ].map(({ label, icon: Icon, onClick }) => (

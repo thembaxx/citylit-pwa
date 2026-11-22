@@ -74,7 +74,6 @@ import {
   type InstanceTransform,
 } from './primitives';
 import { prepareCanvasTexture } from '../shaders';
-import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
 import { awning, bench as benchProp, interpretiveSign, picnicTable } from './propKit';
 import { attachVehicleLights } from './vehicleLightKit';
 import {
@@ -1323,36 +1322,14 @@ export function kgalagadi(): THREE.Group {
     add(g, new THREE.IcosahedronGeometry(0.38, 1), Mc('#858764'), x + 0.48, hf(x, -z) + 0.16, z - 0.38);
   });
 
-  // Authentic Kgalagadi Gemsbok / Oryx herd on the dry Nossob riverbed. The
-  // scaffold batches the four animals into shared material buckets, adds one
-  // contact-shadow stamp batch, and gives each animal a graze idle with an
-  // optional southern-hemisphere month gate; the group still drifts as a herd.
-  const herd = createAnimalScaffold({
-    kind: 'gemsbok',
-    count: 4,
-    position: { x: 0, y: 0.3, z: 0 },
-    scale: 1.45,
-    spread: 0.55,
-    phaseSpread: 0.7,
-    idle: 'graze',
-    contact: true,
-    lods: { farDistance: 12, farScale: 0.9, cullDistance: 18 },
-  });
-  g.add(herd.group);
+  // The gemsbok herd is supplied by the data-driven wildlife layer
+  // (src/data/wildlife.ts), so this builder only sets the dry riverbed.
   const sn = drift(g, 80, '#e6a870', 0.08, (i, t) => [
     ((((R(i) * 14 - 7 + t * 0.8) % 14) + 14) % 14) - 7,
     0.5 + R(i + 3) * 1.2,
     R(i + 5) * 12 - 6,
   ]);
-  g.userData.tick = (t: number, dt: number) => {
-    const q = t * 0.055;
-    const z = Math.sin(q) * 4.2;
-    const x = Math.sin(-z * 0.35) * 1.1;
-    herd.group.position.set(x, hf(x, -z), z);
-    herd.group.rotation.y = Math.cos(q) * 0.35;
-    // The engine already scales t/dt by motionScale. dt===0 means reduced
-    // motion, so pass 0 to freeze the scaffold on its deterministic rest pose.
-    herd.update(dt, t, dt > 0 ? 1 : 0, getAnimalSeasonMonth());
+  g.userData.tick = (t: number) => {
     sn(t);
   };
   return g;
@@ -1840,21 +1817,7 @@ export function hermanus(): THREE.Group {
   const sr = seaRings(g, 0.12, 3.4, 3);
   const bd = birds(g, 4, 3.4, 6);
 
-  // Southern right whales calve off Hermanus in winter/early spring. A second,
-  // smaller pod uses the shared scaffold so the seasonal gate and submerged
-  // idle come from one place instead of another bespoke tick.
-  const winterPod = createAnimalScaffold({
-    kind: 'whale',
-    count: 2,
-    position: { x: -3.2, y: 0.1, z: 2.8 },
-    scale: 0.55,
-    spread: 1.5,
-    idle: 'submerge',
-    season: ['winter', 'spring'],
-    contact: false,
-    lods: { farDistance: 11, farScale: 0.9, cullDistance: 18 },
-  });
-  g.add(winterPod.group);
+  // The seasonal whale pod is supplied by the shared wildlife layer.
   const viewSign = interpretiveSign('#d8a64a');
   viewSign.position.set(3.8, 0.22, -3.4);
   viewSign.rotation.y = -0.5;
@@ -1865,7 +1828,7 @@ export function hermanus(): THREE.Group {
   viewBench.rotation.y = -0.5;
   g.add(viewBench);
 
-  g.userData.tick = (t: number, dt: number) => {
+  g.userData.tick = (t: number) => {
     const a = t * 0.12;
     const sn = Math.sin(a);
     const cs = Math.cos(a);
@@ -1887,7 +1850,6 @@ export function hermanus(): THREE.Group {
     blow(t);
     sr(t);
     bd(t);
-    winterPod.update(dt, t, dt > 0 ? 1 : 0, getAnimalSeasonMonth());
   };
   return g;
 }

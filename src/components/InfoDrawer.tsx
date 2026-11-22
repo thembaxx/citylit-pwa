@@ -3,16 +3,21 @@ import {
   Buildings,
   ClockCounterClockwise,
   Compass,
+  Eye,
   Images,
   MapPin,
+  PawPrint,
   Tag,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, revealItem, revealVariants } from '../lib/motion';
+import { EASTER_EGGS } from '../data/easterEggs';
 import { LANDMARK_DETAILS } from '../data/landmarkDetails';
 import { LANDMARKS } from '../data/landmarks';
+import { WILDLIFE } from '../data/wildlife';
+import { isAnimalActive } from '../three/builders/animalKit';
 import { loadWikipediaSummary, type WikiSummary } from '../services/mediaService';
 import { Sheet } from './ui/Sheet';
 import { UnfoldAccordion } from './ui/UnfoldAccordion';
@@ -21,7 +26,9 @@ interface InfoDrawerProps {
   open: boolean;
   index: number;
   bestMonths: string;
+  month?: number;
   reducedMotion?: boolean;
+  onWildlifeFact?: (fact: string) => void;
   onClose: () => void;
   onOpenGallery: () => void;
 }
@@ -36,12 +43,15 @@ export function InfoDrawer({
   open,
   index,
   bestMonths,
+  month,
   reducedMotion = false,
+  onWildlifeFact,
   onClose,
   onOpenGallery,
 }: InfoDrawerProps) {
   const [wikiSummary, setWikiSummary] = useState<WikiSummary | null>(null);
   const [wikiLoading, setWikiLoading] = useState(true);
+  const [hintForIndex, setHintForIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -61,8 +71,12 @@ export function InfoDrawer({
     };
   }, [index, open]);
 
+  const showEggHint = hintForIndex === index;
+
   const lm = LANDMARKS[index];
   const detail = LANDMARK_DETAILS[lm.k];
+  const wildlifeHere = WILDLIFE.filter((spot) => spot.siteKey === lm.k);
+  const eggHere = EASTER_EGGS[lm.k];
 
   return (
     <Sheet
@@ -151,6 +165,50 @@ export function InfoDrawer({
         >
           {lm.f}
         </motion.p>
+
+        {wildlifeHere.length > 0 && (
+          <motion.section variants={reducedMotion ? undefined : revealItem}>
+            <h3 className="flex items-center gap-2 text-[11px] tracking-[0.14em] uppercase text-[#e8b04a] m-0 mb-2">
+              <PawPrint size={13} /> Wildlife here
+            </h3>
+            <ul className="m-0 p-0 list-none divide-y divide-white/10 rounded-xl border border-white/10 bg-white/[0.02]">
+              {wildlifeHere.map((spot) => {
+                const active = isAnimalActive(month, spot.months, spot.seasons);
+                return (
+                  <li key={spot.id} className="px-3 py-2.5">
+                    <button
+                      type="button"
+                      onClick={() => onWildlifeFact?.(spot.fact)}
+                      disabled={!active}
+                      className="w-full text-left bg-transparent border-0 p-0 cursor-pointer disabled:cursor-default disabled:opacity-60"
+                    >
+                      <div className="text-[12.5px] text-[#f3efe6]">{spot.label}</div>
+                      <div className="text-[11px] text-[#a9a69e] mt-0.5">
+                        {active ? 'Tap to read its fact' : 'Out of season at this time of year'}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </motion.section>
+        )}
+
+        {eggHere && (
+          <motion.section variants={reducedMotion ? undefined : revealItem}>
+            <button
+              type="button"
+              onClick={() => setHintForIndex((v) => (v === index ? null : index))}
+              className="inline-flex items-center gap-2 text-[12px] text-[#a9a69e] hover:text-[#e8b04a] transition-colors cursor-pointer bg-transparent border-0 p-0"
+            >
+              <Eye size={14} className="text-[#e8b04a]" />
+              {showEggHint ? 'Hide the hidden-detail clue' : 'Look closer (hidden detail clue)'}
+            </button>
+            {showEggHint && (
+              <p className="text-[12px] text-[#f3efe6]/85 leading-relaxed mt-2 mb-0">{eggHere.hint}</p>
+            )}
+          </motion.section>
+        )}
 
         {detail && (
           <motion.div variants={reducedMotion ? undefined : revealItem}>
