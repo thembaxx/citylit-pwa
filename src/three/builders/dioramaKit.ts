@@ -32,6 +32,7 @@ import {
   swayItems,
   tree,
   weatherVertexColors,
+  whale,
   type InstanceTransform,
 } from './primitives';
 
@@ -778,22 +779,43 @@ const VIBRANT_ACCENTS: readonly (readonly [string, string, string])[] = [
   ['#7b2cbf', '#f72585', '#4cc9f0'],
 ];
 
+const HERITAGE_ACCENTS: readonly (readonly [string, string, string])[] = [
+  ['#7c6a50', '#4d5258', '#9c835d'],
+  ['#6b6359', '#4a564c', '#8e7b5e'],
+  ['#6a5848', '#525b63', '#8c7656'],
+];
+
+function isVibrantModernSite(key: string): boolean {
+  return (
+    key.includes('Bo-Kaap') ||
+    key.includes('Orlando') ||
+    key.includes('Moses') ||
+    key.includes('FNB') ||
+    key.includes('Mandela Bridge') ||
+    key.includes('Ponte') ||
+    key.includes('Lost City') ||
+    key.includes('Donkin')
+  );
+}
+
 function accentFor(key: string): readonly [string, string, string] {
   let h = 0;
   for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 100003;
-  return VIBRANT_ACCENTS[h % VIBRANT_ACCENTS.length];
+  const pool = isVibrantModernSite(key) ? VIBRANT_ACCENTS : HERITAGE_ACCENTS;
+  return pool[h % pool.length];
 }
 
 /**
- * Painted inlay along two front plinth edges plus four colour-coded corner
- * studs. This is display-case trim, not landscape colour: every landmark gains
- * new vibrant accents without changing its own model geometry.
+ * Painted or patinated bronze/slate inlay along two front plinth edges plus
+ * four colour-coded corner studs. Vivid polychrome trim is kept for modern
+ * urban icons; heritage & wilderness monuments receive muted bronze/slate trim.
  */
 function addVibrantAccents(g: THREE.Group, key: string, profile: SiteProfile): void {
   if (profile.square === false) return;
   const [primary, secondary, tertiary] = accentFor(key);
+  const heritage = !isVibrantModernSite(key);
   const grp = new THREE.Group();
-  const paint = M(primary, 0.52, 0.04);
+  const paint = M(primary, heritage ? 0.56 : 0.52, heritage ? 0.28 : 0.04);
 
   add(grp, CB(13.6, 0.075, 0.14, 0.02), paint, 0, 0.095, 7.7);
   add(grp, CB(0.14, 0.075, 13.6, 0.02), paint, -7.7, 0.095, 0);
@@ -807,7 +829,14 @@ function addVibrantAccents(g: THREE.Group, key: string, profile: SiteProfile): v
   const studColors = [secondary, tertiary, primary, secondary];
   for (let i = 0; i < corners.length; i++) {
     const [x, z] = corners[i];
-    add(grp, C(0.085, 0.1, 0.2, 10), M(studColors[i], 0.48, 0.06), x, 0.16, z);
+    add(
+      grp,
+      C(0.085, 0.1, 0.2, 10),
+      M(studColors[i], heritage ? 0.52 : 0.48, heritage ? 0.34 : 0.06),
+      x,
+      0.16,
+      z
+    );
   }
 
   mergeByMaterial(grp);
@@ -1011,8 +1040,8 @@ function addStandUnderside(g: THREE.Group, profile: SiteProfile): void {
   g.add(mesh);
 }
 
-/** A thin low-poly stream spilling over one edge, as on the reference island. */
-function addEdgeWaterfall(g: THREE.Group, angle: number): void {
+/** A thin low-poly stream spilling over one edge, biome-calibrated. */
+function addEdgeWaterfall(g: THREE.Group, angle: number, profile: SiteProfile): void {
   const rows = 10;
   const cols = 2;
   const width = 1.7;
@@ -1021,8 +1050,9 @@ function addEdgeWaterfall(g: THREE.Group, angle: number): void {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
-  const cTop = new THREE.Color('#c3eff0');
-  const cBottom = new THREE.Color('#2a86ad');
+  const isWetland = profile.biome === 'wetland';
+  const cTop = new THREE.Color(isWetland ? '#98aa9e' : '#bad8e0');
+  const cBottom = new THREE.Color(isWetland ? '#485f54' : '#21627b');
   const tmp = new THREE.Color();
 
   for (let r = 0; r <= rows; r++) {
@@ -1067,13 +1097,14 @@ function addEdgeWaterfall(g: THREE.Group, angle: number): void {
   g.add(mesh);
 }
 
-/** Fill the corners of the square block with sea so coastal scenes read as water-filled cuts. */
-function addSquareWaterPlate(g: THREE.Group): void {
+/** Fill the corners of the square block with sea so coastal/wetland scenes read as water-filled cuts. */
+function addSquareWaterPlate(g: THREE.Group, profile: SiteProfile): void {
   const geo = new THREE.PlaneGeometry(16.2, 16.2, 32, 32).rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   const cols = new Float32Array(pos.count * 3);
-  const deep = new THREE.Color('#176a8f');
-  const shallow = new THREE.Color('#46b9c4');
+  const isWetland = profile.biome === 'wetland';
+  const deep = new THREE.Color(isWetland ? '#3e5449' : '#16526d');
+  const shallow = new THREE.Color(isWetland ? '#607767' : '#2d7a89');
   const tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -1797,27 +1828,19 @@ function addSiteMotion(g: THREE.Group, key: string, profile: SiteProfile, angle:
     });
   }
 
-  // Hermanus Whale Watching: surfacing Southern Right whale fluke & splash ring in the cove
+  // Hermanus Whale Watching: surfacing Southern Right whale (callosities, no dorsal fin)
   if (key.includes('Hermanus')) {
-    const whale = new THREE.Group();
-    const whaleMat = new THREE.MeshStandardMaterial({
-      color: '#2d3744',
-      roughness: 0.42,
-      metalness: 0.08,
-    });
-    add(whale, new THREE.SphereGeometry(0.24, 10, 8).scale(1.6, 0.55, 0.72), whaleMat, 0, 0, 0);
-    add(whale, CB(0.18, 0.03, 0.42, 0.01), whaleMat, -0.42, 0.14, 0).rotation.z = 0.45;
-    mergeByMaterial(whale);
-    whale.position.set(-4.2, -0.25, 4.4);
-    whale.rotation.y = 0.85;
-    g.add(whale);
+    const coveWhale = whale(0.62);
+    coveWhale.position.set(-4.35, -0.25, 4.55);
+    coveWhale.rotation.y = 0.85;
+    g.add(coveWhale);
 
     updates.push((t) => {
       const cycle = (t * 0.12) % 1;
       const arch = Math.max(0, Math.sin(cycle * Math.PI * 2.2));
-      whale.position.y = -0.32 + arch * 0.48;
-      whale.rotation.z = Math.cos(cycle * Math.PI * 2.2) * 0.38;
-      whale.visible = arch > 0.02;
+      coveWhale.position.y = -0.34 + arch * 0.48;
+      coveWhale.rotation.z = Math.cos(cycle * Math.PI * 2.2) * 0.38;
+      coveWhale.visible = arch > 0.02;
     });
   }
 
@@ -2187,8 +2210,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   addCraftedRim(group, profile);
   addStandUnderside(group, profile);
   if (profile.biome === 'coastal' || profile.biome === 'wetland') {
-    addSquareWaterPlate(group);
-    addEdgeWaterfall(group, angle);
+    addSquareWaterPlate(group, profile);
+    addEdgeWaterfall(group, angle, profile);
   }
   addBaseScatter(group, profile);
   addTreeRing(group, profile, angle);

@@ -328,8 +328,8 @@ export function litWindowMaterial(opts: {
     return cached;
   }
 
-  const cw = 8;
-  const ch = 6;
+  const cw = 20;
+  const ch = 24;
   const cv = document.createElement('canvas');
   cv.width = cols * cw;
   cv.height = rows * ch;
@@ -344,33 +344,60 @@ export function litWindowMaterial(opts: {
   ex.fillStyle = '#000000';
   ex.fillRect(0, 0, ecv.width, ecv.height);
 
-  const ww = cw - 2;
-  const wh = ch - 2;
+  const warmGlow = new THREE.Color(`#${lit}`);
+  const coolGlow = new THREE.Color('#c6dcfa');
+  const tmpLit = new THREE.Color();
+  const marginX = 3;
+  const marginY = 3;
+  const ww = cw - marginX * 2;
+  const wh = ch - marginY * 2;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
-      const on = R((opts.seed ?? 0) * 97 + r * cols + c) > 1 - chance;
-      const px = c * cw + 1;
-      const py = r * ch + 1;
-      ctx.fillStyle = on ? `#${lit}` : `#${dark}`;
-      ctx.fillRect(px, py, ww, wh);
+      const rnd = R((opts.seed ?? 0) * 97 + r * cols + c);
+      const on = rnd > 1 - chance;
+      const px = c * cw + marginX;
+      const py = r * ch + marginY;
+
+      // Dark recessed reveal / transom frame
+      ctx.fillStyle = '#181c22';
+      ctx.fillRect(px - 1, py - 1, ww + 2, wh + 2);
+
       if (on) {
-        ex.fillStyle = '#ffd582';
+        const tempMix = R(r * 41 + c * 17 + (opts.seed ?? 0)) < 0.25 ? 0.55 : 0.0;
+        tmpLit.copy(warmGlow).lerp(coolGlow, tempMix);
+        const litHex = `#${tmpLit.getHexString()}`;
+        ctx.fillStyle = litHex;
+        ctx.fillRect(px, py, ww, wh);
+        ex.fillStyle = litHex;
         ex.fillRect(px, py, ww, wh);
+      } else {
+        ctx.fillStyle = `#${dark}`;
+        ctx.fillRect(px, py, ww, wh);
+      }
+
+      // Vertical & horizontal mullion bars inside each pane
+      ctx.fillStyle = 'rgba(20,24,30,0.68)';
+      ctx.fillRect(px + Math.floor(ww / 2), py, 1, wh);
+      ctx.fillRect(px, py + Math.floor(wh * 0.48), ww, 1);
+      if (on) {
+        ex.fillStyle = '#1a1a1a';
+        ex.fillRect(px + Math.floor(ww / 2), py, 1, wh);
+        ex.fillRect(px, py + Math.floor(wh * 0.48), ww, 1);
       }
     }
   }
 
-  const map = new THREE.CanvasTexture(cv);
+  const map = prepareCanvasTexture(new THREE.CanvasTexture(cv));
   map.colorSpace = THREE.SRGBColorSpace;
-  const emissiveMap = new THREE.CanvasTexture(ecv);
+  const emissiveMap = prepareCanvasTexture(new THREE.CanvasTexture(ecv));
   emissiveMap.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.MeshStandardMaterial({
     map,
     emissive: '#ffffff',
     emissiveMap,
     emissiveIntensity: intensity,
-    roughness: 0.58,
-    metalness: 0.1,
+    roughness: 0.54,
+    metalness: 0.14,
     envMapIntensity: 1.4,
     ...surfaceDetail('plaster', 0.012),
     side: THREE.DoubleSide,
@@ -494,6 +521,28 @@ export function MWood(
     metalness: 0.0,
     ...surfaceDetail('wood', bumpScale),
   });
+  return cacheMat(key, mat);
+}
+
+/**
+ * Natural organic bark & thatch material (tagged naturalSurface=true so
+ * boostBuiltVibrancy leaves matte ash-grey bark and dried thatch un-saturated).
+ */
+export function MBark(
+  c: THREE.ColorRepresentation,
+  r = 0.9,
+  bumpScale = 0.036
+): THREE.MeshStandardMaterial {
+  const colHex = tmpColor.set(c).getHexString();
+  const key = `bark_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
+  if (matCache[key]) return matCache[key];
+  const mat = new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: r,
+    metalness: 0.0,
+    ...surfaceDetail('wood', bumpScale),
+  });
+  mat.userData.naturalSurface = true;
   return cacheMat(key, mat);
 }
 
@@ -861,6 +910,75 @@ export function lines(verts: number[], col: THREE.ColorRepresentation): THREE.Li
     new THREE.Float32BufferAttribute(verts, 3)
   );
   return new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: col }));
+}
+
+const cableStart = new THREE.Vector3();
+const cableEnd = new THREE.Vector3();
+const cableMid = new THREE.Vector3();
+const cableDir = new THREE.Vector3();
+const cableUp = new THREE.Vector3(0, 1, 0);
+
+/**
+ * Batched volumetric steel cables / truss chords (replaces 1px WebGL `lines()`).
+ * Renders all `[p1, p2]` segments in one InstancedMesh draw call that catches shadows & AO.
+ */
+export function cableBatch(
+  g: THREE.Object3D,
+  segments: ReadonlyArray<readonly [[number, number, number], [number, number, number]]>,
+  radius: number,
+  mat: THREE.Material
+): THREE.InstancedMesh | null {
+  if (!segments.length) return null;
+  const key = `cable_unit_cyl`;
+  const geo = geoCache[key] ?? cacheGeo(key, new THREE.CylinderGeometry(1, 1, 1, 6, 1));
+  const im = new THREE.InstancedMesh(geo, mat, segments.length);
+  for (let i = 0; i < segments.length; i++) {
+    const [p1, p2] = segments[i];
+    cableStart.set(p1[0], p1[1], p1[2]);
+    cableEnd.set(p2[0], p2[1], p2[2]);
+    const len = cableStart.distanceTo(cableEnd);
+    if (len < 1e-4) {
+      tmpScale.set(0, 0, 0);
+      tmpMatrix.compose(cableStart, tmpQuat.identity(), tmpScale);
+      im.setMatrixAt(i, tmpMatrix);
+      continue;
+    }
+    cableMid.addVectors(cableStart, cableEnd).multiplyScalar(0.5);
+    cableDir.subVectors(cableEnd, cableStart).divideScalar(len);
+    tmpQuat.setFromUnitVectors(cableUp, cableDir);
+    tmpScale.set(radius, len, radius);
+    tmpMatrix.compose(cableMid, tmpQuat, tmpScale);
+    im.setMatrixAt(i, tmpMatrix);
+  }
+  im.instanceMatrix.needsUpdate = true;
+  im.computeBoundingSphere();
+  g.add(im);
+  return im;
+}
+
+/** Single volumetric gravity-sagged parabolic catenary cable tube. */
+export function catenaryTube(
+  g: THREE.Object3D,
+  p1: readonly [number, number, number],
+  p2: readonly [number, number, number],
+  sag: number,
+  radius: number,
+  mat: THREE.Material,
+  segs = 18,
+  radialSegs = 6
+): THREE.Mesh {
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= segs; i++) {
+    const u = i / segs;
+    const x = p1[0] + (p2[0] - p1[0]) * u;
+    const y = p1[1] + (p2[1] - p1[1]) * u - sag * 4 * u * (1 - u);
+    const z = p1[2] + (p2[2] - p1[2]) * u;
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, segs, radius, radialSegs, false), mat);
+  g.add(mesh);
+  return mesh;
 }
 
 export function tint<T extends THREE.BufferGeometry>(
@@ -1338,7 +1456,7 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
     return mergeTreeParts(parts);
   }
 
-  const trunkCol = k === 2 ? '#4d3624' : '#4a3a2a';
+  const trunkCol = k === 2 ? '#443528' : '#4a3a2a';
   // Root flare + taller trunk + forked structural boughs peek beneath canopy lobes.
   parts.push({
     g: new THREE.CylinderGeometry(0.088, 0.135, 0.18, 7),
@@ -1353,10 +1471,10 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
   const limbCount = k === 2 ? 6 : 4;
   for (let i = 0; i < limbCount; i++) {
     const a = (i * Math.PI * 2) / limbCount + rs(i) * 0.45;
-    const reach = k === 2 ? 0.21 : 0.16;
-    const tilt = k === 2 ? 1.04 : 0.74;
+    const reach = k === 2 ? 0.25 : 0.16;
+    const tilt = k === 2 ? 1.12 : 0.74;
     parts.push({
-      g: new THREE.CylinderGeometry(0.014, 0.036, k === 2 ? 0.68 : 0.62, 6),
+      g: new THREE.CylinderGeometry(0.013, 0.036, k === 2 ? 0.74 : 0.62, 6),
       c: trunkCol,
       p: [Math.cos(a) * reach, k === 2 ? 0.94 : 0.9, Math.sin(a) * reach],
       r: [-Math.sin(a) * tilt, 0, -Math.cos(a) * tilt],
@@ -1365,33 +1483,34 @@ function buildTreeGeometry(k: number, variant: number): THREE.BufferGeometry {
   const palettes: Record<number, readonly [string, string, string]> = {
     0: ['#8a5bc4', '#a77ae0', '#6d45a6'],
     1: ['#3e7738', '#569143', '#2d5c2b'],
-    2: ['#7e8d3b', '#98a64a', '#5f6e2d'],
+    2: ['#677c3b', '#819448', '#4f632e'],
   };
   const cs = palettes[k] ?? palettes[1];
-  const baseY = k === 2 ? 1.05 : 0.98;
-  const count = 3 + (variant === 1 ? 1 : 0);
+  const baseY = k === 2 ? 1.08 : 0.98;
+  const count = k === 2 ? 4 : 3 + (variant === 1 ? 1 : 0);
   for (let i = 0; i < count; i++) {
     const r = 0.29 + rs(i + 7) * 0.09 + (variant === 2 ? 0.025 : 0);
-    const q = k === 2 ? 0.36 : 0.27 + (i % 2) * 0.06;
+    const q = k === 2 ? 0.44 : 0.27 + (i % 2) * 0.06;
     const px = Math.cos(i * 2.39 + variant * 0.4) * q;
     const pz = Math.sin(i * 2.39 + variant * 0.4) * q;
-    const py = rs(i + 3) * (k === 2 ? 0.1 : 0.2) + (i === count - 1 ? 0.12 : 0);
+    const py = rs(i + 3) * (k === 2 ? 0.04 : 0.2) + (i === count - 1 ? (k === 2 ? 0.03 : 0.12) : 0);
     parts.push({
       g: crownGeo(r, i + variant * 11 + k * 5),
       c: cs[i % 3],
       p: [px, baseY + py, pz],
-      s: k === 2 ? [1.72, 0.36, 1.72] : [1, 0.94, 1],
+      s: k === 2 ? [1.95, 0.26, 1.95] : [1, 0.94, 1],
       r: [0, rs(i + 5) * 2, 0],
     });
   }
   // Small outer leaflets break up the silhouette and add canopy depth.
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < (k === 2 ? 4 : 3); i++) {
     const ang = rs(i + 40) * 6.2832;
+    const rad = k === 2 ? 0.56 : 0.36;
     parts.push({
       g: crownGeo(0.13 + rs(i + 44) * 0.06, i + variant * 5 + k * 9),
       c: cs[(i + 1) % 3],
-      p: [Math.cos(ang) * 0.36, baseY + 0.14 + rs(i + 48) * 0.24, Math.sin(ang) * 0.36],
-      s: k === 2 ? [1.3, 0.55, 1.3] : [1, 0.8, 1],
+      p: [Math.cos(ang) * rad, baseY + (k === 2 ? 0.02 : 0.14) + rs(i + 48) * (k === 2 ? 0.05 : 0.24), Math.sin(ang) * rad],
+      s: k === 2 ? [1.55, 0.28, 1.55] : [1, 0.8, 1],
     });
   }
   return mergeTreeParts(parts);
@@ -1609,15 +1728,15 @@ export function rondavel(
   add(rd, C(0.36, 0.37, 0.44, 24), MPlaster(wallCol, 0.82), 0, 0.26, 0);
   add(rd, C(0.375, 0.375, 0.07, 24), MPlaster('#a34a36', 0.86), 0, 0.08, 0);
   // Layered thatch courses give the cone a fibrous, banded silhouette.
-  const thatch = MWood(roofCol, 0.94);
+  const thatch = MBark(roofCol, 0.94, 0.038);
   for (let i = 0; i < 5; i++) {
     const r = 0.47 - i * 0.088;
     add(rd, C(r, r, 0.04, 24, 1, true), thatch, 0, 0.5 + i * 0.072, 0);
   }
   add(rd, new THREE.ConeGeometry(0.46, 0.36, 24), thatch, 0, 0.64, 0);
-  add(rd, C(0.03, 0.04, 0.08, 8), MWood('#4e3824', 0.9), 0, 0.84, 0);
+  add(rd, C(0.03, 0.04, 0.08, 8), MBark('#4e3824', 0.9), 0, 0.84, 0);
   // Recessed doorway and a small shuttered window.
-  add(rd, CB(0.14, 0.29, 0.03, 0.008), MPlaster('#efe6d4', 0.8), 0, 0.17, 0.365);
+  add(rd, CB(0.14, 0.29, 0.03, 0.008), MPlaster('#e4dccb', 0.8), 0, 0.17, 0.365);
   add(rd, CB(0.11, 0.26, 0.04, 0.01), MWood('#4d321c', 0.8), 0, 0.17, 0.385);
   const win = add(rd, CB(0.09, 0.09, 0.02, 0.005), M('#d7c9a8', 0.5), 0.24, 0.33, 0.26);
   win.rotation.y = -0.62;
@@ -1652,7 +1771,7 @@ export function colonialHouse(
     d = 0.72,
     wall,
     roof,
-    trim = '#f4f0e8',
+    trim = '#e8e2d5',
     capeDutch = false,
   } = opts;
   const grp = new THREE.Group();
@@ -1663,8 +1782,8 @@ export function colonialHouse(
 
   const trimMat = MPlaster(trim, 0.76);
   const stoneMat = MStone('#a89c88', 0.88);
-  const frameWood = MWood('#5a4632', 0.8);
-  const winMat = G('#ffe1a0', 0.85);
+  const frameWood = MWood('#4d3a28', 0.8);
+  const winMat = G('#f5cf86', 0.45);
   const shutterMat = MWood('#274c3c', 0.72);
   const slatMat = MWood('#1e3d30', 0.82);
   const doorMat = MWood('#3e281a', 0.75);
@@ -2071,6 +2190,353 @@ export function animal(col: string): THREE.Group {
   }
   mergeByMaterial(a);
   return a;
+}
+
+/** Dichotomous-branching Namaqua/Karoo Quiver Tree (Aloidendron dichotomum). */
+export function quiverTree(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  seed = 0
+): THREE.Group {
+  const qt = new THREE.Group();
+  qt.position.set(x, y, z);
+  qt.scale.setScalar(sc);
+  const bark = MBark('#bfa77a', 0.9, 0.035);
+  const leaf = Mc('#6b8a50');
+  const tipMat = Mc('#7fa05e');
+  add(qt, C(0.11, 0.16, 0.72, 10), bark, 0, 0.36, 0);
+
+  const fork = (
+    px: number,
+    py: number,
+    pz: number,
+    dir: THREE.Vector3,
+    len: number,
+    rad: number,
+    depth: number,
+    idx: number
+  ) => {
+    const end = new THREE.Vector3(px, py, pz).addScaledVector(dir, len);
+    const mid = new THREE.Vector3(
+      (px + end.x) * 0.5,
+      (py + end.y) * 0.5,
+      (pz + end.z) * 0.5
+    );
+    const seg = add(qt, C(rad * 0.76, rad, len, 7), bark, mid.x, mid.y, mid.z);
+    seg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    if (depth <= 0) {
+      // Spiky aloe rosette at twig terminus
+      for (let b = 0; b < 5; b++) {
+        const a = (b / 5) * Math.PI * 2 + seed;
+        const cone = add(
+          qt,
+          new THREE.ConeGeometry(0.032, 0.14, 5),
+          b % 2 ? tipMat : leaf,
+          end.x + Math.cos(a) * 0.03,
+          end.y + 0.04,
+          end.z + Math.sin(a) * 0.03
+        );
+        cone.rotation.set(Math.sin(a) * 0.65, 0, -Math.cos(a) * 0.65);
+      }
+      add(qt, new THREE.ConeGeometry(0.03, 0.13, 5), tipMat, end.x, end.y + 0.06, end.z);
+      return;
+    }
+    const baseYaw = idx * 1.45 + seed * 1.7 + depth * 0.8;
+    for (const s of [-1, 1]) {
+      const yaw = baseYaw + s * 1.57;
+      const nx = dir.x * 0.48 + Math.cos(yaw) * 0.54;
+      const ny = Math.max(0.45, dir.y * 0.82);
+      const nz = dir.z * 0.48 + Math.sin(yaw) * 0.54;
+      fork(
+        end.x,
+        end.y,
+        end.z,
+        new THREE.Vector3(nx, ny, nz).normalize(),
+        len * 0.72,
+        rad * 0.72,
+        depth - 1,
+        idx * 2 + (s > 0 ? 1 : 0)
+      );
+    }
+  };
+
+  for (let i = 0; i < 2; i++) {
+    const a = seed + i * Math.PI;
+    const d = new THREE.Vector3(Math.cos(a) * 0.42, 0.9, Math.sin(a) * 0.42).normalize();
+    fork(0, 0.68, 0, d, 0.34, 0.085, 2, i + 1);
+  }
+  mergeByMaterial(qt);
+  g.add(qt);
+  return qt;
+}
+
+/** North-leaning spiny Namaqualand Halfmens (Pachypodium namaquanum). */
+export function halfmensTree(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1
+): THREE.Group {
+  const hm = new THREE.Group();
+  hm.position.set(x, y, z);
+  hm.scale.setScalar(sc);
+  const trunk = MBark('#7f8376', 0.92, 0.04);
+  const head = Mc('#5e7d43');
+  const col = add(hm, C(0.06, 0.11, 1.05, 10), trunk, 0, 0.52, -0.09);
+  col.rotation.x = -0.26;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const lf = add(
+      hm,
+      new THREE.ConeGeometry(0.036, 0.16, 5),
+      head,
+      Math.cos(a) * 0.055,
+      1.04,
+      -0.22 + Math.sin(a) * 0.055
+    );
+    lf.rotation.set(-0.2 + Math.sin(a) * 0.55, 0, -Math.cos(a) * 0.55);
+  }
+  add(hm, new THREE.SphereGeometry(0.045, 8, 6), M('#a64838', 0.7), 0, 1.08, -0.24);
+  mergeByMaterial(hm);
+  g.add(hm);
+  return hm;
+}
+
+/** Authentic African bush elephant (Loxodonta africana): concave saddle back, domed head, curved tusks. */
+export function elephant(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const el = new THREE.Group();
+  el.position.set(x, y, z);
+  el.rotation.y = ry;
+  el.scale.setScalar(sc);
+  const hide = MBark('#6c6862', 0.9, 0.025);
+  const legMud = MBark('#544c44', 0.94, 0.03);
+  const tusk = M('#dcd5c2', 0.36);
+
+  // Rear quarters + concave saddle dip + prominent shoulder hump
+  add(el, new THREE.SphereGeometry(0.22, 12, 10), hide, -0.18, 0.44, 0).scale.set(1.15, 0.92, 0.88);
+  add(el, new THREE.SphereGeometry(0.24, 12, 10), hide, 0.04, 0.42, 0).scale.set(1.2, 0.92, 0.92);
+  add(el, new THREE.SphereGeometry(0.21, 12, 10), hide, 0.22, 0.48, 0).scale.set(0.95, 1.02, 0.86);
+
+  // Sloped domed skull
+  add(el, new THREE.SphereGeometry(0.16, 12, 10), hide, 0.39, 0.56, 0).scale.set(0.92, 1.08, 0.86);
+
+  // Large flared African fan ears
+  for (const s of [-1, 1]) {
+    const ear = add(
+      el,
+      new THREE.SphereGeometry(0.15, 10, 8),
+      hide,
+      0.32,
+      0.55,
+      s * 0.16
+    );
+    ear.scale.set(0.18, 1.15, 0.86);
+    ear.rotation.y = -s * 0.36;
+  }
+
+  // Articulated S-curve trunk via TubeGeometry
+  const trunkPts = [
+    new THREE.Vector3(0.49, 0.5, 0),
+    new THREE.Vector3(0.57, 0.35, 0),
+    new THREE.Vector3(0.55, 0.18, 0),
+    new THREE.Vector3(0.61, 0.09, 0),
+  ];
+  add(
+    el,
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(trunkPts), 12, 0.036, 7, false),
+    hide
+  );
+
+  // Curved ivory tusks
+  for (const s of [-1, 1]) {
+    const tCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.47, 0.45, s * 0.065),
+      new THREE.Vector3(0.61, 0.39, s * 0.085),
+      new THREE.Vector3(0.71, 0.43, s * 0.065),
+    ]);
+    add(el, new THREE.TubeGeometry(tCurve, 10, 0.017, 6, false), tusk);
+  }
+
+  // Columnar mud-caked legs with subtle knee bulge
+  for (const [lx, lz] of [
+    [0.2, 0.11],
+    [0.2, -0.11],
+    [-0.19, 0.1],
+    [-0.19, -0.1],
+  ]) {
+    add(el, C(0.068, 0.072, 0.34, 10), legMud, lx, 0.17, lz);
+    add(el, new THREE.SphereGeometry(0.072, 8, 6), hide, lx, 0.24, lz);
+  }
+  add(el, C(0.01, 0.018, 0.22, 6), hide, -0.39, 0.37, 0).rotation.z = 0.38;
+
+  mergeByMaterial(el);
+  g.add(el);
+  return el;
+}
+
+/** African Penguin (Spheniscus demersus): pink supraorbital patch, black horseshoe band, black feet. */
+export function penguin(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const pg = new THREE.Group();
+  pg.position.set(x, y, z);
+  pg.rotation.y = ry;
+  pg.scale.setScalar(sc);
+  const blk = M('#1b2029', 0.58);
+  const wht = M('#e3e1d9', 0.68);
+  const pink = M('#d47c80', 0.62);
+
+  add(pg, new THREE.SphereGeometry(0.06, 10, 8), blk, 0, 0.095, 0).scale.set(0.85, 1.55, 0.85);
+  add(pg, new THREE.SphereGeometry(0.052, 10, 8), wht, 0, 0.09, 0.018).scale.set(0.78, 1.38, 0.72);
+  // Characteristic black horseshoe chest band
+  const band = add(
+    pg,
+    new THREE.TorusGeometry(0.048, 0.0085, 6, 14, Math.PI * 1.15),
+    blk,
+    0,
+    0.135,
+    0.02
+  );
+  band.rotation.x = 0.22;
+  band.rotation.z = -0.07;
+
+  // Head + bill + pink supraorbital eye glands
+  add(pg, new THREE.SphereGeometry(0.036, 10, 8), blk, 0, 0.195, 0.008);
+  add(pg, new THREE.ConeGeometry(0.012, 0.042, 6).rotateX(Math.PI / 2), blk, 0, 0.19, 0.055);
+  for (const s of [-1, 1]) {
+    add(pg, new THREE.SphereGeometry(0.009, 6, 6), pink, s * 0.022, 0.205, 0.026).scale.set(0.7, 0.8, 1.1);
+    // Wing flippers
+    const w = add(pg, CB(0.012, 0.09, 0.035, 0.004), blk, s * 0.052, 0.105, 0);
+    w.rotation.z = s * 0.18;
+    // Black webbed feet (distinctly black, not orange!)
+    add(pg, CB(0.024, 0.01, 0.042, 0.003), blk, s * 0.022, 0.005, 0.022);
+  }
+  mergeByMaterial(pg);
+  g.add(pg);
+  return pg;
+}
+
+/** Southern Right Whale (Eubalaena australis): bowed jaw, callosities, paddle flippers, NO dorsal fin. */
+export function whale(sc = 1): THREE.Group {
+  const wh = new THREE.Group();
+  const body = M('#28313b', 0.34, 0.12);
+  const callosity = M('#cfc9ba', 0.88);
+  const belly = M('#b5b7b6', 0.45);
+
+  // Stocky teardrop body with bowed lower jawline (no dorsal fin!)
+  add(wh, new THREE.SphereGeometry(0.28, 14, 10), body, 0, 0, 0).scale.set(2.15, 0.84, 0.92);
+  add(wh, new THREE.SphereGeometry(0.18, 12, 8), body, -0.45, -0.02, 0).scale.set(1.6, 0.52, 0.56);
+  add(wh, new THREE.SphereGeometry(0.16, 12, 8), body, 0.42, -0.02, 0).scale.set(1.25, 0.88, 0.84);
+  add(wh, new THREE.SphereGeometry(0.18, 10, 8), belly, 0.08, -0.15, 0).scale.set(1.3, 0.38, 0.65);
+
+  // Broad square paddle pectoral flippers
+  for (const s of [-1, 1]) {
+    const fl = add(wh, CB(0.28, 0.035, 0.22, 0.012), body, 0.22, -0.09, s * 0.28);
+    fl.rotation.y = s * 0.32;
+    fl.rotation.x = s * 0.18;
+  }
+
+  // Broad V-notched horizontal tail fluke
+  for (const s of [-1, 1]) {
+    const fk = add(wh, CB(0.22, 0.028, 0.32, 0.01), body, -0.78, 0.01, s * 0.14);
+    fk.rotation.y = s * 0.42;
+  }
+
+  // Crusty pale-cream callosity bonnets on the rostrum & brow
+  add(wh, new THREE.SphereGeometry(0.055, 8, 6), callosity, 0.56, 0.08, 0).scale.set(1.3, 0.65, 0.7);
+  for (const s of [-1, 1]) {
+    add(wh, new THREE.SphereGeometry(0.032, 6, 5), callosity, 0.43, 0.11, s * 0.09);
+    add(wh, new THREE.SphereGeometry(0.024, 6, 5), callosity, 0.3, 0.13, s * 0.05);
+  }
+
+  mergeByMaterial(wh);
+  wh.scale.setScalar(sc);
+  return wh;
+}
+
+/** St. Lucia Estuary Hippopotamus (Hippopotamus amphibius). */
+export function hippo(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const hp = new THREE.Group();
+  hp.position.set(x, y, z);
+  hp.rotation.y = ry;
+  hp.scale.setScalar(sc);
+  const skin = M('#5c4c4f', 0.42, 0.08);
+  const dark = M('#3d3234', 0.48);
+
+  add(hp, new THREE.SphereGeometry(0.18, 12, 10), skin, 0, 0.02, 0).scale.set(1.6, 0.72, 0.88);
+  add(hp, new THREE.SphereGeometry(0.11, 10, 8), skin, 0.28, 0.06, 0).scale.set(1.25, 0.78, 0.86);
+  add(hp, CB(0.12, 0.08, 0.15, 0.03), skin, 0.37, 0.04, 0);
+  // Periscope eyes, ears & nostrils above waterline
+  for (const s of [-1, 1]) {
+    add(hp, new THREE.SphereGeometry(0.022, 6, 5), dark, 0.24, 0.145, s * 0.055);
+    add(hp, new THREE.SphereGeometry(0.016, 6, 5), dark, 0.19, 0.155, s * 0.068);
+    add(hp, new THREE.SphereGeometry(0.014, 6, 5), dark, 0.41, 0.085, s * 0.036);
+  }
+  mergeByMaterial(hp);
+  g.add(hp);
+  return hp;
+}
+
+/** Kgalagadi Gemsbok / Oryx (Oryx gazella) with spear horns & black flank stripe. */
+export function gemsbok(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const gm = new THREE.Group();
+  gm.position.set(x, y, z);
+  gm.rotation.y = ry;
+  gm.scale.setScalar(sc);
+  const coat = MBark('#c2ab8c', 0.88);
+  const blk = M('#1b1a1c', 0.78);
+  const wht = M('#ded9cf', 0.78);
+
+  add(gm, new THREE.SphereGeometry(0.11, 10, 8), coat, 0, 0.24, 0).scale.set(1.75, 0.85, 0.68);
+  add(gm, CB(0.24, 0.03, 0.16, 0.01), blk, -0.01, 0.21, 0);
+  add(gm, C(0.036, 0.055, 0.15, 8), coat, 0.14, 0.31, 0).rotation.z = -0.58;
+  add(gm, new THREE.SphereGeometry(0.045, 8, 6), wht, 0.22, 0.38, 0).scale.set(1.5, 0.85, 0.75);
+  add(gm, CB(0.075, 0.025, 0.062, 0.01), blk, 0.24, 0.38, 0);
+  for (const s of [-1, 1]) {
+    add(gm, C(0.005, 0.011, 0.26, 6), blk, 0.14, 0.5, s * 0.02).rotation.z = 0.68;
+  }
+  for (const [lx, lz] of [
+    [0.11, 0.045],
+    [0.11, -0.045],
+    [-0.12, 0.045],
+    [-0.12, -0.045],
+  ]) {
+    add(gm, C(0.01, 0.014, 0.18, 6), coat, lx, 0.09, lz);
+    add(gm, C(0.012, 0.014, 0.08, 6), blk, lx, 0.14, lz);
+  }
+  mergeByMaterial(gm);
+  g.add(gm);
+  return gm;
 }
 
 export function boat(col: string, sc = 1): THREE.Group {

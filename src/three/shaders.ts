@@ -323,7 +323,7 @@ export function getSoftTexture(): THREE.CanvasTexture {
 
 export function getStoneBumpTexture(): THREE.CanvasTexture {
   if (stoneBumpCache) return stoneBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -333,15 +333,18 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
     const img = ctx.createImageData(size, size);
     const data = img.data;
     for (let y = 0; y < size; y++) {
+      const yn = y / size;
       const strata =
-        Math.sin((y / size) * Math.PI * 10) * 18 + Math.sin((y / size) * Math.PI * 26 + 1.3) * 9;
+        Math.sin(yn * Math.PI * 14) * 18 +
+        Math.sin(yn * Math.PI * 34 + 1.3) * 10 +
+        Math.sin(yn * Math.PI * 68 + 0.5) * 5;
       for (let x = 0; x < size; x++) {
-        const grain = (hash2d(x, y) - 0.5) * 34;
-        const block = Math.sin((x / size) * Math.PI * 6 + Math.sin((y / size) * Math.PI * 16)) * 8;
+        const xn = x / size;
+        const grain = (hash2d(x, y) - 0.5) * 32 + (hash2d(Math.floor(x * 0.5), Math.floor(y * 0.5)) - 0.5) * 16;
+        const block = Math.sin(xn * Math.PI * 8 + Math.sin(yn * Math.PI * 18)) * 9;
         const crack =
-          Math.abs(Math.sin((x / size) * Math.PI * 6 + Math.sin((y / size) * Math.PI * 4) * 3)) >
-          0.991
-            ? -38
+          Math.abs(Math.sin(xn * Math.PI * 7 + Math.sin(yn * Math.PI * 5) * 3.2)) > 0.992
+            ? -44
             : 0;
         const v = Math.max(0, Math.min(255, Math.round(128 + strata + grain + block + crack)));
         const idx = (y * size + x) * 4;
@@ -364,7 +367,7 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
 
 export function getPlasterBumpTexture(): THREE.CanvasTexture {
   if (plasterBumpCache) return plasterBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -374,9 +377,13 @@ export function getPlasterBumpTexture(): THREE.CanvasTexture {
     const img = ctx.createImageData(size, size);
     const data = img.data;
     for (let y = 0; y < size; y++) {
+      const yn = y / size;
       for (let x = 0; x < size; x++) {
-        const fine = (hash2d(x * 1.3, y * 1.7) - 0.5) * 28;
-        const trowel = Math.sin((x / size) * Math.PI * 18 + (y / size) * Math.PI * 12) * 8;
+        const xn = x / size;
+        const fine = (hash2d(x * 1.3, y * 1.7) - 0.5) * 24;
+        const trowel =
+          Math.sin(xn * Math.PI * 20 + yn * Math.PI * 14) * 7 +
+          Math.cos(xn * Math.PI * 9 - yn * Math.PI * 11) * 5;
         const v = Math.max(0, Math.min(255, Math.round(128 + fine + trowel)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
@@ -402,7 +409,7 @@ let brushedRoughCache: THREE.CanvasTexture | null = null;
 
 export function getRoofBumpTexture(): THREE.CanvasTexture {
   if (roofBumpCache) return roofBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -412,13 +419,14 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
     const img = ctx.createImageData(size, size);
     const data = img.data;
     for (let y = 0; y < size; y++) {
-      const row = Math.floor(y / 8);
-      const course = Math.sin(((y % 8) / 8) * Math.PI) * 22;
+      const row = Math.floor(y / 12);
+      const course = Math.sin(((y % 12) / 12) * Math.PI) * 24;
+      const jointY = y % 12 === 0 ? -18 : 0;
       for (let x = 0; x < size; x++) {
-        const offset = row % 2 ? 4 : 0;
-        const tile = Math.sin((((x + offset) % 8) / 8) * Math.PI) * 14;
-        const grain = (hash2d(x * 1.7, y * 1.3) - 0.5) * 18;
-        const v = Math.max(0, Math.min(255, Math.round(128 + course + tile + grain)));
+        const offset = row % 2 ? 6 : 0;
+        const tile = Math.sin((((x + offset) % 12) / 12) * Math.PI) * 14;
+        const grain = (hash2d(x * 1.7, y * 1.3) - 0.5) * 16;
+        const v = Math.max(0, Math.min(255, Math.round(128 + course + tile + grain + jointY)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
         data[idx + 1] = v;
@@ -439,7 +447,7 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
 
 export function getCanvasBumpTexture(): THREE.CanvasTexture {
   if (canvasBumpCache) return canvasBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -449,10 +457,12 @@ export function getCanvasBumpTexture(): THREE.CanvasTexture {
     const img = ctx.createImageData(size, size);
     const data = img.data;
     for (let y = 0; y < size; y++) {
+      const yn = y / size;
       for (let x = 0; x < size; x++) {
-        const weave = Math.sin((x / size) * Math.PI * 32) * Math.sin((y / size) * Math.PI * 32);
-        const slub = (hash2d(Math.floor(x * 0.5), Math.floor(y * 0.5)) - 0.5) * 22;
-        const v = Math.max(0, Math.min(255, Math.round(128 + weave * 10 + slub)));
+        const xn = x / size;
+        const weave = Math.sin(xn * Math.PI * 56) * Math.sin(yn * Math.PI * 56);
+        const slub = (hash2d(Math.floor(x * 0.5), Math.floor(y * 0.5)) - 0.5) * 20;
+        const v = Math.max(0, Math.min(255, Math.round(128 + weave * 11 + slub)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
         data[idx + 1] = v;
@@ -477,7 +487,7 @@ export function getBrushedNormalTexture(): THREE.CanvasTexture | null {
 
 export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
   if (brushedRoughCache) return brushedRoughCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -487,9 +497,9 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
     const img = ctx.createImageData(size, size);
     const data = img.data;
     for (let y = 0; y < size; y++) {
-      const broad = Math.sin((y / size) * Math.PI * 6) * 12;
+      const broad = Math.sin((y / size) * Math.PI * 8) * 10;
       for (let x = 0; x < size; x++) {
-        const streak = (hash2d(Math.floor(x * 0.3), y * 2.2) - 0.5) * 26;
+        const streak = (hash2d(Math.floor(x * 0.25), y * 2.4) - 0.5) * 28;
         const v = Math.max(0, Math.min(255, Math.round(178 + broad + streak)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
@@ -511,7 +521,7 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
 
 export function getWoodBumpTexture(): THREE.CanvasTexture {
   if (woodBumpCache) return woodBumpCache;
-  const size = 128;
+  const size = 256;
   const c = document.createElement('canvas');
   c.width = size;
   c.height = size;
@@ -521,10 +531,14 @@ export function getWoodBumpTexture(): THREE.CanvasTexture {
     const img = ctx.createImageData(size, size);
     const data = img.data;
     for (let y = 0; y < size; y++) {
+      const yn = y / size;
       for (let x = 0; x < size; x++) {
+        const xn = x / size;
+        const knot = Math.exp(-((xn - 0.35) ** 2 * 24 + (yn - 0.6) ** 2 * 10)) * 18;
         const streak =
-          Math.sin((x / size) * Math.PI * 52 + Math.sin((y / size) * Math.PI * 6) * 2.4) * 18 +
-          (hash2d(x, Math.floor(y * 0.5)) - 0.5) * 22;
+          Math.sin(xn * Math.PI * 64 + Math.sin(yn * Math.PI * 6) * 2.8 + knot * 0.14) * 18 +
+          Math.sin(xn * Math.PI * 22 + yn * Math.PI * 4) * 7 +
+          (hash2d(x, Math.floor(y * 0.4)) - 0.5) * 20;
         const v = Math.max(0, Math.min(255, Math.round(128 + streak)));
         const idx = (y * size + x) * 4;
         data[idx] = v;
@@ -680,12 +694,12 @@ export function cascadeize(mat: THREE.MeshStandardMaterial): THREE.MeshStandardM
       )
       .replace(
         '#include <opaque_fragment>',
-        `{float streak=sin(vWU.x*38.)*.5+.5;float flow=sin(vWU.y*24.+uWT*9.+streak*3.)*.5+.5;float mist=smoothstep(0.,.25,vWU.y)*smoothstep(1.,.72,vWU.y);outgoingLight=mix(outgoingLight,vec3(.93,.98,1.),flow*.55+.22*streak);outgoingLight+=vec3(.12,.16,.2)*(1.-mist);}
+        `{float streak=sin(vWU.x*38.)*.5+.5;float flow=sin(vWU.y*24.+uWT*9.+streak*3.)*.5+.5;float mist=smoothstep(0.,.25,vWU.y)*smoothstep(1.,.72,vWU.y);outgoingLight=mix(outgoingLight,vec3(.92,.95,.96),flow*.5+.2*streak);outgoingLight+=vec3(.08,.1,.11)*(1.-mist);}
 #include <opaque_fragment>`
       );
     applyDissolveToShader(shader);
   };
-  mat.customProgramCacheKey = () => 'cascade_v1';
+  mat.customProgramCacheKey = () => 'cascade_v2';
   return mat;
 }
 
