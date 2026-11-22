@@ -71,6 +71,7 @@ function createHorizonRing(
       uWeights: { value: new THREE.Vector4(1, 0, 0, 0) }, // mountain, dune, coastal, urban
       uSeed: { value: seed },
       uAlpha: { value: layerAlpha },
+      uHaze: { value: 0 },
     },
     vertexShader: /* glsl */ `
       uniform vec4 uWeights;
@@ -125,6 +126,7 @@ function createHorizonRing(
       uniform float uTime;
       uniform float uSeed;
       uniform float uAlpha;
+      uniform float uHaze;
       varying float vElev;
       varying float vAngle;
       varying vec3 vWorldPos;
@@ -162,6 +164,19 @@ function createHorizonRing(
           vec3 glowTint = mix(vec3(0.32, 0.46, 0.72), vec3(0.95, 0.62, 0.32), uWeights.w);
           col += glowTint * belt * uNight * 0.18;
         }
+
+        // Sodium light-pollution dome over inhabited biomes at night.
+        if (uNight > 0.05) {
+          float dome = smoothstep(0.62, 0.02, vElev) * smoothstep(-1.5, -0.45, vWorldPos.y);
+          vec3 sodium = mix(vec3(0.34, 0.42, 0.62), vec3(1.0, 0.64, 0.32), uWeights.w);
+          col += sodium * dome * uNight * (0.05 + uWeights.w * 0.2 + uWeights.z * 0.07);
+        }
+
+        // Aerial perspective: distant layers desaturate and dissolve toward the
+        // horizon colour instead of reading as flat cut-out silhouettes.
+        float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+        vec3 hazed = mix(uHorizonCol, vec3(lum) * 0.9 + uHorizonCol * 0.4, 0.5);
+        col = mix(col, hazed, uHaze * (0.6 + 0.4 * (1.0 - vElev)));
 
         // Vertical atmospheric fade: soft at the top ridge crest and solid near horizon bottom.
         float alpha = uAlpha * (1.0 - smoothstep(0.68, 1.0, vElev)) * smoothstep(-1.45, -0.35, vWorldPos.y);
@@ -321,9 +336,9 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
     tmpHorizon.copy(opts.fogColor).lerp(opts.skyColor, 0.44);
 
     const layers = [
-      { ring: nearRidge, alpha: 0.52 - opts.night * 0.1, horScale: 1.0, baseLerp: 0.0 },
-      { ring: midRidge, alpha: 0.34 - opts.night * 0.07, horScale: 0.85, baseLerp: 0.45 },
-      { ring: farRidge, alpha: 0.2 - opts.night * 0.05, horScale: 0.7, baseLerp: 0.85 },
+      { ring: nearRidge, alpha: 0.52 - opts.night * 0.1, horScale: 1.0, baseLerp: 0.0, haze: 0.06 },
+      { ring: midRidge, alpha: 0.34 - opts.night * 0.07, horScale: 0.85, baseLerp: 0.45, haze: 0.28 },
+      { ring: farRidge, alpha: 0.2 - opts.night * 0.05, horScale: 0.7, baseLerp: 0.85, haze: 0.55 },
     ];
 
     for (let i = 0; i < layers.length; i++) {
@@ -344,6 +359,7 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
       u.uTime.value = elapsed;
       const targetAlpha = l.alpha * studioFade;
       u.uAlpha.value += (targetAlpha - u.uAlpha.value) * k;
+      u.uHaze.value += (l.haze + opts.rain * 0.18 - u.uHaze.value) * k;
     }
 
     // Ground catcher takes subtle rain wetness sheen, ambient sky bounce, & coastal moon track.

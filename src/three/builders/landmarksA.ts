@@ -55,6 +55,7 @@ import {
   corniceBand,
   doorSurround,
   facadeWindow,
+  shopfrontBand,
   type StreetLampSpec,
 } from './dioramaKit';
 
@@ -935,14 +936,48 @@ export function bridge(): THREE.Group {
     chance: 0.56,
     intensity: 0.48,
   });
+  // One instanced batch for the tower row, tinted per instance so the repeated
+  // blocks do not read as the same building copy-pasted down the street.
+  const towerT: InstanceTransform[] = [];
+  const towerCols: THREE.Color[] = [];
   for (let i = 0; i < 16; i++) {
     const k = (i * 37) % 7;
     const h = 1.15 + k * 0.55;
-    add(g, CB(0.92, h, 0.92, 0.03), wt, -7.4 + i * 0.98, h / 2, -5.8 + (i % 3) * 0.55);
+    towerT.push({ x: -7.4 + i * 0.98, y: h / 2, z: -5.8 + (i % 3) * 0.55, sy: h });
+    const towerTint = 0.88 + (0.22 * ((i * 53) % 7)) / 7;
+    towerCols.push(
+      new THREE.Color(
+        towerTint,
+        towerTint * (0.97 + 0.03 * (i % 3)),
+        towerTint * (1.02 - 0.04 * (i % 5))
+      )
+    );
   }
+  instancedMeshes(g, CB(0.92, 1, 0.92, 0.03), wt, towerT, towerCols);
   // Braamfontein stepped landmark office tower (replaces fake cylinder)
   add(g, CB(1.5, 3.6, 1.3, 0.04), wt, -5.5, 1.8, -4.1);
   add(g, CB(1.1, 1.4, 0.95, 0.04), wt, -5.5, 4.3, -4.1);
+  // Street-level shopfronts: the city stays awake after the offices go dark.
+  shopfrontBand(g, {
+    x: -0.55,
+    y: 0.3,
+    z: -4.18,
+    width: 13.4,
+    height: 0.34,
+    lit: '#ffcf86',
+    seed: 23,
+    chance: 0.82,
+  });
+  shopfrontBand(g, {
+    x: -5.5,
+    y: 0.3,
+    z: -3.4,
+    width: 1.35,
+    height: 0.3,
+    lit: '#ffe0a6',
+    seed: 41,
+    chance: 0.7,
+  });
 
   const yl = M('#e8c84a', 0.6);
   const dashT: InstanceTransform[] = [];
@@ -2923,6 +2958,18 @@ export function ponte(): THREE.Group {
   // Open perforated exterior shell + inner dark glass/concrete hollow core wall
   add(g, C(1.62, 1.62, towerH, 64, 1, true), wm, 0, baseY + towerH / 2, 0);
   add(g, C(0.84, 0.84, towerH, 32, 1, true), MPlaster('#645e54', 0.88), 0, baseY + towerH / 2, 0);
+
+  // Ground-floor shopfront strip facing the Berea street frontage
+  shopfrontBand(g, {
+    x: 0,
+    y: 0.34,
+    z: 2.55,
+    width: 2.6,
+    height: 0.3,
+    lit: '#ffd08a',
+    seed: 17,
+    chance: 0.75,
+  });
 
   // 24 structural vertical exterior concrete ribs
   const ribT: InstanceTransform[] = [];

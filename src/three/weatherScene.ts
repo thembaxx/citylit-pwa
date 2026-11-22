@@ -877,6 +877,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     WU.seasonSpring.value = seasonCurrent.spring;
     WU.sky.value.copy(skyMat.uniforms.top.value);
     WU.wind.value = current.wind;
+    WU.fog.value = current.fog;
     // Ease the sway direction toward the real wind bearing so direction changes aren't a snap.
     const windRad = ((windDirectionDeg + 180) * Math.PI) / 180;
     windDirTmp.set(Math.sin(windRad), -Math.cos(windRad));

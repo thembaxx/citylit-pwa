@@ -70,6 +70,14 @@ import { createAtmosphereScene, type AtmosphereSceneController } from './siteAtm
 import { createWeatherScene, type WeatherSceneController } from './weatherScene';
 import { createWindParticles, type WindParticlesController } from './windParticles';
 import { attachEquirect, installGI } from './globalIllumination';
+import {
+  collectStreetLampAnchors,
+  createStreetLampPool,
+  lampTintForBiome,
+  streetLampNightFactor,
+  type StreetLampAnchor,
+} from './streetLights';
+import { updateWindowLights } from './windowLights';
 
 export interface EngineCallbacks {
   onSelectLandmarkFromGlobe?: (index: number) => void;
@@ -146,6 +154,17 @@ export class CitylitEngine {
   private readonly nightPrimaryCol = new THREE.Color('#ffd394');
   private readonly nightSecondaryCol = new THREE.Color('#9cc4ff');
   private nightPrimaryIntensity = 1.85;
+  /** Fixed pool of streetlamp point lights (see syncStreetLamps). */
+  private streetLampPool: THREE.PointLight[] = [];
+  private streetLampAnchors: StreetLampAnchor[] = [];
+  /** Per-biome lamp colour temperature, refreshed on each landmark switch. */
+  private readonly streetLampTint = new THREE.Color('#ffd280');
+  /** Dynamic material lists of the showing landmark, kept for cache recycling. */
+  private currentDynamic: {
+    glow: THREE.MeshStandardMaterial[];
+    sway: SwayItem[];
+    wet: WetMaterialEntry[];
+  } | null = null;
   private nightSecondaryIntensity = 1.35;
   private nightPrimaryDistance = 16;
   private nightSecondaryDistance = 16;
@@ -553,6 +572,12 @@ export class CitylitEngine {
 
     this.heroRoot = new THREE.Group();
     this.scene.add(this.heroRoot);
+
+    // One fixed-size pool of streetlamp lights for the whole session. It lives
+    // in the scene at all times (dark when unused) so the renderer's point-light
+    // count never changes between landmarks: a change would recompile every
+    // material on the frame a lamp-heavy diorama swaps in or out.
+    this.streetLampPool = createStreetLampPool(this.scene);
 
     this.markerGroup = new THREE.Group();
     this.scene.add(this.markerGroup);
@@ -1075,6 +1100,58 @@ export class CitylitEngine {
     });
   }
 
+  /**
+   * Anchor the streetlamp light pool to the active landmark's fixtures and fade
+   * it with the sun. The lights stay `visible` (only intensity drops to zero)
+   * so nothing about the lighting layout changes as the diorama or the hour
+   * changes; `immediate` snaps instead of easing for landmark switches.
+   */
+  private syncStreetLamps(dt: number, immediate = false): void {
+    if (this.streetLampPool.length === 0) return;
+    const hour = this.weather.current.timeOfDay;
+    const heroActive = this.heroRoot.visible && !this.globe.isOpen && !this.places.isOpen;
+    const lerp = immediate || this.motionScale === 0 ? 1 : Math.min(1, dt * 4);
+    // Low quality keeps only the first two fixtures lit, saving two forward
+    // lights without changing the light count (which would recompile).
+    const activeCount =
+      this.isSoftwareGl || this.qualityIndex >= 2 ? 2 : this.streetLampPool.length;
+    if (heroActive) this.heroRoot.updateWorldMatrix(true, false);
+    for (let i = 0; i < this.streetLampPool.length; i++) {
+      const light = this.streetLampPool[i];
+      const anchor = heroActive && i < activeCount ? this.streetLampAnchors[i] : undefined;
+      if (anchor) {
+        light.position
+          .set(anchor.x, anchor.y, anchor.z)
+          .applyMatrix4(this.heroRoot.matrixWorld);
+        // Per-biome night palette: sodium amber in the city, mercury blue on the
+        // coast, warmer tungsten in the bushveld.
+        light.color.set(anchor.color).lerp(this.streetLampTint, 0.45);
+        light.distance = anchor.distance;
+      }
+      // Each fixture has its own photocell offset, so a street switches on over
+      // a spread of minutes instead of in one frame.
+      const night = anchor ? streetLampNightFactor(hour, anchor.offset) : 0;
+      const goal = anchor ? anchor.intensity * night : 0;
+      const on = goal > 0.001;
+      if (on && light.userData.lampOn !== true) light.userData.ignite = 1.4;
+      light.userData.lampOn = on;
+      let ignite = (light.userData.ignite as number | undefined) ?? 0;
+      if (ignite > 0) {
+        ignite = Math.max(0, ignite - dt);
+        light.userData.ignite = ignite;
+      }
+      if (immediate) {
+        light.intensity = goal;
+        light.userData.ignite = 0;
+      } else {
+        // Discharge-lamp warm-up: a brief flicker as the fixture strikes.
+        const flicker =
+          ignite > 0 ? 0.3 + 0.7 * Math.abs(Math.sin((1.4 - ignite) * 22 + i * 1.7)) : 1;
+        light.intensity += (goal * flicker - light.intensity) * lerp;
+      }
+    }
+  }
+
   private buildLandmarkGroup(index: number): THREE.Group {
     const meta = LANDMARKS[index];
     const builder = LANDMARK_BUILDERS[meta.k];
@@ -1186,6 +1263,38 @@ export class CitylitEngine {
     const prev = (this.activeIndex - 1 + LANDMARKS.length) % LANDMARKS.length;
     if (!this.landmarkCache.has(prev)) {
       this.prewarmLandmarkIndex(prev);
+    }
+  }
+
+  /**
+   * Return a hidden landmark to the LRU pool. Only cache eviction frees its
+   * geometry and materials, so revisits stay cheap.
+   */
+  private recycleLandmark(
+    index: number,
+    group: THREE.Group,
+    dynamic: {
+      glow: THREE.MeshStandardMaterial[];
+      sway: SwayItem[];
+      wet: WetMaterialEntry[];
+    } | null
+  ): void {
+    if (!dynamic || this.landmarkCache.has(index)) {
+      this.disposeTransientResources(group);
+      return;
+    }
+    this.landmarkCache.set(index, {
+      group,
+      glow: dynamic.glow,
+      sway: dynamic.sway,
+      wet: dynamic.wet,
+    });
+    while (this.landmarkCache.size > 4) {
+      const oldestKey = this.landmarkCache.keys().next().value;
+      if (oldestKey === undefined) break;
+      const evicted = this.landmarkCache.get(oldestKey);
+      this.landmarkCache.delete(oldestKey);
+      if (evicted) this.disposeTransientResources(evicted.group);
     }
   }
 
@@ -1316,14 +1425,19 @@ export class CitylitEngine {
   }
 
   showLandmarkImmediate(index: number): void {
+    // The departing diorama returns to the LRU pool instead of being disposed,
+    // so revisiting a landmark is a cache hit rather than a rebuild: no new
+    // materials, no shader recompiles, no multi-hundred-millisecond swap frame.
+    const prevIndex = this.activeIndex;
+    const prevGroup = this.currentGroup;
+    const prevDynamic = this.currentDynamic;
     this.activeIndex = index;
     this.lastSwitchAt = this.elapsed;
     this.resetCutawayOffsets();
     ambientAudio.setSpatialFocusBoost(0);
-    if (this.currentGroup) {
-      const old = this.currentGroup;
-      this.heroRoot.remove(old);
-      this.disposeTransientResources(old);
+    if (prevGroup) {
+      this.heroRoot.remove(prevGroup);
+      this.recycleLandmark(prevIndex, prevGroup, prevDynamic);
     }
     if (this.outgoingGroup) {
       const out = this.outgoingGroup;
@@ -1342,6 +1456,26 @@ export class CitylitEngine {
     } else {
       this.currentGroup = this.buildLandmarkGroup(index);
     }
+    this.currentDynamic = cached
+      ? { glow: cached.glow.slice(), sway: cached.sway.slice(), wet: cached.wet.slice() }
+      : {
+          glow: glowMaterials.filter((m) => m !== this.ringMat),
+          sway: swayItems.slice(),
+          wet: wetMaterials.slice(),
+        };
+    // Re-anchor the fixed streetlamp pool to this landmark's fixtures. Because
+    // the light count is constant, swapping between a lamp-heavy and a lamp-free
+    // diorama cannot recompile a single material.
+    this.streetLampTint.set(lampTintForBiome(LANDMARKS[index].biome));
+    const denseAnchors = collectStreetLampAnchors(this.currentGroup);
+    const wanted = Math.min(this.streetLampPool.length, denseAnchors.length);
+    // Spread the pool across the whole diorama instead of lighting only the
+    // first lamp set a builder happened to add.
+    this.streetLampAnchors = Array.from(
+      { length: wanted },
+      (_, i) => denseAnchors[Math.floor(((i + 0.5) * denseAnchors.length) / wanted)]
+    );
+    this.syncStreetLamps(0, true);
     const lods: THREE.LOD[] = [];
     this.currentGroup.traverse((obj) => {
       if (obj instanceof THREE.LOD) {
@@ -1979,6 +2113,8 @@ export class CitylitEngine {
     this.heroRoot.visible = false;
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
+    // Park the streetlamps; the hero frame loop stops running in globe mode.
+    this.syncStreetLamps(0, true);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
@@ -2027,6 +2163,8 @@ export class CitylitEngine {
     this.heroRoot.visible = false;
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
+    // Park the streetlamps; the hero frame loop stops running in Places mode.
+    this.syncStreetLamps(0, true);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
@@ -3446,6 +3584,14 @@ export class CitylitEngine {
     WU.cursorStrength.value +=
       (this.cursorStrengthTarget - WU.cursorStrength.value) * Math.min(1, dt * 8);
 
+    // Window schedule advances in every camera mode: Places and Globe share the
+    // same facade materials, so a frozen schedule would show the hero's hour.
+    updateWindowLights(
+      this.weather.current.timeOfDay,
+      dt * this.motionScale,
+      this.weather.current.cover
+    );
+
     // Auto quality monitor: drop a tier when clearly off target, then fine-tune
     // resolution so the 60fps budget is met without losing shadows or post FX.
     if (this.qualitySetting === 'auto' && !this.isSoftwareGl) {
@@ -3678,13 +3824,24 @@ export class CitylitEngine {
           (0.6 + this.weather.current.wind * 0.35);
       }
       const litStrength = WU.lit.value;
-      if (Math.abs(litStrength - this.lastGlowLit) >= 0.002) {
-        this.lastGlowLit = litStrength;
+      // Window glow follows the solar clock (and hazes down in rain) instead of
+      // the generic night lift, so occupied panes stay matte in daylight.
+      const windowGlow = streetLampNightFactor(this.weather.current.timeOfDay);
+      const windowHaze = 1 - this.weather.current.rain * 0.22;
+      const glowKey = litStrength + windowGlow * 2;
+      if (Math.abs(glowKey - this.lastGlowLit) >= 0.002) {
+        this.lastGlowLit = glowKey;
         for (const gm of glowMaterials) {
           const baseI = (gm.userData.i as number | undefined) ?? 1;
-          gm.emissiveIntensity = baseI * (0.15 + litStrength * 1.45);
+          gm.emissiveIntensity = gm.userData.windowLit
+            ? baseI * (0.02 + windowGlow * 1.55) * windowHaze
+            : baseI * (0.15 + litStrength * 1.45);
         }
       }
+
+      // Solar clock: anchor/fade the streetlamps once the sun is below the
+      // horizon. (The window schedule itself runs in every camera mode above.)
+      this.syncStreetLamps(dt);
 
       // Fact pin & private User Pin sprite pulse + float + pop-in + hover boost
       this.markerSprites.forEach((sp, i) => {

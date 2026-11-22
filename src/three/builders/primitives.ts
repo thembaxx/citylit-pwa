@@ -27,6 +27,7 @@ import {
   windy,
   WU,
 } from '../shaders';
+import { createWindowFacade } from '../windowLights';
 
 export interface SwayItem {
   o: THREE.Object3D;
@@ -331,73 +332,22 @@ export function litWindowMaterial(opts: {
     return cached;
   }
 
-  const cw = 20;
-  const ch = 24;
-  const cv = document.createElement('canvas');
-  cv.width = cols * cw;
-  cv.height = rows * ch;
-  const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = `#${wall}`;
-  ctx.fillRect(0, 0, cv.width, cv.height);
-
-  const ecv = document.createElement('canvas');
-  ecv.width = cv.width;
-  ecv.height = cv.height;
-  const ex = ecv.getContext('2d')!;
-  ex.fillStyle = '#000000';
-  ex.fillRect(0, 0, ecv.width, ecv.height);
-
-  const warmGlow = new THREE.Color(`#${lit}`);
-  const coolGlow = new THREE.Color('#c6dcfa');
-  const tmpLit = new THREE.Color();
-  const marginX = 3;
-  const marginY = 3;
-  const ww = cw - marginX * 2;
-  const wh = ch - marginY * 2;
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const rnd = R((opts.seed ?? 0) * 97 + r * cols + c);
-      const on = rnd > 1 - chance;
-      const px = c * cw + marginX;
-      const py = r * ch + marginY;
-
-      // Dark recessed reveal / transom frame
-      ctx.fillStyle = '#181c22';
-      ctx.fillRect(px - 1, py - 1, ww + 2, wh + 2);
-
-      if (on) {
-        const tempMix = R(r * 41 + c * 17 + (opts.seed ?? 0)) < 0.25 ? 0.55 : 0.0;
-        tmpLit.copy(warmGlow).lerp(coolGlow, tempMix);
-        const litHex = `#${tmpLit.getHexString()}`;
-        ctx.fillStyle = litHex;
-        ctx.fillRect(px, py, ww, wh);
-        ex.fillStyle = litHex;
-        ex.fillRect(px, py, ww, wh);
-      } else {
-        ctx.fillStyle = `#${dark}`;
-        ctx.fillRect(px, py, ww, wh);
-      }
-
-      // Vertical & horizontal mullion bars inside each pane
-      ctx.fillStyle = 'rgba(20,24,30,0.68)';
-      ctx.fillRect(px + Math.floor(ww / 2), py, 1, wh);
-      ctx.fillRect(px, py + Math.floor(wh * 0.48), ww, 1);
-      if (on) {
-        ex.fillStyle = '#1a1a1a';
-        ex.fillRect(px + Math.floor(ww / 2), py, 1, wh);
-        ex.fillRect(px, py + Math.floor(wh * 0.48), ww, 1);
-      }
-    }
-  }
-
-  const map = prepareCanvasTexture(new THREE.CanvasTexture(cv));
-  map.colorSpace = THREE.SRGBColorSpace;
-  const emissiveMap = prepareCanvasTexture(new THREE.CanvasTexture(ecv));
-  emissiveMap.colorSpace = THREE.SRGBColorSpace;
+  // The facade itself is procedural and time-driven: windowLights re-bakes the
+  // emissive map as the hour advances, so which rooms are lit changes through
+  // the day instead of being frozen at build time.
+  const facade = createWindowFacade({
+    wall: `#${wall}`,
+    lit: `#${lit}`,
+    dark: `#${dark}`,
+    cols,
+    rows,
+    seed: opts.seed ?? 0,
+    chance,
+  });
   const mat = new THREE.MeshStandardMaterial({
-    map,
+    map: facade.map,
     emissive: '#ffffff',
-    emissiveMap,
+    emissiveMap: facade.emissiveMap,
     emissiveIntensity: intensity,
     roughness: 0.54,
     metalness: 0.14,
@@ -406,8 +356,67 @@ export function litWindowMaterial(opts: {
     side: THREE.DoubleSide,
   });
   mat.userData.sharedResource = true;
-  interiorParallaxShader(mat, cols, rows);
+  // Lit window glow is gated on the solar clock, not on the generic night lift.
+  mat.userData.windowLit = true;
+  interiorParallaxShader(mat, cols, rows, facade.ramp);
   litWindowCache.set(key, mat);
+  glowMaterials.push(mat);
+  return mat;
+}
+
+/**
+ * Shared pool of single-pane glazing variants for ordinary recessed facade
+ * windows. Each window picks a variant from its position, which scatters the
+ * lit/dark state without a material per pane.
+ */
+export const PANE_VARIANTS = 6;
+
+const paneMaterialCache = new Map<string, THREE.MeshStandardMaterial>();
+
+/**
+ * Recessed single-pane window glazing on the same time-of-day schedule as the
+ * tower facades: the emissive map is re-baked with the hour, so an ordinary
+ * facade window switches on and off through the evening like a lit tower pane.
+ */
+export function windowPaneMaterial(
+  variant: number,
+  dark: THREE.ColorRepresentation = '#10242f',
+  lit: THREE.ColorRepresentation = '#ffd390'
+): THREE.MeshStandardMaterial {
+  const v = Math.abs(Math.round(variant)) % PANE_VARIANTS;
+  const darkHex = new THREE.Color(dark).getHexString();
+  const litHex = new THREE.Color(lit).getHexString();
+  const key = `pane_${v}_${darkHex}_${litHex}`;
+  const cached = paneMaterialCache.get(key);
+  if (cached) {
+    if (!glowMaterials.includes(cached)) glowMaterials.push(cached);
+    return cached;
+  }
+  const facade = createWindowFacade({
+    wall: '#181c22',
+    lit: `#${litHex}`,
+    dark: `#${darkHex}`,
+    cols: 1,
+    rows: 1,
+    seed: 4001 + v,
+    chance: 0.45,
+  });
+  const mat = new THREE.MeshStandardMaterial({
+    map: facade.map,
+    emissive: '#ffffff',
+    emissiveMap: facade.emissiveMap,
+    emissiveIntensity: 0.45,
+    roughness: 0.32,
+    metalness: 0.2,
+    envMapIntensity: 1.6,
+  });
+  // Softer than a full tower facade: a single pane should read as a warm room,
+  // not a beacon competing with the streetlamps.
+  mat.userData.i = 0.52;
+  mat.userData.sharedResource = true;
+  mat.userData.windowLit = true;
+  interiorParallaxShader(mat, 1, 1, facade.ramp);
+  paneMaterialCache.set(key, mat);
   glowMaterials.push(mat);
   return mat;
 }

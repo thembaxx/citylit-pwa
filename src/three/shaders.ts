@@ -21,6 +21,8 @@ export const WU = {
   cursorStrength: { value: 0 },
   lit: { value: 0 },
   rain: { value: 0 },
+  /** Weather fog density (0..1); lamp halos bloom wider in fog. */
+  fog: { value: 0 },
   dy: { value: 100 },
 };
 
@@ -942,13 +944,16 @@ float wpMask(vec2 p,float r){
 export function interiorParallaxShader(
   mat: THREE.MeshStandardMaterial,
   cols: number,
-  rows: number
+  rows: number,
+  /** Optional shared emissive ramp (windowLights dips it on each re-bake). */
+  ramp?: { value: number }
 ): THREE.MeshStandardMaterial {
   const cVal = Math.max(1, Math.round(cols));
   const rVal = Math.max(1, Math.round(rows));
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWinGrid = { value: new THREE.Vector2(cVal, rVal) };
     shader.uniforms.uWinLit = WU.lit;
+    shader.uniforms.uWinRamp = ramp ?? { value: 1 };
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -974,7 +979,8 @@ varying vec2 vWinUv;
 varying vec3 vWinWorldPos;
 varying vec3 vWinWorldNorm;
 uniform vec2 uWinGrid;
-uniform float uWinLit;`
+uniform float uWinLit;
+uniform float uWinRamp;`
       )
       .replace(
         '#include <emissivemap_fragment>',
@@ -1000,7 +1006,7 @@ uniform float uWinLit;`
     float blind=mix(1.0,smoothstep(0.35,0.65,roomUv.y),step(0.55,blindPhase)*0.45);
     float depthMod=mix(1.0,(0.48+0.78*ceilGlow)*wallShade*blind,paneMask);
     diffuseColor.rgb*=mix(1.0,0.68+0.42*ceilGlow,paneMask*(1.0-uWinLit*0.5));
-    totalEmissiveRadiance*=depthMod;
+    totalEmissiveRadiance*=depthMod*uWinRamp;
   }
 }`
       );

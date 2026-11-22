@@ -1872,9 +1872,9 @@ export function isimangaliso(): THREE.Group {
   add(g, CB(0.76, 0.42, 0.62, 0.02), wood, -2.6, 0.66, 3.6);
   add(g, gableRoofGeo(0.78, 0.64, 0.22, 0.06), MBark('#685842', 0.94), -2.6, 0.87, 3.6);
   addStreetLampSet(g, [
-    { x: -2.6, y: 0.47, z: 5.95, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64 },
-    { x: -2.6, y: 0.47, z: 4.7, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64 },
-    { x: -2.18, y: 0.47, z: 3.65, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64 },
+    { x: -2.6, y: 0.47, z: 5.95, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64, reflectY: 0.205 },
+    { x: -2.6, y: 0.47, z: 4.7, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64, reflectY: 0.205 },
+    { x: -2.18, y: 0.47, z: 3.65, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64, reflectY: 0.205 },
   ]);
 
   // Authentic St. Lucia semi-submerged Hippopotamus pod with periscope eyes, ears & nostrils

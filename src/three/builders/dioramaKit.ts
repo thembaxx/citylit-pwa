@@ -29,10 +29,13 @@ import {
   mergeByMaterial,
   MGlass,
   MSteel,
+  litWindowMaterial,
   MStone,
   MWood,
+  PANE_VARIANTS,
   R,
   scatterRocks,
+  stampContactShadow,
   stampContactShadowsFromMeshes,
   stream,
   surfaceDetail,
@@ -40,8 +43,10 @@ import {
   tree,
   weatherVertexColors,
   whale,
+  windowPaneMaterial,
   type InstanceTransform,
 } from './primitives';
+import type { StreetLampAnchor } from '../streetLights';
 
 type Update = (t: number) => void;
 type Tick = (t: number, dt: number) => void;
@@ -1965,7 +1970,24 @@ export function facadeWindow(g: THREE.Group, spec: FacadeWindowSpec): THREE.Grou
   const h = spec.height ?? 0.6;
   const d = spec.depth ?? 0.12;
   const frame = MStone(spec.frame ?? '#c2b69c', 0.86, 0.012);
-  const glass = MGlass(spec.glass ?? '#10242f', 0.82, 0.05);
+  // Ordinary recessed windows join the hourly lit-window schedule: the pane's
+  // emissive map is re-baked with the time of day exactly like a tower facade.
+  // The variant comes from the opening's position, so neighbouring windows do
+  // not all light up together.
+  const paneVariant =
+    Math.floor(
+      Math.abs(
+        Math.sin(
+          spec.x * 12.9898 +
+            spec.y * 78.233 +
+            spec.z * 37.719 +
+            (spec.rotationY ?? 0) * 5.3 +
+            (spec.width ?? 0.42) * 9.7 +
+            (spec.height ?? 0.6) * 4.1
+        )
+      ) * 997
+    ) % PANE_VARIANTS;
+  const glass = windowPaneMaterial(paneVariant, spec.glass ?? '#10242f');
   // Seal band behind the glass, slightly larger and darker than the glass so
   // the panel-to-glass transition reads as a glass frame (a recessed rim).
   const seal = MGlass(spec.glass ?? '#10242f', 0.55, 0.07);
@@ -1978,6 +2000,50 @@ export function facadeWindow(g: THREE.Group, spec: FacadeWindowSpec): THREE.Grou
   add(grp, CB(bar, h, d + 0.02, 0.008), frame, w * 0.5, 0, 0);
   add(grp, CB(w * 0.5, 0.018, d * 0.9, 0.006), frame, 0, -h * 0.5 - 0.028, d * 0.1);
   return mergeByMaterial(grp);
+}
+
+export interface ShopfrontBandSpec {
+  x: number;
+  y: number;
+  z: number;
+  width: number;
+  height?: number;
+  depth?: number;
+  ry?: number;
+  wall?: THREE.ColorRepresentation;
+  lit?: THREE.ColorRepresentation;
+  seed?: number;
+  chance?: number;
+}
+
+/**
+ * Ground-floor shopfront / entrance band. One wide lit-window strip on the same
+ * time-of-day schedule as the tower facades, so street level stays awake after
+ * the offices above have gone dark.
+ */
+export function shopfrontBand(g: THREE.Object3D, spec: ShopfrontBandSpec): THREE.Mesh {
+  const height = spec.height ?? 0.34;
+  const cols = Math.max(3, Math.round(spec.width / 0.42));
+  const mat = litWindowMaterial({
+    wall: spec.wall ?? '#201e24',
+    lit: spec.lit ?? '#ffd08a',
+    dark: '#161a20',
+    cols,
+    rows: 1,
+    seed: spec.seed ?? 31,
+    chance: spec.chance ?? 0.78,
+    intensity: 0.5,
+  });
+  const mesh = add(
+    g,
+    CB(spec.width, height, spec.depth ?? 0.05, Math.min(0.02, height * 0.2)),
+    mat,
+    spec.x,
+    spec.y,
+    spec.z
+  );
+  mesh.rotation.y = spec.ry ?? 0;
+  return mesh;
 }
 
 export interface CorniceBandSpec {
@@ -2051,6 +2117,11 @@ export interface StreetLampSpec {
   x: number;
   y: number;
   z: number;
+  /**
+   * Optional water-surface height. When set, an additive light streak is laid
+   * on the water below the fixture so lamps read as reflected at night.
+   */
+  reflectY?: number;
   kind?: StreetLampKind;
   /** Yaw around Y in radians (orients cobra arm / flood face). */
   ry?: number;
@@ -2436,6 +2507,8 @@ function getLampHaloMat(): THREE.ShaderMaterial {
       uLit: WU.lit,
       uDY: WU.dy,
       uWT: WU.t,
+      // Fog swells the halo so lamps bloom in mist.
+      uFog: WU.fog,
     },
     vertexShader: `
       varying vec2 vUv;
@@ -2462,7 +2535,7 @@ function getLampHaloMat(): THREE.ShaderMaterial {
       }
     `,
     fragmentShader: `
-      uniform float uLit, uDY, uWT;
+      uniform float uLit, uDY, uWT, uFog;
       varying vec2 vUv;
       varying vec3 vWorldPos;
       varying vec3 vLampCol;
@@ -2475,7 +2548,7 @@ function getLampHaloMat(): THREE.ShaderMaterial {
         float core = exp(-r * r * 7.5);
         float corona = pow(1.0 - r, 2.4) * 0.42;
         float pulse = 0.94 + 0.06 * sin(uWT * 2.3 + vWorldPos.x * 2.1 + vWorldPos.z * 1.7);
-        float alpha = (core * 0.42 + corona * 0.28) * litVis * pulse;
+        float alpha = (core * 0.42 + corona * 0.28) * litVis * pulse * (1.0 + uFog * 1.5);
         gl_FragColor = vec4(vLampCol * alpha * 1.35, alpha);
       }
     `,
@@ -2497,6 +2570,117 @@ const lampPoolColorTmp = new THREE.Color();
  * uplights with GPU-driven `WU.lit` bulbs, additive haze cones and soft
  * ground light pools. Costs only a handful of batched draw calls per landmark.
  */
+/**
+ * Real point lights are the most expensive part of a forward renderer, so a
+ * lamp set promotes only this many of its most representative fixtures. Every
+ * other lamp is still drawn with the batched bulb, pool, cone and halo meshes.
+ */
+const STREET_POINT_LIGHT_LIMIT = 4;
+
+let lampReflectionMatShared: THREE.ShaderMaterial | null = null;
+let lampReflectionGeoShared: THREE.BufferGeometry | null = null;
+
+function getLampReflectionGeo(): THREE.BufferGeometry {
+  if (!lampReflectionGeoShared) {
+    // Unit plane lying on the water, streak running away from the fixture.
+    lampReflectionGeoShared = markSharedGeo(
+      new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
+    );
+  }
+  return lampReflectionGeoShared;
+}
+
+function getLampReflectionMat(): THREE.ShaderMaterial {
+  if (lampReflectionMatShared) return lampReflectionMatShared;
+  lampReflectionMatShared = new THREE.ShaderMaterial({
+    uniforms: {
+      uLit: WU.lit,
+      uWT: WU.t,
+      uDY: WU.dy,
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        vUv = uv;
+        #ifdef USE_INSTANCING
+          vec4 worldPos = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        #else
+          vec4 worldPos = modelMatrix * vec4(position, 1.0);
+        #endif
+        #ifdef USE_INSTANCING_COLOR
+          vLampCol = instanceColor;
+        #else
+          vLampCol = vec3(1.0, 0.82, 0.5);
+        #endif
+        vWorldPos = worldPos.xyz;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `,
+    fragmentShader: `
+      uniform float uLit, uWT, uDY;
+      varying vec2 vUv;
+      varying vec3 vWorldPos;
+      varying vec3 vLampCol;
+      void main() {
+        if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+        float litVis = smoothstep(0.1, 0.9, uLit);
+        if (litVis <= 0.004) discard;
+        float across = pow(max(0.0, 1.0 - abs(vUv.x - 0.5) * 2.0), 2.4);
+        float along = smoothstep(0.0, 0.3, 1.0 - vUv.y) * pow(vUv.y, 1.5);
+        float ripple = 0.72 + 0.28 * sin(vUv.y * 24.0 + uWT * 1.6 + vWorldPos.x * 2.1);
+        float a = across * along * ripple * litVis * 0.5;
+        gl_FragColor = vec4(vLampCol * a * 1.4, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  lampReflectionMatShared.userData.sharedResource = true;
+  lampReflectionMatShared.userData.noDissolve = true;
+  return lampReflectionMatShared;
+}
+
+/** Additive light streaks on the water below waterfront fixtures. */
+function addLampWaterReflections(
+  g: THREE.Object3D,
+  items: ReadonlyArray<{
+    x: number;
+    z: number;
+    y: number;
+    color: THREE.ColorRepresentation;
+    scale: number;
+  }>
+): void {
+  const transforms: InstanceTransform[] = [];
+  const colors: THREE.ColorRepresentation[] = [];
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const len = 1.15 * it.scale;
+    transforms.push({
+      x: it.x,
+      y: it.y + 0.006,
+      z: it.z - len * 0.5,
+      sx: 0.42 * it.scale,
+      sy: 1,
+      sz: len,
+    });
+    colors.push(it.color);
+  }
+  const im = instancedMeshes(g, getLampReflectionGeo(), getLampReflectionMat(), transforms, colors);
+  if (!im) return;
+  im.castShadow = false;
+  im.receiveShadow = false;
+  im.renderOrder = 3;
+  im.userData.noShadow = true;
+  im.userData.cannotReceiveAO = true;
+  im.userData.noDissolve = true;
+}
+
 export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSpec[]): void {
   if (!specs.length) return;
 
@@ -2509,6 +2693,27 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
   const downConeColors: THREE.ColorRepresentation[] = [];
   const upConeTransforms: InstanceTransform[] = [];
   const upConeColors: THREE.ColorRepresentation[] = [];
+
+  // Promote a spread of the downward fixtures to anchors before the fixtures
+  // are batched, so their baked ground pool can be dimmed below.
+  const lightCandidates: number[] = [];
+  for (let i = 0; i < specs.length; i++) {
+    const kind: StreetLampKind = specs[i].kind ?? 'victorian';
+    if (!LAMP_ARCHETYPES[kind].upward && kind !== 'flood') lightCandidates.push(i);
+  }
+  const promotedCount = Math.min(STREET_POINT_LIGHT_LIMIT, lightCandidates.length);
+  const promotedIndices: number[] = [];
+  for (let k = 0; k < promotedCount; k++) {
+    promotedIndices.push(lightCandidates[Math.floor(((k + 0.5) * lightCandidates.length) / promotedCount)]);
+  }
+  const promotedSet = new Set(promotedIndices);
+  const reflections: Array<{
+    x: number;
+    z: number;
+    y: number;
+    color: THREE.ColorRepresentation;
+    scale: number;
+  }> = [];
 
   for (let i = 0; i < specs.length; i++) {
     const s = specs[i];
@@ -2553,7 +2758,19 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
       sy: 1,
       sz: poolR,
     });
-    poolColors.push(lampPoolColorTmp.set(col).getHex());
+    // A fixture promoted to a real point light keeps only a dim baked pool so
+    // the ground is not lit twice.
+    poolColors.push(
+      lampPoolColorTmp
+        .set(col)
+        .multiplyScalar(promotedSet.has(i) ? 0.45 : 1)
+        .getHex()
+    );
+    // Poles cast no real shadows, so seat each post with a baked contact blob.
+    stampContactShadow(g, s.x, s.z, Math.max(0.14, 0.26 * sc), 0.18, s.y + 0.006);
+    if (s.reflectY !== undefined) {
+      reflections.push({ x: s.x, z: s.z, y: s.reflectY, color: col, scale: sc });
+    }
 
     const coneH = (s.coneHeight ?? arch.coneHeight) * sc;
     const coneR = (s.coneRadius ?? arch.coneRadius) * sc;
@@ -2575,6 +2792,36 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
         downConeColors.push(col);
       }
     }
+  }
+
+  // Anchor records for the promoted fixtures. The engine owns the actual point
+  // lights (one fixed pool for the whole session), so a landmark never adds or
+  // removes lights from the scene.
+  const anchors: StreetLampAnchor[] = [];
+  for (let k = 0; k < promotedCount; k++) {
+    const idx = promotedIndices[k];
+    const spec = specs[idx];
+    const bulb = bulbTransforms[idx];
+    const kind: StreetLampKind = spec.kind ?? 'victorian';
+    const sc = spec.scale ?? 1;
+    const poolR = (spec.poolRadius ?? LAMP_ARCHETYPES[kind].poolRadius) * sc;
+    const colour = spec.color ?? (kind === 'cobra' ? '#ffb25c' : '#ffd280');
+    anchors.push({
+      x: bulb.x,
+      y: bulb.y,
+      z: bulb.z,
+      color: colour,
+      // Candela at full night; tuned against the diorama's ~3.0 key light.
+      intensity: 0.5 + poolR * 0.34,
+      distance: Math.max(1.4, poolR * 3.2),
+      // Photocell spread: each fixture switches within +/-20 min of the others.
+      offset: (R(idx * 17 + 3) * 2 - 1) * 0.35,
+    });
+  }
+  if (anchors.length > 0) {
+    const list = (g.userData.streetLampAnchors as StreetLampAnchor[] | undefined) ?? [];
+    list.push(...anchors);
+    g.userData.streetLampAnchors = list;
   }
 
   const ironMat = MSteel('#232830', 0.44, 0.78);
@@ -2655,6 +2902,8 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
     haloIm.userData.cannotReceiveAO = true;
     haloIm.userData.noDissolve = true;
   }
+
+  if (reflections.length > 0) addLampWaterReflections(g, reflections);
 }
 
 let lighthouseSweepGeoShared: THREE.BufferGeometry | null = null;
