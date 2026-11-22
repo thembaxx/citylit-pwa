@@ -247,9 +247,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795265253.7073753,
-    "seen": 1795270207.9621327,
-    "ast_hash": "33f7e4e21281b12f4a4bb0e348b826f8",
+    "mtime": 1795307439.1575837,
+    "seen": 1795307938.4044888,
+    "ast_hash": "214f6932c301d1aa65f617f548c826b1",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
@@ -259,9 +259,9 @@
     "semantic_hash": ""
   },
   "src/three/lightingRig.ts": {
-    "mtime": 1795265253.7103846,
-    "seen": 1795270207.9621453,
-    "ast_hash": "973be27efed1679da89ab80067409a93",
+    "mtime": 1795307425.5349834,
+    "seen": 1795307938.4045107,
+    "ast_hash": "a37e05da3fd4ab8c633af8e51dbe503c",
     "semantic_hash": ""
   },
   "src/three/placesClouds.ts": {

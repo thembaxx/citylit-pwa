@@ -1,7 +1,7 @@
 # Graph Report - citylit-pwa  (2026-11-22)
 
 ## Corpus Check
-- 85 files · ~213,509 words
+- 85 files · ~213,555 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: .woff2 4, (none) 2, .css 2)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `124aefbb`
+- Built from commit: `048d2cc0`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -73,8 +73,8 @@
 2. `add()` - 70 edges
 3. `R()` - 59 edges
 4. `MStone()` - 52 edges
-5. `CB()` - 50 edges
-6. `M()` - 50 edges
+5. `M()` - 50 edges
+6. `CB()` - 50 edges
 7. `C()` - 49 edges
 8. `App()` - 40 edges
 9. `AmbientAudioController` - 37 edges
@@ -83,14 +83,14 @@
 ## Surprising Connections (you probably didn't know these)
 - `CompassProps` --references--> `CitylitEngine`  [EXTRACTED]
   src/components/Compass.tsx → src/three/CitylitEngine.ts
-- `EngineCallbacks` --references--> `PlacesSelectionInfo`  [EXTRACTED]
-  src/three/CitylitEngine.ts → src/three/placesScene.ts
-- `CitylitEngine` --references--> `GlobeController`  [EXTRACTED]
-  src/three/CitylitEngine.ts → src/three/globeScene.ts
-- `CitylitEngine` --references--> `HorizonSceneryController`  [EXTRACTED]
-  src/three/CitylitEngine.ts → src/three/horizonScenery.ts
-- `CitylitEngine` --references--> `PlacesController`  [EXTRACTED]
-  src/three/CitylitEngine.ts → src/three/placesScene.ts
+- `getRimMaterial()` --calls--> `surfaceDetail()`  [EXTRACTED]
+  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
+- `getUndersideMaterial()` --calls--> `surfaceDetail()`  [EXTRACTED]
+  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
+- `surfaceDetail()` --calls--> `getSurfaceRoughnessTexture()`  [EXTRACTED]
+  src/three/builders/primitives.ts → src/three/shaders.ts
+- `surfaceDetail()` --calls--> `normalMapsActive()`  [EXTRACTED]
+  src/three/builders/primitives.ts → src/three/shaders.ts
 
 ## Import Cycles
 - None detected.
@@ -271,12 +271,12 @@ Nodes (8): build(), engine, grid, hour, params, stage, status, syncButtons()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `CitylitEngine` connect `CitylitEngine` to `MiniaturePass`, `landmarksB.ts`, `MiniaturePass`, `siteAtmosphere.ts`, `weatherData.ts`, `App.tsx`, `TopBar.tsx`, `CitylitEngine.ts`, `.showLandmarkImmediate`, `contact-sheet.ts`, `placesScene.ts`, `citylit.ts`, `windParticles.ts`, `.isStudio`, `PlacesOverlay.tsx`?**
-  _High betweenness centrality (0.136) - this node is a cross-community bridge._
+- **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `siteAtmosphere.ts`, `primitives.ts`, `weatherData.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `placesClouds.ts`, `dioramaKit.ts`, `CitylitEngine.ts`, `placesScene.ts`, `placesScene.ts`, `shaders.ts`, `package.json`, `dependencies`, `windParticles.ts`?**
+  _High betweenness centrality (0.129) - this node is a cross-community bridge._
 - **Should `siteAtmosphere.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.14035087719298245 - nodes in this community are weakly interconnected._
-- **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `siteAtmosphere.ts`, `primitives.ts`, `weatherData.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `placesClouds.ts`, `dioramaKit.ts`, `CitylitEngine.ts`, `placesScene.ts`, `placesScene.ts`, `shaders.ts`, `package.json`, `dependencies`, `windParticles.ts`?**
-  _High betweenness centrality (0.107) - this node is a cross-community bridge._
+- **Why does `CitylitEngine` connect `CitylitEngine` to `MiniaturePass`, `landmarksB.ts`, `MiniaturePass`, `siteAtmosphere.ts`, `weatherData.ts`, `App.tsx`, `TopBar.tsx`, `CitylitEngine.ts`, `.showLandmarkImmediate`, `contact-sheet.ts`, `placesScene.ts`, `citylit.ts`, `windParticles.ts`, `.isStudio`, `PlacesOverlay.tsx`?**
+  _High betweenness centrality (0.116) - this node is a cross-community bridge._
 - **Should `primitives.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.04862745098039216 - nodes in this community are weakly interconnected._
 - **Should `App.tsx` be split into smaller, more focused modules?**

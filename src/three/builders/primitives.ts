@@ -2157,8 +2157,10 @@ export function stampContactShadow(
     list = [];
     contactShadowBatches.set(g, list);
   }
-  // Softer baked contact: lower peak opacity and a slightly wider footprint.
-  list.push({ x, y, z, r: radius * 1.08, op: Math.min(0.34, opacity * 0.72) });
+  // Wider, lighter baked contact so the penumbra reads as a soft gradient
+  // rather than a dark disc with a visible rim. The soft texture already has
+  // an alpha falloff; enlarging the footprint is what actually softens it.
+  list.push({ x, y, z, r: radius * 1.32, op: Math.min(0.28, opacity * 0.62) });
 }
 
 export function stampContactShadowsFromMeshes(g: THREE.Object3D): void {

@@ -18,10 +18,11 @@ export function configureDioramaShadow(light: THREE.DirectionalLight): void {
   cam.updateProjectionMatrix();
   light.shadow.bias = -0.0004;
   light.shadow.normalBias = 0.03;
-  // Soften the cast shadows: PCF radius plus reduced contrast so shaded
-  // albedo stays readable instead of going nearly black.
-  light.shadow.radius = 3;
-  light.shadow.intensity = 0.6;
+  // Wider PCF kernel for a soft miniature-tabletop penumbra. The 4096 map has
+  // enough resolution for a radius of 5 without visible banding, and the lower
+  // intensity keeps the contact from reading as a hard black cut-out.
+  light.shadow.radius = 5;
+  light.shadow.intensity = 0.5;
 }
 
 const tmpShadowSize = new THREE.Vector3();
