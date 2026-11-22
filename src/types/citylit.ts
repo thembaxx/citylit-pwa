@@ -120,6 +120,15 @@ export interface AmbientSiteProfile {
   sources?: readonly SpatialAudioSource[];
 }
 
+export type LandmarkTag =
+  | 'Historical'
+  | 'Natural'
+  | 'Coastal'
+  | 'Architectural'
+  | 'Cultural'
+  | 'Wildlife'
+  | 'Mountain';
+
 export interface LandmarkMeta {
   k: string;
   c: string;
@@ -127,6 +136,7 @@ export interface LandmarkMeta {
   wikiTitle: string;
   ambient: AmbientKind;
   biome: LandmarkBiome;
+  tags: readonly LandmarkTag[];
   coords: readonly [lat: number, lon: number];
   climatology: {
     high: number;

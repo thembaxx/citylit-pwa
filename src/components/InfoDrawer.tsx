@@ -5,6 +5,7 @@ import {
   Compass,
   Images,
   MapPin,
+  Tag,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
@@ -93,6 +94,11 @@ export function InfoDrawer({
             <span className="inline-flex items-center gap-1">
               <Compass size={13} className="text-[#e8b04a]" />
               Best {bestMonths}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1">
+              <Tag size={13} className="text-[#e8b04a]" />
+              {lm.tags.join(' · ')}
             </span>
           </div>
         </div>

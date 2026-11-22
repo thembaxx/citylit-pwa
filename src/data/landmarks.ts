@@ -1,4 +1,14 @@
-import type { LandmarkMeta } from '../types/citylit';
+import type { LandmarkMeta, LandmarkTag } from '../types/citylit';
+
+export const LANDMARK_TAGS: readonly LandmarkTag[] = [
+  'Historical',
+  'Natural',
+  'Coastal',
+  'Architectural',
+  'Cultural',
+  'Wildlife',
+  'Mountain',
+];
 
 export const LANDMARKS: readonly LandmarkMeta[] = [
   {
@@ -8,6 +18,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Table Mountain',
     ambient: 'c',
     biome: 'mountain',
+    tags: ['Natural', 'Mountain', 'Coastal'],
     coords: [-33.96, 18.4],
     climatology: { high: 18, low: 10, base: 'cloud' },
     dots: [
@@ -22,6 +33,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Union Buildings',
     ambient: 'b',
     biome: 'urban',
+    tags: ['Historical', 'Architectural', 'Cultural'],
     coords: [-25.74, 28.21],
     climatology: { high: 29, low: 16, base: 'partly', pm: 'storm' },
     dots: [
@@ -41,6 +53,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Moses Mabhida Stadium',
     ambient: 's',
     biome: 'urban',
+    tags: ['Architectural', 'Cultural'],
     coords: [-29.83, 31.03],
     climatology: { high: 26, low: 19, base: 'partly', pm: 'rain' },
     dots: [
@@ -55,6 +68,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Nelson Mandela Bridge',
     ambient: 'c',
     biome: 'urban',
+    tags: ['Architectural', 'Cultural'],
     coords: [-26.2, 28.04],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -69,6 +83,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Big Hole',
     ambient: 'c',
     biome: 'desert',
+    tags: ['Historical', 'Cultural'],
     coords: [-28.74, 24.77],
     climatology: { high: 31, low: 16, base: 'sun', pm: 'partly' },
     dots: [
@@ -83,6 +98,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Voortrekker Monument',
     ambient: 'b',
     biome: 'urban',
+    tags: ['Historical', 'Architectural', 'Cultural'],
     coords: [-25.77, 28.18],
     climatology: { high: 29, low: 16, base: 'partly', pm: 'storm' },
     dots: [
@@ -102,6 +118,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Cape Point',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Historical', 'Natural'],
     coords: [-34.36, 18.5],
     climatology: { high: 21, low: 13, base: 'wind' },
     dots: [
@@ -121,6 +138,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Bo-Kaap',
     ambient: 'c',
     biome: 'urban',
+    tags: ['Cultural', 'Historical', 'Architectural'],
     coords: [-33.92, 18.42],
     climatology: { high: 24, low: 15, base: 'wind' },
     dots: [
@@ -135,6 +153,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'FNB Stadium',
     ambient: 'c',
     biome: 'urban',
+    tags: ['Architectural', 'Cultural'],
     coords: [-26.23, 27.98],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -149,6 +168,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Blyde River Canyon',
     ambient: 'b',
     biome: 'mountain',
+    tags: ['Natural', 'Mountain'],
     coords: [-24.57, 30.8],
     climatology: { high: 26, low: 15, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -163,6 +183,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Adansonia digitata',
     ambient: 'b',
     biome: 'savannah',
+    tags: ['Natural'],
     coords: [-22.65, 30.4],
     climatology: { high: 34, low: 20, base: 'sun', pm: 'storm' },
     dots: [
@@ -177,6 +198,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Hole-in-the-Wall (Eastern Cape)',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Natural'],
     coords: [-32, 29.14],
     climatology: { high: 24, low: 17, base: 'partly', pm: 'rain' },
     dots: [
@@ -191,6 +213,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Castle of Good Hope',
     ambient: 'c',
     biome: 'urban',
+    tags: ['Historical', 'Architectural', 'Cultural'],
     coords: [-33.93, 18.43],
     climatology: { high: 24, low: 14, base: 'wind' },
     dots: [
@@ -210,6 +233,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Amphitheatre (Drakensberg)',
     ambient: 'f',
     biome: 'waterfall',
+    tags: ['Natural', 'Mountain'],
     coords: [-28.69, 28.89],
     climatology: { high: 22, low: 9, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -229,6 +253,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Sun City (South Africa)',
     ambient: 'b',
     biome: 'urban',
+    tags: ['Architectural', 'Cultural'],
     coords: [-25.34, 27.09],
     climatology: { high: 31, low: 18, base: 'sun', pm: 'storm' },
     dots: [
@@ -243,6 +268,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Golden Gate Highlands National Park',
     ambient: 'b',
     biome: 'mountain',
+    tags: ['Natural', 'Mountain', 'Wildlife'],
     coords: [-28.5, 28.62],
     climatology: { high: 25, low: 9, base: 'partly', pm: 'storm' },
     dots: [
@@ -257,6 +283,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Kruger National Park',
     ambient: 'b',
     biome: 'savannah',
+    tags: ['Wildlife', 'Natural'],
     coords: [-24, 31.5],
     climatology: { high: 33, low: 20, base: 'sun', pm: 'storm' },
     dots: [
@@ -281,6 +308,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Ponte City Apartments',
     ambient: 'c',
     biome: 'urban',
+    tags: ['Architectural'],
     coords: [-26.19, 28.05],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -295,6 +323,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Boulders Beach',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Wildlife', 'Natural'],
     coords: [-34.2, 18.45],
     climatology: { high: 22, low: 13, base: 'wind' },
     dots: [
@@ -309,6 +338,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Cape Agulhas Lighthouse',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Historical'],
     coords: [-34.83, 20],
     climatology: { high: 21, low: 14, base: 'wind' },
     dots: [
@@ -328,6 +358,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Orlando Towers',
     ambient: 'c',
     biome: 'urban',
+    tags: ['Cultural', 'Architectural', 'Historical'],
     coords: [-26.24, 27.93],
     climatology: { high: 26, low: 14, base: 'partly', pm: 'storm' },
     dots: [
@@ -342,6 +373,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: "Bourke's Luck Potholes",
     ambient: 'f',
     biome: 'waterfall',
+    tags: ['Natural', 'Mountain'],
     coords: [-24.67, 30.81],
     climatology: { high: 26, low: 15, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -356,6 +388,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Augrabies Falls',
     ambient: 'f',
     biome: 'waterfall',
+    tags: ['Natural'],
     coords: [-28.59, 20.34],
     climatology: { high: 35, low: 19, base: 'sun', pm: 'partly' },
     dots: [
@@ -370,6 +403,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Southern African Large Telescope',
     ambient: 'c',
     biome: 'desert',
+    tags: ['Architectural', 'Natural'],
     coords: [-32.38, 20.81],
     climatology: { high: 26, low: 9, base: 'sun' },
     dots: [
@@ -389,6 +423,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Bloukrans Bridge',
     ambient: 'f',
     biome: 'waterfall',
+    tags: ['Architectural', 'Natural'],
     coords: [-33.97, 23.65],
     climatology: { high: 23, low: 13, base: 'partly', pm: 'rain' },
     dots: [
@@ -408,6 +443,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Pilanesberg',
     ambient: 'b',
     biome: 'savannah',
+    tags: ['Natural', 'Wildlife'],
     coords: [-25.25, 27.1],
     climatology: { high: 31, low: 18, base: 'sun', pm: 'storm' },
     dots: [
@@ -427,6 +463,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Robben Island',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Historical', 'Coastal', 'Cultural'],
     coords: [-33.81, 18.37],
     climatology: { high: 23, low: 14, base: 'wind' },
     dots: [
@@ -446,6 +483,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: "Chapman's Peak Drive",
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Natural', 'Historical'],
     coords: [-34.08, 18.36],
     climatology: { high: 23, low: 14, base: 'wind' },
     dots: [
@@ -460,6 +498,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Isandlwana',
     ambient: 'b',
     biome: 'mountain',
+    tags: ['Historical', 'Cultural'],
     coords: [-28.35, 30.65],
     climatology: { high: 29, low: 16, base: 'partly', pm: 'storm' },
     dots: [
@@ -474,6 +513,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Gariep Dam',
     ambient: 'f',
     biome: 'waterfall',
+    tags: ['Architectural', 'Natural'],
     coords: [-30.62, 25.51],
     climatology: { high: 31, low: 15, base: 'sun', pm: 'storm' },
     dots: [
@@ -488,6 +528,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Cradle of Humankind',
     ambient: 'b',
     biome: 'mountain',
+    tags: ['Historical', 'Natural', 'Cultural'],
     coords: [-26.02, 27.79],
     climatology: { high: 27, low: 13, base: 'partly', pm: 'storm' },
     dots: [
@@ -502,6 +543,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Mapungubwe',
     ambient: 'b',
     biome: 'savannah',
+    tags: ['Historical', 'Cultural', 'Natural'],
     coords: [-22.19, 29.39],
     climatology: { high: 34, low: 19, base: 'sun', pm: 'storm' },
     dots: [
@@ -516,6 +558,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Kgalagadi Transfrontier Park',
     ambient: 'c',
     biome: 'desert',
+    tags: ['Natural', 'Wildlife'],
     coords: [-25.8, 20.4],
     climatology: { high: 35, low: 18, base: 'sun' },
     dots: [
@@ -530,6 +573,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Tsitsikamma National Park',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Natural'],
     coords: [-34.02, 23.9],
     climatology: { high: 22, low: 13, base: 'partly', pm: 'rain' },
     dots: [
@@ -544,6 +588,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Groot Constantia',
     ambient: 'b',
     biome: 'savannah',
+    tags: ['Historical', 'Cultural', 'Architectural'],
     coords: [-34.03, 18.42],
     climatology: { high: 24, low: 13, base: 'wind' },
     dots: [
@@ -563,6 +608,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Hermanus',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Wildlife', 'Natural'],
     coords: [-34.42, 19.24],
     climatology: { high: 22, low: 13, base: 'wind' },
     dots: [
@@ -577,6 +623,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'iSimangaliso Wetland Park',
     ambient: 'b',
     biome: 'wetland',
+    tags: ['Natural', 'Coastal', 'Wildlife'],
     coords: [-28.38, 32.41],
     climatology: { high: 29, low: 20, base: 'partly', pm: 'rain' },
     dots: [
@@ -591,6 +638,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Sani Pass',
     ambient: 'c',
     biome: 'mountain',
+    tags: ['Mountain', 'Natural'],
     coords: [-29.58, 29.29],
     climatology: { high: 18, low: 6, base: 'partly', pm: 'storm', am: 'fog' },
     dots: [
@@ -605,6 +653,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Richtersveld',
     ambient: 'c',
     biome: 'desert',
+    tags: ['Natural', 'Cultural'],
     coords: [-28.3, 17.1],
     climatology: { high: 34, low: 15, base: 'sun' },
     dots: [
@@ -629,6 +678,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Vredefort Dome',
     ambient: 'b',
     biome: 'mountain',
+    tags: ['Natural'],
     coords: [-27, 27.5],
     climatology: { high: 28, low: 13, base: 'partly', pm: 'storm' },
     dots: [
@@ -643,6 +693,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Hartbeespoort Dam',
     ambient: 'b',
     biome: 'waterfall',
+    tags: ['Natural', 'Architectural', 'Mountain'],
     coords: [-25.73, 27.9],
     climatology: { high: 29, low: 15, base: 'partly', pm: 'storm' },
     dots: [
@@ -657,6 +708,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Knysna',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Coastal', 'Natural'],
     coords: [-34.08, 23.07],
     climatology: { high: 23, low: 13, base: 'partly', pm: 'rain' },
     dots: [
@@ -671,6 +723,7 @@ export const LANDMARKS: readonly LandmarkMeta[] = [
     wikiTitle: 'Donkin Memorial',
     ambient: 's',
     biome: 'coastal',
+    tags: ['Historical', 'Coastal', 'Architectural'],
     coords: [-33.96, 25.62],
     climatology: { high: 22, low: 13, base: 'wind' },
     dots: [

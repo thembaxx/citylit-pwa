@@ -7,18 +7,17 @@ import {
   MapPin,
   ShareNetwork,
   Stamp,
+  Tag,
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import {
-  geocodePlace,
-  parseCoordinateInput,
-  type LatLon,
-} from '../services/osmService';
+import { geocodePlace, parseCoordinateInput, type LatLon } from '../services/osmService';
 import { AnimatePresence, motion } from 'motion/react';
-import { LANDMARKS, PROVINCES } from '../data/landmarks';
+import { LANDMARK_TAGS, LANDMARKS, PROVINCES } from '../data/landmarks';
+import { countLandmarksByTag, filterLandmarks, parseSearch } from '../lib/landmarkSearch';
 import { PRESS_SCALE, SPRING, revealItem, revealVariants, swapTransition } from '../lib/motion';
 import { usePWAInstall } from '../hooks/usePWAInstall';
+import type { LandmarkTag } from '../types/citylit';
 import { Sheet } from './ui/Sheet';
 
 interface SearchSheetProps {
@@ -38,42 +37,6 @@ interface SearchSheetProps {
   onExploreCoordinates: (center: LatLon) => void;
   exploring?: boolean;
   onInstalledToast: (msg: string) => void;
-}
-
-// "night at Kruger" should pick Kruger and roll the clock to night.
-const TIME_PHRASES: readonly { re: RegExp; hour: number; label: string }[] = [
-  { re: /\b(?:night|midnight|after dark)\b/i, hour: 22, label: 'Night' },
-  { re: /\b(?:sunrise|dawn|daybreak)\b/i, hour: 6, label: 'Sunrise' },
-  { re: /\b(?:sunset|dusk|golden hour)\b/i, hour: 18.2, label: 'Sunset' },
-  { re: /\b(?:noon|midday|mid-day)\b/i, hour: 12, label: 'Noon' },
-  { re: /\bmorning\b/i, hour: 9, label: 'Morning' },
-  { re: /\bafternoon\b/i, hour: 15, label: 'Afternoon' },
-];
-
-const SEARCH_FILLER = /\b(?:at|in|on|the|a|an|of|to|near|around|by|for|visit|see|view|show|me)\b/gi;
-
-function parseSearch(raw: string): {
-  place: string;
-  tokens: string[];
-  hour?: number;
-  label?: string;
-} {
-  let text = ` ${raw} `;
-  let hour: number | undefined;
-  let label: string | undefined;
-  for (const phrase of TIME_PHRASES) {
-    if (hour === undefined && phrase.re.test(text)) {
-      hour = phrase.hour;
-      label = phrase.label;
-      text = text.replace(phrase.re, ' ');
-    }
-  }
-  const words = text.replace(SEARCH_FILLER, ' ').replace(/\s+/g, ' ').trim();
-  const tokens = words
-    .split(' ')
-    .filter(Boolean)
-    .map((word) => word.toLowerCase());
-  return { place: words, tokens, hour, label };
 }
 
 export function SearchSheet({
@@ -98,6 +61,7 @@ export function SearchSheet({
   const [locating, setLocating] = useState(false);
   const [locationHint, setLocationHint] = useState('');
   const [province, setProvince] = useState('All');
+  const [selectedTag, setSelectedTag] = useState<LandmarkTag | 'All'>('All');
   const [installDismissed, setInstallDismissed] = useState(() => {
     try {
       return localStorage.getItem('cl-inst-dismissed') === '1';
@@ -116,15 +80,25 @@ export function SearchSheet({
   }, [open]);
 
   const parsed = parseSearch(query);
-  const filteredIndices = LANDMARKS.map((lm, i) => ({ lm, i })).filter(({ lm, i }) => {
-    if (province === 'Saved' && !favorites.has(i)) return false;
-    if (province !== 'All' && province !== 'Saved' && !lm.c.endsWith(province)) return false;
-    if (parsed.tokens.length) {
-      const hay = `${lm.k} ${lm.c}`.toLowerCase();
-      if (!parsed.tokens.every((token) => hay.includes(token))) return false;
-    }
-    return true;
+  const tagCounts = countLandmarksByTag(LANDMARKS, LANDMARK_TAGS, {
+    province,
+    favorites,
+    tokens: parsed.tokens,
   });
+  const filteredIndices = filterLandmarks(LANDMARKS, {
+    province,
+    tag: selectedTag,
+    favorites,
+    tokens: parsed.tokens,
+  });
+  const hasActiveFilters = province !== 'All' || selectedTag !== 'All' || query.trim() !== '';
+
+  const resetFilters = () => {
+    setQuery('');
+    setProvince('All');
+    setSelectedTag('All');
+    setLocationHint('');
+  };
 
   const pick = (i: number) => {
     onSelectLandmark(i);
@@ -200,9 +174,15 @@ export function SearchSheet({
                 type="button"
                 onClick={() => setQuery('')}
                 aria-label="Clear search"
-                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }}
-                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }}
+                initial={
+                  reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }
+                }
+                animate={
+                  reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, filter: 'blur(0px)' }
+                }
+                exit={
+                  reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, filter: 'blur(2px)' }
+                }
                 transition={reducedMotion ? { duration: 0 } : swapTransition}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full grid place-items-center text-[#a9a69e] hover:text-[#f3efe6] cursor-pointer"
               >
@@ -264,9 +244,15 @@ export function SearchSheet({
       <AnimatePresence initial={false}>
         {!isInstalled && !installDismissed && (isInstallable || isIOS) && (
           <motion.div
-            initial={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6 }}
-            animate={reducedMotion ? { opacity: 1 } : { opacity: 1, clipPath: 'inset(0 0 0% 0)', y: 0 }}
-            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6 }}
+            initial={
+              reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6 }
+            }
+            animate={
+              reducedMotion ? { opacity: 1 } : { opacity: 1, clipPath: 'inset(0 0 0% 0)', y: 0 }
+            }
+            exit={
+              reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -6 }
+            }
             className="overflow-hidden"
           >
             <div className="mb-3 px-3.5 py-3 rounded-2xl bg-[#e8b04a]/10 border border-[#e8b04a]/30 flex items-center justify-between gap-2.5">
@@ -309,7 +295,11 @@ export function SearchSheet({
         )}
       </AnimatePresence>
 
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2.5 shrink-0">
+      <div
+        role="group"
+        aria-label="Filter by region"
+        className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 shrink-0"
+      >
         {['All', 'Saved', ...PROVINCES.filter((p) => p !== 'All')].map((pv) => {
           const active = province === pv;
           return (
@@ -320,7 +310,7 @@ export function SearchSheet({
               onClick={() => setProvince(pv)}
               aria-pressed={active}
               transition={SPRING.snappy}
-              className={`province-pill relative shrink-0 rounded-full px-3.5 py-1 text-[12.5px] border cursor-pointer ${
+              className={`province-pill relative shrink-0 rounded-full px-3.5 py-1 text-[12.5px] border whitespace-nowrap cursor-pointer ${
                 active
                   ? 'border-[#e8b04a] text-[#e8b04a]'
                   : 'border-white/15 text-[#f3efe6] hover:border-[#e8b04a]'
@@ -342,93 +332,203 @@ export function SearchSheet({
         })}
       </div>
 
-      <div className="text-[12px] text-[#a9a69e] pb-2.5 shrink-0">
-        {filteredIndices.length} of {LANDMARKS.length} landmarks · {visited.size} stamped
+      <div
+        role="group"
+        aria-label="Filter by interest"
+        className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-2.5 shrink-0"
+      >
+        <span
+          aria-hidden="true"
+          className="inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.12em] text-[#a9a69e] pr-1 shrink-0"
+        >
+          <Tag size={12} className="text-[#e8b04a]" />
+          Interest
+        </span>
+        {(['All', ...LANDMARK_TAGS] as const).map((tag) => {
+          const active = selectedTag === tag;
+          const count = tag === 'All' ? null : tagCounts[tag];
+          return (
+            <motion.button
+              key={tag}
+              type="button"
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+              onClick={() => setSelectedTag(active && tag !== 'All' ? 'All' : tag)}
+              aria-pressed={active}
+              transition={SPRING.snappy}
+              className={`relative shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[12px] border whitespace-nowrap cursor-pointer transition-colors ${
+                active
+                  ? 'border-[#e8b04a] text-[#e8b04a]'
+                  : count === 0
+                    ? 'border-white/10 text-[#a9a69e]/55 hover:border-white/25 hover:text-[#a9a69e]'
+                    : 'border-white/12 bg-white/[0.03] text-[#f3efe6]/85 hover:border-[#e8b04a]/70 hover:text-[#f3efe6]'
+              }`}
+            >
+              {active &&
+                (reducedMotion ? (
+                  <span className="absolute inset-0 rounded-lg bg-[#e8b04a]/15" />
+                ) : (
+                  <motion.span
+                    layoutId="interest-tag-pill"
+                    className="absolute inset-0 rounded-lg border border-[#e8b04a] bg-[#e8b04a]/15"
+                    transition={SPRING.snappy}
+                  />
+                ))}
+              <span className="relative z-10">{tag}</span>
+              {count !== null && (
+                <span
+                  className={`relative z-10 text-[10.5px] tabular-nums ${
+                    active ? 'text-[#e8b04a]/90' : 'text-[#a9a69e]/75'
+                  }`}
+                >
+                  {count}
+                </span>
+              )}
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 text-[12px] text-[#a9a69e] pb-2.5 shrink-0 tabular-nums">
+        <span>
+          {filteredIndices.length} of {LANDMARKS.length} landmarks · {visited.size} stamped
+        </span>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="text-[11.5px] text-[#e8b04a] hover:underline cursor-pointer shrink-0"
+          >
+            Reset filters
+          </button>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-0.5">
-        <motion.div
-          variants={reducedMotion ? undefined : revealVariants}
-          initial={reducedMotion ? false : 'initial'}
-          animate="animate"
-          className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 pb-3"
-        >
-          <AnimatePresence mode="popLayout">
-            {filteredIndices.map(({ lm, i }) => {
-              const isSelected = i === activeIndex;
-              const isFav = favorites.has(i);
-              const isVisited = visited.has(i);
-              return (
-                <motion.div
-                  layout={!reducedMotion}
-                  key={lm.k}
-                  variants={
-                    reducedMotion ? undefined : { ...revealItem, exit: { opacity: 0, scale: 0.94 } }
-                  }
-                  initial={reducedMotion ? false : 'initial'}
-                  animate={reducedMotion ? { opacity: 1 } : 'animate'}
-                  exit={reducedMotion ? { opacity: 0 } : 'exit'}
-                  transition={SPRING.snappy}
-                  className={`group relative flex flex-col rounded-xl overflow-hidden bg-white/[0.04] border text-left ${
-                    isSelected ? 'border-[#e8b04a]' : 'border-white/10 hover:border-[#e8b04a]/70'
-                  }`}
+        {filteredIndices.length === 0 ? (
+          <div className="py-10 px-4 text-center space-y-3">
+            <p className="text-[13px] text-[#a9a69e] m-0">
+              No landmarks match
+              {selectedTag !== 'All' ? ` “${selectedTag}”` : ''}
+              {province !== 'All' ? ` in ${province}` : ''}
+              {query.trim() ? ` for “${query.trim()}”` : ''}.
+            </p>
+            <div className="flex items-center justify-center gap-2.5 flex-wrap">
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="px-3.5 py-1.5 rounded-lg border border-white/15 bg-white/[0.05] text-[12px] text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer"
                 >
-                  <button
-                    type="button"
-                    onClick={() => pick(i)}
-                    aria-label={`Visit ${lm.k}`}
-                    className="absolute inset-0 z-10 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:outline-[#e8b04a]"
-                  />
-                  <div className="pointer-events-none relative">
-                    <div className="relative w-full shrink-0 aspect-[3/2] bg-[#141721] overflow-hidden">
-                      {thumbnails[i] ? (
-                        <img
-                          src={thumbnails[i]}
-                          alt={lm.k}
-                          loading="lazy"
-                          className="w-full h-full object-cover block"
-                        />
-                      ) : (
-                        <div className="w-full h-full shimmer-bg" />
-                      )}
-                      {isVisited && (
-                        <motion.span
-                          initial={{ scale: 0.4, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          transition={SPRING.pop}
-                          title="Stamped in Passport"
-                          className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[#121319]/85 grid place-items-center text-emerald-400"
+                  Reset filters
+                </button>
+              )}
+              {query.trim() && (
+                <button
+                  type="button"
+                  onClick={() => void exploreQuery()}
+                  className="px-3.5 py-1.5 rounded-lg border border-[#e8b04a]/40 bg-[#e8b04a]/10 text-[12px] text-[#e8b04a] hover:bg-[#e8b04a]/20 transition-colors cursor-pointer"
+                >
+                  Explore place on map
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <motion.div
+            variants={reducedMotion ? undefined : revealVariants}
+            initial={reducedMotion ? false : 'initial'}
+            animate="animate"
+            className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 pb-3"
+          >
+            <AnimatePresence mode="popLayout">
+              {filteredIndices.map(({ lm, i }) => {
+                const isSelected = i === activeIndex;
+                const isFav = favorites.has(i);
+                const isVisited = visited.has(i);
+                return (
+                  <motion.div
+                    layout={!reducedMotion}
+                    key={lm.k}
+                    variants={
+                      reducedMotion
+                        ? undefined
+                        : { ...revealItem, exit: { opacity: 0, scale: 0.94 } }
+                    }
+                    initial={reducedMotion ? false : 'initial'}
+                    animate={reducedMotion ? { opacity: 1 } : 'animate'}
+                    exit={reducedMotion ? { opacity: 0 } : 'exit'}
+                    transition={SPRING.snappy}
+                    className={`group relative flex flex-col rounded-xl overflow-hidden bg-white/[0.04] border text-left ${
+                      isSelected ? 'border-[#e8b04a]' : 'border-white/10 hover:border-[#e8b04a]/70'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => pick(i)}
+                      aria-label={`Visit ${lm.k}`}
+                      className="absolute inset-0 z-10 cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:outline-[#e8b04a]"
+                    />
+                    <div className="pointer-events-none relative">
+                      <div className="relative w-full shrink-0 aspect-[3/2] bg-[#141721] overflow-hidden">
+                        {thumbnails[i] ? (
+                          <img
+                            src={thumbnails[i]}
+                            alt={lm.k}
+                            loading="lazy"
+                            className="w-full h-full object-cover block"
+                          />
+                        ) : (
+                          <div className="w-full h-full shimmer-bg" />
+                        )}
+                        {isVisited && (
+                          <motion.span
+                            initial={{ scale: 0.4, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={SPRING.pop}
+                            title="Stamped in Passport"
+                            className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[#121319]/85 grid place-items-center text-emerald-400"
+                          >
+                            <CheckCircle size={15} weight="fill" />
+                          </motion.span>
+                        )}
+                        <motion.button
+                          type="button"
+                          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleFavorite(i);
+                          }}
+                          aria-label={isFav ? 'Unsave landmark' : 'Save landmark'}
+                          className={`pointer-events-auto absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full bg-[#121319]/85 grid place-items-center cursor-pointer ${
+                            isFav ? 'text-[#ff6b81]' : 'text-[#a9a69e] hover:text-[#f3efe6]'
+                          }`}
                         >
-                          <CheckCircle size={15} weight="fill" />
-                        </motion.span>
-                      )}
-                      <motion.button
-                        type="button"
-                        whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleFavorite(i);
-                        }}
-                        aria-label={isFav ? 'Unsave landmark' : 'Save landmark'}
-                        className={`pointer-events-auto absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full bg-[#121319]/85 grid place-items-center cursor-pointer ${
-                          isFav ? 'text-[#ff6b81]' : 'text-[#a9a69e] hover:text-[#f3efe6]'
-                        }`}
-                      >
-                        <Heart size={14} weight={isFav ? 'fill' : 'regular'} />
-                      </motion.button>
-                    </div>
-                    <div className="p-3">
-                      <div className="text-[13px] font-medium text-[#f3efe6] leading-snug line-clamp-1">
-                        {lm.k}
+                          <Heart size={14} weight={isFav ? 'fill' : 'regular'} />
+                        </motion.button>
                       </div>
-                      <div className="text-[11px] text-[#a9a69e] mt-1 line-clamp-1">{lm.c}</div>
+                      <div className="p-3">
+                        <div className="text-[13px] font-medium text-[#f3efe6] leading-snug line-clamp-1">
+                          {lm.k}
+                        </div>
+                        <div className="text-[11px] text-[#a9a69e] mt-1 line-clamp-1">{lm.c}</div>
+                        <div className="text-[10.5px] text-[#a9a69e]/75 mt-1 line-clamp-1">
+                          {lm.tags.map((tag, idx) => (
+                            <span key={tag}>
+                              {idx > 0 && <span aria-hidden="true"> · </span>}
+                              <span className={selectedTag === tag ? 'text-[#e8b04a]' : undefined}>
+                                {tag}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </motion.div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </motion.div>
+        )}
       </div>
     </Sheet>
   );
