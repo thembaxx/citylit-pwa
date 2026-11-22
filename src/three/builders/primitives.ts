@@ -381,6 +381,55 @@ export function litWindowMaterial(opts: {
   return mat;
 }
 
+/**
+ * Moderate saturation lift applied to the man-made colours of the dioramas.
+ * Hue and lightness are preserved, and achromatic tones (clouds, white paint)
+ * are left alone, so the "miniature tabletop" palette gains colour without
+ * turning rock, sand or foliage into neon. Natural-surface factories tag their
+ * materials with `naturalSurface` and are skipped by `boostBuiltVibrancy`.
+ */
+const VIBRANT_SATURATION = 1.25;
+const VIBRANT_MIN_SATURATION = 0.04;
+const VIBRANT_MAX_SATURATION = 0.92;
+const vibrantHsl = { h: 0, s: 0, l: 0 };
+
+function liftSaturation(color: THREE.Color): void {
+  color.getHSL(vibrantHsl);
+  if (vibrantHsl.s <= VIBRANT_MIN_SATURATION || vibrantHsl.s >= VIBRANT_MAX_SATURATION) return;
+  color.setHSL(
+    vibrantHsl.h,
+    Math.min(VIBRANT_MAX_SATURATION, vibrantHsl.s * VIBRANT_SATURATION),
+    vibrantHsl.l
+  );
+}
+
+/**
+ * Lift the saturation of every built (non-natural, non-vertex-coloured)
+ * material in a landmark group. Guarded per material so the shared material
+ * cache is only boosted once no matter how many landmarks are built.
+ */
+export function boostBuiltVibrancy(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    const material = (object as THREE.Mesh).material;
+    if (!material) return;
+    const materials = Array.isArray(material) ? material : [material];
+    for (const entry of materials) {
+      const mat = entry as THREE.MeshStandardMaterial;
+      if (
+        !mat ||
+        mat.userData.naturalSurface ||
+        mat.userData.vibrancyApplied ||
+        mat.vertexColors
+      ) {
+        continue;
+      }
+      mat.userData.vibrancyApplied = true;
+      if (mat.color) liftSaturation(mat.color);
+      if (mat.emissive) liftSaturation(mat.emissive);
+    }
+  });
+}
+
 export function MPatina(c: THREE.ColorRepresentation): THREE.MeshStandardMaterial {
   return M(c, 0.58, 0.42);
 }
@@ -409,6 +458,7 @@ export function MStone(
     metalness: m,
     ...surfaceDetail('stone', bumpScale),
   });
+  mat.userData.naturalSurface = true;
   return cacheMat(key, mat);
 }
 
@@ -485,6 +535,7 @@ export function MWater(
     transparent: opacity < 1,
     opacity,
   });
+  mat.userData.naturalSurface = true;
   waterize(mat);
   return cacheMat(key, mat);
 }
@@ -504,6 +555,7 @@ export function MCascade(
     opacity,
     side: THREE.DoubleSide,
   });
+  mat.userData.naturalSurface = true;
   cascadeize(mat);
   return cacheMat(key, mat);
 }
@@ -527,6 +579,7 @@ export function MWet(
     clearcoatRoughness: 0.24,
     ...(tex !== 'plain' ? surfaceDetail(tex, tex === 'stone' ? 0.022 : 0.01) : {}),
   });
+  mat.userData.naturalSurface = true;
   wetMaterials.push({ mat, dryColor, wetColor, rDry, rWet });
   return mat;
 }
@@ -551,6 +604,7 @@ export function Mc(c: string): THREE.MeshStandardMaterial {
   if (foliageCache[c]) return foliageCache[c];
   const mat = windy(new THREE.MeshStandardMaterial({ color: c, roughness: 0.88, metalness: 0.02 }));
   mat.userData.sharedResource = true;
+  mat.userData.naturalSurface = true;
   foliageCache[c] = mat;
   return mat;
 }
@@ -954,19 +1008,14 @@ export function rock(
     c.lerp(aoDark, (1 - ao) * 0.5);
   });
   weatherVertexColors(gm, { ao: 0.3, exposure: 0.16, grain: 0.07 });
-  return add(
-    g,
-    gm,
-    new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.92,
-      metalness: 0.02,
-      ...surfaceDetail('stone', 0.032),
-    }),
-    x,
-    y0 + h / 2,
-    z
-  );
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.92,
+    metalness: 0.02,
+    ...surfaceDetail('stone', 0.032),
+  });
+  mat.userData.naturalSurface = true;
+  return add(g, gm, mat, x, y0 + h / 2, z);
 }
 
 let organicBoulderGeo: THREE.BufferGeometry | null = null;
@@ -994,17 +1043,13 @@ export function scatterRocks(
   const colA = new THREE.Color(c1);
   const colB = new THREE.Color(c2);
   const colors = items.map((_, i) => colA.clone().lerp(colB, R(i * 11 + 3)));
-  instancedMeshes(
-    g,
-    organicBoulderGeo,
-    new THREE.MeshStandardMaterial({
-      roughness: 0.93,
-      metalness: 0.02,
-      ...surfaceDetail('stone', 0.025),
-    }),
-    items,
-    colors
-  );
+  const mat = new THREE.MeshStandardMaterial({
+    roughness: 0.93,
+    metalness: 0.02,
+    ...surfaceDetail('stone', 0.025),
+  });
+  mat.userData.naturalSurface = true;
+  instancedMeshes(g, organicBoulderGeo, mat, items, colors);
 }
 
 let tuftGeoCache: THREE.BufferGeometry | null = null;
@@ -1020,6 +1065,7 @@ function getGrassMaterial(): THREE.MeshStandardMaterial {
       })
     );
     grassMatShared.userData.sharedResource = true;
+    grassMatShared.userData.naturalSurface = true;
   }
   return grassMatShared;
 }

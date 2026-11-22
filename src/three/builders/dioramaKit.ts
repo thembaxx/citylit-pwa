@@ -9,6 +9,7 @@ import type {
 import { WU, flagWindy, getSoftTexture, normalMapsActive, waterize } from '../shaders';
 import {
   add,
+  boostBuiltVibrancy,
   C,
   CB,
   finalizeContactShadows,
@@ -16,6 +17,7 @@ import {
   G,
   grassTufts,
   instancedMeshes,
+  M,
   Mc,
   mergeByMaterial,
   MGlass,
@@ -758,6 +760,61 @@ function addCraftedRim(g: THREE.Group, profile: SiteProfile): void {
   const mesh = new THREE.Mesh(merged, getRimMaterial());
   mesh.receiveShadow = true;
   g.add(mesh);
+}
+
+/* ------------------------------------------------------------------ */
+/* Vibrant accent trim (shared by all 43 landmarks)                    */
+/* ------------------------------------------------------------------ */
+
+/** Three-colour accent trios; one is chosen deterministically per landmark. */
+const VIBRANT_ACCENTS: readonly (readonly [string, string, string])[] = [
+  ['#ef476f', '#ffd166', '#06d6a0'],
+  ['#f78c2f', '#2a9d8f', '#ffd166'],
+  ['#3a86ff', '#ffbe0b', '#fb5607'],
+  ['#8338ec', '#06d6a0', '#ffd166'],
+  ['#e4572e', '#17bebb', '#ffc914'],
+  ['#118ab2', '#ef476f', '#ffd166'],
+  ['#d62828', '#f77f00', '#0077b6'],
+  ['#7b2cbf', '#f72585', '#4cc9f0'],
+];
+
+function accentFor(key: string): readonly [string, string, string] {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 100003;
+  return VIBRANT_ACCENTS[h % VIBRANT_ACCENTS.length];
+}
+
+/**
+ * Painted inlay along two front plinth edges plus four colour-coded corner
+ * studs. This is display-case trim, not landscape colour: every landmark gains
+ * new vibrant accents without changing its own model geometry.
+ */
+function addVibrantAccents(g: THREE.Group, key: string, profile: SiteProfile): void {
+  if (profile.square === false) return;
+  const [primary, secondary, tertiary] = accentFor(key);
+  const grp = new THREE.Group();
+  const paint = M(primary, 0.52, 0.04);
+
+  add(grp, CB(13.6, 0.075, 0.14, 0.02), paint, 0, 0.095, 7.7);
+  add(grp, CB(0.14, 0.075, 13.6, 0.02), paint, -7.7, 0.095, 0);
+
+  const corners: readonly (readonly [number, number])[] = [
+    [-7.55, 7.55],
+    [7.55, 7.55],
+    [-7.55, -7.55],
+    [7.55, -7.55],
+  ];
+  const studColors = [secondary, tertiary, primary, secondary];
+  for (let i = 0; i < corners.length; i++) {
+    const [x, z] = corners[i];
+    add(grp, C(0.085, 0.1, 0.2, 10), M(studColors[i], 0.48, 0.06), x, 0.16, z);
+  }
+
+  mergeByMaterial(grp);
+  grp.traverse((obj) => {
+    obj.userData.vibrantAccent = true;
+  });
+  g.add(grp);
 }
 
 /* ------------------------------------------------------------------ */
@@ -2152,6 +2209,11 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   for (let i = 0; i < motion.length; i++) updates.push(motion[i]);
   const birds = addSoaringBirds(group, profile, angle);
   for (let i = 0; i < birds.length; i++) updates.push(birds[i]);
+
+  // Lift built-material saturation last: shared materials are boosted once,
+  // and the accent trim added afterwards keeps its curated palette verbatim.
+  boostBuiltVibrancy(group);
+  addVibrantAccents(group, key, profile);
 
   const prev = group.userData.tick as Tick | undefined;
   group.userData.hasAnimatedShadowMeshes =
