@@ -283,9 +283,9 @@
     "semantic_hash": ""
   },
   "src/three/placesSliceBuilders.ts": {
-    "mtime": 1795367486.5804355,
-    "seen": 1795367782.940858,
-    "ast_hash": "1d3fc27f81de308b2d4096dbb53bcb39",
+    "mtime": 1795368311.0293772,
+    "seen": 1795368574.4058871,
+    "ast_hash": "0407d1ee04c37c5780c45b4aa11757c9",
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
@@ -913,9 +913,9 @@
     "semantic_hash": ""
   },
   "docs/SCENERY-UPGRADE.md": {
-    "mtime": 1795367699.980234,
-    "seen": 1795367782.9411023,
-    "ast_hash": "5d01a0a770f17cdbcf7cb22e5c4e9a7b",
+    "mtime": 1795369252.8855255,
+    "seen": 1795369354.261452,
+    "ast_hash": "be159c6e3ba1d04e001cbd077321e856",
     "semantic_hash": ""
   },
   "docs/baseline/contact-sheet-dusk.png": {
@@ -1021,9 +1021,9 @@
     "semantic_hash": ""
   },
   "src/three/placesInteriors.ts": {
-    "mtime": 1795367474.429925,
-    "seen": 1795367782.9408162,
-    "ast_hash": "cfc5941b4560cf12bc7179a25c27d722",
+    "mtime": 1795369145.664165,
+    "seen": 1795369354.2611203,
+    "ast_hash": "a7c3851f58c28e978d9673db4af28a75",
     "semantic_hash": ""
   },
   "docs/phase2/contact-sheet-night.png": {

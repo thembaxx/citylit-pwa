@@ -1116,11 +1116,13 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Table Mountain',
       pos: [-13.8, 7.2],
       sub: 'Sandstone buttresses, cableway & drifting tablecloth',
+      interior: 'cableStation',
     },
     {
       name: 'Cape Point Lighthouse',
       pos: [-14.6, 13.0],
       sub: 'Peninsula headland, red-tipped beacon & Flying Dutchman',
+      interior: 'keeperRoom',
     },
     {
       name: 'Groot Constantia',
@@ -1132,16 +1134,19 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Boulders Beach',
       pos: [-9.2, 13.0],
       sub: 'Granite boulder cove & African penguin boardwalk',
+      interior: 'penguinCentre',
     },
     {
       name: 'Hermanus Whale Watching',
       pos: [-3.8, 13.4],
       sub: 'Walker Bay cliffside cottages & breaching whales',
+      interior: 'whaleLookout',
     },
     {
       name: 'Knysna Heads',
       pos: [1.8, 12.8],
       sub: 'Twin lagoon cliffs & turquoise marina sailboats',
+      interior: 'marinaOffice',
     },
 
     // Northern Cape & West interior
@@ -1149,16 +1154,19 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Richtersveld',
       pos: [-14.8, -3.4],
       sub: 'Namaqualand wildflower bloom, windpump & quiver trees',
+      interior: 'wildflowerHall',
     },
     {
       name: 'Augrabies Falls',
       pos: [-9.6, -8.2],
       sub: 'Orange River granite gorge & plunging canyon spray',
+      interior: 'canyonLookout',
     },
     {
       name: 'The Big Hole',
       pos: [-4.2, -2.0],
       sub: 'Stepped kimberlite diamond crater, headframe & emerald lake',
+      interior: 'mineOffice',
     },
 
     // Free State & North West
@@ -1166,16 +1174,19 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Gariep Dam',
       pos: [1.8, 6.2],
       sub: 'Curved Orange River arch dam, spillway & reservoir',
+      interior: 'damControlRoom',
     },
     {
       name: 'Golden Gate Highlands',
       pos: [7.0, 1.8],
       sub: 'Fluted golden sandstone spires & cliffside lookout',
+      interior: 'ridgeShelter',
     },
     {
       name: 'Palace of the Lost City',
       pos: [-3.8, -8.0],
       sub: 'Turquoise mosaic domes & Valley of Waves lagoon',
+      interior: 'waterPavilion',
     },
 
     // Gauteng cluster
@@ -1183,11 +1194,13 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Cradle of Humankind',
       pos: [2.0, -6.8],
       sub: 'Maropeng mound & glowing subterranean dolomite cavern',
+      interior: 'fossilCavern',
     },
     {
       name: 'Orlando Towers',
       pos: [1.8, -0.6],
       sub: 'Painted Soweto cooling towers, pitch & township crossroads',
+      interior: 'townshipStoep',
     },
     {
       name: 'Union Buildings',
@@ -1201,11 +1214,13 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Storms River Mouth',
       pos: [7.4, 12.4],
       sub: 'Tsitsikamma forest gorge, suspension bridge & amber estuary',
+      interior: 'bridgeLodge',
     },
     {
       name: 'Hole in the Wall',
       pos: [13.0, 10.8],
       sub: 'Wild Coast arched basalt sea stack & coastal rondavels',
+      interior: 'coastalRondavel',
     },
 
     // KwaZulu-Natal
@@ -1213,16 +1228,19 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Sani Pass',
       pos: [12.8, 4.6],
       sub: 'Escarpment 4x4 hairpin switchbacks & border chalet',
+      interior: 'borderPost',
     },
     {
       name: 'Drakensberg Amphitheatre',
       pos: [12.4, -1.6],
       sub: 'Basalt amphitheatre wall & multi-tier Tugela cascade',
+      interior: 'amphitheatreShelter',
     },
     {
       name: 'iSimangaliso Wetland Park',
       pos: [18.2, 1.4],
       sub: 'Estuary hippos, barrier dunes & turquoise surf',
+      interior: 'wetlandHide',
     },
 
     // Mpumalanga & Limpopo
@@ -1230,11 +1248,13 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Three Rondavels',
       pos: [13.4, -7.8],
       sub: 'Blyde Canyon quartzite huts & emerald gorge river',
+      interior: 'canyonRondavel',
     },
     {
       name: 'Kruger National Park',
       pos: [18.6, -6.4],
       sub: 'Red bushveld safari track & elephant waterhole',
+      interior: 'rangerStation',
     },
     {
       name: 'Mapungubwe Hill',
