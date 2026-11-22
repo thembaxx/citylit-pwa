@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795361003.6901329,
-    "seen": 1795361149.437614,
-    "ast_hash": "5b85f85802a838f54c8449485ea3775e",
+    "mtime": 1795366546.138248,
+    "seen": 1795367782.9405196,
+    "ast_hash": "bef8acffe017b20518a561dd383f8273",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -271,21 +271,21 @@
     "semantic_hash": ""
   },
   "src/three/placesScene.ts": {
-    "mtime": 1795288714.396631,
-    "seen": 1795288890.3832712,
-    "ast_hash": "1f2535cddffa367e5f0ecf77df23edad",
+    "mtime": 1795366454.5440843,
+    "seen": 1795367782.9408412,
+    "ast_hash": "f64077c58f7d0fabfcf6246b56752fed",
     "semantic_hash": ""
   },
   "src/three/placesShaders.ts": {
-    "mtime": 1795288151.4061773,
-    "seen": 1795288890.3832757,
-    "ast_hash": "dffdf79689601dff3f1070bacbe3eebe",
+    "mtime": 1795366288.500808,
+    "seen": 1795367782.94085,
+    "ast_hash": "e16522bfc801c504db5cc2e98e6221e7",
     "semantic_hash": ""
   },
   "src/three/placesSliceBuilders.ts": {
-    "mtime": 1795291259.9898517,
-    "seen": 1795291705.4637167,
-    "ast_hash": "ae5ccc118a11a6307f5051952804f816",
+    "mtime": 1795367486.5804355,
+    "seen": 1795367782.940858,
+    "ast_hash": "1d3fc27f81de308b2d4096dbb53bcb39",
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
@@ -295,9 +295,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
-    "mtime": 1795355575.1713889,
-    "seen": 1795355738.7264564,
-    "ast_hash": "cb959cc20d0f7b01aa3c3c680f294c78",
+    "mtime": 1795366256.1689205,
+    "seen": 1795367782.9408762,
+    "ast_hash": "78409da1af7d7559dfc2ebb361c9cdb1",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
@@ -325,9 +325,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders/water.glsl.ts": {
-    "mtime": 1795288148.9185762,
-    "seen": 1795288890.3833194,
-    "ast_hash": "0b2b10fa81dc0c1036046974d26dc78a",
+    "mtime": 1795366368.5135021,
+    "seen": 1795367782.9409285,
+    "ast_hash": "78db1f7e3d47bb1c2df273d808d88a66",
     "semantic_hash": ""
   },
   "src/three/siteAtmosphere.ts": {
@@ -547,15 +547,15 @@
     "semantic_hash": ""
   },
   "src/lib/season.test.ts": {
-    "mtime": 1795266044.2884507,
-    "seen": 1795270207.9621053,
-    "ast_hash": "b01e8e0372a1ae07dc1f6bd77001fe00",
+    "mtime": 1795365938.2526689,
+    "seen": 1795367782.9404068,
+    "ast_hash": "4a22d94269dc5390504f2e1084dc831b",
     "semantic_hash": ""
   },
   "src/lib/season.ts": {
-    "mtime": 1795266044.270506,
-    "seen": 1795270207.9621077,
-    "ast_hash": "b7e36d11f9be5c43e79a13dd7c33359d",
+    "mtime": 1795365818.8247335,
+    "seen": 1795367782.9404166,
+    "ast_hash": "b61f6b7dcbb4f2220cd97667ab9da334",
     "semantic_hash": ""
   },
   "src/three/horizonScenery.ts": {
@@ -913,9 +913,9 @@
     "semantic_hash": ""
   },
   "docs/SCENERY-UPGRADE.md": {
-    "mtime": 1795364121.788875,
-    "seen": 1795364213.174623,
-    "ast_hash": "10da1b00d32a7c939c07b2462703255f",
+    "mtime": 1795367699.980234,
+    "seen": 1795367782.9411023,
+    "ast_hash": "5d01a0a770f17cdbcf7cb22e5c4e9a7b",
     "semantic_hash": ""
   },
   "docs/baseline/contact-sheet-dusk.png": {
@@ -991,9 +991,9 @@
     "semantic_hash": ""
   },
   "docs/phase2/phase2-stats.json": {
-    "mtime": 1795362993.2127774,
-    "seen": 1795364213.172599,
-    "ast_hash": "01afeac3ee3ec5d8119c875819ce6456",
+    "mtime": 1795364513.0370765,
+    "seen": 1795367782.9399197,
+    "ast_hash": "d4733da67eec38f6635a8f70baa3d500",
     "semantic_hash": ""
   },
   "scripts/capture-contact-sheets.mjs": {
@@ -1018,6 +1018,18 @@
     "mtime": 1795361642.0204716,
     "seen": 1795364213.1754794,
     "ast_hash": "90114fe9e3d820dd958b902f57ebb2ef",
+    "semantic_hash": ""
+  },
+  "src/three/placesInteriors.ts": {
+    "mtime": 1795367474.429925,
+    "seen": 1795367782.9408162,
+    "ast_hash": "cfc5941b4560cf12bc7179a25c27d722",
+    "semantic_hash": ""
+  },
+  "docs/phase2/contact-sheet-night.png": {
+    "mtime": 1795364445.184887,
+    "seen": 1795367782.9413116,
+    "ast_hash": "aff04157c1215f6dd30636e2c03252cd",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

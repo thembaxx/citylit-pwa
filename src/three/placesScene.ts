@@ -11,6 +11,7 @@ import {
   buildPlaceSlice,
   createSliceSharedAssets,
   PLACE_SLICE_SPECS,
+  SLICE_HALF,
   type BuiltPlaceSlice,
   type PlaceSliceSpec,
 } from './placesSliceBuilders';
@@ -51,6 +52,8 @@ export interface PlacesController {
   stepSlice: (dir: 1 | -1, provinceName: string) => PlacesSelectionInfo;
   refreshVisited: (visited: Set<number>) => void;
   hoverAt: (ndcX: number, ndcY: number) => number | null;
+  /** Project the pointer onto the active waterline and publish the wake uniform. */
+  updatePointerWake: (ndcX: number, ndcY: number) => boolean;
   pickAt: (ndcX: number, ndcY: number) => PlacesSelectionInfo | null;
   getSelectedInfo: () => PlacesSelectionInfo;
   zoomBy: (factor: number) => void;
@@ -166,6 +169,8 @@ export function createPlacesScene(
   let flyGoalTarget: THREE.Vector3 | null = null;
   const raycaster = new THREE.Raycaster();
   const pointerVec = new THREE.Vector2();
+  const wakePlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const wakeHit = new THREE.Vector3();
   const cloudNightTmp = new THREE.Color('#28344d');
   const cloudWarmTmp = new THREE.Color('#ffd3a6');
   const fogBaseTmp = new THREE.Color('#243044');
@@ -362,6 +367,19 @@ export function createPlacesScene(
     }
     hoveredSliceIndex = selectedSliceIndex;
     return hoveredSliceIndex;
+  };
+
+  const updatePointerWake = (ndcX: number, ndcY: number): boolean => {
+    if (!isOpen) return false;
+    const activeSlice = slices[selectedSliceIndex];
+    if (!activeSlice || activeSlice.waterLevel === undefined) return false;
+    pointerVec.set(ndcX, ndcY);
+    raycaster.setFromCamera(pointerVec, camera);
+    wakePlane.constant = -activeSlice.waterLevel;
+    if (!raycaster.ray.intersectPlane(wakePlane, wakeHit)) return false;
+    WU.wake.value.copy(wakeHit);
+    // Only ripple while the pointer is over the slice's water footprint.
+    return Math.abs(wakeHit.x) <= SLICE_HALF + 0.2 && Math.abs(wakeHit.z) <= SLICE_HALF + 0.2;
   };
 
   const pickAt = (ndcX: number, ndcY: number): PlacesSelectionInfo | null => {
@@ -564,6 +582,7 @@ export function createPlacesScene(
     stepSlice,
     refreshVisited,
     hoverAt,
+    updatePointerWake,
     pickAt,
     getSelectedInfo,
     zoomBy,

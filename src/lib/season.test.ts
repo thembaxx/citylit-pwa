@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { monthToSeasonWeights } from './season.ts';
+import {
+  getSeasonMonth,
+  isSpeciesBlooming,
+  monthToSeasonWeights,
+  normalizeMonth,
+  PLANT_SPECIES,
+  setSeasonMonth,
+} from './season.ts';
 
 test('month drives peak summer warmth and dormant winter', () => {
   const january = monthToSeasonWeights(1);
@@ -43,4 +50,54 @@ test('transition between adjacent months is continuous, not a snap', () => {
     assert.ok(Math.abs(a.autumn - b.autumn) < 0.55);
     assert.ok(Math.abs(a.spring - b.spring) < 0.55);
   }
+});
+
+test('plant species vocabulary has labels, foliage colours and bloom windows', () => {
+  const species = Object.keys(PLANT_SPECIES);
+  assert.deepEqual(species, ['bush', 'oak', 'acacia', 'quiver', 'jacaranda']);
+  for (const key of species) {
+    const info = PLANT_SPECIES[key as keyof typeof PLANT_SPECIES];
+    assert.ok(info.label.length > 0);
+    assert.match(info.foliageColor, /^#[0-9a-f]{6}$/i);
+    for (const month of info.bloomMonths) {
+      assert.ok(month >= 1 && month <= 12);
+    }
+  }
+});
+
+test('normalizeMonth wraps into 1-12 in both directions', () => {
+  assert.equal(normalizeMonth(1), 1);
+  assert.equal(normalizeMonth(12), 12);
+  assert.equal(normalizeMonth(13), 1);
+  assert.equal(normalizeMonth(0), 12);
+  assert.equal(normalizeMonth(-1), 11);
+  assert.equal(normalizeMonth(Number.NaN), 1);
+});
+
+test('jacaranda blooms only in October and November', () => {
+  assert.equal(isSpeciesBlooming(10, 'jacaranda'), true);
+  assert.equal(isSpeciesBlooming(11, 'jacaranda'), true);
+  for (const month of [1, 4, 7, 9, 12]) {
+    assert.equal(isSpeciesBlooming(month, 'jacaranda'), false, `month ${month}`);
+  }
+  // No gate evaluation yet (or an invalid month) keeps the reference look.
+  assert.equal(isSpeciesBlooming(undefined, 'jacaranda'), true);
+  assert.equal(isSpeciesBlooming(Number.NaN, 'jacaranda'), true);
+});
+
+test('species without a bloom window never flower, even in spring', () => {
+  for (const species of ['bush', 'oak', 'acacia', 'quiver'] as const) {
+    assert.equal(isSpeciesBlooming(10, species), false, species);
+  }
+});
+
+test('published season month drives the foliage gate', () => {
+  assert.equal(getSeasonMonth(), undefined);
+  setSeasonMonth(11);
+  assert.equal(getSeasonMonth(), 11);
+  assert.equal(isSpeciesBlooming(getSeasonMonth(), 'jacaranda'), true);
+  setSeasonMonth(6);
+  assert.equal(isSpeciesBlooming(getSeasonMonth(), 'jacaranda'), false);
+  setSeasonMonth(Number.NaN);
+  assert.equal(getSeasonMonth(), undefined);
 });

@@ -180,7 +180,7 @@ Legend: **EXISTS** = already satisfies this part; **PARTIAL** = useful foundatio
 | Brake flares / robots | MISSING | No `brake`, `traffic light`, `robot`, or signal implementation in `src/three`. |
 | Left-hand traffic / lane offsets | WRONG / MISSING | Opposing lanes are hard-coded in several sites (`landmarksA.ts:649-659,1022-1048`, `landmarksB.ts:464-493`) with no named left-hand rule; spline traffic follows centreline (`landmarksA.ts:1753-1758,2875-2880`, `landmarksB.ts:949-956`) so cars can overlap. Add explicit lane offsets and direction. |
 | Reusable traffic helper | MISSING | Spline/loop/linear motion is duplicated per site. Add one shared route+vehicle-light builder. |
-| Places taxis | WRONG / LIMITED | `placesSliceBuilders.ts:955-999,1914-1939` passes a generic warm window material as `headlightMat`, not the WU/rain-gated car material. |
+| Places taxis | PARTIAL / IMPROVED | Places vehicles now use a dedicated warm-white lamp material with a night-only emissive curve (`placesSliceBuilders.ts` `headlightMat` + `tick`), instead of the shared amber window material. Still a flat lens, not the WU-gated additive beam/pool used by landmark `car()`. |
 
 ### F — Water and rivers
 
@@ -189,9 +189,9 @@ Legend: **EXISTS** = already satisfies this part; **PARTIAL** = useful foundatio
 | Diorama water stack | EXISTS | `MWater()`/`waterize()` `primitives.ts:584-603`, `shaders.ts:587-690`; `MCascade()`/`:605-623`; wet roads `:625-649`; `sea()` `:2789-2812`; diorama plate `dioramaKit.ts:1135-1165`; edge waterfall ribbon `:1079-1133`. |
 | Places cutaway water | EXISTS | `src/three/shaders/water.glsl.ts:3-280`, `placesShaders.ts:179-274`, depth/shore attributes in `placesSliceBuilders.ts:474-560`. Not interchangeable with diorama `waterize()`. |
 | Flow direction / speed | MISSING / PARTIAL | `cascadeize()` has fixed `uWT*9` scroll (`shaders.ts:732`); no per-river flow vector or speed uniform. |
-| Confluence / two-tone mixing | MISSING | Shallow/deep gradients exist (`primitives.ts:2792-2804`, `placesSliceBuilders.ts:1271-1310`) but no mixing mask. |
-| Tides | MISSING | `waterLevel` is static build-time config (`placesSliceBuilders.ts:256-258,464-465,1329+`). |
-| Pointer wake | MISSING | `WU.cursor` is consumed by windy foliage only (`shaders.ts:19-21,777-826`); water shaders do not bind it. |
+| Confluence / two-tone mixing | EXISTS (PLACES) | `WaterConfluenceSpec` seam + second palette in `placesShaders.ts` and `WATER_TOP_FRAGMENT`/`WATER_WALL_FRAGMENT`; Gariep Dam mixes muddy inflow into the reservoir along its `z = 0.14` pinch. Diorama `waterize()` still has no mixing mask. |
+| Tides | EXISTS (PLACES) | `WaterTideSpec` drives a sinusoidal surface + cut-wall displacement from `WU.t`; coastal `oceanWater` slices breathe on a 12-second cycle. Reduced motion freezes it automatically. |
+| Pointer wake | EXISTS (PLACES) | `WU.wake`/`WU.wakeStrength` are fed by `PlacesController.updatePointerWake()` (waterline raycast) and consumed by `WATER_TOP_FRAGMENT` normal + foam ripples; disabled under reduced motion. |
 | Night moon path on Places water | MISSING / PARTIAL | Diorama sparkle (`shaders.ts:677-682`) and horizon moon track (`horizonScenery.ts:219-266`) exist; cutaway glints are sun-only/dark (`water.glsl.ts:137-139`). |
 | Lamp reflections on water | PARTIAL | Helper exists (`dioramaKit.ts:2663-2752`) but only three isiMangaliso bollards set `reflectY` (`landmarksB.ts:1876-1878`). |
 | Water prewarm / waterfall sophistication | PARTIAL | `MWater`/`MCascade` are prewarmed (`CitylitEngine.ts:3499-3568`), cutaway materials are not. Falls are scrolling slabs + drift; `WATERFALL_ANCHORS` (`dioramaKit.ts:3173-3180`) are audio anchors, not flow anchors. |
@@ -203,7 +203,7 @@ Legend: **EXISTS** = already satisfies this part; **PARTIAL** = useful foundatio
 | Animal builders + site use | EXISTS | `animal()` `primitives.ts:2360-2381`; `elephant()` `:2498-2574` + Kruger `landmarksA.ts:2891-2894`; `penguin()` `:2577-2621` + Boulders `landmarksA.ts:3160-3179`; `whale()` `:2624-2659` + Hermanus `landmarksB.ts:1755-1759`; `hippo()` `:2662-2689` + iSimangaliso `landmarksB.ts:1881-1890`; `gemsbok()` `:2692+` + Kgalagadi `landmarksB.ts:1309-1310`; birds `primitives.ts:1996-2058` across most coastal/mountain/water sites. |
 | Ambient animal motion | EXISTS | Generic bob/orbit/rock/breach: `landmarksA.ts:2926-2932`, `landmarksB.ts:585-592,1316-1325,1899-1907`, shared `addSiteMotion()` `dioramaKit.ts:1742-1935`. |
 | Batching / LOD / contacts | EXISTS | `instancedMeshes()` `primitives.ts:772-798`, tree LOD `:1639-1705`, background penguin batch `landmarksA.ts:3173-3179`, soaring-bird LOD `dioramaKit.ts:3276-3280`, two-phase contact stamps `primitives.ts:2846-2984` + `dioramaKit.ts:3361-3363`. |
-| Season + audio hooks | PARTIAL | Season weights `season.ts:17-24` → `CitylitEngine.ts:2101-2105`, shader colour `shaders.ts:49-60`, seasonal audio `ambientAudio.ts:202-216,561-580`. Spatial kinds are only waterfall/surf/birds/insects (`types/citylit.ts:95-121`, `dioramaKit.ts:3187-3254`). |
+| Season + audio hooks | PARTIAL | Season weights `season.ts`, shader colour `shaders.ts`, seasonal audio `ambientAudio.ts`. Named `PlantSpecies` vocabulary + `isSpeciesBlooming()` gate in `season.ts`; jacarandas in the Union Buildings slice wrap a green canopy with an Oct/Nov-only violet blossom shell. Spatial kinds are still only waterfall/surf/birds/insects (`types/citylit.ts:95-121`, `dioramaKit.ts:3187-3254`). |
 | Per-species idle signatures | MISSING | No graze / look-up / waddle / submerge state in the animal helpers; site ticks only reposition/rotate/rock merged geometry. Add a shared scaffold (spec + tick + contact stamp + optional LOD) rather than bespoke per-site animation. |
 | Season gating of animals/motion | MISSING | Shared site motion gates by key/biome and `WU.lit`, not month/season (`dioramaKit.ts:1738-1937`). Global season currently affects colour and audio only. |
 | Animal-specific audio | MISSING | No elephant/whale/penguin/hippo/gemsbok sound hook; discrete events cover shorebird/cicada/frog only (`ambientAudio.ts:69-91,309-321`). |
@@ -376,4 +376,4 @@ No site exceeds the +10% draw-call or triangle ceiling at any captured hour. Bat
 
 - Run `pnpm qa:capture` against a remote-debugging Chrome to validate the registered script end to end.
 - Certify 60 fps on a mid-range laptop at High and ≥30 fps on mid mobile at Medium outside the headless browser.
-- Consider bespoke interiors for the few sites where the generic cross-section is not enough.
+- Bespoke interiors added for the sites the generic cross-section could not carry: `src/three/placesInteriors.ts` supplies open-fronted rooms for Robben Island (cell block), Groot Constantia (manor room), Union Buildings (colonnade/chamber) and Mapungubwe Hill (royal compound), selected declaratively via `PlaceSliceSpec.bespokeInterior`. Expand them to the other landmark dioramas and add instanced detail passes.

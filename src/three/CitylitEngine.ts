@@ -29,6 +29,7 @@ import {
   PLINTH_HALF_EXTENT,
   PLINTH_INNER_HALF_EXTENT,
 } from '../lib/fitMath';
+import { setSeasonMonth as setFoliageSeasonMonth } from '../lib/season';
 import { setAnimalSeasonMonth } from './builders/animalKit';
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
 import {
@@ -310,6 +311,8 @@ export class CitylitEngine {
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.35);
   private readonly cursorWorld = new THREE.Vector3();
   private cursorStrengthTarget = 0;
+  /** Fades the Places water wake when the pointer leaves or motion is reduced. */
+  private wakeStrengthTarget = 0;
   private directionActive = false;
   private directionStrength = 0;
   private directionTargetYaw = 0;
@@ -2167,6 +2170,10 @@ export class CitylitEngine {
 
   setMotionPreferences(reduced: boolean): void {
     this.motionScale = reduced ? 0 : 1;
+    if (reduced) {
+      this.wakeStrengthTarget = 0;
+      WU.wakeStrength.value = 0;
+    }
     this.autoRotateSpeed = reduced || this.isSoftwareGl ? 0 : 0.3;
     this.controls.autoRotate =
       !reduced &&
@@ -2214,6 +2221,7 @@ export class CitylitEngine {
   setSeasonMonth(month: number, immediate = false): void {
     this.lastInteractAt = this.elapsed;
     setAnimalSeasonMonth(month);
+    setFoliageSeasonMonth(month);
     this.weather.setSeasonMonth(month, immediate);
     ambientAudio.setSeasonMonth(month, immediate);
   }
@@ -2255,6 +2263,8 @@ export class CitylitEngine {
   openGlobe(visited: Set<number>): void {
     this.cursorStrengthTarget = 0;
     WU.cursorStrength.value = 0;
+    this.wakeStrengthTarget = 0;
+    WU.wakeStrength.value = 0;
     this.lastInteractAt = this.elapsed;
     if (this.places.isOpen) {
       this.places.close();
@@ -2312,6 +2322,8 @@ export class CitylitEngine {
   ): PlacesSelectionInfo {
     this.cursorStrengthTarget = 0;
     WU.cursorStrength.value = 0;
+    this.wakeStrengthTarget = 0;
+    WU.wakeStrength.value = 0;
     this.lastInteractAt = this.elapsed;
     if (this.globe.isOpen) {
       this.globe.close();
@@ -3310,6 +3322,7 @@ export class CitylitEngine {
 
       if (this.globe.isOpen) {
         this.cursorStrengthTarget = 0;
+        this.wakeStrengthTarget = 0;
         this.hoveredHero = false;
         const hoveredPin = this.globe.hoverPin(ndcX, ndcY, 14);
         canvas.style.cursor = hoveredPin !== null ? 'pointer' : 'grab';
@@ -3320,6 +3333,10 @@ export class CitylitEngine {
       if (this.places.isOpen) {
         this.cursorStrengthTarget = 0;
         this.hoveredHero = false;
+        // Feed a world-space ripple into the water shader; reduced motion
+        // keeps the surface still even while the pointer moves.
+        this.wakeStrengthTarget =
+          this.motionScale > 0 && this.places.updatePointerWake(ndcX, ndcY) ? 1 : 0;
         const hovered = this.places.hoverAt(ndcX, ndcY);
         canvas.style.cursor = hovered !== null ? 'pointer' : 'grab';
         return;
@@ -3329,6 +3346,7 @@ export class CitylitEngine {
         this.hoveredMarkerIndex = -1;
         this.hoveredHero = false;
         this.cursorStrengthTarget = 0;
+        this.wakeStrengthTarget = 0;
         canvas.style.cursor = this.isUserOrbiting ? 'grabbing' : 'default';
         return;
       }
@@ -3389,6 +3407,7 @@ export class CitylitEngine {
       this.hoveredMarkerIndex = -1;
       this.hoveredHero = false;
       this.cursorStrengthTarget = 0;
+      this.wakeStrengthTarget = 0;
       this.globe.clearHover();
       this.callbacks.onGlobePinHover?.(null);
       if (!this.globe.isOpen && !this.places.isOpen) {
@@ -3742,6 +3761,9 @@ export class CitylitEngine {
     this.cursorStrengthTarget = Math.max(0, this.cursorStrengthTarget - dt * 1.4);
     WU.cursorStrength.value +=
       (this.cursorStrengthTarget - WU.cursorStrength.value) * Math.min(1, dt * 8);
+    this.wakeStrengthTarget = Math.max(0, this.wakeStrengthTarget - dt * 1.4);
+    WU.wakeStrength.value +=
+      (this.wakeStrengthTarget - WU.wakeStrength.value) * Math.min(1, dt * 8);
 
     // Window schedule advances in every camera mode: Places and Globe share the
     // same facade materials, so a frozen schedule would show the hero's hour.

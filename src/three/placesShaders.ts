@@ -176,6 +176,30 @@ export function createStrataTerrainMaterial(
   return mat;
 }
 
+/** A straight mixing line where two water bodies meet inside one cutaway slice. */
+export interface WaterConfluenceSpec {
+  /** (normalX, normalZ, offset) in slice-local XZ: dot(q, normal) - offset = 0. */
+  seam: readonly [number, number, number];
+  /** Blend width on either side of the seam, in slice units. */
+  width?: number;
+  /** Overall visibility of the mixing line (0 disables it). */
+  strength?: number;
+  /** Palette of the second body. */
+  shallowColor: string;
+  deepColor: string;
+  /** Extra chop applied to the mixing line. */
+  turbulence?: number;
+}
+
+/** Slow sinusoidal water-level change; phase advances with the shared WU clock. */
+export interface WaterTideSpec {
+  /** Vertical travel in slice units. Keep below one terrain grid step (~0.068). */
+  amplitude: number;
+  /** Full cycle duration in shader seconds (default 12). */
+  period?: number;
+  phase?: number;
+}
+
 export interface CutawayWaterOptions {
   shallowColor: string;
   deepColor: string;
@@ -187,6 +211,8 @@ export interface CutawayWaterOptions {
   caustic?: number;
   fresnel?: number;
   minAlpha?: number;
+  tide?: WaterTideSpec;
+  confluence?: WaterConfluenceSpec;
 }
 
 /**
@@ -222,6 +248,25 @@ export function createCutawayWaterTopMaterial(
       uCaustic: { value: opts.caustic ?? 1.0 },
       uFresnel: { value: opts.fresnel ?? 1.0 },
       uMinAlpha: { value: opts.minAlpha ?? 0.32 },
+      // Tide, confluence and pointer wake default to no-ops so existing sites
+      // keep their exact look. The wake uniforms are shared by reference with WU.
+      uTideAmp: { value: opts.tide?.amplitude ?? 0 },
+      uTidePeriod: { value: opts.tide?.period ?? 12 },
+      uTidePhase: { value: opts.tide?.phase ?? 0 },
+      uConfSeam: {
+        value: new THREE.Vector3(
+          opts.confluence?.seam[0] ?? 0,
+          opts.confluence?.seam[1] ?? 0,
+          opts.confluence?.seam[2] ?? 0
+        ),
+      },
+      uConfWidth: { value: opts.confluence?.width ?? 0.12 },
+      uConfStrength: { value: opts.confluence?.strength ?? 0 },
+      uConfShallow: { value: new THREE.Color(opts.confluence?.shallowColor ?? opts.shallowColor) },
+      uConfDeep: { value: new THREE.Color(opts.confluence?.deepColor ?? opts.deepColor) },
+      uConfTurb: { value: opts.confluence?.turbulence ?? 0 },
+      uWake: WU.wake,
+      uWakeStrength: WU.wakeStrength,
       uVolSunDir: env.sunDir,
       uVolSunColor: env.sunColor,
       uVolFogColor: env.fogColor,
@@ -259,6 +304,20 @@ export function createCutawayWaterWallMaterial(
       uShallow: { value: new THREE.Color(opts.shallowColor) },
       uDeep: { value: new THREE.Color(opts.deepColor) },
       uClarity: { value: opts.clarity ?? 0.78 },
+      uTideAmp: { value: opts.tide?.amplitude ?? 0 },
+      uTidePeriod: { value: opts.tide?.period ?? 12 },
+      uTidePhase: { value: opts.tide?.phase ?? 0 },
+      uConfSeam: {
+        value: new THREE.Vector3(
+          opts.confluence?.seam[0] ?? 0,
+          opts.confluence?.seam[1] ?? 0,
+          opts.confluence?.seam[2] ?? 0
+        ),
+      },
+      uConfWidth: { value: opts.confluence?.width ?? 0.12 },
+      uConfStrength: { value: opts.confluence?.strength ?? 0 },
+      uConfShallow: { value: new THREE.Color(opts.confluence?.shallowColor ?? opts.shallowColor) },
+      uConfDeep: { value: new THREE.Color(opts.confluence?.deepColor ?? opts.deepColor) },
       uVolSunDir: env.sunDir,
       uVolSunColor: env.sunColor,
       uVolFogColor: env.fogColor,

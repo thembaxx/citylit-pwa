@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LANDMARKS } from '../data/landmarks';
+import {
+  getSeasonMonth,
+  isSpeciesBlooming,
+  PLANT_SPECIES,
+  type PlantSpecies,
+} from '../lib/season';
+import { BESPOKE_INTERIORS, type BespokeInteriorKind } from './placesInteriors';
 import { createCloudPuffMesh, createSliceCloudLayer } from './placesClouds';
 import { grassWindy, windy, WU } from './shaders';
 import {
@@ -22,6 +29,8 @@ export interface PlaceSliceSpec {
   /** Constellation coordinate in the Places archipelago (X, Z). */
   gridPos: readonly [number, number];
   subtitle: string;
+  /** Modelled open-front interior for sites the generic strata cut can't carry. */
+  bespokeInterior?: BespokeInteriorKind;
 }
 
 export interface BuiltPlaceSlice {
@@ -32,6 +41,8 @@ export interface BuiltPlaceSlice {
   cloudGroup: THREE.Group;
   waterMats: THREE.ShaderMaterial[];
   glowMats: THREE.MeshStandardMaterial[];
+  /** Waterline height used to raycast the pointer wake onto the surface. */
+  waterLevel?: number;
   tick?: (elapsed: number, litStrength: number) => void;
   dispose: () => void;
 }
@@ -610,7 +621,8 @@ function buildTerrainAndWaterMeshes(
   return { terrainMesh, waterTopMesh, waterWallMesh, waterMats, localGeometries };
 }
 
-type TreeStyle = 'bush' | 'oak' | 'acacia' | 'quiver' | 'jacaranda';
+/** Local alias so the existing 20+ placement sites keep their concise name. */
+type TreeStyle = PlantSpecies;
 
 interface TreePlacement {
   x: number;
@@ -621,17 +633,33 @@ interface TreePlacement {
   style?: TreeStyle;
 }
 
+interface TreePuff {
+  x: number;
+  y: number;
+  z: number;
+  sx: number;
+  sy: number;
+  sz: number;
+  rx: number;
+  ry: number;
+  color: string;
+}
+
 /**
  * Multi-part sculpted trees & fynbos shrubs: tapered bark trunks + overlapping
  * multi-lobed InstancedMesh canopy tufts so foliage reads organically rather than single spheres.
+ *
+ * Returns a separate blossom shell for season-gated species (currently the
+ * jacaranda). The caller owns its `visible` flag; the returned mesh is `null`
+ * when the placement set has no seasonal blossoms.
  */
 function addInstancedTrees(
   parent: THREE.Group,
   shared: SliceSharedAssets,
   trees: TreePlacement[],
   matsToDispose: THREE.Material[]
-): void {
-  if (trees.length === 0) return;
+): THREE.InstancedMesh | null {
+  if (trees.length === 0) return null;
   const barkMat = new THREE.MeshStandardMaterial({ color: '#6b533e', roughness: 0.92 });
   const leafMat = windy(
     new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0.0, vertexColors: true }),
@@ -642,17 +670,8 @@ function addInstancedTrees(
 
   const trunkItems: Array<{ x: number; y: number; z: number; sx: number; sy: number; r: number }> =
     [];
-  const puffItems: Array<{
-    x: number;
-    y: number;
-    z: number;
-    sx: number;
-    sy: number;
-    sz: number;
-    rx: number;
-    ry: number;
-    color: string;
-  }> = [];
+  const puffItems: TreePuff[] = [];
+  const blossomItems: TreePuff[] = [];
 
   for (let i = 0; i < trees.length; i++) {
     const t = trees[i];
@@ -734,8 +753,9 @@ function addInstancedTrees(
         });
       }
     } else {
-      // Tall full-crowned Oak or blooming Jacaranda: five clumps arranged in a
-      // broad dome, with a smaller top tuft so the crown silhouette is rounded.
+      // Tall full-crowned Oak or Jacaranda: five clumps arranged in a broad
+      // dome, with a smaller top tuft so the crown silhouette is rounded.
+      const isJacaranda = st === 'jacaranda';
       const th = t.scale * (st === 'oak' ? 1.55 : 1.35);
       trunkItems.push({ x: t.x, y: t.y + th * 0.48, z: t.z, sx: t.scale * 0.42, sy: th, r: seedA });
       for (let k = 0; k < 5; k++) {
@@ -743,7 +763,7 @@ function addInstancedTrees(
         const off = k === 0 ? 0 : t.scale * (0.30 + (k % 2) * 0.14);
         const lift = k === 0 ? 0.38 : k < 3 ? 0.20 : 0.30;
         const size = k === 0 ? 0.96 : k < 3 ? 0.80 : 0.66;
-        puffItems.push({
+        const puff: TreePuff = {
           x: t.x + Math.cos(ang) * off,
           y: t.y + th + t.scale * lift,
           z: t.z + Math.sin(ang) * off,
@@ -752,8 +772,14 @@ function addInstancedTrees(
           sz: t.scale * size,
           rx: seedA * 0.3,
           ry: ang,
-          color: t.color,
-        });
+          color: isJacaranda ? PLANT_SPECIES.jacaranda.foliageColor : t.color,
+        };
+        puffItems.push(puff);
+        if (isJacaranda) {
+          // A slightly larger shell of violet blooms wraps the green canopy so
+          // the tree stays leafy outside its Oct/Nov flowering window.
+          blossomItems.push({ ...puff, sx: puff.sx * 1.06, sy: puff.sy * 1.06, sz: puff.sz * 1.06, color: t.color });
+        }
       }
     }
   }
@@ -799,6 +825,26 @@ function addInstancedTrees(
     puffMesh.receiveShadow = true;
     parent.add(puffMesh);
   }
+
+  if (blossomItems.length === 0) return null;
+  const blossomMesh = new THREE.InstancedMesh(shared.foliageGeo, leafMat, blossomItems.length);
+  for (let i = 0; i < blossomItems.length; i++) {
+    const p = blossomItems[i];
+    dummy.position.set(p.x, p.y, p.z);
+    dummy.rotation.set(p.rx, p.ry, p.rx * 0.6);
+    dummy.scale.set(p.sx * 1.1, p.sy * 1.1, p.sz * 1.1);
+    dummy.updateMatrix();
+    blossomMesh.setMatrixAt(i, dummy.matrix);
+    c.set(p.color);
+    c.offsetHSL((hashSeed(i, 11) - 0.5) * 0.025, -0.03 + (hashSeed(i, 13) - 0.5) * 0.06, (hashSeed(i, 7) - 0.5) * 0.10);
+    blossomMesh.setColorAt(i, c);
+  }
+  blossomMesh.instanceMatrix.needsUpdate = true;
+  if (blossomMesh.instanceColor) blossomMesh.instanceColor.needsUpdate = true;
+  blossomMesh.computeBoundingSphere();
+  blossomMesh.castShadow = true;
+  parent.add(blossomMesh);
+  return blossomMesh;
 }
 
 function addInstancedRocks(
@@ -1053,12 +1099,18 @@ function addRoadRibbon(
  * apart for 3.0×3.0 blocks, leaving >= 2.4 units of clear negative space around every island).
  */
 export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
-  const entries: Array<{ name: string; pos: [number, number]; sub: string }> = [
+  const entries: Array<{
+    name: string;
+    pos: [number, number];
+    sub: string;
+    interior?: BespokeInteriorKind;
+  }> = [
     // Western Cape archipelago (South-West arc)
     {
       name: 'Robben Island',
       pos: [-18.8, 3.2],
       sub: 'Limestone quarry, prison courtyard & harbour ferry slice',
+      interior: 'prisonCell',
     },
     {
       name: 'Table Mountain',
@@ -1074,6 +1126,7 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Groot Constantia',
       pos: [-8.6, 7.2],
       sub: 'Cape Dutch gables, shade oaks & Constantia vineyards',
+      interior: 'manorRoom',
     },
     {
       name: 'Boulders Beach',
@@ -1140,6 +1193,7 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Union Buildings',
       pos: [7.6, -6.8],
       sub: 'Baker colonnade, terraced lawns & purple jacarandas',
+      interior: 'colonnade',
     },
 
     // Eastern Cape
@@ -1186,6 +1240,7 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       name: 'Mapungubwe Hill',
       pos: [8.2, -12.6],
       sub: 'Ancient royal sandstone mesa & swollen baobab crown',
+      interior: 'royalCompound',
     },
   ];
 
@@ -1198,6 +1253,7 @@ export const PLACE_SLICE_SPECS: readonly PlaceSliceSpec[] = (() => {
       province: meta.c.split(' · ')[1] ?? 'South Africa',
       gridPos: e.pos,
       subtitle: e.sub,
+      bespokeInterior: e.interior,
     };
   });
 })();
@@ -1266,6 +1322,20 @@ export function buildPlaceSlice(
 
   // Warm dusk/night architectural windows & streetlights
   const warmWindowMat = trackGlowMat('#ffe19c', '#ffaa38', 0.35);
+  // Vehicles get their own warm-white lamp material: the window material is
+  // shared with houses and street lamps and glows amber even at noon, which
+  // made taxi headlights read as orange windows. This one is driven by its own
+  // night-only curve in `tick` so lamps stay dark by day.
+  const headlightMat = trackMat(
+    new THREE.MeshStandardMaterial({
+      color: '#fff2c0',
+      emissive: '#ffd98a',
+      emissiveIntensity: 0,
+      roughness: 0.22,
+      metalness: 0,
+      toneMapped: false,
+    })
+  );
 
   const cScratch = new THREE.Color();
   const oceanWater: CutawayWaterOptions = {
@@ -1275,6 +1345,9 @@ export function buildPlaceSlice(
     foamStrength: 1.18,
     turbulence: 1.12,
     clarity: 0.88,
+    // Coastal slices breathe with a gentle 12-second tide. Amplitude stays
+    // below one terrain grid step so shoreline cells never pop.
+    tide: { amplitude: 0.012, period: 12 },
   };
   const riverWater: CutawayWaterOptions = {
     shallowColor: '#4ad8d2',
@@ -1394,7 +1467,7 @@ export function buildPlaceSlice(
           carMat,
           wheelMat,
           carMat,
-          warmWindowMat,
+          headlightMat,
           -0.78,
           hFn(-0.78, 0.18),
           0.18,
@@ -1652,7 +1725,7 @@ export function buildPlaceSlice(
           roverBody,
           tireMat,
           roverCanopy,
-          warmWindowMat,
+          headlightMat,
           0.15,
           hFn(0.15, -0.26),
           -0.26,
@@ -1917,7 +1990,7 @@ export function buildPlaceSlice(
           taxiBody,
           tireM,
           taxiTop,
-          warmWindowMat,
+          headlightMat,
           -0.82,
           hFn(-0.82, 0.92),
           0.92,
@@ -1929,7 +2002,7 @@ export function buildPlaceSlice(
           taxiBody,
           tireM,
           taxiTop,
-          warmWindowMat,
+          headlightMat,
           -0.45,
           hFn(-0.45, 0.55),
           0.55,
@@ -2242,7 +2315,7 @@ export function buildPlaceSlice(
           truckM,
           tireM,
           truckM,
-          warmWindowMat,
+          headlightMat,
           -0.25,
           hFn(-0.25, 0.08),
           0.08,
@@ -2312,7 +2385,7 @@ export function buildPlaceSlice(
             tm,
             tireM,
             whiteRoof,
-            warmWindowMat,
+            headlightMat,
             tx,
             hFn(tx, tz),
             tz,
@@ -2478,7 +2551,7 @@ export function buildPlaceSlice(
           tractorM,
           tireM,
           tractorM,
-          warmWindowMat,
+          headlightMat,
           -0.78,
           hFn(-0.78, 0.36),
           0.36,
@@ -2939,7 +3012,7 @@ export function buildPlaceSlice(
           suvM,
           tireM,
           roofM,
-          warmWindowMat,
+          headlightMat,
           0.12,
           hFn(0.12, 0.72),
           0.72,
@@ -3504,7 +3577,13 @@ export function buildPlaceSlice(
           style: 'jacaranda',
         });
       }
-      addInstancedTrees(root, shared, jacs, localMaterials);
+      const jacarandaBlossoms = addInstancedTrees(root, shared, jacs, localMaterials);
+      if (jacarandaBlossoms) {
+        sliceTicks.push(() => {
+          const blooming = isSpeciesBlooming(getSeasonMonth(), 'jacaranda');
+          if (jacarandaBlossoms.visible !== blooming) jacarandaBlossoms.visible = blooming;
+        });
+      }
     });
   } else if (name === 'Drakensberg Amphitheatre') {
     const heightAt = (x: number, z: number) => {
@@ -4074,7 +4153,7 @@ export function buildPlaceSlice(
           jeepM,
           tireM,
           jeepM,
-          warmWindowMat,
+          headlightMat,
           0.75,
           hFn(0.75, 0.02),
           0.02,
@@ -4086,7 +4165,7 @@ export function buildPlaceSlice(
           jeepM,
           tireM,
           jeepM,
-          warmWindowMat,
+          headlightMat,
           -0.82,
           hFn(-0.82, 0.42),
           0.42,
@@ -4393,7 +4472,20 @@ export function buildPlaceSlice(
       waterLevel: 0.86,
       waterMask: (x, z, h) =>
         ((z < 0.14 && Math.abs(x) < 1.28) || (z >= 0.14 && Math.abs(x) < 0.45)) && h < 0.86,
-      waterPalette: riverWater,
+      // Where the broad upstream basin pinches into the downstream gorge the
+      // two bodies visibly mix: a muddy inflow bleeding into clearer reservoir
+      // water along z = 0.14.
+      waterPalette: {
+        ...riverWater,
+        confluence: {
+          seam: [0, 1, 0.14],
+          width: 0.22,
+          strength: 0.92,
+          shallowColor: '#8a7850',
+          deepColor: '#0a3d52',
+          turbulence: 1.1,
+        },
+      },
       topColorAt: (_x, _z, h, slope, out) => {
         if (h < 0.87) out.set('#80796d');
         else if (slope > 0.35) out.set('#967c5c');
@@ -4583,6 +4675,26 @@ export function buildPlaceSlice(
     });
   }
 
+  // A few sites carry a modelled room where the generic strata cut is not
+  // enough to tell their story. The site data selects the builder; the room is
+  // decorated after the terrain exists so it can sit inside the cut block.
+  const buildInterior = spec.bespokeInterior && BESPOKE_INTERIORS[spec.bespokeInterior];
+  if (buildInterior) {
+    postDecorators.push((hFn) =>
+      buildInterior({
+        root,
+        shared,
+        hFn,
+        trackMat,
+        trackGlowMat,
+        localGeometries,
+        localMaterials,
+        extraWaterMats,
+        sliceTicks,
+      })
+    );
+  }
+
   const builtTerrain = buildTerrainAndWaterMeshes(shared, name, terrainCfg);
   localGeometries.push(...builtTerrain.localGeometries);
   root.add(builtTerrain.terrainMesh);
@@ -4642,6 +4754,8 @@ export function buildPlaceSlice(
     for (let i = 0; i < glowMats.length; i++) {
       glowMats[i].emissiveIntensity = 0.28 + litStrength * 1.5;
     }
+    // Vehicle lamps are night-only: unlike windows they must not glow at noon.
+    headlightMat.emissiveIntensity = litStrength * 1.8;
     for (let i = 0; i < sliceTicks.length; i++) {
       sliceTicks[i](elapsed, litStrength);
     }
@@ -4655,6 +4769,7 @@ export function buildPlaceSlice(
     cloudGroup,
     waterMats: [...builtTerrain.waterMats, ...extraWaterMats],
     glowMats,
+    waterLevel: terrainCfg.waterLevel,
     tick,
     dispose: () => {
       localGeometries.forEach((g) => g.dispose());

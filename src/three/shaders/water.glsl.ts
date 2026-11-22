@@ -6,13 +6,18 @@ attribute float aShore;
 uniform float uTime;
 uniform float uTurbulence;
 uniform float uWind;
+uniform float uTideAmp;
+uniform float uTidePeriod;
+uniform float uTidePhase;
 varying float vDepth;
 varying float vShore;
 varying vec3 vWorldPos;
 varying vec3 vLocalPos;
 
 void main() {
-  vDepth = aDepth;
+  // Tide is derived from the shared WU clock, so it freezes with reduced motion.
+  float tide = uTideAmp * sin(uTime * 6.2831853 / max(uTidePeriod, 0.001) + uTidePhase);
+  vDepth = aDepth + tide;
   vShore = aShore;
   vec3 pos = position;
   float edgeMask = smoothstep(0.018, 0.22, max(0.0, aDepth));
@@ -20,7 +25,7 @@ void main() {
   float wave = sin(pos.x * 5.6 + uTime * 2.2) * 0.011
              + cos(pos.z * 6.4 - uTime * 1.85) * 0.010
              + sin((pos.x - pos.z) * 9.2 + uTime * 3.1) * 0.005;
-  pos.y += wave * uTurbulence * chop * edgeMask;
+  pos.y += wave * uTurbulence * chop * edgeMask + tide;
   vLocalPos = pos;
   vec4 wp = modelMatrix * vec4(pos, 1.0);
   vWorldPos = wp.xyz;
@@ -45,6 +50,14 @@ uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
+uniform vec3 uConfSeam;
+uniform float uConfWidth;
+uniform float uConfStrength;
+uniform vec3 uConfShallow;
+uniform vec3 uConfDeep;
+uniform float uConfTurb;
+uniform vec3 uWake;
+uniform float uWakeStrength;
 
 varying float vDepth;
 varying float vShore;
@@ -92,12 +105,25 @@ void main() {
   float depth = max(0.0, vDepth);
   vec2 q = vWorldPos.xz;
 
+  // Confluence: a positive-width mixing band where two water bodies meet.
+  float confLine = (1.0 - smoothstep(
+    0.0, max(uConfWidth, 0.0001), abs(dot(q, uConfSeam.xy) - uConfSeam.z)
+  )) * uConfStrength;
+  float confPatch = confLine
+    * (0.55 + 0.45 * wtFbm(q * 9.0 + vec2(uTime * 0.35, -uTime * 0.28)));
+
+  // Pointer wake: concentric ripples that decay away from the cursor.
+  vec2 wakeD = q - uWake.xz;
+  float wakeDist = length(wakeD);
+  float wakeEnv = exp(-wakeDist * 3.2) * uWakeStrength;
+  float wakeWave = sin(wakeDist * 26.0 - uTime * 5.5) * wakeEnv;
+
   // --- wave normal: two broad swells plus a fine wind-ripple octave --------
   float eps = 0.055;
   float h = wtHeight(q, uTime);
   float hx = wtHeight(q + vec2(eps, 0.0), uTime);
   float hz = wtHeight(q + vec2(0.0, eps), uTime);
-  float tilt = 0.11 * uTurbulence;
+  float tilt = 0.11 * uTurbulence * (1.0 + confLine * uConfTurb);
   vec3 N = normalize(vec3(-(h - hx) / eps * tilt, 1.0, -(h - hz) / eps * tilt));
 
   vec2 rp = q * 24.0 + vec2(uTime * 0.85, -uTime * 0.68);
@@ -107,6 +133,12 @@ void main() {
     0.0,
     (r0 - wtNoise(rp + vec2(0.0, 0.42))) * 0.62 * uTurbulence
   ));
+  if (wakeEnv > 0.001) {
+    // Radial gradient of the ripple tilts the surface normal towards the cursor.
+    float wakeGrad = cos(wakeDist * 26.0 - uTime * 5.5) * 26.0 * wakeEnv;
+    vec2 wdir = wakeDist > 0.0001 ? wakeD / wakeDist : vec2(0.0);
+    N = normalize(N + vec3(wakeGrad * wdir.x * 0.035, 0.0, wakeGrad * wdir.y * 0.035));
+  }
 
   vec3 V = normalize(cameraPosition - vWorldPos);
   vec3 L = normalize(uSunDir);
@@ -119,6 +151,9 @@ void main() {
   vec3 seabed = mix(vec3(0.78, 0.70, 0.50), uShallow * 0.95, 0.22);
   vec3 body = mix(seabed * 0.92, uShallow, smoothstep(0.0, 0.075, depth));
   body = mix(body, uDeep, deepT);
+  // At the confluence the two bodies bleed into one another with a soft,
+  // noise-broken edge rather than a hard geometric line.
+  body = mix(body, mix(uConfShallow, uConfDeep, deepT), confPatch * 0.82);
   // Water darkens with the sun so night basins read deep blue, not glowing cyan.
   body *= mix(0.30, 1.0, uSun);
 
@@ -164,9 +199,14 @@ void main() {
     * (1.0 - smoothstep(0.05, 0.5, shore)) * 0.16;
   float rainRipples = uRain * smoothstep(0.72, 0.95,
     sin(q.x * 34.0 + uTime * 15.0) * cos(q.y * 31.0 - uTime * 13.0)) * 0.18;
+  // Turbulent foam at the mixing line and on the crests of the pointer wake.
+  float confFoam = confLine
+    * smoothstep(0.45, 0.85, wtFbm(q * 14.0 - vec2(uTime * 0.4, uTime * 0.3))) * 0.55;
+  float wakeFoam = max(0.0, wakeWave) * 0.42;
 
   float foam = clamp(
-    (surfA + surfB * 0.85 + shoreLip * 1.05 + lacyFoam + whitecaps + rainRipples)
+    (surfA + surfB * 0.85 + shoreLip * 1.05 + lacyFoam + whitecaps + rainRipples
+      + confFoam + wakeFoam)
       * uFoamStrength,
     0.0, 1.0
   );
@@ -192,11 +232,21 @@ void main() {
 `;
 
 export const WATER_WALL_VERTEX = /* glsl */ `
+uniform float uTime;
+uniform float uTideAmp;
+uniform float uTidePeriod;
+uniform float uTidePhase;
 varying vec2 vUv;
 varying vec3 vWorldPos;
 void main() {
   vUv = uv;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vec3 pos = position;
+  // Only the top edge of the cut face follows the tide; the bed stays put.
+  if (uv.y > 0.5) {
+    float tide = uTideAmp * sin(uTime * 6.2831853 / max(uTidePeriod, 0.001) + uTidePhase);
+    pos.y += tide;
+  }
+  vec4 wp = modelMatrix * vec4(pos, 1.0);
   vWorldPos = wp.xyz;
   gl_Position = projectionMatrix * viewMatrix * wp;
 }
@@ -209,6 +259,11 @@ uniform vec3 uSky;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 uniform float uClarity;
+uniform vec3 uConfSeam;
+uniform float uConfWidth;
+uniform float uConfStrength;
+uniform vec3 uConfShallow;
+uniform vec3 uConfDeep;
 
 varying vec2 vUv;
 varying vec3 vWorldPos;
@@ -235,6 +290,12 @@ void main() {
   // translucent cut reference blocks.
   vec3 col = mix(uShallow * 1.08, uDeep * 0.66, pow(depthMix, 0.55));
   col *= mix(0.38, 1.0, uSun);
+  // Keep the cut face continuous with the confluence drawn on the surface.
+  float confLine = (1.0 - smoothstep(
+    0.0, max(uConfWidth, 0.0001), abs(dot(vWorldPos.xz, uConfSeam.xy) - uConfSeam.z)
+  )) * uConfStrength;
+  vec3 confCol = mix(uConfShallow * 1.08, uConfDeep * 0.66, pow(depthMix, 0.55));
+  col = mix(col, confCol * mix(0.38, 1.0, uSun), confLine * 0.7);
   col = mix(col, uSky * 0.92, smoothstep(0.0, 0.06, vUv.y) * 0.24);
 
   // Sediment laminations settled on the cross-section.

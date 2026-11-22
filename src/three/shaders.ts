@@ -19,6 +19,9 @@ export const WU = {
   /** World-space pointer position on ground plane for gentle grass/foliage wind wake. */
   cursor: { value: new THREE.Vector3(0, -100, 0) },
   cursorStrength: { value: 0 },
+  /** World-space pointer position for the Places cutaway-water ripple wake. */
+  wake: { value: new THREE.Vector3(0, -100, 0) },
+  wakeStrength: { value: 0 },
   lit: { value: 0 },
   rain: { value: 0 },
   /** Weather fog density (0..1); lamp halos bloom wider in fog. */
