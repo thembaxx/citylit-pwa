@@ -63,7 +63,7 @@ export interface WeatherSceneController {
       fillLight: THREE.DirectionalLight;
       hemiLight: THREE.HemisphereLight;
       scene: THREE.Scene;
-      renderer: THREE.WebGLRenderer;
+      renderer: { xr: { isPresenting: boolean } };
       /** Used to keep the eclipse disc aligned between camera and sun. */
       camera: THREE.Camera;
       onThunder?: () => void;

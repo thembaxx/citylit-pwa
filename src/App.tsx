@@ -170,6 +170,8 @@ function readSettings(): CitylitSettings {
       const parsed = JSON.parse(raw) as Partial<CitylitSettings>;
       return {
         quality: parsed.quality ?? 'auto',
+        renderer:
+          parsed.renderer === 'webgpu' || parsed.renderer === 'webgl' ? parsed.renderer : 'auto',
         volume: typeof parsed.volume === 'number' ? parsed.volume : 80,
         mixer: {
           wind: typeof parsed.mixer?.wind === 'number' ? parsed.mixer.wind : defaultMixer.wind,
@@ -204,6 +206,7 @@ function readSettings(): CitylitSettings {
   }
   return {
     quality: 'auto',
+    renderer: 'auto',
     volume: 80,
     mixer: defaultMixer,
     haptics: true,
@@ -338,6 +341,9 @@ export function App() {
   const [postcardPreviewHour, setPostcardPreviewHour] = useState(13);
 
   const [tourActive, setTourActive] = useState(false);
+  const [compact, setCompact] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  );
   const [showDirection, setShowDirection] = useState(false);
   const [cutawayActive, setCutawayActive] = useState(false);
   const [pinDropMode, setPinDropMode] = useState(false);
@@ -524,10 +530,10 @@ export function App() {
     document.addEventListener('visibilitychange', onVisibility);
 
     void import('./three/CitylitEngine')
-      .then(({ CitylitEngine: Engine }) => {
+      .then(async ({ CitylitEngine: Engine }) => {
         if (unmounted) return;
 
-        const instance = new Engine(host, {
+        const instance = await Engine.create(host, {
           onFirstInteract: () => setHintVisible(false),
           onFactDot: (text) => showFact(text),
           onWildlifeTap: (_id, fact) => {
@@ -1571,10 +1577,6 @@ export function App() {
             setTodOpen((v) => !v);
           }}
           onToggleFullscreen={handleToggleFullscreen}
-          onHeroView={() => {
-            ambientAudio.playUi('tap', { intensity: 0.7 });
-            engineRef.current?.frameCurrentLandmark();
-          }}
           onOpenSearch={() => {
             setInstantOpen(false);
             setSearchOpen(true);
@@ -1587,7 +1589,7 @@ export function App() {
           !placesOpen &&
           !fullscreen &&
           scaleFact?.magnitudeM && (
-            <div className="fixed left-4 top-[calc(70px+env(safe-area-inset-top,0px))] z-10 max-w-[min(320px,calc(100vw-32px))] px-3 py-2 rounded-xl bg-[#121319]/90 border border-[#e8b04a]/35 text-[11.5px] text-[#f3efe6] pointer-events-none">
+            <div className="fixed left-4 top-[calc(116px+env(safe-area-inset-top,0px))] z-40 max-w-[min(320px,calc(100vw-32px))] px-3 py-2 rounded-xl bg-[#121319]/90 border border-[#e8b04a]/35 text-[11.5px] text-[#f3efe6] pointer-events-none sm:top-[calc(70px+env(safe-area-inset-top,0px))]">
               <div className="font-medium">
                 {formatMetres(scaleFact.magnitudeM)} {scaleFact.label} · ≈
                 {Math.round(scaleRatio(scaleFact.magnitudeM, referenceHeightM(scaleKind))).toLocaleString('en-ZA')}{' '}
@@ -1709,7 +1711,11 @@ export function App() {
         <LandmarkCard
           index={index}
           isFavorite={favorites.has(index)}
-          tourActive={tourActive}
+          compact={compact}
+          onToggleCompact={() => {
+            ambientAudio.playUi('toggle');
+            setCompact((v) => !v);
+          }}
           directionActive={showDirection}
           cutawayActive={cutawayActive}
           pinDropMode={pinDropMode}
@@ -1724,10 +1730,6 @@ export function App() {
           onPrev={() => selectLandmark(index - 1)}
           onNext={() => selectLandmark(index + 1)}
           onToggleFavorite={() => toggleFavorite(index)}
-          onToggleTour={() => {
-            ambientAudio.playUi('toggle');
-            setTourActive((v) => !v);
-          }}
           onToggleDirection={() => {
             ambientAudio.playUi('toggle');
             setShowDirection((v) => !v);

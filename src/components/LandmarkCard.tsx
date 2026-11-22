@@ -1,8 +1,10 @@
 import {
   BookmarkSimple,
   Camera,
+  CaretDown,
   CaretLeft,
   CaretRight,
+  CaretUp,
   Check,
   Clock,
   Crosshair,
@@ -14,9 +16,7 @@ import {
   NavigationArrow,
   NotePencil,
   Path,
-  Pause,
   PencilSimple,
-  Play,
   ShareNetwork,
   Stack,
   Trash,
@@ -126,7 +126,8 @@ const CAMERA_PRESETS: ReadonlyArray<{ id: CameraPreset; label: string }> = [
 interface LandmarkCardProps {
   index: number;
   isFavorite: boolean;
-  tourActive: boolean;
+  compact: boolean;
+  onToggleCompact: () => void;
   directionActive: boolean;
   cutawayActive?: boolean;
   pinDropMode?: boolean;
@@ -139,7 +140,6 @@ interface LandmarkCardProps {
   onPrev: () => void;
   onNext: () => void;
   onToggleFavorite: () => void;
-  onToggleTour: () => void;
   onToggleDirection: () => void;
   onToggleCutaway?: () => void;
   onTogglePinDrop?: () => void;
@@ -194,7 +194,8 @@ function getCategoryMeta(category: NoteCategory = 'memory') {
 export function LandmarkCard({
   index,
   isFavorite,
-  tourActive,
+  compact,
+  onToggleCompact,
   directionActive,
   cutawayActive = false,
   pinDropMode = false,
@@ -207,7 +208,6 @@ export function LandmarkCard({
   onPrev,
   onNext,
   onToggleFavorite,
-  onToggleTour,
   onToggleDirection,
   onToggleCutaway,
   onTogglePinDrop,
@@ -389,6 +389,59 @@ export function LandmarkCard({
     setDraftNote('');
     onClearPendingDrop?.();
   };
+
+  if (compact) {
+    return (
+      <div className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] lg:max-w-[560px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none">
+        <motion.div
+          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={reducedMotion ? { duration: 0 } : { duration: DURATION.quick, ease: EASE_SMOOTH_OUT }}
+          className="flex items-center gap-2 rounded-2xl bg-[#121319]/92 border border-white/15 squircle-card px-3 py-2.5 pointer-events-auto shadow-2xl"
+        >
+          <div className="min-w-0 flex-1">
+            <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[9.5px] truncate">
+              {lm.c}
+            </small>
+            <div className="truncate font-serif-display italic text-[18px] leading-tight text-[#f3efe6]">
+              {lm.k}
+            </div>
+          </div>
+          <motion.button
+            type="button"
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+            onClick={onPrev}
+            aria-label="Previous landmark"
+            className={`${smallBtn} w-8 h-8`}
+          >
+            <CaretLeft size={14} />
+          </motion.button>
+          <span className="text-[10.5px] font-mono tabular-nums text-[#a9a69e] shrink-0">
+            {index + 1}/{LANDMARKS.length}
+          </span>
+          <motion.button
+            type="button"
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+            onClick={onNext}
+            aria-label="Next landmark"
+            className={`${smallBtn} w-8 h-8`}
+          >
+            <CaretRight size={14} />
+          </motion.button>
+          <motion.button
+            type="button"
+            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+            onClick={onToggleCompact}
+            aria-label="Expand controls"
+            title="Expand controls"
+            className={`${smallBtn} w-8 h-8 border-[#e8b04a]/55 text-[#e8b04a]`}
+          >
+            <CaretUp size={15} weight="bold" />
+          </motion.button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -949,12 +1002,12 @@ export function LandmarkCard({
             <motion.button
               type="button"
               whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-              onClick={onToggleTour}
-              aria-label={tourActive ? 'Pause auto tour' : 'Start auto tour'}
-              title={tourActive ? 'Pause tour' : 'Auto tour'}
-              className={`${smallBtn} ${tourActive ? 'border-[#e8b04a] text-[#e8b04a]' : ''}`}
+              onClick={onToggleCompact}
+              aria-label="Compact controls"
+              title="Compact controls"
+              className={`${smallBtn} border-[#e8b04a]/55 text-[#e8b04a]`}
             >
-              {tourActive ? <Pause size={15} weight="fill" /> : <Play size={15} weight="fill" />}
+              <CaretDown size={15} weight="bold" />
             </motion.button>
           </div>
         </motion.div>

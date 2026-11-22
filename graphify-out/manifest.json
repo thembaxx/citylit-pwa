@@ -19,9 +19,9 @@
     "ast_empty": true
   },
   "package.json": {
-    "mtime": 1795371557.1085188,
-    "seen": 1795376091.5897808,
-    "ast_hash": "351381aef83b2a59dae9e07cdeeddcbf",
+    "mtime": 1795384396.6500905,
+    "seen": 1795386619.210002,
+    "ast_hash": "6ac3833f3212cbd9515a6b16442f3d81",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795375337.5034409,
-    "seen": 1795376091.5898378,
-    "ast_hash": "f5ba7bc34ab0f3bbc18ade138be7c3ee",
+    "mtime": 1795389931.274532,
+    "seen": 1795390450.613669,
+    "ast_hash": "bc11e0aad32ad02077d0fc06c63e42e9",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -79,9 +79,9 @@
     "semantic_hash": ""
   },
   "src/components/LandmarkCard.tsx": {
-    "mtime": 1795270167.014863,
-    "seen": 1795270207.9620376,
-    "ast_hash": "7307ec3847f6262fc0692384834a8681",
+    "mtime": 1795389264.0594034,
+    "seen": 1795390450.6137316,
+    "ast_hash": "628c06798ddc8cb716312af8cdc69db0",
     "semantic_hash": ""
   },
   "src/components/PassportModal.tsx": {
@@ -109,15 +109,15 @@
     "semantic_hash": ""
   },
   "src/components/SettingsModal.tsx": {
-    "mtime": 1795374022.3361447,
-    "seen": 1795376091.589961,
-    "ast_hash": "ecdd9116e25aebb934f64f4376540f87",
+    "mtime": 1795384981.0239038,
+    "seen": 1795386619.2105277,
+    "ast_hash": "205c93eebe60386777d692a137ebddfe",
     "semantic_hash": ""
   },
   "src/components/TopBar.tsx": {
-    "mtime": 1795374071.824909,
-    "seen": 1795376091.589968,
-    "ast_hash": "88391b996e9cc598d2c99855fdcbe542",
+    "mtime": 1795389057.533356,
+    "seen": 1795390450.6137874,
+    "ast_hash": "958cd6fc1990b1b00c950557f0d70618",
     "semantic_hash": ""
   },
   "src/components/WeatherIcon.tsx": {
@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795374510.4721484,
-    "seen": 1795376091.5907707,
-    "ast_hash": "e9db8c27f6157d653db7f814736a944a",
+    "mtime": 1795384699.4175262,
+    "seen": 1795386619.2300143,
+    "ast_hash": "142b2c1f5502dcbc52941f0285185758",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -343,15 +343,15 @@
     "semantic_hash": "943c31001f55bde83364c6c6c1cf0610"
   },
   "src/three/weatherScene.ts": {
-    "mtime": 1795370406.9161193,
-    "seen": 1795371222.9251635,
-    "ast_hash": "25685cde773d9e667e9267a72a8d80dc",
+    "mtime": 1795377305.8083427,
+    "seen": 1795379172.6324515,
+    "ast_hash": "a519c2f394c66e4809de87f3235f1673",
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
-    "mtime": 1795373344.7076023,
-    "seen": 1795376091.5910633,
-    "ast_hash": "3a5aa81bd34a72ef110e42e59598f42b",
+    "mtime": 1795384830.283228,
+    "seen": 1795386619.2337298,
+    "ast_hash": "d54277e93a71217fb10c55c1aacc4aa2",
     "semantic_hash": ""
   },
   "src/types/n8ao.d.ts": {
@@ -1108,6 +1108,66 @@
     "mtime": 1795373104.1717386,
     "seen": 1795376091.5915408,
     "ast_hash": "112d2e3132349ded2d702032e4d7301b",
+    "semantic_hash": ""
+  },
+  "src/lib/qualityBenchmark.test.ts": {
+    "mtime": 1795386221.9998264,
+    "seen": 1795386619.2298484,
+    "ast_hash": "32afcafebae1095ec7ca709547efffb8",
+    "semantic_hash": ""
+  },
+  "src/lib/qualityBenchmark.ts": {
+    "mtime": 1795384658.6970568,
+    "seen": 1795386619.2298584,
+    "ast_hash": "9d8dde05945013d75a99a2ac63fd3aa9",
+    "semantic_hash": ""
+  },
+  "src/three/renderer/SceneRenderer.ts": {
+    "mtime": 1795385125.3781226,
+    "seen": 1795386619.2304294,
+    "ast_hash": "6796e4399b7905cfdb4b2402a7b749d0",
+    "semantic_hash": ""
+  },
+  "src/three/renderer/createRenderer.ts": {
+    "mtime": 1795385005.9705205,
+    "seen": 1795386619.2304387,
+    "ast_hash": "d4f16ec1a6020962f8c3b6e6772d34bf",
+    "semantic_hash": ""
+  },
+  "src/three/renderer/detectSoftwareGl.ts": {
+    "mtime": 1795377018.8438175,
+    "seen": 1795379172.6321929,
+    "ast_hash": "ffeabaed9bf9de46cf3e02431b7196a9",
+    "semantic_hash": ""
+  },
+  "src/three/renderer/types.ts": {
+    "mtime": 1795384424.2213454,
+    "seen": 1795386619.2304566,
+    "ast_hash": "480f7e8ba3c278d51c22fe1362a3a4ef",
+    "semantic_hash": ""
+  },
+  "src/three/renderer/webgpuCompat.ts": {
+    "mtime": 1795389987.164046,
+    "seen": 1795390450.641417,
+    "ast_hash": "9a98b78f9a6d9fb4442e8b72d30e679e",
+    "semantic_hash": ""
+  },
+  "docs/WEBGPU_AND_QUALITY.md": {
+    "mtime": 1795390086.629822,
+    "seen": 1795390450.6513267,
+    "ast_hash": "f6d4a95c9434760a2b2e980bbe4cf8ed",
+    "semantic_hash": ""
+  },
+  "src/three/renderer/webgpuPostFX.ts": {
+    "mtime": 1795383775.2568848,
+    "seen": 1795386619.2304745,
+    "ast_hash": "5f1b4b38dd4dd26f2a8be834f586caf0",
+    "semantic_hash": ""
+  },
+  "scripts/compare-renderers.mjs": {
+    "mtime": 1795384382.511015,
+    "seen": 1795386619.2100532,
+    "ast_hash": "26cabc65aa0c41e7c90337abf10d733d",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

@@ -15,7 +15,8 @@
     "format:check": "oxfmt --check",
     "qa:capture": "node scripts/capture-contact-sheets.mjs",
     "qa:shots": "node scripts/capture-contact-sheets.mjs --shots-only",
-    "qa:stats": "node scripts/capture-contact-sheets.mjs --stats-only"
+    "qa:stats": "node scripts/capture-contact-sheets.mjs --stats-only",
+    "qa:renderers": "node scripts/compare-renderers.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",

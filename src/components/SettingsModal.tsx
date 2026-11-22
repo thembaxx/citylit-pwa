@@ -24,6 +24,7 @@ import type {
   CitylitSettings,
   MotionSetting,
   QualitySetting,
+  RendererSetting,
   ScaleReferenceKind,
   ThemeSetting,
 } from '../types/citylit';
@@ -104,6 +105,12 @@ const QUALITY_OPTIONS = [
   { value: 'high' as const, label: 'High' },
   { value: 'balanced' as const, label: 'Medium' },
   { value: 'low' as const, label: 'Low' },
+];
+
+const RENDERER_OPTIONS = [
+  { value: 'auto' as const, label: 'Auto' },
+  { value: 'webgpu' as const, label: 'WebGPU' },
+  { value: 'webgl' as const, label: 'WebGL' },
 ];
 
 const MOTION_OPTIONS = [
@@ -231,6 +238,27 @@ export function SettingsModal({
             value={settings.quality}
             onChange={(quality) => onUpdate({ quality })}
             options={QUALITY_OPTIONS}
+            compact
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Renderer</span>
+            <p className="mt-0.5 m-0 text-[11.5px] text-[#a9a69e]/80">
+              Switching restarts the 3D scene
+            </p>
+          </div>
+          <PillNavigation<RendererSetting>
+            layoutId="settings-renderer"
+            reducedMotion={reducedMotion}
+            value={settings.renderer ?? 'auto'}
+            onChange={(renderer) => {
+              if (renderer === (settings.renderer ?? 'auto')) return;
+              onUpdate({ renderer });
+              window.setTimeout(() => window.location.reload(), 200);
+            }}
+            options={RENDERER_OPTIONS}
             compact
           />
         </div>

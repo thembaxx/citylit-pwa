@@ -91,6 +91,21 @@ import {
 import { updateWindowLights, windowLitFraction } from './windowLights';
 import { collectBeacons, createBeaconMesh } from './beacons';
 import { nightPaletteForBiome, type NightPalette } from './nightPalette';
+import {
+  FrameTimeBenchmark,
+  pickQualityTier,
+  readCachedBenchmark,
+  writeCachedBenchmark,
+} from '../lib/qualityBenchmark';
+import { detectSoftwareGl as detectSoftwareGlBackend } from './renderer/detectSoftwareGl';
+import { createWebGLRendererSelection, selectRenderer } from './renderer/createRenderer';
+import { createSceneRenderer } from './renderer/SceneRenderer';
+import type {
+  PMREMGeneratorLike,
+  RendererBackend,
+  RendererSelection,
+  SceneRenderer,
+} from './renderer/types';
 
 
 export type InteractiveKind = 'fact' | 'note' | 'wildlife' | 'egg';
@@ -139,7 +154,8 @@ const SKY_COLOR = new THREE.Color('#0e0f13');
 
 export class CitylitEngine {
   readonly container: HTMLElement;
-  readonly renderer: THREE.WebGLRenderer;
+  readonly renderer: SceneRenderer;
+  readonly rendererBackend: RendererBackend;
   readonly scene: THREE.Scene;
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
@@ -159,7 +175,7 @@ export class CitylitEngine {
     aperture: 1.0,
   };
 
-  private readonly pmrem: THREE.PMREMGenerator;
+  private readonly pmrem: PMREMGeneratorLike;
   private envTex: THREE.Texture;
   private dayEnvTex: THREE.Texture;
   private readonly goldenEnvTex: THREE.Texture;
@@ -262,6 +278,12 @@ export class CitylitEngine {
 
   private qualitySetting: QualitySetting = 'auto';
   private qualityIndex: QualityIndex = 0;
+  /** Active first-load measurement; null once a tier has been committed. */
+  private qualityBenchmark: FrameTimeBenchmark | null = null;
+  private qualityTierResolved = false;
+  private exposureSampleRT: THREE.WebGLRenderTarget | null = null;
+  private exposureReadPending = false;
+  private exposureReadCounter = 0;
   /** Optional WebGL approximation of ThreeRT-style path-traced lighting. */
   private cinematic = false;
   private theme: ThemeSetting = 'daylight';
@@ -386,7 +408,22 @@ export class CitylitEngine {
 
   private callbacks: EngineCallbacks;
 
-  constructor(container: HTMLElement, callbacks: EngineCallbacks = {}) {
+  /**
+   * Async factory: WebGPU needs `await renderer.init()`. Existing synchronous
+   * callers (contact-sheet tooling) keep the WebGL constructor default.
+   */
+  static async create(container: HTMLElement, callbacks: EngineCallbacks = {}): Promise<CitylitEngine> {
+    const softwareGl = detectSoftwareGlBackend();
+    const selection = await selectRenderer(softwareGl);
+    if (import.meta.env.DEV) console.info('[citylit] renderer:', selection.backend, selection.reason);
+    return new CitylitEngine(container, callbacks, selection);
+  }
+
+  constructor(
+    container: HTMLElement,
+    callbacks: EngineCallbacks = {},
+    selection?: RendererSelection
+  ) {
     this.container = container;
     this.callbacks = callbacks;
     installDissolveShader();
@@ -395,12 +432,10 @@ export class CitylitEngine {
     (window as { citylitEngine?: CitylitEngine }).citylitEngine = this;
 
     this.isSoftwareGl = CitylitEngine.detectSoftwareGl();
-
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: !this.isSoftwareGl,
-      powerPreference: 'high-performance',
-      preserveDrawingBuffer: false,
-    });
+    const resolved =
+      selection ?? createWebGLRendererSelection(this.isSoftwareGl, 'default WebGL renderer');
+    this.renderer = createSceneRenderer(resolved);
+    this.rendererBackend = resolved.backend;
     // three's shader diagnostics call getProgramInfoLog on first link, which
     // synchronously stalls the frame that first draws a landmark. Keep them in
     // development, drop them in production (all shaders are exercised in dev).
@@ -442,7 +477,7 @@ export class CitylitEngine {
     this.controls.autoRotate = !this.isSoftwareGl;
     this.controls.autoRotateSpeed = 0.3;
 
-    this.pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.pmrem = this.renderer.createPMREM();
     this.roomEnvTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     this.dayEnvTex = this.createProceduralSkyEnv('#5c95d6', '#cce2f2', '#fff3d6', '#545044', [10, 14, 8], 1.15);
     this.goldenEnvTex = this.createProceduralSkyEnv('#465f92', '#f39f5e', '#ffd280', '#453129', [14, 4, 8], 1.35);
@@ -551,7 +586,7 @@ export class CitylitEngine {
       samples: 0,
       depthTexture: new THREE.DepthTexture(window.innerWidth, window.innerHeight),
     });
-    this.composer = new EffectComposer(this.renderer, composerTarget);
+    this.composer = new EffectComposer(this.renderer.raw as THREE.WebGLRenderer, composerTarget);
     this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(window.innerWidth, window.innerHeight);
 
@@ -903,27 +938,14 @@ export class CitylitEngine {
     );
     this.scene.add(this.places.group);
 
-    this.setQualityIndex(this.isSoftwareGl ? 2 : 0);
+    this.initialiseQuality();
     this.bindEvents(canvas);
     this.lastTick = performance.now();
     this.scheduleNextFrame();
   }
 
   private static detectSoftwareGl(): boolean {
-    try {
-      const testCanvas = document.createElement('canvas');
-      const gl = testCanvas.getContext('webgl2');
-      let software = false;
-      if (gl) {
-        const ext = gl.getExtension('WEBGL_debug_renderer_info');
-        const rendererStr = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : '';
-        software = /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(String(rendererStr));
-        gl.getExtension('WEBGL_lose_context')?.loseContext();
-      }
-      return software;
-    } catch {
-      return false;
-    }
+    return detectSoftwareGlBackend();
   }
 
   private createMarkerTexture(): THREE.CanvasTexture {
@@ -1470,19 +1492,21 @@ export class CitylitEngine {
       this.bootPrewarmDone = true;
       try {
         this.renderer.compile(group, this.camera, this.scene);
-        const rt = new THREE.WebGLRenderTarget(1, 1);
-        const prevTarget = this.renderer.getRenderTarget();
-        const prevHero = this.heroRoot.visible;
-        this.heroRoot.visible = false;
-        this.scene.add(group);
-        try {
-          this.renderer.setRenderTarget(rt);
-          this.renderer.render(this.scene, this.camera);
-        } finally {
-          this.renderer.setRenderTarget(prevTarget);
-          this.scene.remove(group);
-          this.heroRoot.visible = prevHero;
-          rt.dispose();
+        if (this.rendererBackend === 'webgl') {
+          const rt = new THREE.WebGLRenderTarget(1, 1);
+          const prevTarget = this.renderer.getRenderTarget();
+          const prevHero = this.heroRoot.visible;
+          this.heroRoot.visible = false;
+          this.scene.add(group);
+          try {
+            this.renderer.setRenderTarget(rt);
+            this.renderer.render(this.scene, this.camera);
+          } finally {
+            this.renderer.setRenderTarget(prevTarget);
+            this.scene.remove(group);
+            this.heroRoot.visible = prevHero;
+            rt.dispose();
+          }
         }
       } catch {
         // Fall back to first-use compilation if the driver rejects the warm-up.
@@ -1911,19 +1935,65 @@ export class CitylitEngine {
     ambientAudio.vibrateForLandmark(lm.biome, lm.c);
   }
 
+  /** First load: reuse a recent measurement, otherwise measure before committing. */
+  private initialiseQuality(): void {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cached = readCachedBenchmark(this.rendererBackend, dpr);
+    if (cached) {
+      this.qualityTierResolved = true;
+      this.setQualityIndex(cached.tier);
+      return;
+    }
+    if (this.qualitySetting === 'auto') this.startQualityBenchmark();
+  }
+
+  private startQualityBenchmark(): void {
+    this.qualityTierResolved = false;
+    if (this.isSoftwareGl) {
+      this.setQualityIndex(2);
+      this.qualityTierResolved = true;
+      return;
+    }
+    // Balanced is the neutral starting point: the old code assumed high on
+    // every hardware renderer, which over-loaded mid-range devices.
+    this.qualityBenchmark = new FrameTimeBenchmark();
+    this.setQualityIndex(1);
+  }
+
+  private cancelQualityBenchmark(): void {
+    this.qualityBenchmark = null;
+    this.qualityTierResolved = true;
+  }
+
+  private sampleQualityBenchmark(frameMs: number, renderMs: number, gpuMs: number | null): void {
+    const bench = this.qualityBenchmark;
+    if (!bench || this.qualitySetting !== 'auto') return;
+    bench.addFrame(frameMs, renderMs, gpuMs);
+    if (!bench.done) return;
+    const stats = bench.stats();
+    const tier = pickQualityTier(stats, this.isSoftwareGl);
+    writeCachedBenchmark({
+      backend: this.rendererBackend,
+      dpr: Math.min(window.devicePixelRatio || 1, 2),
+      tier,
+      medianMs: stats.medianMs,
+      p95Ms: stats.p95Ms,
+    });
+    this.qualityBenchmark = null;
+    this.qualityTierResolved = true;
+    this.setQualityIndex(tier);
+  }
+
   applyQuality(setting: QualitySetting): void {
     this.qualitySetting = setting;
     this.renderScale = 1;
-    const idx: QualityIndex =
-      setting === 'low'
-        ? 2
-        : setting === 'balanced'
-          ? 1
-          : setting === 'high'
-            ? 0
-            : this.isSoftwareGl
-              ? 2
-              : 0;
+    if (setting === 'auto') {
+      // The benchmark owns the tier; never clobber it with a device guess.
+      if (!this.qualityBenchmark && !this.qualityTierResolved) this.startQualityBenchmark();
+      return;
+    }
+    this.cancelQualityBenchmark();
+    const idx: QualityIndex = setting === 'low' ? 2 : setting === 'balanced' ? 1 : 0;
     this.lastInteractAt = this.elapsed;
     this.setQualityIndex(idx);
   }
@@ -1958,7 +2028,61 @@ export class CitylitEngine {
    * Four full-width rows sample both the bright sky and the darker miniature.
    */
   private updateAutoExposure(dt: number): void {
-    if (this.isSoftwareGl || this.qualityIndex >= 2 || !this.composer) return;
+    if (this.isSoftwareGl || this.qualityIndex >= 2) return;
+    if (!this.renderer.supportsReadback) {
+      if (!this.renderer.supportsAsyncReadback || this.exposureReadPending) return;
+      if (this.exposureReadCounter++ % 30 !== 0) return;
+      this.exposureReadPending = true;
+      const W = 64;
+      const H = 8;
+      if (!this.exposureSampleRT) {
+        this.exposureSampleRT = new THREE.WebGLRenderTarget(W, H, {
+          type: THREE.UnsignedByteType,
+          colorSpace: THREE.SRGBColorSpace,
+        });
+      }
+      const sample = this.exposureSampleRT;
+      const prevTarget = this.renderer.getRenderTarget();
+      try {
+        this.renderer.setRenderTarget(sample);
+        this.renderer.render(this.scene, this.camera);
+      } finally {
+        this.renderer.setRenderTarget(prevTarget);
+      }
+      void this.renderer
+        .readRenderTargetPixelsAsync(sample, 0, 0, W, H)
+        .then((data) => {
+          this.exposureReadPending = false;
+          const bytes = data as Uint8Array;
+          let sum = 0;
+          let n = 0;
+          for (let i = 0; i < bytes.length; i += 4) {
+            const r = bytes[i] / 255;
+            const g = bytes[i + 1] / 255;
+            const b = bytes[i + 2] / 255;
+            if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
+              sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+              n++;
+            }
+          }
+          const avg = n ? sum / n : 0;
+          if (!(avg > 0.02) || !Number.isFinite(avg)) return;
+          const desired = this.autoExposureValue * (0.58 / avg);
+          const k = 1 - Math.exp(-0.9);
+          this.autoExposureValue += (desired - this.autoExposureValue) * k;
+          const darkTheme = this.theme === 'dark';
+          this.autoExposureValue = Math.min(
+            darkTheme ? 1.28 : 1.9,
+            Math.max(darkTheme ? 0.8 : 0.7, this.autoExposureValue)
+          );
+          this.renderer.toneMappingExposure = this.autoExposureValue;
+        })
+        .catch(() => {
+          this.exposureReadPending = false;
+        });
+      return;
+    }
+    if (!this.composer) return;
     const rt = this.composer.readBuffer;
     const W = Math.floor(rt.width);
     const H = Math.floor(rt.height);
@@ -2063,6 +2187,19 @@ export class CitylitEngine {
       });
       this.n8aoPass.configuration.color.set(this.activeSiteVisual.aoShadowColor);
     }
+    this.renderer.setPostFXGrade(
+      {
+        contrast:
+          this.theme === 'studio' ? 1 : this.theme === 'dark' ? Math.min(1.16, g.contrast + 0.03) : g.contrast,
+        saturation:
+          this.theme === 'studio' ? 1.05 : this.theme === 'dark' ? g.saturation + 0.02 : g.saturation,
+        shadowLift:
+          this.theme === 'studio' ? 0 : this.theme === 'dark' ? g.shadowLift : 0.004,
+        shadowTint: this.theme === 'studio' ? [1, 1, 1] : g.shadowTint,
+        highlightTint: this.theme === 'studio' ? [1, 1, 1] : g.highlightTint,
+      },
+      this.theme === 'studio' ? 0.03 : this.theme === 'daylight' ? 0.09 : 0.05
+    );
     this.lastPostNightFactor = -1;
     // Shadow-casting lights stay at their weather-driven night levels; the
     // non-shadowing bounce adds separation to the miniature's shaded faces.
@@ -2125,6 +2262,7 @@ export class CitylitEngine {
 
   private setQualityIndex(idx: QualityIndex): void {
     this.qualityIndex = idx;
+    this.renderer.setPostFXQuality(idx);
     this.globe.setQuality(idx);
     this.appliedRenderScale = -1;
     this.applyRenderScale();
@@ -2237,6 +2375,9 @@ export class CitylitEngine {
     });
     const dome = new THREE.Mesh(domeGeo, domeMat);
     tmpScene.add(dome);
+    // WebGPU cannot compile this GLSL dome; the compat adapter replaces it
+    // with an equivalent node material before PMREM bakes the sky.
+    this.renderer.adaptScene(tmpScene);
     const tex = this.pmrem.fromScene(tmpScene, 0.035).texture;
     domeGeo.dispose();
     domeMat.dispose();
@@ -3035,6 +3176,11 @@ export class CitylitEngine {
     onBatch: (batch: Record<number, string>) => void,
     onDone?: () => void
   ): () => void {
+    if (!this.renderer.supportsReadback && !this.renderer.supportsAsyncReadback) {
+      onDone?.();
+      return () => {};
+    }
+    const useAsyncReadback = !this.renderer.supportsReadback;
     const W = 210;
     const H = 140;
     const thumbCam = new THREE.PerspectiveCamera(36, W / H, 0.5, 60);
@@ -3081,7 +3227,7 @@ export class CitylitEngine {
       }
     };
 
-    const step = () => {
+    const step = async () => {
       if (cancelled || this.disposed) {
         cleanup();
         return;
@@ -3133,13 +3279,23 @@ export class CitylitEngine {
           this.forceLodLevel0(grp);
           this.heroRoot.add(grp);
           this.renderer.render(this.scene, thumbCam);
-          this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, pixels);
+          let pixelData: Uint8Array = pixels;
+          if (useAsyncReadback) {
+            pixelData = (await this.renderer.readRenderTargetPixelsAsync(
+              rt,
+              0,
+              0,
+              W,
+              H
+            )) as Uint8Array;
+            if (cancelled || this.disposed) break;
+          }
           if (scratchCtx && imgData) {
             const dst = imgData.data;
             for (let row = 0; row < H; row++) {
               const srcOff = (H - 1 - row) * W * 4;
               const dstOff = row * W * 4;
-              dst.set(pixels.subarray(srcOff, srcOff + W * 4), dstOff);
+              dst.set(pixelData.subarray(srcOff, srcOff + W * 4), dstOff);
             }
             scratchCtx.putImageData(imgData, 0, 0);
             batch[cursor] = scratchCanvas.toDataURL('image/webp', 0.72);
@@ -3164,6 +3320,7 @@ export class CitylitEngine {
         WU.dy.value = prevDissolveY;
       }
 
+      if (cancelled || this.disposed) return;
       if (Object.keys(batch).length > 0) {
         onBatch(batch);
       }
@@ -3181,6 +3338,7 @@ export class CitylitEngine {
   }
 
   generateThumbnails(): Record<number, string> {
+    if (!this.renderer.supportsReadback) return {};
     const out: Record<number, string> = {};
     const thumbCam = new THREE.PerspectiveCamera(36, 1.5, 0.5, 60);
     thumbCam.position.set(10.5, 5.8, 11.8);
@@ -3260,6 +3418,7 @@ export class CitylitEngine {
   }
 
   captureGalleryShots(index: number): MediaItem[] {
+    if (!this.renderer.supportsReadback) return [];
     const lm = LANDMARKS[index];
     const shots: Array<{ pos: [number, number, number]; label: string }> = [
       { pos: [11.5, 6.2, 13], label: '3D view' },
@@ -3311,6 +3470,7 @@ export class CitylitEngine {
   }
 
   capturePostcard(index: number, weatherText: string, opts?: { noteText?: string }): string {
+    if (!this.renderer.supportsReadback) return '';
     const lm = LANDMARKS[index];
     const wasMarkersVisible = this.markerGroup.visible;
     const wasDirVisible = this.directionGroup.visible;
@@ -3386,13 +3546,16 @@ export class CitylitEngine {
 
   private syncMiniatureDepth(camera: THREE.PerspectiveCamera, target: THREE.Vector3): void {
     const dist = camera.position.distanceTo(target);
-    if (this.places.isOpen || this.isStudio()) {
+    const wideFocus = this.places.isOpen || this.isStudio();
+    const aperture = wideFocus ? 0.7 : this.baseAperture + this.rackFocusBlend * 0.28;
+    this.renderer.setPostFXFocus(dist);
+    this.renderer.setPostFXAperture(aperture);
+    if (wideFocus) {
       this.miniaturePass.setFocus(dist);
     } else {
       const baseRange = THREE.MathUtils.clamp(dist * 0.24, 0.8, 3.4);
       const macroRange = THREE.MathUtils.clamp(dist * 0.14, 0.55, 1.8);
       const depthRange = THREE.MathUtils.lerp(baseRange, macroRange, this.rackFocusBlend);
-      const aperture = this.baseAperture + this.rackFocusBlend * 0.28;
       this.miniaturePass.setFocus(dist, depthRange, aperture);
     }
     this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
@@ -3403,7 +3566,15 @@ export class CitylitEngine {
   }
 
   private renderCurrentPass(): void {
-    const useComposer = !this.isSoftwareGl && this.qualityIndex < 2;
+    // EffectComposer/N8AO/ShaderPass are GLSL-only: the WebGPU path renders
+    // the scene directly with node materials until those passes are ported.
+    const useComposer =
+      this.rendererBackend === 'webgl' && !this.isSoftwareGl && this.qualityIndex < 2;
+    if (this.renderer.isWebGPU && !this.globe.isOpen) {
+      const cam = this.places.isOpen ? this.places.camera : this.camera;
+      const target = this.places.isOpen ? this.places.controls.target : this.controls.target;
+      this.syncMiniatureDepth(cam, target);
+    }
 
     if (this.globe.isOpen) {
       this.renderer.render(this.globe.group, this.globe.camera);
@@ -3414,7 +3585,7 @@ export class CitylitEngine {
         this.syncMiniatureDepth(this.places.camera, this.places.controls.target);
         this.composer.render();
       } else {
-        this.renderer.render(this.scene, this.places.camera);
+        this.renderer.render(this.scene, this.places.camera, this.renderer.isWebGPU);
       }
     } else {
       this.renderPass.camera = this.camera;
@@ -3423,7 +3594,7 @@ export class CitylitEngine {
         this.syncMiniatureDepth(this.camera, this.controls.target);
         this.composer.render();
       } else {
-        this.renderer.render(this.scene, this.camera);
+        this.renderer.render(this.scene, this.camera, this.renderer.isWebGPU);
       }
     }
   }
@@ -3838,7 +4009,7 @@ export class CitylitEngine {
   }
 
   private afterDraw(cb: () => void): void {
-    if (!this.isSoftwareGl) {
+    if (!this.isSoftwareGl || !this.renderer.supportsReadback) {
       cb();
       return;
     }
@@ -3878,7 +4049,8 @@ export class CitylitEngine {
   private readonly frame = (now: number): void => {
     if (this.disposed || this.contextLost || this.paused) return;
 
-    const dt = Math.max(0, Math.min(0.05, (now - this.lastTick) / 1000));
+    const rawFrameMs = now - this.lastTick;
+    const dt = Math.max(0, Math.min(0.05, rawFrameMs / 1000));
     this.lastTick = Math.max(this.lastTick, now);
     this.elapsed += dt;
     // Accumulate scaled time instead of multiplying wall time by the scale, so toggling
@@ -3909,7 +4081,7 @@ export class CitylitEngine {
 
     // Auto quality monitor: drop a tier when clearly off target, then fine-tune
     // resolution so the 60fps budget is met without losing shadows or post FX.
-    if (this.qualitySetting === 'auto' && !this.isSoftwareGl) {
+    if (this.qualitySetting === 'auto' && !this.isSoftwareGl && !this.qualityBenchmark) {
       this.autoScaleTimer += dt;
       this.autoScaleAcc += dt;
       this.autoScaleSamples++;
@@ -4521,7 +4693,17 @@ export class CitylitEngine {
           this.renderer.shadowMap.needsUpdate = true;
           this.lastShadowKeyPos.copy(this.keyLight.position);
         }
+        const benchmarkStart = this.qualityBenchmark ? performance.now() : 0;
+        this.renderer.startGpuTiming();
         this.renderCurrentPass();
+        this.renderer.endGpuTiming();
+        if (this.qualityBenchmark) {
+          this.sampleQualityBenchmark(
+            rawFrameMs,
+            performance.now() - benchmarkStart,
+            this.renderer.takeGpuMs()
+          );
+        }
         this.lastRenderAt = now;
         this.updateAutoExposure(dt);
       }
@@ -4578,6 +4760,7 @@ export class CitylitEngine {
     this.windParticles.dispose();
     this.horizon.dispose();
     this.atmosphere.dispose();
+    this.exposureSampleRT?.dispose();
     this.pmrem.dispose();
     this.dayEnvTex.dispose();
     this.goldenEnvTex.dispose();

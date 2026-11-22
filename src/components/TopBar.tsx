@@ -1,7 +1,6 @@
 import {
   CornersIn,
   CornersOut,
-  Crop,
   MagnifyingGlass,
   Ruler,
   SpeakerHigh,
@@ -26,7 +25,6 @@ interface TopBarProps {
   onToggleSound: () => void;
   onToggleTod: () => void;
   onToggleFullscreen: () => void;
-  onHeroView: () => void;
   onOpenSearch: () => void;
 }
 
@@ -96,7 +94,6 @@ export function TopBar({
   onToggleSound,
   onToggleTod,
   onToggleFullscreen,
-  onHeroView,
   onOpenSearch,
 }: TopBarProps) {
   if (globeOpen) return null;
@@ -147,13 +144,6 @@ export function TopBar({
               label="Toggle fullscreen view"
               icon={CornersOut}
               onClick={onToggleFullscreen}
-              reducedMotion={reducedMotion}
-            />
-            <IconButton
-              label="Reset to hero framing"
-              title="Hero view (fit the landmark)"
-              icon={Crop}
-              onClick={onHeroView}
               reducedMotion={reducedMotion}
             />
             <IconButton

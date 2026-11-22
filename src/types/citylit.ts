@@ -1,4 +1,5 @@
 export type QualitySetting = 'auto' | 'high' | 'balanced' | 'low';
+export type RendererSetting = 'auto' | 'webgpu' | 'webgl';
 export type QualityIndex = 0 | 1 | 2;
 export type MotionSetting = 'auto' | 'reduce';
 export type ThemeSetting = 'dark' | 'daylight' | 'studio';
@@ -18,6 +19,8 @@ export interface AmbientMixerPreset {
 
 export interface CitylitSettings {
   quality: QualitySetting;
+  /** Renderer backend preference; applied on next engine creation. */
+  renderer: RendererSetting;
   volume: number;
   mixer: AmbientMixerSettings;
   haptics: boolean;
