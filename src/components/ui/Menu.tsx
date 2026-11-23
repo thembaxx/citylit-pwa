@@ -13,7 +13,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { EASE_SMOOTH_OUT, PRESS_SCALE } from '../../lib/motion';
+import { EASE_SMOOTH_OUT, PRESS_SCALE, Z } from '../../lib/motion';
 
 /**
  * Generic dropdown / bottom action menu.
@@ -32,6 +32,10 @@ type TriggerElement = ReactElement<Record<string, unknown>>;
 export interface MenuItem {
   icon: Icon;
   label: string;
+  /** Emoji shown instead of the Phosphor icon when a more literal glyph helps. */
+  emoji?: string;
+  /** Optional secondary line, used by the camera-view tray to explain each mode. */
+  description?: string;
   onSelect: () => void;
   disabled?: boolean;
   danger?: boolean;
@@ -280,7 +284,8 @@ export function Menu({
             <motion.div
               key="menu-scrim"
               aria-hidden="true"
-              className={`fixed inset-0 z-[59] ${isPhone ? 'bg-black/45' : 'bg-transparent'}`}
+              style={{ zIndex: Z.menu - 1 }}
+              className={`fixed inset-0 ${isPhone ? 'bg-black/45' : 'bg-transparent'}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -298,14 +303,15 @@ export function Menu({
               onKeyDown={onMenuKeyDown}
               style={
                 isPhone
-                  ? undefined
+                  ? { zIndex: Z.menu }
                   : {
+                      zIndex: Z.menu,
                       top: anchorPos?.top ?? 0,
                       left: anchorPos?.left ?? 0,
                       minWidth: anchorPos?.width,
                     }
               }
-              className={`pointer-events-auto fixed z-[60] overflow-y-auto overscroll-contain border border-white/15 bg-[#181a22] p-1.5 text-[#f3efe6] shadow-2xl outline-none no-scrollbar ${
+              className={`pointer-events-auto fixed overflow-y-auto overscroll-contain border border-white/15 bg-[#181a22] p-1.5 text-[#f3efe6] shadow-2xl outline-none no-scrollbar ${
                 isPhone
                   ? 'inset-x-2 bottom-[calc(8px+env(safe-area-inset-bottom,0px))] max-h-[70dvh] rounded-2xl'
                   : 'max-w-[calc(100vw-16px)] rounded-xl'
@@ -350,12 +356,25 @@ export function Menu({
                           : 'text-[#f3efe6] hover:bg-white/[0.07]'
                     } ${index === activeIndex && !item.disabled ? 'bg-white/[0.05]' : ''}`}
                   >
-                    <IconComponent
-                      size={17}
-                      className={item.danger ? 'text-[#ff7a8a]' : 'text-[#e8b04a]'}
-                      aria-hidden="true"
-                    />
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {item.emoji ? (
+                      <span className="w-[17px] shrink-0 text-center text-[15px]" aria-hidden="true">
+                        {item.emoji}
+                      </span>
+                    ) : (
+                      <IconComponent
+                        size={17}
+                        className={item.danger ? 'text-[#ff7a8a]' : 'text-[#e8b04a]'}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{item.label}</span>
+                      {item.description && (
+                        <span className="block truncate text-[11px] text-[#a9a69e]">
+                          {item.description}
+                        </span>
+                      )}
+                    </span>
                     {item.selected && (
                       <Check size={15} weight="bold" className="shrink-0 text-[#7dffb0]" />
                     )}

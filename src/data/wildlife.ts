@@ -30,6 +30,31 @@ export interface WildlifeSpot {
 /** Curated wildlife sightings, one per occupied diorama site. */
 export const WILDLIFE: readonly WildlifeSpot[] = [
   {
+    id: 'table-mountain-dassies',
+    siteKey: 'Table Mountain',
+    species: 'dassie',
+    label: 'Rock hyraxes on the tors',
+    fact: 'Rock hyraxes (dassies) sunbathe on the summit sandstone tors; their ears flick constantly in the wind.',
+    position: [2.5, 2.7, -0.9],
+    count: 3,
+    scale: 0.5,
+    idle: 'breathe',
+    biome: 'mountain',
+  },
+  {
+    id: 'cape-point-sugarbirds',
+    siteKey: 'Cape Point Lighthouse',
+    species: 'sugarbird',
+    label: 'Cape sugarbirds in the fynbos',
+    fact: 'The Cape sugarbird’s long tail is unmistakable as it probes protea blooms on the Peninsula fynbos around the lighthouse.',
+    position: [3.4, 0.6, -2.2],
+    count: 2,
+    scale: 0.85,
+    idle: 'breathe',
+    months: [8, 9, 10, 11],
+    biome: 'coastal',
+  },
+  {
     id: 'boulders-penguins',
     siteKey: 'Boulders Beach',
     species: 'penguin',

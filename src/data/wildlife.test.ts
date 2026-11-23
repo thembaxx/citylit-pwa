@@ -14,9 +14,10 @@ const KINDS = [
   'seabird',
   'vulture',
   'dassie',
+  'sugarbird',
   'bird',
 ];
-const IDLES = ['bob', 'graze', 'lookup', 'waddle', 'submerge', 'rock'];
+const IDLES = ['bob', 'graze', 'lookup', 'waddle', 'submerge', 'rock', 'breathe', 'earFlick'];
 const SEASONS = ['summer', 'autumn', 'winter', 'spring'];
 
 test('wildlife spots point at real sites with matching biomes', () => {
@@ -53,6 +54,8 @@ test('required showcase species are represented', () => {
   assert.ok(at('Boulders Beach', 'penguin'));
   assert.ok(at('Hermanus Whale Watching', 'whale'));
   assert.ok(at('iSimangaliso Wetland Park', 'flamingo'));
+  assert.ok(at('Table Mountain', 'dassie'));
+  assert.ok(at('Cape Point Lighthouse', 'sugarbird'));
   const whales = WILDLIFE.find((spot) => spot.siteKey === 'Hermanus Whale Watching');
   assert.ok((whales?.months?.length ?? 0) > 0);
 });

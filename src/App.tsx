@@ -7,6 +7,7 @@ import {
   EASE_SMOOTH_OUT,
   SPRING,
   toastVariants,
+  Z,
 } from './lib/motion';
 import { referenceDisplayFactor } from './lib/scale';
 import { msUntilNextThemeBoundary, resolveAutoTheme, resolveTheme } from './lib/theme';
@@ -1678,7 +1679,10 @@ export function App() {
           !placesOpen &&
           !fullscreen &&
           scaleFact?.magnitudeM && (
-            <div className="fixed left-[calc(1rem+env(safe-area-inset-left,0px))] top-[calc(116px+env(safe-area-inset-top,0px))] z-40 max-w-[min(320px,calc(100vw-32px))] px-3 py-2 rounded-xl bg-[#121319]/90 border border-[#e8b04a]/35 text-[11.5px] text-[#f3efe6] pointer-events-none sm:top-[calc(70px+env(safe-area-inset-top,0px))]">
+            <div
+              style={{ zIndex: Z.modeHud }}
+              className="fixed left-[calc(1rem+env(safe-area-inset-left,0px))] top-[calc(116px+env(safe-area-inset-top,0px))] max-w-[min(320px,calc(100vw-32px))] px-3 py-2 rounded-xl bg-[#121319]/90 border border-[#e8b04a]/35 text-[11.5px] text-[#f3efe6] pointer-events-none sm:top-[calc(70px+env(safe-area-inset-top,0px))]"
+            >
               <div className="font-medium">
                 {formatMetres(scaleFact.magnitudeM)} {scaleFact.label} · ≈
                 {Math.round(scaleRatio(scaleFact.magnitudeM, referenceHeightM(scaleKind))).toLocaleString('en-ZA')}{' '}
@@ -2072,7 +2076,8 @@ export function App() {
               animate="animate"
               exit="exit"
               transition={reducedMotion ? { duration: 0 } : undefined}
-              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+30px)] z-50 px-4 py-2 rounded-full bg-[#121319]/95 border border-white/15 text-[13px] text-[#f3efe6] shadow-lg"
+              style={{ zIndex: Z.transient + 5 }}
+              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+30px)] px-4 py-2 rounded-full bg-[#121319]/95 border border-white/15 text-[13px] text-[#f3efe6] shadow-lg"
             >
               {toastText}
             </motion.div>
@@ -2089,7 +2094,8 @@ export function App() {
               animate="animate"
               exit="exit"
               transition={reducedMotion ? { duration: 0 } : undefined}
-              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] z-50 px-3.5 py-1 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[11.5px] text-[#e8b04a]"
+              style={{ zIndex: Z.transient + 5 }}
+              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] px-3.5 py-1 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[11.5px] text-[#e8b04a]"
             >
               Offline mode · 3D models & cached photos ready
             </motion.div>
@@ -2169,7 +2175,11 @@ export function App() {
         </AnimatePresence>
 
         {/* Confetti Canvas */}
-        <canvas ref={confettiCanvasRef} className="fixed inset-0 pointer-events-none z-50" />
+        <canvas
+          ref={confettiCanvasRef}
+          style={{ zIndex: Z.transient }}
+          className="fixed inset-0 pointer-events-none"
+        />
 
         {/* Modals & Drawers */}
         <SearchSheet

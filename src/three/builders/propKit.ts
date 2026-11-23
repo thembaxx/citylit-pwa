@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { prepareCanvasTexture } from '../shaders';
 import {
   add,
   B,
@@ -38,15 +39,61 @@ export function bench(): THREE.Group {
   return mergeByMaterial(g);
 }
 
-export function interpretiveSign(accent = '#d8a64a'): THREE.Group {
+/**
+ * Draws the bilingual wording onto a small canvas so SA sites read as real
+ * places (English above, Afrikaans below) instead of blank coloured panels.
+ */
+function signPanelMaterial(accent: string, lines: readonly string[]): THREE.Material {
+  if (typeof document === 'undefined' || lines.length === 0) return M(accent, 0.72, 0.08);
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = 512;
+  signCanvas.height = 300;
+  const ctx = signCanvas.getContext('2d');
+  if (!ctx) return M(accent, 0.72, 0.08);
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, signCanvas.width, signCanvas.height);
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.fillRect(0, 0, signCanvas.width, 16);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f7f1e3';
+  ctx.font = '700 46px sans-serif';
+  ctx.fillText(lines[0] ?? '', signCanvas.width / 2, 112);
+  if (lines[1]) {
+    ctx.font = 'italic 40px sans-serif';
+    ctx.fillStyle = '#efe3c8';
+    ctx.fillText(lines[1], signCanvas.width / 2, 190);
+  }
+  const tex = prepareCanvasTexture(new THREE.CanvasTexture(signCanvas));
+  return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0.04 });
+}
+
+export function interpretiveSign(
+  accent = '#d8a64a',
+  lines: readonly string[] = []
+): THREE.Group {
   const g = new THREE.Group();
   const post = darkWood();
-  const panel = M(accent, 0.72, 0.08);
+  const panel = signPanelMaterial(accent, lines);
   const trim = M('#efe3c8', 0.82);
   add(g, C(0.045, 0.05, 1.05, 10), post, 0, 0.52, 0);
   add(g, CB(0.78, 0.46, 0.05, 0.02), panel, 0, 1.12, 0);
   add(g, CB(0.66, 0.035, 0.056, 0.008), trim, 0, 1.22, 0.01);
   add(g, CB(0.48, 0.026, 0.056, 0.008), trim, -0.07, 1.11, 0.01);
+  return mergeByMaterial(g);
+}
+
+/** Municipal street-name blade: bilingual, mounted on a short galvanised pole. */
+export function streetNameBlade(
+  english: string,
+  afrikaans: string,
+  accent = '#1f4e79'
+): THREE.Group {
+  const g = new THREE.Group();
+  const post = MSteel('#8d9498', 0.45, 0.6);
+  const panel = signPanelMaterial(accent, [english, afrikaans]);
+  add(g, C(0.035, 0.04, 1.4, 10), post, 0, 0.7, 0);
+  add(g, CB(0.74, 0.3, 0.04, 0.012), panel, 0.24, 1.3, 0);
   return mergeByMaterial(g);
 }
 

@@ -1,41 +1,22 @@
-import { useEffect } from 'react';
-import { motion, useSpring, useTransform } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
+import { DURATION, EASE_SMOOTH_OUT } from '../../lib/motion';
 
-/** Animated Number Morph, adapted from EasyUI. Digits roll on a spring. */
+/**
+ * Animated number morph.
+ *
+ * The canonical value is always real text in the DOM. The old implementation
+ * rendered a ten-digit rolling column (0-9) inside an overflow-hidden box,
+ * which meant the accessible/text content was literally "0123456789" and the
+ * full strip became visible whenever CSS or the motion transform was absent
+ * (the "0123456789°C" weather bug). The value now crossfades in place instead,
+ * so what is rendered is always the number itself.
+ */
 interface AnimatedNumberProps {
   value: number;
   decimals?: number;
   suffix?: string;
   className?: string;
   reducedMotion?: boolean;
-}
-
-function Digit({ digit, reducedMotion }: { digit: string; reducedMotion: boolean }) {
-  const isNumber = /\d/.test(digit);
-  const n = isNumber ? Number(digit) : 0;
-  const spring = useSpring(n, { stiffness: 170, damping: 22, mass: 0.6 });
-  const y = useTransform(spring, (current) => `-${current * 10}%`);
-
-  useEffect(() => {
-    if (isNumber) spring.set(n);
-  }, [spring, n, isNumber]);
-
-  if (!isNumber || reducedMotion) return <span className="inline-block">{digit}</span>;
-
-  return (
-    <span
-      aria-hidden="true"
-      className="relative inline-block h-[1.1em] w-[0.56em] overflow-hidden text-center leading-[1.1em]"
-    >
-      <motion.span style={{ y }} className="flex flex-col">
-        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
-          <span key={d} className="flex h-[1.1em] items-center justify-center">
-            {d}
-          </span>
-        ))}
-      </motion.span>
-    </span>
-  );
 }
 
 export function AnimatedNumber({
@@ -45,19 +26,24 @@ export function AnimatedNumber({
   className = '',
   reducedMotion = false,
 }: AnimatedNumberProps) {
-  const text = value.toFixed(decimals);
+  const text = Number.isFinite(value) ? value.toFixed(decimals) : '0';
+
   return (
     <span
       className={`inline-flex items-baseline font-mono tabular-nums tracking-tight select-none ${className}`}
       aria-label={`${text}${suffix}`}
     >
-      {text.split('').map((char, i) => (
-        <Digit
-          key={`${i}-${char === '.' ? 'dot' : 'num'}`}
-          digit={char}
-          reducedMotion={reducedMotion}
-        />
-      ))}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={text}
+          initial={reducedMotion ? false : { opacity: 0, y: 4, filter: 'blur(2px)' }}
+          animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+          exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: -4, filter: 'blur(2px)' }}
+          transition={{ duration: reducedMotion ? 0 : DURATION.quick, ease: EASE_SMOOTH_OUT }}
+        >
+          {text}
+        </motion.span>
+      </AnimatePresence>
       {suffix && (
         <span aria-hidden="true" className="ml-0.5">
           {suffix}

@@ -521,6 +521,10 @@ body,
   }
 }
 
+/* Stacking ladder (single source of truth: `Z` in src/lib/motion.ts):
+   HUD 10 → mode HUD 20 → transient toasts 30–35 → sheets 40 → dialogs 50 → menus 60.
+   Toasts intentionally stay below sheets so an open bottom sheet is never covered. */
+
 /* Weather island keeps clear of the landmark card, whatever height the card takes. */
 .weather-island {
   position: fixed;

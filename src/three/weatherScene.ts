@@ -40,6 +40,8 @@ export interface WeatherSceneController {
   applyCondition: (key: WeatherConditionKey, night: boolean, timeOfDay?: number) => void;
   /** Drive the scene from a real observation using continuous values. */
   applyLiveSample: (sample: LiveWeatherSample, timeOfDay: number) => void;
+  /** Meteorological wind bearing from the latest observation, in degrees. */
+  getWindDirection: () => number;
   setSeasonMonth: (month: number, immediate?: boolean) => void;
   /** Physical latitude (negative south of the equator) for the visual sun path. */
   setSiteLatitude: (latitude: number, immediate?: boolean) => void;
@@ -692,6 +694,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const siteHorCurrent = new THREE.Color('#6fa6cc');
   const siteHorTarget = new THREE.Color('#6fa6cc');
   let windDirectionDeg = 0;
+  let hasLiveWind = false;
   let animTime = 0;
   let activeSkyEvent: SkyEvent | null = null;
   let activeWeatherMoment: WeatherMoment | null = null;
@@ -730,6 +733,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     target.night = sample.isDay ? 0 : 1;
     target.timeOfDay = timeOfDay;
     windDirectionDeg = sample.windDirection;
+    hasLiveWind = Number.isFinite(sample.windDirection);
   };
 
   const setSeasonMonth = (month: number, immediate = false) => {
@@ -1248,6 +1252,8 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     target,
     applyCondition,
     applyLiveSample,
+    // NaN means "no observation yet": atmosphere keeps its default cloud amount.
+    getWindDirection: () => (hasLiveWind ? windDirectionDeg : Number.NaN),
     setSeasonMonth,
     setSiteLatitude,
     setTheme,

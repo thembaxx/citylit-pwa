@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/react';
 import { ambientAudio } from '../../audio/ambientAudio';
 import { useFocusTrap } from '../../lib/focusTrap';
-import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, shouldDismiss } from '../../lib/motion';
+import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, shouldDismiss, Z } from '../../lib/motion';
 
 /**
  * Draggable sheet, adapted from EasyUI's Sheet component.
@@ -90,7 +90,7 @@ export function Sheet({
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-40">
+        <div className="fixed inset-0" style={{ zIndex: Z.sheet }}>
           <motion.div
             aria-hidden="true"
             className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"

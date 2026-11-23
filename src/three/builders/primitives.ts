@@ -2505,6 +2505,47 @@ export function seabird(
   return sb;
 }
 
+/**
+ * Cape Sugarbird (Promerops cafer): fynbos nectarivore with the species'
+ * unmistakable long tail, amber breast, dark cap and fine down-curved bill.
+ */
+export function sugarbird(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const sg = new THREE.Group();
+  sg.position.set(x, y, z);
+  sg.rotation.y = ry;
+  sg.scale.setScalar(sc);
+  const olive = M('#8a8f52', 0.9);
+  const amber = M('#c98a3c', 0.86);
+  const cap = M('#3c3529', 0.9);
+  const bill = M('#3a3026', 0.72);
+
+  add(sg, new THREE.SphereGeometry(0.095, 12, 9), olive, 0, 0.28, 0).scale.set(1, 0.9, 1.35);
+  add(sg, new THREE.SphereGeometry(0.058, 10, 8), olive, 0, 0.4, 0.1);
+  add(sg, new THREE.SphereGeometry(0.042, 10, 7), cap, 0, 0.44, 0.09).scale.set(1, 0.65, 1);
+  add(sg, new THREE.SphereGeometry(0.05, 10, 8), amber, 0, 0.31, 0.075);
+  add(sg, new THREE.ConeGeometry(0.011, 0.13, 6).rotateX(Math.PI / 2), bill, 0, 0.39, 0.19);
+  // The elongated tail pair is the silhouette that reads at diorama scale.
+  for (const s of [-1, 1]) {
+    const feather = add(sg, CB(0.035, 0.012, 0.44, 0.004), olive, s * 0.022, 0.25, -0.36);
+    feather.rotation.x = -0.08;
+    const wing = add(sg, CB(0.2, 0.016, 0.075, 0.006), olive, s * 0.11, 0.3, -0.01);
+    wing.rotation.z = s * 0.2;
+    add(sg, new THREE.SphereGeometry(0.008, 6, 5), cap, s * 0.032, 0.42, 0.14);
+    add(sg, new THREE.SphereGeometry(0.004, 5, 4), EYE_GLINT, s * 0.034, 0.425, 0.145);
+    add(sg, C(0.006, 0.008, 0.11, 6), bill, s * 0.03, 0.09, 0.02);
+  }
+  mergeByMaterial(sg);
+  g.add(sg);
+  return sg;
+}
+
 /** Bearded vulture: hunched shoulders, bare neck, hooked bill, broad wings. */
 export function vulture(
   g: THREE.Object3D,

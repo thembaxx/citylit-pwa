@@ -570,3 +570,50 @@ verified safe against dissolve/cutaway/LOD/eggs/animated pivots without a much h
 draw-call headroom from Batch 1's `CB()` fix already keeps all sites inside budget. **#33 lazy
 landmark builders** — requires cross-file re-export restructuring of the 43 builders; best done as
 its own focused change with bundle verification.
+
+---
+
+## 12. Batch 3 — mobile/scale/atmosphere pass (2026-11-23)
+
+Implemented against the app's existing **raw Three.js + Motion** stack (no R3F/drei/GSAP rewrite;
+those packages are not dependencies and the 1,799-node scene graph depends on raw `three`).
+
+**Shipped:**
+- **Weather temperature** (`ui/AnimatedNumber.tsx`): the old digit-roller rendered all ten digits
+  (`0123456789`) into the DOM inside an overflow clip, which produced the corrupted
+  `0123456789°C` reading whenever CSS/transform was absent. The canonical value is now real text
+  that crossfades on change. Open-Meteo parsing in `data/weatherData.ts` was already correct and
+  unchanged.
+- **Z-index ladder** (`lib/motion.ts` `Z`, `ui/Sheet.tsx`, `ui/Menu.tsx`, `App.tsx`, `index.css`):
+  one documented scale — HUD 10 → mode HUD 20 → transient 30–35 → sheets 40 → dialogs 50 → menus 60.
+  Toasts/offline pill/confetti now sit *below* sheets; the scale badge moved to the mode-HUD tier.
+- **Camera view tray** (`ui/Menu.tsx`, `LandmarkCard.tsx`): phone view modes are the existing
+  bottom-tray dropdown, now with emoji (👁️/🚁/🔭/📸) plus one-line descriptions for each preset.
+- **Table Mountain** (`landmarksA.ts`): low-poly Twelve Apostles silhouette on the west flank,
+  subtly undulating summit cap, one cableway station window, bilingual trail sign, lower-detail
+  tablecloth puffs with vertical bob. Counts were tuned to stay inside the +10% budget.
+- **Union Buildings**: two sandstone lions flanking the ceremonial stair (the existing colonnade,
+  Atlas globes, Mandela statue, terraces and flagpoles are preserved).
+- **Bilingual signage** (`propKit.ts`): `interpretiveSign()` now draws English/Afrikaans wording on
+  a canvas texture; new `streetNameBlade()` helper is available for future sites.
+- **Animals** (`primitives.ts`, `animalKit.ts`, `wildlife.ts`): new anatomically-shaped
+  `sugarbird()` (long tail, amber breast, down-curved bill), Rock Hyraxes (dassies) on the summit
+  tors, sugarbirds at Cape Point, plus `breathe` and one-shot `earFlick` idles and near-part ear/tail
+  articulation. Breathing/ear-flick remain deterministic under reduced motion.
+- **Scale honesty** (`scaleFacts.ts`, `lib/scale.ts`, new `scale.test.ts`): optional
+  `metresPerUnit` + `siteMetresPerUnit()`/`metresToUnits()` expose the curated metres-per-unit
+  convention instead of pretending a strict 1 u = 1 m across compressed dioramas.
+- **Tablecloth ↔ real weather** (`siteAtmosphere.ts`, `weatherScene.ts`, `CitylitEngine.ts`): the
+  orographic cloud now pours only when the live observation reports a south-easterly (~135°);
+  climate mode keeps the original cloud amount. SAST sun sync was already live (60 s `timeHour`
+  interval in `App.tsx`) and needed no change.
+
+**Not done, by design:** Draco/Meshopt/KTX2 (there are no `.glb`/texture assets — only a procedural
+pipeline and one HDR; adding loaders would be dead code), full `THREE.LOD` for animals (the engine's
+distance cull + far-scale already serves this role), and a landmark-to-landmark keyframed camera tour
+(the existing critically-damped spring already covers preset/flick handoff). See §5/§6 for the
+measured rationale.
+
+**Verification:** `pnpm lint` (only the pre-existing graphify-plugin warning), `pnpm test` 104/104,
+`pnpm build` green, and the CDP perf guardrail **PASS — 129 site/hour checks** against
+`docs/baseline/current-stats.json` (+10% calls/tris).

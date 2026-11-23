@@ -19,6 +19,27 @@ export const PRESS_SCALE = 0.96;
  */
 export const COMPACT_BREAKPOINT_PX = 700;
 
+/**
+ * Single stacking ladder for every fixed overlay, from the scene outward.
+ * Sheets and menus must sit above the HUD; transient toasts stay below sheets
+ * so an open ruler/action sheet can never be obscured by a notification.
+ * Use these numbers instead of ad-hoc `z-*` utilities on new overlays.
+ */
+export const Z = {
+  /** Landmark card, top bar, compass. */
+  hud: 10,
+  /** Places / Globe shells, scale badge. */
+  modeHud: 20,
+  /** Toasts, offline pill, confetti — always below sheets. */
+  transient: 30,
+  /** Bottom sheets / side sheets (ruler, search, info). */
+  sheet: 40,
+  /** Full-screen dialogs (gallery, boot splash, postcard). */
+  dialog: 50,
+  /** Dropdown menus and their scrims — topmost interactive layer. */
+  menu: 60,
+} as const;
+
 export const DURATION = {
   stagger: 0.04,
   micro: 0.08,

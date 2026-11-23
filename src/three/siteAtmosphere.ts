@@ -35,6 +35,8 @@ export interface AtmosphereUpdateOptions {
   fogColor: THREE.Color;
   /** 1 = Studio mode (hides atmospheric mist & particles). */
   studioWeight?: number;
+  /** Meteorological wind bearing in degrees (open-meteo: direction it comes from). */
+  windFromDeg?: number;
 }
 
 export interface AtmosphereSceneController {
@@ -425,8 +427,17 @@ function effectOpacity(effect: AtmosphereEffect, options: AtmosphereUpdateOption
       // Rain thickens the bank near the plinth: a physical 'wet ground' reading.
       // Daylight thins it so the landmark palette reads as crisply as Places.
       return (0.55 + fog * 1.45 + cover * 0.18 + wet * 0.35) * (0.55 + 0.45 * day);
-    case 'tableCloth':
-      return (0.55 + cover * 0.45) * (0.55 + 0.45 * day);
+    case 'tableCloth': {
+      const base = (0.55 + cover * 0.45) * (0.55 + 0.45 * day);
+      const bearing = options.windFromDeg;
+      if (bearing === undefined || !Number.isFinite(bearing)) return base;
+      // The real "Cape Doctor" is a south-easter (~135°). The cloud pours over
+      // the plateau only when the wind comes from that quarter; on calm or
+      // north-westerly days the summit stays bare.
+      const alignment = Math.max(0, Math.cos(((bearing - 135) * Math.PI) / 180));
+      const breeze = Math.max(0, Math.min(1, options.wind));
+      return base * (0.12 + 0.88 * alignment * Math.min(1, 0.3 + breeze * 0.4));
+    }
     case 'heatHaze':
       return dry * (0.22 + 0.78 * day) * (0.55 + 0.45 * (1 - cover));
     case 'dustHaze':

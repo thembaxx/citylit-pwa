@@ -62,7 +62,15 @@ import {
   shopfrontBand,
   type StreetLampSpec,
 } from './dioramaKit';
-import { bench, bin, crateStack, flagpole, interpretiveSign, kraalFence, washingLine } from './propKit';
+import {
+  bench,
+  bin,
+  crateStack,
+  flagpole,
+  interpretiveSign,
+  kraalFence,
+  washingLine,
+} from './propKit';
 import { attachVehicleLights } from './vehicleLightKit';
 
 /** One deep Platteklip notch on the north-facing cliff, shared by cap and cliffs. */
@@ -87,8 +95,9 @@ const warpTable = <T extends THREE.BufferGeometry>(geo: T, cap: boolean): T => {
     const ribs = 0.045 * Math.cos(a * 11) * Math.max(0, (y + 1.2) / 2.4);
     const f = 1 + 0.09 * n(a * 3, y * 2) + ribs - gorge * 0.32;
     if (cap) {
-      // A single level plane: no height noise, no quantised colour steps.
-      p.setXYZ(i, x * f, y, z * f);
+      // Very subtle summit undulation — enough to break a perfectly flat disc
+      // under raking sun without disturbing the tors, beacon or cableway.
+      p.setXYZ(i, x * f, y + 0.018 * n(x * 1.7, z * 1.7), z * f);
     } else {
       const upper = Math.max(0, Math.min(1, (y + 1.2) / 2.4));
       const notch = gorge * 0.52 * upper * upper;
@@ -116,9 +125,11 @@ const lump = (
   sx: number,
   sy: number,
   c1: string,
-  c2 = c1
+  c2 = c1,
+  segX = 48,
+  segY = 24
 ) => {
-  const s = new THREE.SphereGeometry(r, 48, 24);
+  const s = new THREE.SphereGeometry(r, segX, segY);
   const p = s.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const f = 1 + 0.08 * n(p.getX(i) * 3, p.getZ(i) * 3);
@@ -167,23 +178,39 @@ export function table(): THREE.Group {
   lump(g, 1.6, 4.6, 0.8, 1.3, 1.0, '#797a73', '#c5af8a');
   lump(g, 1.2, -1.5, -4.6, 2.0, 0.4, '#697051', '#9a9a7a');
 
+  // The Twelve Apostles: a chain of lower Peninsula sandstone ribs stepping
+  // down the west flank, giving the plateau its recognisable broken silhouette.
+  const apostles: ReadonlyArray<readonly [number, number, number, number]> = [
+    [-5.5, -2.4, 0.56, 1.1],
+    [-5.9, -0.6, 0.62, 1.4],
+    [-6.1, 1.0, 0.58, 1.15],
+    [-5.8, 2.6, 0.5, 0.95],
+  ];
+  apostles.forEach(([x, z, r, sy], i) => {
+    // Low-poly ribs: a distant silhouette does not resolve 48×24 segments.
+    lump(g, r, x, z, 0.82, sy, i % 2 ? '#797a73' : '#8e937f', '#c0ae90', 14, 10);
+  });
+
   // Tablecloth mist cascades gracefully over the windward (north) rim only.
   const cmOuter = MT('#dce4ec', 0.38, 0.96, 0, false);
   const cmInner = MT('#eaeef2', 0.48, 0.96, 0, false);
   const cl: THREE.Mesh[] = [];
-  for (let i = 0; i < 16; i++) {
-    const x = -3.2 + i * 0.42;
+  const clothCount = 16;
+  for (let i = 0; i < clothCount; i++) {
+    const x = -3.2 + i * (6.4 / (clothCount - 1));
     const z = Math.sqrt(Math.max(0.4, 12.4 - x * x)) * 0.79;
     const mat = i % 2 === 0 ? cmOuter : cmInner;
-    const o = add(g, new THREE.IcosahedronGeometry(0.52, 2), mat, x, 2.75 + (i % 3) * 0.09, z);
+    const o = add(g, new THREE.IcosahedronGeometry(0.52, 1), mat, x, 2.75 + (i % 3) * 0.09, z);
     o.scale.set(1.25 + R(i) * 0.3, 0.48 + R(i + 2) * 0.2, 0.98);
     o.userData.x = x;
+    o.userData.baseY = o.position.y;
     cl.push(o);
   }
   [-2.1, -1.0, 0.1, 1.3, 2.2].forEach((x, idx) => {
-    const o = add(g, new THREE.IcosahedronGeometry(0.48, 2), cmOuter, x, 2.3 - idx * 0.07, 3.5);
+    const o = add(g, new THREE.IcosahedronGeometry(0.48, 1), cmOuter, x, 2.3 - idx * 0.07, 3.5);
     o.scale.set(1.22, 0.85, 0.62);
     o.userData.x = x;
+    o.userData.baseY = o.position.y;
     cl.push(o);
   });
 
@@ -230,11 +257,10 @@ export function table(): THREE.Group {
   add(g, C(0.17, 0.21, 0.18, 8), beaconStone, 2.55, 2.74, -0.8);
   add(g, C(0.11, 0.15, 0.16, 8), beaconStone, 2.58, 2.9, -0.8);
   add(g, C(0.05, 0.09, 0.13, 8), beaconStone, 2.52, 3.04, -0.8);
-  const trailSign = interpretiveSign('#d8a64a');
+  const trailSign = interpretiveSign('#d8a64a', ['TABLE MOUNTAIN', 'TAFELBERG']);
   trailSign.position.set(3.15, 2.68, 0.35);
   trailSign.scale.setScalar(0.7);
   g.add(trailSign);
-
   // Lower & Upper Cableway stations with curved steel roof decks + volumetric sagged cables
   const cableMat = M('#2d333b', 0.38, 0.78);
   add(g, CB(0.78, 0.48, 0.66, 0.04), MPlaster('#d4cfc4', 0.72), 1.0, 0.78, 6.4);
@@ -302,6 +328,8 @@ export function table(): THREE.Group {
       const z0 = (c.userData.z0 ??= c.position.z) as number;
       c.position.x = (c.userData.x as number) + Math.sin(t * 0.4 + i) * 0.16;
       c.position.z = z0 + Math.sin(t * 0.3 + i * 1.3) * 0.14;
+      const y0 = (c.userData.baseY ??= c.position.y) as number;
+      c.position.y = y0 + Math.sin(t * 0.52 + i * 0.7) * 0.09;
       const sy = (c.userData.sy ??= c.scale.y) as number;
       c.scale.y = sy * (1 + 0.14 * Math.sin(t * 0.6 + i));
     });
@@ -616,6 +644,15 @@ export function union(): THREE.Group {
     ]);
     add(g, new THREE.TubeGeometry(armCurve, 8, 0.042, 6), bz);
   }
+
+  // Sandstone lions flanking the ceremonial stair — Herbert Baker's garden statuary.
+  // Three silhouette meshes each; the plinth/body/head read at diorama scale.
+  [-1, 1].forEach((side) => {
+    const lx = side * 1.15;
+    add(g, CB(0.34, 0.22, 0.34, 0.02), dk, lx, 0.11, 1.6);
+    add(g, C(0.16, 0.16, 0.26, 10), st, lx, 0.38, 1.6);
+    add(g, new THREE.SphereGeometry(0.12, 12, 8), st, lx, 0.55, 1.48);
+  });
 
   // Garden Victorian streetlamps, Mandela statue uplights + promenade bollards
   addStreetLampSet(g, [

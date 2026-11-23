@@ -19,6 +19,12 @@ export interface ScaleFact {
    * Omitted when the engine should measure the group itself.
    */
   modelUnits?: number
+  /**
+   * Explicit metres-per-unit ratio for this site, when one has been curated.
+   * When absent, `siteMetresPerUnit()` derives it from `magnitudeM / modelUnits`.
+   * Props stay at ~human scale; terrain compression is disclosed per site.
+   */
+  metresPerUnit?: number
 }
 
 /**
@@ -36,6 +42,7 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     measure: 'height',
     label: 'summit height',
     modelUnits: 3,
+    metresPerUnit: 362,
   },
   'Union Buildings': {
     magnitudeM: 285,

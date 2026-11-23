@@ -34,8 +34,17 @@ export type AnimalKind =
   | 'seabird'
   | 'vulture'
   | 'dassie'
+  | 'sugarbird'
   | 'bird';
-export type AnimalIdle = 'bob' | 'graze' | 'lookup' | 'waddle' | 'submerge' | 'rock';
+export type AnimalIdle =
+  | 'bob'
+  | 'graze'
+  | 'lookup'
+  | 'waddle'
+  | 'submerge'
+  | 'rock'
+  | 'breathe'
+  | 'earFlick';
 /** Southern-hemisphere seasons, matching South African sites. */
 export type AnimalSeason = 'summer' | 'autumn' | 'winter' | 'spring';
 
@@ -203,6 +212,21 @@ export function writeAnimalPose(
       out.rz = s * 0.055 * a;
       out.rx = Math.sin(phase * 0.61) * 0.035 * a;
       break;
+    case 'breathe':
+      // Subtle rib-cage swell; blended with the particle-level breathing of
+      // the day birds so a resting animal never looks frozen.
+      out.sy = 1 + s * 0.022 * a;
+      out.y = s * 0.006 * a;
+      break;
+    case 'earFlick': {
+      // One short flick per idle cycle instead of a continuous sine: most of
+      // the time the ears are still, then they snap and settle.
+      const cycle = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
+      const flick = cycle < 0.12 ? Math.sin((cycle / 0.12) * Math.PI) : 0;
+      out.rx = flick * 0.16 * a;
+      out.ry = flick * 0.1 * a;
+      break;
+    }
   }
   return out;
 }
@@ -218,6 +242,8 @@ const IDLE_FREQ: Record<AnimalIdle, number> = {
   waddle: 2.2,
   submerge: 0.5,
   rock: 0.8,
+  breathe: 1.1,
+  earFlick: 0.16,
 };
 
 interface AnimalMember {
@@ -262,6 +288,8 @@ interface NearPartTemplate {
   amp: number;
   freq: number;
   seed: number;
+  /** Discrete one-shot flick instead of a continuous sine (ears, tails). */
+  flick?: boolean;
 }
 
 interface NearPlacement {
@@ -431,6 +459,37 @@ function getNearPartTemplates(kind: AnimalKind, p: PrimitiveModule): NearPartTem
         seed: 0.8,
       }
     );
+  } else if (kind === 'dassie') {
+    // Hyrax ears stay still, then flick once every few seconds.
+    for (const s of [-1, 1]) {
+      parts.push({
+        key: s < 0 ? 'earL' : 'earR',
+        geo: nearGeo('near_hyrax_ear', () => new THREE.SphereGeometry(0.028, 8, 6)),
+        mat: p.M('#6e6556', 0.9),
+        offset: [0.16, 0.18, s * 0.055],
+        tilt: [0, 0, s * 0.2],
+        scale: [0.55, 1.4, 0.8],
+        axis: 'x',
+        amp: 0.75,
+        freq: 1,
+        seed: s < 0 ? 0.2 : 1.7,
+        flick: true,
+      });
+    }
+  } else if (kind === 'sugarbird') {
+    // The long tail sways continuously as the bird probes fynbos flowers.
+    parts.push({
+      key: 'tail',
+      geo: nearGeo('near_sugarbird_tail', () => new THREE.BoxGeometry(0.05, 0.012, 0.44)),
+      mat: p.M('#8a8f52', 0.9),
+      offset: [0, 0.25, -0.36],
+      tilt: [-0.08, 0, 0],
+      scale: [1, 1, 1],
+      axis: 'y',
+      amp: 0.24,
+      freq: 1.2,
+      seed: 0.5,
+    });
   }
   if (!nearTemplateCache) nearTemplateCache = {};
   nearTemplateCache[kind] = parts;
@@ -497,7 +556,7 @@ function poseNearParts(
     const t = batch.template;
     const m0 = members[0];
     const ph0 = frozen ? 0 : time * m0.freq + m0.phase;
-    const collective = Math.sin(ph0 * t.freq + t.seed) * t.amp * 0.2;
+    const collective = t.flick ? 0 : Math.sin(ph0 * t.freq + t.seed) * t.amp * 0.2;
     batch.pivot.rotation.set(0, 0, 0);
     if (t.axis === 'x') batch.pivot.rotation.x = collective;
     else if (t.axis === 'y') batch.pivot.rotation.y = collective;
@@ -506,7 +565,13 @@ function poseNearParts(
       const m = members[i];
       const phase = frozen ? 0 : time * m.freq + m.phase;
       writeAnimalPose(poseScratch, idle, phase, m.amp);
-      const swing = Math.sin(phase * t.freq + t.seed) * t.amp;
+      let swing: number;
+      if (t.flick) {
+        const cycle = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
+        swing = cycle < 0.12 ? Math.sin((cycle / 0.12) * Math.PI) * t.amp : 0;
+      } else {
+        swing = Math.sin(phase * t.freq + t.seed) * t.amp;
+      }
       const pl = batch.placements[i];
       scratchPos.set(pl.x, pl.y + poseScratch.y, pl.z);
       scratchEuler.set(
@@ -553,6 +618,9 @@ function createAnimalTemplate(kind: AnimalKind, color: string, p: PrimitiveModul
       break;
     case 'dassie':
       p.dassie(holder, 0, 0, 0, 1, 0);
+      break;
+    case 'sugarbird':
+      p.sugarbird(holder, 0, 0, 0, 1, 0);
       break;
     case 'bird':
       // Small flying birds reuse the existing animated gull template.

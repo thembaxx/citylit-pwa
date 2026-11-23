@@ -121,11 +121,41 @@ const NOTE_CATEGORIES: ReadonlyArray<{
   },
 ];
 
-const CAMERA_PRESETS: ReadonlyArray<{ id: CameraPreset; label: string; icon: Icon }> = [
-  { id: 'default', label: 'Default', icon: Crosshair },
-  { id: 'aerial', label: 'Aerial', icon: Drone },
-  { id: 'low', label: 'Low', icon: ArrowDown },
-  { id: 'detail', label: 'Macro', icon: MagnifyingGlass },
+const CAMERA_PRESETS: ReadonlyArray<{
+  id: CameraPreset;
+  label: string;
+  icon: Icon;
+  emoji: string;
+  description: string;
+}> = [
+  {
+    id: 'default',
+    label: 'Default',
+    icon: Crosshair,
+    emoji: '👁️',
+    description: 'Eye-level hero view of the whole site',
+  },
+  {
+    id: 'aerial',
+    label: 'Aerial',
+    icon: Drone,
+    emoji: '🚁',
+    description: 'Look down from above the landmark',
+  },
+  {
+    id: 'low',
+    label: 'Low',
+    icon: ArrowDown,
+    emoji: '🔭',
+    description: 'Ground-level detail and human scale',
+  },
+  {
+    id: 'detail',
+    label: 'Macro',
+    icon: MagnifyingGlass,
+    emoji: '📸',
+    description: 'Close-up of textures and fine detail',
+  },
 ];
 
 interface LandmarkCardProps {
@@ -451,7 +481,9 @@ export function LandmarkCard({
 
   const cameraMenuItems: MenuItem[] = CAMERA_PRESETS.map((preset) => ({
     icon: preset.icon,
+    emoji: preset.emoji,
     label: preset.label,
+    description: preset.description,
     selected: activePreset === preset.id,
     onSelect: () => {
       setActivePreset(preset.id);
