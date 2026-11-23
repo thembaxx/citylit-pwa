@@ -79,6 +79,9 @@ import {
 import {
   AUTO_EXPOSURE_ADAPT_RATE,
   configureDioramaShadow,
+  GOD_RAYS_ENABLED,
+  GOD_RAY_STRENGTH,
+  TIME_OF_DAY_GRADE_SHIFT,
   createBounceLight,
   createRimLight,
   fitDioramaShadowBounds,
@@ -296,6 +299,17 @@ export class CitylitEngine {
   private nightPrimaryDistance = 16;
   private nightSecondaryDistance = 16;
   private lastPostNightFactor = -1;
+  // Preallocated scratch for the screen-space sun glow and time-of-day grade.
+  private readonly sunScreenTmp = new THREE.Vector3();
+  private readonly gradeShadowBase = new THREE.Vector3(1, 1, 1);
+  private readonly gradeHighlightBase = new THREE.Vector3(1, 1, 1);
+  private readonly gradeShadowNow = new THREE.Vector3(1, 1, 1);
+  private readonly gradeHighlightNow = new THREE.Vector3(1, 1, 1);
+  private readonly duskShadowTint = new THREE.Vector3(0.86, 0.94, 1.12);
+  private readonly duskHighlightTint = new THREE.Vector3(1.12, 1.01, 0.88);
+  private readonly nightShadowTint = new THREE.Vector3(0.80, 0.94, 1.14);
+  private readonly nightHighlightTint = new THREE.Vector3(0.98, 1.02, 1.06);
+  private lastGradeHour = -Infinity;
   private readonly plinthGroup: THREE.Group;
   private readonly ringMat: THREE.MeshStandardMaterial;
   /** Kept alive so Studio mode can switch away from the sky HDRI without breaking it. */
@@ -2888,6 +2902,11 @@ export class CitylitEngine {
     this.n8aoPass.configuration.intensity = this.n8aoThemeIntensity();
     this.renderer.toneMappingExposure = this.themeExposure();
     this.miniaturePass.setExposure(this.renderer.toneMappingExposure);
+    // Remember the authored split tone so the per-frame time-of-day shift can
+    // start from it rather than accumulating on top of itself.
+    this.gradeShadowBase.copy(this.miniaturePass.uniforms.uShadowTint.value as THREE.Vector3);
+    this.gradeHighlightBase.copy(this.miniaturePass.uniforms.uHighlightTint.value as THREE.Vector3);
+    this.lastGradeHour = -Infinity;
   }
 
   private updateDynamicAoState(): void {
@@ -5421,6 +5440,43 @@ export class CitylitEngine {
         themeLerp;
       const nightBloomMix = THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8);
       const horVal = WU.sunHor.value;
+
+      // Screen-space sun glow: High tier, dawn/dusk only. Reuses the beauty
+      // buffer inside MiniaturePass, so no extra program or draw call.
+      if (!this.isSoftwareGl && this.qualityIndex === 0 && GOD_RAYS_ENABLED && this.studioWeight < 0.5) {
+        const disc = this.weather.sunDisc;
+        this.sunScreenTmp.copy(disc.position).project(this.camera);
+        const onScreen =
+          disc.visible &&
+          this.sunScreenTmp.z < 1 &&
+          Math.abs(this.sunScreenTmp.x) < 1.2 &&
+          Math.abs(this.sunScreenTmp.y) < 1.2;
+        const glow = onScreen ? (disc.material as THREE.MeshBasicMaterial).opacity : 0;
+        this.miniaturePass.setSunGlow(
+          this.sunScreenTmp.x * 0.5 + 0.5,
+          this.sunScreenTmp.y * 0.5 + 0.5,
+          glow,
+          GOD_RAY_STRENGTH * horVal * (1 - nightVal)
+        );
+      } else {
+        this.miniaturePass.setSunGlow(0.5, 0.85, 0, 0);
+      }
+
+      // Analytical time-of-day grade on top of the authored per-site split tone:
+      // warm highlights / cool shadows at dusk, teal-leaning night, neutral noon.
+      const gradeKey = nightVal * 2 + horVal;
+      if (TIME_OF_DAY_GRADE_SHIFT > 0 && Math.abs(gradeKey - this.lastGradeHour) > 0.02) {
+        this.lastGradeHour = gradeKey;
+        const k = TIME_OF_DAY_GRADE_SHIFT;
+        const dusk = horVal * (1 - nightVal) * k;
+        this.gradeShadowNow.copy(this.gradeShadowBase).lerp(this.duskShadowTint, dusk);
+        this.gradeShadowNow.lerp(this.nightShadowTint, nightVal * k);
+        this.gradeHighlightNow.copy(this.gradeHighlightBase).lerp(this.duskHighlightTint, dusk);
+        this.gradeHighlightNow.lerp(this.nightHighlightTint, nightVal * k);
+        (this.miniaturePass.uniforms.uShadowTint.value as THREE.Vector3).copy(this.gradeShadowNow);
+        (this.miniaturePass.uniforms.uHighlightTint.value as THREE.Vector3).copy(this.gradeHighlightNow);
+      }
+
       // Emitter-gated bloom: the daylight threshold sits above pale sunlit masonry
       // so only true light sources bloom by day; at night it drops back to let lit
       // windows and lamps glow as before.

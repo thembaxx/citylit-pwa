@@ -38,6 +38,13 @@ const MiniatureShader = {
     uHighlightTint: { value: new THREE.Vector3(1.05, 1.01, 0.95) },
     uNightFactor: { value: 0.0 },
     uClarity: { value: 0.22 },
+    // Sun glow / god-rays. All uniforms are written by the engine only when the
+    // sky changes; the shader branch is skipped entirely when strength is 0
+    // (Balanced/Low), so this adds no work on lower tiers and no new program.
+    uSunUv: { value: new THREE.Vector2(0.5, 0.85) },
+    uSunVisibility: { value: 0 },
+    uGodRayStrength: { value: 0 },
+    uRayTint: { value: new THREE.Vector3(1.0, 0.78, 0.52) },
     // Grade-domain albedo guardrails (see src/lib/albedoAudit.ts). Baked once
     // at shader-object creation from the pure contract constants; never written
     // per frame and never applied to material colours. There is no literal L*25
@@ -80,6 +87,10 @@ const MiniatureShader = {
     uniform float uAlbedoFloorLift;
     uniform float uWhiteKnee;
     uniform float uWhiteRange;
+    uniform vec2 uSunUv;
+    uniform float uSunVisibility;
+    uniform float uGodRayStrength;
+    uniform vec3 uRayTint;
     varying vec2 vUv;
 
     float linearDepth(vec2 uv) {
@@ -107,6 +118,26 @@ const MiniatureShader = {
 
     void main() {
       vec4 base = texture2D(tDiffuse, vUv);
+
+      // Screen-space sun glow / soft god-rays. Runs only on High at dawn/dusk;
+      // the radial blur reuses the beauty buffer, so there is no extra pass,
+      // render target, readback or shader program. The dynamic branch keeps
+      // the loop off entirely on Balanced/Low.
+      if (uGodRayStrength > 0.001 && uSunVisibility > 0.001) {
+        vec2 toSun = uSunUv - vUv;
+        vec2 stepUv = toSun * (0.16 / 12.0);
+        vec2 rayUv = vUv;
+        float shafts = 0.0;
+        for (int i = 0; i < 12; i++) {
+          rayUv += stepUv;
+          vec3 sampleCol = texture2D(tDiffuse, clamp(rayUv, 0.001, 0.999)).rgb;
+          float l = dot(sampleCol, vec3(0.2126, 0.7152, 0.0722));
+          shafts += smoothstep(0.9, 2.6, l);
+        }
+        shafts /= 12.0;
+        float nearSun = 1.0 - smoothstep(0.05, 0.75, length(toSun));
+        base.rgb += uRayTint * shafts * nearSun * uSunVisibility * uGodRayStrength;
+      }
 
       // The expensive golden-angle blur now runs once at half resolution in a
       // separate pass. Its alpha carries the per-pixel blur amount so the
@@ -251,6 +282,7 @@ export interface MiniaturePass extends ShaderPass {
   setDepth(texture: THREE.Texture | null, near: number, far: number): void;
   setFocus(distance: number, depthRange?: number, aperture?: number): void;
   setExposure(exposure: number): void;
+  setSunGlow(sunUvX: number, sunUvY: number, visibility: number, strength: number): void;
   setGrade(grade: MiniatureGradeOptions): void;
   applyTuning(tuning: Partial<MiniatureTuning>): void;
 }
@@ -360,6 +392,12 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
 
   pass.setExposure = (exposure) => {
     pass.uniforms.toneMappingExposure.value = exposure;
+  };
+
+  pass.setSunGlow = (sunUvX, sunUvY, visibility, strength) => {
+    (pass.uniforms.uSunUv.value as THREE.Vector2).set(sunUvX, sunUvY);
+    pass.uniforms.uSunVisibility.value = visibility;
+    pass.uniforms.uGodRayStrength.value = strength;
   };
 
   pass.setGrade = (grade) => {

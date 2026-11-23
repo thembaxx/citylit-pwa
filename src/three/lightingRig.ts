@@ -169,6 +169,21 @@ export const KELVIN_LIGHTING = true;
  */
 export const AUTO_EXPOSURE_ADAPT_RATE = 1.6;
 
+/**
+ * Screen-space sun glow / god-rays. High tier only, dawn and dusk only.
+ * Set to false to restore the original post chain exactly.
+ */
+export const GOD_RAYS_ENABLED = true;
+/** Peak strength of the radial glow in linear HDR before tone mapping. */
+export const GOD_RAY_STRENGTH = 0.10;
+
+/**
+ * Strength of the analytical time-of-day grade shift layered on top of each
+ * landmark's authored split tone: warm highlights / cool shadows at dusk,
+ * teal-leaning night, neutral noon. Set to 0 to keep the authored grade only.
+ */
+export const TIME_OF_DAY_GRADE_SHIFT = 0.5;
+
 /** How strongly the Kelvin curve pulls the key light away from the seasonal tint. */
 export const KELVIN_KEY_MIX = 0.34;
 
