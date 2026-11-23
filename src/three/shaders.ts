@@ -14,6 +14,8 @@ export const WU = {
   seasonSpring: { value: 0 },
   sky: { value: new THREE.Color('#3b6490') },
   wind: { value: 1 },
+  /** Smoothed + gust-modulated wind strength feeding tree, shrub, and grass sway. */
+  foliageWind: { value: 1 },
   /** Unit vector pointing in the direction the wind is blowing towards (xz plane). */
   windDir: { value: new THREE.Vector2(1, 0) },
   /** World-space pointer position on ground plane for gentle grass/foliage wind wake. */
@@ -801,11 +803,11 @@ export function windy(
   const trunkBase = (opts.trunkBase ?? 0.14).toFixed(3);
   const wakeScale = (opts.wakeScale ?? 0.16).toFixed(3);
   const foliageSss = opts.foliageSss ? 1 : 0;
-  const fullKey = `${cacheKey}_v4_${heightScale}_${swayScale}_${flutterScale}_${rainDroop}_${trunkBase}_${wakeScale}_${foliageSss}`;
+  const fullKey = `${cacheKey}_v5_${heightScale}_${swayScale}_${flutterScale}_${rainDroop}_${trunkBase}_${wakeScale}_${foliageSss}`;
 
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uWT = WU.t;
-    shader.uniforms.uWd = WU.wind;
+    shader.uniforms.uWd = WU.foliageWind;
     shader.uniforms.uWindDir = WU.windDir;
     shader.uniforms.uRain = WU.rain;
     shader.uniforms.uCursor = WU.cursor;
@@ -848,12 +850,13 @@ float slow=sin(t*.86+seed),mid=sin(t*1.82+seed*1.7+1.3);
 float leafRipple=sin(t*4.1+wp.x*4.9+wp.z*5.4+wp.y*3.1);
 float amp=.094*windStrength*k*gustWave*${swayScale};
 float sway=(slow*.62+mid*.28)*amp;
+float leewardLean=.042*windStrength*k*(.62+.38*gustWave)*${swayScale};
 float flutter=leafRipple*.026*windStrength*k*(.35+.65*radial)*mix(1.,.65,rainFac)*${flutterScale};
 // Subtle rotational crown twist weighted by radial branch distance.
 float twist=sin(t*1.25+seed*2.1)*.032*windStrength*radial*hb*${swayScale};
 vec2 dir=uWindDir;
-transformed.x+=dir.x*(sway+flutter)-dir.y*flutter*.65-position.z*twist;
-transformed.z+=dir.y*(sway+flutter)+dir.x*flutter*.65+position.x*twist;
+transformed.x+=dir.x*(sway+leewardLean+flutter)-dir.y*flutter*.65-position.z*twist;
+transformed.z+=dir.y*(sway+leewardLean+flutter)+dir.x*flutter*.65+position.x*twist;
 // Interactive pointer breeze wake parts nearby grass & canopies smoothly.
 vec2 dCur=wp.xz-uCursor.xz;
 float cDistSq=dot(dCur,dCur);

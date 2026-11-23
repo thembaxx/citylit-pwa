@@ -33,6 +33,11 @@ import {
   PLINTH_HALF_EXTENT,
   PLINTH_INNER_HALF_EXTENT,
 } from '../lib/fitMath';
+import {
+  computeFoliageSwayAngle,
+  computeFoliageWindStrength,
+  isDaylightForBirds,
+} from '../lib/foliageWind';
 import { setSeasonMonth as setFoliageSeasonMonth } from '../lib/season';
 import { computeCoastalTideOffset } from '../lib/tide';
 import { resolveTheme } from '../lib/theme';
@@ -94,6 +99,7 @@ import {
 } from './streetLights';
 import { updateWindowLights, windowLitFraction } from './windowLights';
 import { collectBeacons, createBeaconMesh } from './beacons';
+import { collectBirdPerchPoints, DaylightBirdsController } from './daylightBirds';
 import { nightPaletteForBiome, type NightPalette } from './nightPalette';
 import {
   FrameTimeBenchmark,
@@ -235,6 +241,7 @@ export class CitylitEngine {
   private readonly visitedNightEmissiveMats = new Set<THREE.Material>();
   private coastalWaterMeshes: Array<{ mesh: THREE.Object3D; baseY: number }> = [];
   private coastalTideOffset = 0;
+  private readonly daylightBirds: DaylightBirdsController;
   /** Per-biome lamp colour temperature, refreshed on each landmark switch. */
   private readonly streetLampTint = new THREE.Color('#ffd280');
   /** Dynamic material lists of the showing landmark, kept for cache recycling. */
@@ -702,6 +709,7 @@ export class CitylitEngine {
 
     this.heroRoot = new THREE.Group();
     this.scene.add(this.heroRoot);
+    this.daylightBirds = new DaylightBirdsController(this.heroRoot);
 
     // Cutaway section face. One quad, one shader, no textures: soft horizontal
     // strata banding that reads as a sliced rock face. It is world-fixed (added
@@ -1779,6 +1787,91 @@ export class CitylitEngine {
     }
   }
 
+  private isDaylightBirdsActive(): boolean {
+    return (
+      this.heroRoot.visible &&
+      !this.globe.isOpen &&
+      !this.places.isOpen &&
+      isDaylightForBirds(
+        this.isNighttimeHours(),
+        this.isStudio(),
+        this.weather.current.rain,
+        this.weather.current.storm
+      )
+    );
+  }
+
+  /**
+   * Spawn a composite daylight bird model circling above or landing on the
+   * active landmark when daylight conditions allow.
+   */
+  spawnDaylightBird(): boolean {
+    if (!this.isDaylightBirdsActive()) return false;
+    return this.daylightBirds.spawnBird(false);
+  }
+
+  /**
+   * Periodically spawn and animate circling/landing birds during daylight hours
+   * and gently scatter them away at dusk, night, storms, or Studio mode.
+   */
+  updateDaylightBirds(dt = 0, immediate = false): void {
+    this.daylightBirds.update(
+      dt,
+      this.shaderTime,
+      this.isDaylightBirdsActive(),
+      this.weather.current.wind,
+      WU.windDir.value,
+      this.motionScale,
+      immediate
+    );
+  }
+
+  /**
+   * Modulate shader-driven tree/shrub/grass wind sway and update directional
+   * CPU-hinged foliage sway according to current weather wind intensity.
+   */
+  updateFoliageWindSway(dt = 0, immediate = false): void {
+    const targetWind = this.isStudio()
+      ? 0
+      : computeFoliageWindStrength(
+          this.weather.current.wind,
+          this.weather.current.storm,
+          this.weather.current.rain,
+          this.shaderTime,
+          this.motionScale
+        );
+    const windRate = immediate || this.motionScale === 0 ? 1 : 1 - Math.exp(-Math.max(dt, 0) * 3.8);
+    WU.foliageWind.value += (targetWind - WU.foliageWind.value) * windRate;
+
+    const effectiveWind = WU.foliageWind.value;
+    const wx = WU.windDir.value.x;
+    const wz = WU.windDir.value.y;
+    for (let i = 0; i < swayItems.length; i++) {
+      const sw = swayItems[i];
+      if (sw.o.userData.baseRx === undefined) sw.o.userData.baseRx = sw.o.rotation.x;
+      if (sw.o.userData.baseRz === undefined) sw.o.userData.baseRz = sw.o.rotation.z;
+      const baseRx = sw.o.userData.baseRx as number;
+      const baseRz = sw.o.userData.baseRz as number;
+      if (this.isStudio()) {
+        sw.o.rotation.x = baseRx;
+        sw.o.rotation.z = baseRz;
+        continue;
+      }
+      const wave = computeFoliageSwayAngle(
+        this.shaderTime,
+        sw.ph,
+        sw.sp,
+        sw.a,
+        effectiveWind,
+        this.motionScale
+      );
+      const lean = Math.min(0.14, effectiveWind * sw.a * 0.65);
+      const disp = wave + lean;
+      sw.o.rotation.z = baseRz - wx * disp;
+      sw.o.rotation.x = baseRx + wz * disp * 0.72;
+    }
+  }
+
   private buildLandmarkGroup(index: number): THREE.Group {
     const meta = LANDMARKS[index];
     const builder = LANDMARK_BUILDERS[meta.k];
@@ -2148,6 +2241,10 @@ export class CitylitEngine {
     this.updateNighttimeEmissives(0, true);
     this.collectCoastalWaterSurfaces(this.currentGroup);
     this.updateCoastalTide(0, true);
+    const birdPerches = collectBirdPerchPoints(this.currentGroup);
+    this.daylightBirds.setSite(LANDMARKS[index].biome, birdPerches, true);
+    this.updateDaylightBirds(0, true);
+    this.updateFoliageWindSway(0, true);
 
     // Obstruction beacons for this skyline, drawn as one instanced mesh that the
     // beacon shader blinks on a shared clock with per-structure phase.
@@ -2783,6 +2880,8 @@ export class CitylitEngine {
       this.controls.autoRotate = false;
       if (!wasStudio && !immediate) this.frameCurrentLandmark();
       this.updateCoastalTide(0, immediate);
+      this.updateDaylightBirds(0, immediate);
+      this.updateFoliageWindSway(0, immediate);
       return;
     }
 
@@ -2821,6 +2920,8 @@ export class CitylitEngine {
     this.animateVehicleNightLights(0, immediate);
     this.updateNighttimeEmissives(0, immediate);
     this.updateCoastalTide(0, immediate);
+    this.updateDaylightBirds(0, immediate);
+    this.updateFoliageWindSway(0, immediate);
   }
 
   setMotionPreferences(reduced: boolean): void {
@@ -2920,6 +3021,8 @@ export class CitylitEngine {
     this.updateNighttimeEmissives(0, true);
     this.animateVehicleNightLights(0, true);
     this.updateCoastalTide(0, true);
+    this.updateDaylightBirds(0, true);
+    this.updateFoliageWindSway(0, true);
   }
 
   toggleRainRainbow(): void {
@@ -2953,6 +3056,7 @@ export class CitylitEngine {
     // Park the streetlamps and vehicle lights; the hero frame loop pauses in globe mode.
     this.syncStreetLamps(0, true);
     this.animateVehicleNightLights(0, true);
+    this.daylightBirds.setHidden(true);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
@@ -2978,6 +3082,8 @@ export class CitylitEngine {
     this.windParticles.setHidden(false);
     this.horizon.setHidden(false);
     this.atmosphere.setHidden(false);
+    this.daylightBirds.setHidden(false);
+    this.updateDaylightBirds(0, true);
     ambientAudio.setSpatialActive(true);
     this.controls.enabled = true;
     this.controls.autoRotate = this.motionScale > 0 && !this.isSoftwareGl && !this.isStudio();
@@ -3008,6 +3114,7 @@ export class CitylitEngine {
     // Park the streetlamps and vehicle lights; the hero frame loop pauses in Places mode.
     this.syncStreetLamps(0, true);
     this.animateVehicleNightLights(0, true);
+    this.daylightBirds.setHidden(true);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
@@ -3063,6 +3170,8 @@ export class CitylitEngine {
     this.windParticles.setHidden(false);
     this.horizon.setHidden(false);
     this.atmosphere.setHidden(false);
+    this.daylightBirds.setHidden(false);
+    this.updateDaylightBirds(0, true);
     const lm = LANDMARKS[this.activeIndex];
     this.atmosphere.setSite({ key: lm.k, biome: lm.biome });
     ambientAudio.setSiteProfile(
@@ -3619,6 +3728,7 @@ export class CitylitEngine {
       const prevWindVisible = this.windParticles.points.visible;
       const prevHorizonVisible = this.horizon.root.visible;
       const prevAtmosphereVisible = this.atmosphere.root.visible;
+      const prevBirdsVisible = this.daylightBirds.flockGroup.visible;
       const prevGlobeVisible = this.globe.group.visible;
       const prevPlacesVisible = this.places.group.visible;
       const prevDissolveY = WU.dy.value;
@@ -3631,6 +3741,7 @@ export class CitylitEngine {
       this.windParticles.setHidden(true);
       this.horizon.setHidden(true);
       this.atmosphere.setHidden(true);
+      this.daylightBirds.flockGroup.visible = false;
       this.plinthGroup.visible = true;
       this.markerGroup.visible = false;
       this.heroRoot.visible = true;
@@ -3688,6 +3799,7 @@ export class CitylitEngine {
         this.windParticles.setHidden(!prevWindVisible);
         this.horizon.setHidden(!prevHorizonVisible);
         this.atmosphere.setHidden(!prevAtmosphereVisible);
+        this.daylightBirds.flockGroup.visible = prevBirdsVisible;
         this.globe.group.visible = prevGlobeVisible;
         this.places.group.visible = prevPlacesVisible;
         WU.dy.value = prevDissolveY;
@@ -3727,12 +3839,14 @@ export class CitylitEngine {
     const prevWindVisible = this.windParticles.points.visible;
     const prevHorizonVisible = this.horizon.root.visible;
     const prevAtmosphereVisible = this.atmosphere.root.visible;
+    const prevBirdsVisible = this.daylightBirds.flockGroup.visible;
 
     this.scene.fog = null;
     this.weather.setHidden(true);
     this.windParticles.setHidden(true);
     this.horizon.setHidden(true);
     this.atmosphere.setHidden(true);
+    this.daylightBirds.flockGroup.visible = false;
     this.plinthGroup.visible = true;
     this.markerGroup.visible = false;
     this.heroRoot.visible = true;
@@ -3786,6 +3900,7 @@ export class CitylitEngine {
     this.windParticles.setHidden(!prevWindVisible);
     this.horizon.setHidden(!prevHorizonVisible);
     this.atmosphere.setHidden(!prevAtmosphereVisible);
+    this.daylightBirds.flockGroup.visible = prevBirdsVisible;
     this.showLandmarkImmediate(this.activeIndex);
     return out;
   }
@@ -4503,6 +4618,7 @@ export class CitylitEngine {
         this.motionScale,
         0
       );
+      this.updateFoliageWindSway(dt);
       this.weather.clouds.visible = false;
       this.weather.groundShadow.visible = false;
       this.weather.rainLines.visible = false;
@@ -4685,18 +4801,14 @@ export class CitylitEngine {
         target.getWorldPosition(this.tmpAnimalLodPos);
         setLod(this.camera.position.distanceTo(this.tmpAnimalLodPos));
       }
-      for (const sw of swayItems) {
-        sw.o.rotation.z =
-          Math.sin(this.elapsed * sw.sp * this.motionScale + sw.ph) *
-          sw.a *
-          (0.6 + this.weather.current.wind * 0.35);
-      }
       const litStrength = WU.lit.value;
       // Detect nighttime hours and toggle window & streetlight emissive materials
-      // across all landmark models, then animate night-mode vehicle light sources.
+      // across all landmark models, then animate night-mode vehicle light sources,
+      // coastal tides, and daylight bird flocks.
       this.updateNighttimeEmissives(dt);
       this.animateVehicleNightLights(dt);
       this.updateCoastalTide(dt);
+      this.updateDaylightBirds(dt);
 
       // Fact pin & private User Pin sprite pulse + float + pop-in + hover boost
       this.markerSprites.forEach((sp, i) => {
@@ -4789,6 +4901,7 @@ export class CitylitEngine {
           this.callbacks.onThunder?.();
         },
       });
+      this.updateFoliageWindSway(dt);
       const hoverLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 7);
       this.hoverRimBoost += ((this.hoveredHero ? 1 : 0) - this.hoverRimBoost) * hoverLerp;
       this.rackFocusBlend +=
@@ -5118,6 +5231,7 @@ export class CitylitEngine {
     this.controls.dispose();
     this.globe.dispose();
     this.places.dispose();
+    this.daylightBirds.dispose();
     this.windParticles.dispose();
     this.horizon.dispose();
     this.atmosphere.dispose();
