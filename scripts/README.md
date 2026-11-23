@@ -64,3 +64,27 @@ no single page evaluation runs long. `renderer.info.autoReset` is restored in a
 As in Phase 0/1, numbers come from a headless/remote browser: FPS is a relative
 comparison for regression checks, not a device certification. The contact sheet
 uses a fixed thumbnail camera and covers the hero diorama only.
+
+## Live-app visual matrix (preferred for visual comparisons)
+
+`capture-contact-sheets.mjs` relies on `readRenderTargetPixels()`, which returns
+an **empty buffer** in some headless Chrome builds — the resulting thumbnails are
+blank even though the on-screen canvas renders correctly. For visual comparisons
+use `capture-visual-matrix.mjs`, which drives the live app and screenshots the
+composited canvas instead:
+
+```sh
+node scripts/capture-visual-matrix.mjs --out docs/visual-baseline
+node scripts/capture-visual-matrix.mjs --out docs/visual-reports/phase1
+node scripts/make-contact-sheet.mjs --before docs/visual-baseline \
+  --after docs/visual-reports/phase1 --out docs/visual-reports/phase1/contact-sheet.html
+node scripts/compare-metrics.mjs docs/visual-baseline/stats.json docs/visual-reports/phase1/stats.json
+```
+
+It captures a reproducible matrix: 5 hero landmarks × dawn/noon/dusk/night ×
+High/Balanced (clear), a rain/fog sweep at noon and night, a mobile 390×844 @3x
+sweep, and all 43 landmarks at noon/dusk/night. Motion is frozen, theme pinned to
+daylight and each state is applied immediately before a fixed warmup/sample
+window. `stats.json` contains `calls`, `triangles`, `programs`, `textures`,
+`geometries` and mean `frameMs` per state. Both capture directions use the same
+harness, so before/after figures are directly comparable.

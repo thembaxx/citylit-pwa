@@ -106,7 +106,8 @@ class Cdp {
           const { resolve: ok, reject: no, timer } = this.pending.get(msg.id);
           this.pending.delete(msg.id);
           clearTimeout(timer);
-          msg.error ? no(new Error(JSON.stringify(msg.error))) : ok(msg.result);
+          if (msg.error) no(new Error(JSON.stringify(msg.error)));
+          else ok(msg.result);
         } else if (msg.method) {
           for (const fn of this.events) fn(msg);
         }
@@ -123,7 +124,7 @@ class Cdp {
       }
     }, 180000);
     this.ws.send(JSON.stringify({ id, method, params }));
-    return new Promise((resolve, reject) => this.pending.set(id, { resolve, reject, timer }));
+    return new Promise((done, fail) => this.pending.set(id, { resolve: done, reject: fail, timer }));
   }
   async eval(expression) {
     const r = await this.send('Runtime.evaluate', {
@@ -190,19 +191,32 @@ const sampleEval = (frames) => `(async () => {
   const info = e.renderer.raw.info;
   const raf = () => new Promise((r) => requestAnimationFrame(r));
   for (let i = 0; i < 6; i++) await raf();
-  info.reset();
+  // The engine's idle frame cap means a rAF can fire without a render. Sample
+  // per-rAF as well so the number of renders in the window is explicit: an
+  // accumulated call total is otherwise noisy by one whole render's worth.
+  const perRenderCalls = [];
+  const perRenderTris = [];
   let prev = performance.now();
   const samples = [];
   for (let i = 0; i < ${frames}; i++) {
+    info.reset();
     await raf();
     const now = performance.now();
     samples.push(now - prev);
     prev = now;
+    if (info.render.calls > 0) {
+      perRenderCalls.push(info.render.calls);
+      perRenderTris.push(info.render.triangles);
+    }
   }
   const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+  const median = (arr) => (arr.length ? arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)] : 0);
   return {
-    calls: info.render.calls,
-    triangles: info.render.triangles,
+    calls: perRenderCalls.reduce((a, b) => a + b, 0),
+    triangles: perRenderTris.reduce((a, b) => a + b, 0),
+    callsPerRender: median(perRenderCalls),
+    trianglesPerRender: median(perRenderTris),
+    rendersObserved: perRenderCalls.length,
     programs: info.programs ? info.programs.length : 0,
     textures: info.memory.textures,
     geometries: info.memory.geometries,

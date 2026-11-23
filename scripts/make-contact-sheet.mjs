@@ -54,7 +54,7 @@ function loadStats(dir) {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
-function delta(before, after, key) {
+function delta(before, after) {
   if (typeof before !== 'number' || typeof after !== 'number') return '';
   const d = after - before;
   const pct = before ? ((d / before) * 100).toFixed(1) : '0.0';
@@ -103,7 +103,7 @@ ${rows
     return `<figure>
   <div class="pair"><img loading="lazy" src="${esc(bImg)}" alt="baseline"><img loading="lazy" src="${esc(aImg)}" alt="new"></div>
   <figcaption><div class="title">${esc(name.replace(/\.jpg$/, ''))}</div>
-  <div class="stats">calls ${delta(b.calls, a.calls, 'calls')} · tris ${delta(b.triangles, a.triangles, 'tris')} · ms ${delta(b.frameMs, a.frameMs, 'ms')} · programs ${a.programs}</div></figcaption>
+  <div class="stats">calls ${delta(b.calls, a.calls)} · tris ${delta(b.triangles, a.triangles)} · ms ${delta(b.frameMs, a.frameMs)} · programs ${a.programs}</div></figcaption>
 </figure>`;
   })
   .join('\n')}
@@ -114,7 +114,9 @@ ${rows
   console.log(`contact sheet: ${cfg.out} (${rows.length} rows)`);
 }
 
-main().catch((e) => {
+try {
+  main();
+} catch (e) {
   console.error(`FAILED: ${e?.message || e}`);
   process.exitCode = 1;
-});
+}
