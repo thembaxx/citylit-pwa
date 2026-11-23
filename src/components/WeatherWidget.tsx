@@ -35,12 +35,13 @@ import type {
   WeatherMomentKind,
 } from '../types/citylit';
 import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, swapTransition } from '../lib/motion';
-import { useFinePointer } from '../hooks/useFinePointer';
+import { HourlyForecast } from './HourlyForecast';
 import { WeatherIcon } from './WeatherIcon';
 import { AnimatedNumber } from './ui/AnimatedNumber';
 import { PillNavigation } from './ui/PillNavigation';
 
 interface WeatherWidgetProps {
+  landmarkIndex?: number;
   weather: WeatherDisplayState;
   expanded: boolean;
   month: number;
@@ -127,6 +128,7 @@ const WEATHER_MOMENT_ICON: Record<WeatherMomentKind, typeof Sun> = {
 const pad2 = (value: number): string => String(value).padStart(2, '0');
 
 export function WeatherWidget({
+  landmarkIndex = 0,
   weather,
   expanded,
   month,
@@ -151,7 +153,6 @@ export function WeatherWidget({
   onTriggerRainbow,
   onToggleGlobe,
 }: WeatherWidgetProps) {
-  const finePointer = useFinePointer();
   if (!visible || globeOpen) return null;
 
   const activePreset = TIME_PRESETS.find((p) => Math.abs(activeTimeHour - p.hour) < 1.5)?.value;
@@ -268,24 +269,14 @@ export function WeatherWidget({
               className="overflow-hidden"
             >
               <div className="mt-3.5 pt-3 border-t border-white/10 space-y-3 max-h-[calc(100dvh-135px)] overflow-y-auto no-scrollbar">
-                <div className="weather-forecast grid grid-cols-5 gap-1 text-center">
-                  {forecast.map((slot) => (
-                    <motion.div
-                      key={slot.label}
-                      whileHover={reducedMotion || !finePointer ? undefined : { y: -2 }}
-                      className="flex flex-col items-center py-1.5 rounded-lg bg-white/[0.03]"
-                    >
-                      <span className="text-[10px] text-[#a9a69e]">{slot.label}</span>
-                      <WeatherIcon
-                        condition={slot.condition}
-                        night={slot.night}
-                        size={18}
-                        className="my-1"
-                      />
-                      <span className="text-[11px] font-medium text-[#f3efe6]">{slot.temp}°</span>
-                    </motion.div>
-                  ))}
-                </div>
+                <HourlyForecast
+                  landmarkIndex={landmarkIndex}
+                  month={month}
+                  forecast={forecast}
+                  activeTimeHour={activeTimeHour}
+                  reducedMotion={reducedMotion}
+                  onSelectHour={onSelectTimePreset}
+                />
 
                 {warnings.length > 0 && (
                   <div className="space-y-1.5" role="status" aria-label="Extreme weather warnings">

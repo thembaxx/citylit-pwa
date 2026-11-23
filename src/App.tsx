@@ -1693,6 +1693,7 @@ export function App() {
 
         {/* Weather & Globe Button */}
         <WeatherWidget
+          landmarkIndex={index}
           weather={weatherState}
           expanded={weatherExpanded}
           month={month}

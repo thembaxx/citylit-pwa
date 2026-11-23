@@ -208,6 +208,8 @@ export interface ForecastSlot {
   condition: WeatherConditionKey;
   night: boolean;
   temp: number;
+  /** Hour of day [0, 24) represented by this forecast slot. */
+  hour?: number;
 }
 
 export type NoteCategory = 'memory' | 'photo' | 'history';

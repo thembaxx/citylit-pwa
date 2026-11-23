@@ -169,6 +169,7 @@ export function getForecastSlots(index: number, month: number): ForecastSlot[] {
       condition: q.k,
       night,
       temp: q.temp,
+      hour: Number(tt.toFixed(2)),
     };
   });
 }
@@ -347,11 +348,14 @@ function buildLiveForecast(hourly: HourlyWeather | undefined, observedAt: string
   return [0, 3, 6, 9, 12].map((delta, i) => {
     const at = Math.min(start + delta, hourly.time.length - 1);
     const time = hourly.time[at] ?? '';
+    const hourStr = time.slice(11, 13);
+    const parsedHour = Number(hourStr);
     return {
-      label: i === 0 ? 'Now' : `${time.slice(11, 13)}:00`,
+      label: i === 0 ? 'Now' : `${hourStr}:00`,
       condition: conditionFromCode(hourly.weather_code[at] ?? 0),
       night: hourly.is_day[at] === 0,
       temp: Math.round(hourly.temperature_2m[at] ?? 0),
+      hour: Number.isFinite(parsedHour) ? parsedHour : undefined,
     };
   });
 }
