@@ -1,23 +1,23 @@
 # Graph Report - citylit-pwa  (2026-11-23)
 
 ## Corpus Check
-- 166 files · ~376,037 words
+- 167 files · ~391,863 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 10 file(s) not represented in the graph (top: .woff2 4, (none) 2, .css 2)
 
 ## Summary
-- 1943 nodes · 5686 edges · 81 communities (69 shown, 12 thin omitted)
+- 1948 nodes · 5704 edges · 88 communities (77 shown, 11 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 203 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `60499acc`
+- Built from commit: `d876c284`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - landmarksB.ts
-- .isStudio
+- .resetToDefaultOrientation
 - citylit.ts
 - PlacesOverlay.tsx
 - shaders.ts
@@ -32,7 +32,7 @@
 - compilerOptions
 - weatherScene.ts
 - osmService.ts
-- placesScene.ts
+- osmSlice.ts
 - LandmarkCard.tsx
 - ScaleRulerModal.tsx
 - DaylightBirdsController
@@ -50,15 +50,14 @@
 - scripts
 - applyDioramaUpgrade
 - with
-- .animateVehicleNightLights
+- .frame
 - ref_node_test
 - motion.ts
 - overrides
 - capture-contact-sheets.mjs
 - memory.js
 - getSoftTexture
-- .frame
-- .showLandmarkImmediate
+- SearchSheet.tsx
 - run
 - globeScene.ts
 - measure-idle-pacing.mjs
@@ -68,9 +67,9 @@
 - framePacing.ts
 - compare-metrics.mjs
 - nativeHost.ts
-- ref_node_assert
+- LandmarkCard.tsx
 - weatherScene.ts
-- .constructor
+- webgpuPostFX.ts
 - WebGPUSceneRenderer
 - skyEvents.ts
 - capture-visual-matrix.mjs
@@ -80,21 +79,27 @@
 - run
 - addWildlifeLayer
 - windowLights.ts
-- addDioramaClouds
+- applyDioramaUpgrade
 - check-exposure.mjs
 - globalIllumination.ts
 - tide.test.ts
 - contact-sheet.ts
 - windParticles.ts
-- .dispose
+- .constructor
 - timePresets.ts
 - ref_node_fs
 - make-contact-sheet.mjs
 - markSharedGeo
-- landmarkGeometry.ts
+- ambientAudio.ts
 - addCraftedRim
 - addSiteMotion
-- waterize
+- placesScene.ts
+- createWebGPUCompat
+- siteVisuals.ts
+- WebGPUPostFX
+- webgpuCompat.ts
+- LandmarkBiome
+- SceneRenderer.ts
 
 ## God Nodes (most connected - your core abstractions)
 1. `CitylitEngine` - 151 edges
@@ -104,7 +109,7 @@
 5. `CB()` - 71 edges
 6. `R()` - 60 edges
 7. `mergeByMaterial()` - 59 edges
-8. `MStone()` - 57 edges
+8. `MStone()` - 58 edges
 9. `addStreetLampSet()` - 56 edges
 10. `App()` - 53 edges
 
@@ -113,53 +118,53 @@
   vite.config.ts → server/memory.js
 - `main()` --indirect_call--> `setupEval()`  [INFERRED]
   scripts/capture-visual-matrix.mjs → scripts/capture-contact-sheets.mjs
-- `EngineCallbacks` --references--> `PlacesSelectionInfo`  [EXTRACTED]
-  src/three/CitylitEngine.ts → src/three/placesScene.ts
-- `App()` --calls--> `Compass()`  [EXTRACTED]
-  src/App.tsx → src/components/Compass.tsx
-- `App()` --calls--> `GalleryModal()`  [EXTRACTED]
-  src/App.tsx → src/components/GalleryModal.tsx
+- `linearChroma()` --calls--> `srgbToLinear()`  [EXTRACTED]
+  src/lib/albedoAudit.test.ts → src/lib/albedoAudit.ts
+- `conditionSurfaceColour()` --calls--> `conditionSurfaceHex()`  [EXTRACTED]
+  src/three/builders/primitives.ts → src/lib/albedoAudit.ts
+- `getRimMaterial()` --calls--> `surfaceDetail()`  [EXTRACTED]
+  src/three/builders/dioramaKit.ts → src/three/builders/primitives.ts
 
 ## Import Cycles
 - None detected.
 
-## Communities (81 total, 12 thin omitted)
+## Communities (88 total, 11 thin omitted)
 
 ### Community 0 - "landmarksB.ts"
 Cohesion: 0.06
-Nodes (222): headingYaw(), leftLaneOffset(), registerBeacons(), addAnchor(), addBaseScatter(), addBollards(), addDeck(), addHiddenDetail() (+214 more)
+Nodes (224): headingYaw(), leftLaneOffset(), normalizePlanar(), PlanarVector, registerBeacons(), addAnchor(), addBaseScatter(), addBollards() (+216 more)
 
 ### Community 2 - "citylit.ts"
-Cohesion: 0.08
-Nodes (31): ambientAudio, BUILTIN_MIXER_PRESETS, DEFAULT_MIXER, FPS_OPTIONS, MIXER_CHANNELS, MOTION_OPTIONS, QUALITY_OPTIONS, readCustomPresets() (+23 more)
+Cohesion: 0.10
+Nodes (24): ambientAudio, BUILTIN_MIXER_PRESETS, DEFAULT_MIXER, FPS_OPTIONS, MIXER_CHANNELS, MOTION_OPTIONS, QUALITY_OPTIONS, readCustomPresets() (+16 more)
 
 ### Community 3 - "PlacesOverlay.tsx"
-Cohesion: 0.08
-Nodes (47): GlobeOverlay(), GlobeOverlayProps, EditorialMarkers(), EditorialSources(), MOBILE_WEATHER_ICONS, placeCardCondition(), PlacesOverlay(), PlacesOverlayProps (+39 more)
+Cohesion: 0.12
+Nodes (25): EditorialMarkers(), EditorialSources(), MOBILE_WEATHER_ICONS, placeCardCondition(), PlacesOverlay(), PlacesOverlayProps, QUICK_TIMES, WEATHER_MODES (+17 more)
 
 ### Community 4 - "shaders.ts"
 Cohesion: 0.06
-Nodes (55): applyDissolveToShader(), cascadeize(), flagWindy(), getBrushedNormalTexture(), getBrushedRoughnessTexture(), getCanvasBumpTexture(), getCanvasNormalTexture(), getOrCreateCanvas() (+47 more)
+Nodes (60): applyDissolveToShader(), cascadeize(), configureTextureQuality(), flagWindy(), getBrushedNormalTexture(), getBrushedRoughnessTexture(), getCanvasBumpTexture(), getCanvasNormalTexture() (+52 more)
 
 ### Community 5 - "App.tsx"
-Cohesion: 0.08
-Nodes (43): App(), INITIAL_GLOBE, readInitialLandmarkIndex(), readSettings(), readStoredEggs(), readStoredNotes(), readStoredSavedPlaces(), readStoredSet() (+35 more)
+Cohesion: 0.09
+Nodes (41): App(), INITIAL_GLOBE, readInitialLandmarkIndex(), readSettings(), readStoredEggs(), readStoredNotes(), readStoredSavedPlaces(), readStoredSet() (+33 more)
 
 ### Community 6 - "placesSliceBuilders.ts"
-Cohesion: 0.12
-Nodes (33): getGrassMaterial(), BESPOKE_INTERIORS, createCutawayWaterTopMaterial(), createCutawayWaterWallMaterial(), createSliceMistMaterial(), CutawayWaterOptions, getOrlandoMuralTexture(), addInstancedFlowers() (+25 more)
+Cohesion: 0.11
+Nodes (34): StreetLampSpec, getGrassMaterial(), BESPOKE_INTERIORS, createCutawayWaterTopMaterial(), createCutawayWaterWallMaterial(), createSliceMistMaterial(), CutawayWaterOptions, getOrlandoMuralTexture() (+26 more)
 
 ### Community 7 - "placesShaders.ts"
-Cohesion: 0.13
-Nodes (22): bindVolumetricFogUniforms(), createStrataTerrainMaterial(), patchPlacesVolumetricFog(), PlacesSliceEmitterSpec, WaterConfluenceSpec, WaterTideSpec, CLOUD_FRAGMENT, CLOUD_VERTEX (+14 more)
+Cohesion: 0.15
+Nodes (19): bindVolumetricFogUniforms(), patchPlacesVolumetricFog(), PlacesSliceEmitterSpec, WaterConfluenceSpec, WaterTideSpec, CLOUD_FRAGMENT, CLOUD_VERTEX, NOISE_GLSL (+11 more)
 
 ### Community 8 - "vehicleLightKit.ts"
 Cohesion: 0.16
 Nodes (16): getCarHeadlightMat(), getCarPoolMat(), getCarTaillightMat(), createVehicleLightBatch(), ensureLightGeometries(), LightGeometries, markLightMesh(), placeInstance() (+8 more)
 
 ### Community 9 - "dioramaKit.ts"
-Cohesion: 0.05
-Nodes (36): accentFor(), AnchorKind, CorniceBandSpec, DioramaFx, DoorSurroundSpec, FacadeWindowSpec, FALLBACK_PROFILE, getLampBulbMat() (+28 more)
+Cohesion: 0.06
+Nodes (35): accentFor(), AnchorKind, CorniceBandSpec, DioramaFx, DoorSurroundSpec, FacadeWindowSpec, FALLBACK_PROFILE, getLampBulbMat() (+27 more)
 
 ### Community 10 - "animalKit.ts"
 Cohesion: 0.08
@@ -167,31 +172,35 @@ Nodes (37): WILDLIFE, WildlifeSpot, advanceAnimalTime(), AnimalIdle, AnimalKind,
 
 ### Community 11 - "WeatherWidget.tsx"
 Cohesion: 0.07
-Nodes (48): HourlyForecast(), HourlyForecastProps, ANIMATED_BY_CONDITION, WeatherIcon(), WeatherIconCondition, WeatherIconProps, pad2(), PRESET_ICONS (+40 more)
+Nodes (45): HourlyForecast(), HourlyForecastProps, ANIMATED_BY_CONDITION, WeatherIcon(), WeatherIconCondition, WeatherIconProps, pad2(), PRESET_ICONS (+37 more)
+
+### Community 12 - "CitylitEngine"
+Cohesion: 0.08
+Nodes (4): CompassProps, SwayItem, WetMaterialEntry, CitylitEngine
 
 ### Community 13 - "compilerOptions"
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, lib, module, moduleDetection, moduleResolution (+10 more)
 
 ### Community 14 - "weatherScene.ts"
-Cohesion: 0.09
-Nodes (29): AUTO_EXPOSURE_ADAPT_RATE, BIOME_BOUNCE_COLORS, bounceDayTmp, bounceMixTmp, bounceNightTmp, DIORAMA_SHADOW_EXTENT, KELVIN_KEY_MIX, KELVIN_LIGHTING (+21 more)
+Cohesion: 0.07
+Nodes (39): clamp01(), LiveWeatherVisual, liveWeatherVisual(), WEATHER_CONDITIONS, monthToSeasonWeights(), MID_MONTH_DAY, solarDeclination(), southernSunDirection() (+31 more)
 
 ### Community 15 - "osmService.ts"
-Cohesion: 0.13
-Nodes (18): cacheKey(), fallbackPatch(), GEO_CACHE, geocodePlace(), loadElevation(), loadOsmPlace(), LocalPoint, MEMORY_CACHE (+10 more)
+Cohesion: 0.14
+Nodes (17): cacheKey(), fallbackPatch(), GEO_CACHE, loadElevation(), loadOsmPlace(), LocalPoint, MEMORY_CACHE, OsmArea (+9 more)
 
-### Community 16 - "placesScene.ts"
-Cohesion: 0.12
-Nodes (28): OsmPlaceData, StreetLampSpec, centroid(), clamp(), createOsmSlice(), createRibbon(), OsmSliceResult, pointOnRoad() (+20 more)
+### Community 16 - "osmSlice.ts"
+Cohesion: 0.17
+Nodes (17): centroid(), clamp(), createOsmSlice(), createRibbon(), pointOnRoad(), polygonShape(), readTag(), roadFootprints() (+9 more)
 
 ### Community 17 - "LandmarkCard.tsx"
-Cohesion: 0.08
-Nodes (32): GalleryDialog(), GalleryModal(), GalleryModalProps, bodySlideVariants, CAMERA_PRESETS, CARDINALS, getCategoryMeta(), headerSlideVariants (+24 more)
+Cohesion: 0.11
+Nodes (18): GalleryDialog(), GalleryModalProps, applyRubberBand(), project(), rubberBand(), DragOptions, Point, useDrag() (+10 more)
 
 ### Community 18 - "ScaleRulerModal.tsx"
-Cohesion: 0.12
-Nodes (24): barWidth(), REFERENCE_OPTIONS, RulerRow, RulerScale, RulerSort, SCALE_OPTIONS, ScaleRulerModal(), ScaleRulerModalProps (+16 more)
+Cohesion: 0.10
+Nodes (27): barWidth(), REFERENCE_OPTIONS, RulerRow, RulerScale, RulerSort, SCALE_OPTIONS, ScaleRulerModal(), ScaleRulerModalProps (+19 more)
 
 ### Community 19 - "DaylightBirdsController"
 Cohesion: 0.13
@@ -199,7 +208,7 @@ Nodes (13): computeBirdSpawnIntervalSec(), computeFoliageSwayAngle(), computeFol
 
 ### Community 20 - "PassportModal.tsx"
 Cohesion: 0.10
-Nodes (26): CATEGORY_COLORS, PASSPORT_TABS, PassportModal(), PassportModalProps, PassportTab, ProvinceRing(), ProvinceRingProps, ProvinceStatRow (+18 more)
+Nodes (31): @phosphor-icons/react, GlobeOverlayProps, formatCoords(), InfoDrawer(), InfoDrawerProps, CATEGORY_COLORS, PASSPORT_TABS, PassportModal() (+23 more)
 
 ### Community 21 - "devDependencies"
 Cohesion: 0.40
@@ -210,20 +219,20 @@ Cohesion: 0.07
 Nodes (41): dependencies, goeist@0.1.0, motion@14.14.0, n8ao@2.1.0, oxfmt@0.79.0, oxlint@1.94.0, pastdotdev@^0.0.1, @phosphor-icons/react@2.1.10 (+33 more)
 
 ### Community 23 - "getSoftTexture"
-Cohesion: 0.09
-Nodes (29): BIOME_FALLBACK, normalizeRuleKey(), REGIONAL_PALETTES, RegionalPalette, RegionalPaletteKey, resolveRegionalPalette(), rule(), SITE_RULES (+21 more)
+Cohesion: 0.13
+Nodes (19): BIOME_FALLBACK, normalizeRuleKey(), REGIONAL_PALETTES, RegionalPalette, RegionalPaletteKey, resolveRegionalPalette(), rule(), SITE_RULES (+11 more)
 
 ### Community 24 - "AmbientAudioController"
-Cohesion: 0.07
-Nodes (23): AmbientAudioController, AnimalAudioEvent, BIOME_HAPTIC_PATTERNS, clamp01(), equalPower(), extractRegionName(), FilterBand, REGION_HAPTIC_ACCENTS (+15 more)
+Cohesion: 0.13
+Nodes (3): AmbientAudioController, SiteProfile, AmbientSiteProfile
 
 ### Community 25 - "server.js"
 Cohesion: 0.20
 Nodes (6): express@5.3.0, express, app, __dirname, distDir, __filename
 
 ### Community 26 - "CitylitEngine.ts"
-Cohesion: 0.07
-Nodes (38): boundsFitPlinth(), clamp(), fitBoundsToPlinth(), PlanarBounds, PLINTH_FRAME_WIDTH, PLINTH_HALF_EXTENT, PLINTH_INNER_HALF_EXTENT, PlinthFit (+30 more)
+Cohesion: 0.06
+Nodes (44): boundsFitPlinth(), clamp(), fitBoundsToPlinth(), PlanarBounds, PLINTH_FRAME_WIDTH, PLINTH_HALF_EXTENT, PLINTH_INNER_HALF_EXTENT, PlinthFit (+36 more)
 
 ### Community 27 - ".oxfmtrc.json"
 Cohesion: 0.22
@@ -239,27 +248,31 @@ Nodes (9): @tailwindcss/vite@4.3.5, vite@8.3.8, vite-plugin-pwa@2.0.0, @vitejs/p
 
 ### Community 30 - "albedoAudit.ts"
 Cohesion: 0.18
-Nodes (22): ALBEDO_CONTRACT, AlbedoAudit, AlbedoBand, auditAlbedo(), auditHeroLuminance(), clamp(), DEFAULT_SATURATION_REDUCTION, GRADE_GUARDRAILS (+14 more)
+Nodes (23): ALBEDO_CONTRACT, AlbedoAudit, AlbedoBand, auditAlbedo(), auditHeroLuminance(), clamp(), conditionSurfaceHex(), DEFAULT_SATURATION_REDUCTION (+15 more)
 
 ### Community 31 - "scripts"
 Cohesion: 0.15
 Nodes (13): scripts, build, dev, format, format:check, lint, preview, qa:capture (+5 more)
 
 ### Community 32 - "applyDioramaUpgrade"
-Cohesion: 0.14
-Nodes (20): addEdgeWaterfall(), addScaleReference(), addSoaringBirds(), addStandUnderside(), applyDioramaUpgrade(), buildSpatialSources(), finalizeLandmarkGroup(), getSiteProfile() (+12 more)
+Cohesion: 0.20
+Nodes (12): buildSpatialSources(), finalizeLandmarkGroup(), getSiteProfile(), hasSiteProfile(), keyAngle(), normalizeProfileKey(), createContactShadowMaterial(), finalizeContactShadows() (+4 more)
 
 ### Community 33 - "with"
 Cohesion: 0.11
 Nodes (17): jobs, verify, name, on, pull_request, push, branches, name (+9 more)
 
-### Community 35 - "ref_node_test"
+### Community 34 - ".frame"
 Cohesion: 0.12
-Nodes (13): createWebGLRendererSelection(), decideRendererBackend(), GPUCapableNavigator, readRendererPreference(), RendererProbe, selectRenderer(), StubWindow, wantsMsaa() (+5 more)
+Nodes (3): setContactShadowFade(), streetLampNightFactor(), sunAltitudeDeg()
+
+### Community 35 - "ref_node_test"
+Cohesion: 0.14
+Nodes (13): three, createWebGLRendererSelection(), decideRendererBackend(), GPUCapableNavigator, readRendererPreference(), RendererProbe, selectRenderer(), StubWindow (+5 more)
 
 ### Community 36 - "motion.ts"
-Cohesion: 0.06
-Nodes (42): motion, @phosphor-icons/react, react, react-dom, CARDINAL_TARGETS, CARDINALS_8, Compass(), formatBearing() (+34 more)
+Cohesion: 0.08
+Nodes (30): motion, AudioVisualizerBarProps, DARK_PALETTE, LIGHT_PALETTE, CARDINAL_TARGETS, CARDINALS_8, Compass(), formatBearing() (+22 more)
 
 ### Community 37 - "overrides"
 Cohesion: 0.33
@@ -277,17 +290,17 @@ Nodes (11): createMemoryMiddleware(), getClient(), HttpError, isTimestamp(), opt
 Cohesion: 0.33
 Nodes (5): CloudAssets, CloudPuffInstance, createCloudPuffMesh(), createSliceCloudLayer(), SliceCloudLayer
 
-### Community 44 - ".showLandmarkImmediate"
-Cohesion: 0.23
-Nodes (3): setContactShadowFade(), SwayItem, WetMaterialEntry
+### Community 44 - "SearchSheet.tsx"
+Cohesion: 0.09
+Nodes (26): react, react-dom, SearchSheet(), SearchSheetProps, Sheet(), SheetProps, SheetSide, LANDMARK_TAGS (+18 more)
 
 ### Community 45 - "run"
 Cohesion: 0.38
 Nodes (5): CDP, i0(), listTargets(), run(), sleep()
 
 ### Community 46 - "globeScene.ts"
-Cohesion: 0.15
-Nodes (25): three, AFRICA_POLYS, ENCLAVE_POLYS, GLOBE_NEIGHBOR_LABELS, GLOBE_PROVINCES, NEIGHBOR_POLYS, PROVINCE_STYLE, ProvinceGlobeEntry (+17 more)
+Cohesion: 0.16
+Nodes (24): AFRICA_POLYS, ENCLAVE_POLYS, GLOBE_NEIGHBOR_LABELS, GLOBE_PROVINCES, NEIGHBOR_POLYS, PROVINCE_STYLE, ProvinceGlobeEntry, GEO_AFRICA (+16 more)
 
 ### Community 47 - "measure-idle-pacing.mjs"
 Cohesion: 0.14
@@ -298,16 +311,16 @@ Cohesion: 0.25
 Nodes (4): n8ao, N8AOPass, N8AOPassConfiguration, N8AOQualityMode
 
 ### Community 49 - "placesInteriors.ts"
-Cohesion: 0.08
-Nodes (53): BespokeInteriorContext, buildThemedInterior(), bx(), co(), colonnade(), compactShell(), cy(), emptyMats() (+45 more)
+Cohesion: 0.09
+Nodes (50): buildThemedInterior(), bx(), co(), colonnade(), compactShell(), cy(), emptyMats(), fBench() (+42 more)
 
 ### Community 50 - "qualityBenchmark.ts"
 Cohesion: 0.14
 Nodes (12): BenchmarkConfig, BenchmarkTier, CachedBenchmark, computeFrameStats(), DEFAULT_BENCHMARK_CONFIG, FrameStats, FrameTimeBenchmark, percentile() (+4 more)
 
 ### Community 51 - "framePacing.ts"
-Cohesion: 0.31
-Nodes (8): DEFAULT_QUIET_SECONDS, FramePacingInput, frameThrottleMs(), IDLE_QUIET_MS, IDLE_REDUCED_MS, IDLE_SOFTWARE_MS, stageQuiet(), StageQuietInput
+Cohesion: 0.14
+Nodes (14): IDLES, KINDS, SEASONS, DEFAULT_QUIET_SECONDS, FramePacingInput, frameThrottleMs(), IDLE_QUIET_MS, IDLE_REDUCED_MS (+6 more)
 
 ### Community 52 - "compare-metrics.mjs"
 Cohesion: 0.18
@@ -317,29 +330,29 @@ Nodes (10): after, afterByKey, before, breaches, key(), mean(), pct(), rows (+2 
 Cohesion: 0.31
 Nodes (6): detectNativeHost(), hasCinematicHost(), isHost(), NativeCinematicHost, nativeHostUrl(), Window
 
-### Community 54 - "ref_node_assert"
-Cohesion: 0.19
-Nodes (8): IDLES, KINDS, SEASONS, MID_MONTH_DAY, solarDeclination(), southernSunDirection(), normalizePlanar(), PlanarVector
+### Community 54 - "LandmarkCard.tsx"
+Cohesion: 0.12
+Nodes (22): bodySlideVariants, CAMERA_PRESETS, CARDINALS, getCategoryMeta(), headerSlideVariants, LandmarkCard(), LandmarkCardProps, nextBearingSummary() (+14 more)
 
 ### Community 55 - "weatherScene.ts"
-Cohesion: 0.27
-Nodes (11): getSeasonMonth(), isSpeciesBlooming(), monthToSeasonWeights(), normalizeMonth(), PLANT_SPECIES, PlantSpecies, PlantSpeciesInfo, SeasonWeights (+3 more)
+Cohesion: 0.36
+Nodes (8): getSeasonMonth(), isSpeciesBlooming(), normalizeMonth(), PLANT_SPECIES, PlantSpecies, PlantSpeciesInfo, SeasonWeights, setSeasonMonth()
 
-### Community 56 - ".constructor"
-Cohesion: 0.08
-Nodes (20): configureDioramaShadow(), createBounceLight(), createRimLight(), createDitherPass(), createMiniaturePass(), DitherShader, fallbackDepth, MiniatureBlurShader (+12 more)
-
-### Community 57 - "WebGPUSceneRenderer"
-Cohesion: 0.05
-Nodes (23): WebGPUSceneRenderer, ALPHA_UNIFORMS, COLOR_UNIFORMS, createWebGPUCompat(), convert(), findAlphaUniform(), findColorUniform(), findIntensityUniform() (+15 more)
+### Community 56 - "webgpuPostFX.ts"
+Cohesion: 0.15
+Nodes (8): MiniatureGradeOptions, BloomModule, DOFModule, makeUniforms(), SSAOModule, TSL, Uniforms, WebGPUModule
 
 ### Community 58 - "skyEvents.ts"
-Cohesion: 0.21
+Cohesion: 0.20
 Nodes (15): dayIndex(), daysInMonth(), entryIntensity(), EVENT_PRIORITY, formatWhen(), getSkyEvent(), getUpcomingSkyEvents(), MONTH_LABELS (+7 more)
 
 ### Community 59 - "capture-visual-matrix.mjs"
 Cohesion: 0.32
 Nodes (7): captureState(), Cdp, main(), parseCli(), sampleEval(), sleep(), stateEval()
+
+### Community 61 - ".applyPostGrade"
+Cohesion: 0.12
+Nodes (8): createDitherPass(), createMiniaturePass(), DitherShader, fallbackDepth, MiniatureBlurShader, MiniaturePass, MiniatureShader, MiniatureTuning
 
 ### Community 63 - "run"
 Cohesion: 0.36
@@ -352,6 +365,10 @@ Nodes (3): getAnimalSeasonMonth(), addWildlifeLayer(), appendLayerTargets()
 ### Community 65 - "windowLights.ts"
 Cohesion: 0.23
 Nodes (11): bake(), FacadeRecord, facades, hash01(), OCCUPANCY_KEYFRAMES, tmpLit, updateWindowLights(), WindowFacade (+3 more)
+
+### Community 66 - "applyDioramaUpgrade"
+Cohesion: 0.15
+Nodes (13): addDioramaClouds(), addEdgeWaterfall(), addScaleReference(), addSoaringBirds(), addSquareWaterPlate(), addStandUnderside(), addTreeRing(), applyDioramaUpgrade() (+5 more)
 
 ### Community 67 - "check-exposure.mjs"
 Cohesion: 0.22
@@ -389,9 +406,9 @@ Nodes (4): delta(), loadStats(), main(), parseCli()
 Cohesion: 0.18
 Nodes (11): addLampWaterReflections(), addWetRoadStreaks(), getLampBulbGeo(), getLampConeGeo(), getLampHaloGeo(), getLampHardwareGeo(), getLampPoolGeo(), getLampReflectionGeo() (+3 more)
 
-### Community 77 - "landmarkGeometry.ts"
-Cohesion: 0.60
-Nodes (3): bridgeStayAnchors(), catenaryArchHeight(), StayAnchor
+### Community 77 - "ambientAudio.ts"
+Cohesion: 0.13
+Nodes (16): AnimalAudioEvent, BIOME_HAPTIC_PATTERNS, clamp01(), equalPower(), FilterBand, REGION_HAPTIC_ACCENTS, smoothBell(), smoothstep() (+8 more)
 
 ### Community 78 - "addCraftedRim"
 Cohesion: 0.60
@@ -401,23 +418,43 @@ Nodes (5): addCraftedRim(), addSquareRim(), getRimMaterial(), paintRadial(), pai
 Cohesion: 0.50
 Nodes (4): addSiteMotion(), addWeatherFx(), stream(), normalMapsActive()
 
+### Community 80 - "placesScene.ts"
+Cohesion: 0.19
+Nodes (15): OsmPlaceData, OsmSliceResult, createPlacesScene(), ExplorerInfo, HERO_CAM, HERO_TARGET, PlacesController, createPlacesShaderEnv() (+7 more)
+
+### Community 81 - "createWebGPUCompat"
+Cohesion: 0.41
+Nodes (12): createWebGPUCompat(), convert(), findAlphaUniform(), findColorUniform(), findIntensityUniform(), tryGroundSheen(), tryHorizonRing(), trySkyMaterial() (+4 more)
+
+### Community 82 - "siteVisuals.ts"
+Cohesion: 0.24
+Nodes (10): blendHex(), DEFAULT_BY_BIOME, getSiteVisualProfile(), normalizeSiteVisualKey(), REGIONAL_BLEND_WEIGHTS, RegionalColourField, SITE_VISUALS_MAP, SitePointLightSpec (+2 more)
+
+### Community 85 - "webgpuCompat.ts"
+Cohesion: 0.25
+Nodes (7): ALPHA_UNIFORMS, COLOR_UNIFORMS, INTENSITY_UNIFORMS, TSLModule, UniformLink, UV_MAP_KEYS, WebGPUModule
+
+### Community 86 - "LandmarkBiome"
+Cohesion: 0.33
+Nodes (4): extractRegionName(), HorizonSceneryController, AtmosphereSite, LandmarkBiome
+
 ## Knowledge Gaps
-- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **11 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `shaders.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `vehicleLightKit.ts`, `dioramaKit.ts`, `animalKit.ts`, `weatherScene.ts`, `placesScene.ts`, `DaylightBirdsController`, `package.json`, `getSoftTexture`, `CitylitEngine.ts`, `ref_node_test`, `getSoftTexture`, `three`, `placesInteriors.ts`, `.constructor`, `WebGPUSceneRenderer`, `windowLights.ts`, `globalIllumination.ts`, `windParticles.ts`?**
-  _High betweenness centrality (0.238) - this node is a cross-community bridge._
+- **Why does `three` connect `ref_node_test` to `landmarksB.ts`, `shaders.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `vehicleLightKit.ts`, `dioramaKit.ts`, `animalKit.ts`, `weatherScene.ts`, `osmSlice.ts`, `DaylightBirdsController`, `package.json`, `getSoftTexture`, `CitylitEngine.ts`, `getSoftTexture`, `globeScene.ts`, `three`, `placesInteriors.ts`, `webgpuPostFX.ts`, `.applyPostGrade`, `windowLights.ts`, `globalIllumination.ts`, `windParticles.ts`, `placesScene.ts`, `webgpuCompat.ts`, `SceneRenderer.ts`?**
+  _High betweenness centrality (0.225) - this node is a cross-community bridge._
 - **Should `landmarksB.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.05972476706561148 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.058309806135893094 - nodes in this community are weakly interconnected._
 - **Why does `puppeteer` connect `devDependencies` to `ref_node_fs`, `package.json`?**
-  _High betweenness centrality (0.111) - this node is a cross-community bridge._
-- **Should `.isStudio` be split into smaller, more focused modules?**
-  _Cohesion score 0.13105413105413105 - nodes in this community are weakly interconnected._
-- **Why does `CitylitEngine` connect `CitylitEngine` to `.isStudio`, `citylit.ts`, `shaders.ts`, `App.tsx`, `animalKit.ts`, `WeatherWidget.tsx`, `placesScene.ts`, `LandmarkCard.tsx`, `ScaleRulerModal.tsx`, `DaylightBirdsController`, `getSoftTexture`, `AmbientAudioController`, `CitylitEngine.ts`, `.animateVehicleNightLights`, `ref_node_test`, `motion.ts`, `.frame`, `.showLandmarkImmediate`, `qualityBenchmark.ts`, `framePacing.ts`, `.constructor`, `.applyPostGrade`, `.setQualityIndex`, `contact-sheet.ts`, `windParticles.ts`, `.dispose`?**
-  _High betweenness centrality (0.103) - this node is a cross-community bridge._
+  _High betweenness centrality (0.095) - this node is a cross-community bridge._
 - **Should `citylit.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.0796221322537112 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09971509971509972 - nodes in this community are weakly interconnected._
+- **Why does `CitylitEngine` connect `CitylitEngine` to `.resetToDefaultOrientation`, `citylit.ts`, `shaders.ts`, `App.tsx`, `animalKit.ts`, `WeatherWidget.tsx`, `ScaleRulerModal.tsx`, `DaylightBirdsController`, `CitylitEngine.ts`, `.frame`, `ref_node_test`, `motion.ts`, `.showLandmarkImmediate`, `qualityBenchmark.ts`, `framePacing.ts`, `LandmarkCard.tsx`, `.applyPostGrade`, `.setQualityIndex`, `contact-sheet.ts`, `windParticles.ts`, `.constructor`, `placesScene.ts`, `siteVisuals.ts`, `LandmarkBiome`?**
+  _High betweenness centrality (0.095) - this node is a cross-community bridge._
 - **Should `PlacesOverlay.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.07609427609427609 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.11576354679802955 - nodes in this community are weakly interconnected._
+- **Should `shaders.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.05654761904761905 - nodes in this community are weakly interconnected._
