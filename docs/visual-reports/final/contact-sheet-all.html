@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Citylit visual comparison</title>
+<style>
+  body { margin:0; background:#0e0f13; color:#f3efe6; font:12px/1.4 system-ui,sans-serif; }
+  header { position:sticky; top:0; z-index:2; padding:10px 14px; background:#161821; border-bottom:1px solid #2a2d36; }
+  header h1 { margin:0 0 4px; font-size:14px; font-weight:600; }
+  header p { margin:0; color:#9aa0ab; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:10px; padding:12px; }
+  figure { margin:0; background:#1b1d26; border:1px solid #2a2d36; border-radius:8px; overflow:hidden; }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:2px; background:#000; }
+  .pair img { width:100%; height:auto; display:block; }
+  figcaption { padding:6px 8px; }
+  .title { font-weight:600; margin-bottom:3px; }
+  .stats { color:#9aa0ab; font-variant-numeric:tabular-nums; }
+  .up { color:#e8a24a; } .down { color:#6ecb8a; }
+</style></head><body>
+<header><h1>Citylit visual comparison — phase2 → final</h1>
+<p>199 matching states. Left: baseline. Right: new. Deltas are calls / triangles / mean frame time.</p></header>
+<div class="grid">
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-6-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-6-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-6-sun-high-desktop</div>
+  <div class="stats">calls 2408.00 <span class="">(0.0%)</span> · tris 715560.00 <span class="">(0.0%)</span> · ms 48.64 <span class="up">(+3.2%)</span> · programs 71</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-6-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-6-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-6-sun-balanced-desktop</div>
+  <div class="stats">calls 1632.00 <span class="">(0.0%)</span> · tris 520640.00 <span class="">(0.0%)</span> · ms 27.59 <span class="up">(+3.5%)</span> · programs 71</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-12-sun-high-desktop</div>
+  <div class="stats">calls 2312.00 <span class="">(0.0%)</span> · tris 712488.00 <span class="">(0.0%)</span> · ms 42.51 <span class="up">(+4.6%)</span> · programs 71</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-12-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-12-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-12-sun-balanced-desktop</div>
+  <div class="stats">calls 1584.00 <span class="">(0.0%)</span> · tris 519104.00 <span class="">(0.0%)</span> · ms 33.17 <span class="down">(-30.2%)</span> · programs 71</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-18-sun-high-desktop</div>
+  <div class="stats">calls 2376.00 <span class="">(0.0%)</span> · tris 709896.00 <span class="">(0.0%)</span> · ms 40.19 <span class="down">(-39.7%)</span> · programs 71</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-18-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-18-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-18-sun-balanced-desktop</div>
+  <div class="stats">calls 1616.00 <span class="">(0.0%)</span> · tris 517808.00 <span class="">(0.0%)</span> · ms 24.24 <span class="down">(-45.8%)</span> · programs 71</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-22-sun-high-desktop</div>
+  <div class="stats">calls 2168.00 <span class="">(0.0%)</span> · tris 701560.00 <span class="">(0.0%)</span> · ms 48.70 <span class="down">(-6.7%)</span> · programs 72</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-22-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-22-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-22-sun-balanced-desktop</div>
+  <div class="stats">calls 1512.00 <span class="">(0.0%)</span> · tris 513640.00 <span class="">(0.0%)</span> · ms 60.25 <span class="up">(+21.5%)</span> · programs 72</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-6-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-6-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-6-sun-high-desktop</div>
+  <div class="stats">calls 3992.00 <span class="">(0.0%)</span> · tris 1906512.00 <span class="">(0.0%)</span> · ms 76.41 <span class="up">(+21.3%)</span> · programs 87</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-6-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-6-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-6-sun-balanced-desktop</div>
+  <div class="stats">calls 3536.00 <span class="">(0.0%)</span> · tris 1721320.00 <span class="">(0.0%)</span> · ms 52.33 <span class="up">(+9.4%)</span> · programs 87</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-12-sun-high-desktop</div>
+  <div class="stats">calls 3896.00 <span class="">(0.0%)</span> · tris 1903440.00 <span class="">(0.0%)</span> · ms 56.32 <span class="up">(+1.8%)</span> · programs 87</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-12-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-12-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-12-sun-balanced-desktop</div>
+  <div class="stats">calls 3488.00 <span class="">(0.0%)</span> · tris 1719784.00 <span class="">(0.0%)</span> · ms 42.88 <span class="up">(+1.8%)</span> · programs 87</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-18-sun-high-desktop</div>
+  <div class="stats">calls 3960.00 <span class="">(0.0%)</span> · tris 1900848.00 <span class="">(0.0%)</span> · ms 47.33 <span class="up">(+21.1%)</span> · programs 87</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-18-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-18-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-18-sun-balanced-desktop</div>
+  <div class="stats">calls 3520.00 <span class="">(0.0%)</span> · tris 1718488.00 <span class="">(0.0%)</span> · ms 37.50 <span class="down">(-24.3%)</span> · programs 87</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-22-sun-high-desktop</div>
+  <div class="stats">calls 4192.00 <span class="">(0.0%)</span> · tris 1921080.00 <span class="">(0.0%)</span> · ms 52.19 <span class="up">(+1.9%)</span> · programs 88</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-22-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-22-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-22-sun-balanced-desktop</div>
+  <div class="stats">calls 3672.00 <span class="">(0.0%)</span> · tris 1732520.00 <span class="">(0.0%)</span> · ms 42.96 <span class="down">(-14.6%)</span> · programs 88</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-6-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-6-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-6-sun-high-desktop</div>
+  <div class="stats">calls 2528.00 <span class="">(0.0%)</span> · tris 918640.00 <span class="">(0.0%)</span> · ms 74.34 <span class="up">(+21.6%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-6-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-6-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-6-sun-balanced-desktop</div>
+  <div class="stats">calls 2064.00 <span class="">(0.0%)</span> · tris 746248.00 <span class="">(0.0%)</span> · ms 60.50 <span class="up">(+3.8%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-12-sun-high-desktop</div>
+  <div class="stats">calls 2432.00 <span class="">(0.0%)</span> · tris 915568.00 <span class="">(0.0%)</span> · ms 45.91 <span class="down">(-16.8%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-12-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-12-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-12-sun-balanced-desktop</div>
+  <div class="stats">calls 2016.00 <span class="">(0.0%)</span> · tris 744712.00 <span class="">(0.0%)</span> · ms 49.09 <span class="down">(-14.1%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-18-sun-high-desktop</div>
+  <div class="stats">calls 2496.00 <span class="">(0.0%)</span> · tris 912976.00 <span class="">(0.0%)</span> · ms 49.81 <span class="up">(+0.8%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-18-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-18-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-18-sun-balanced-desktop</div>
+  <div class="stats">calls 2048.00 <span class="">(0.0%)</span> · tris 743416.00 <span class="">(0.0%)</span> · ms 66.09 <span class="up">(+105.5%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-22-sun-high-desktop</div>
+  <div class="stats">calls 2728.00 <span class="">(0.0%)</span> · tris 933208.00 <span class="">(0.0%)</span> · ms 55.09 <span class="up">(+34.8%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-22-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-22-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-22-sun-balanced-desktop</div>
+  <div class="stats">calls 2200.00 <span class="">(0.0%)</span> · tris 757448.00 <span class="">(0.0%)</span> · ms 42.04 <span class="up">(+35.7%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-6-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-6-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-6-sun-high-desktop</div>
+  <div class="stats">calls 4864.00 <span class="">(0.0%)</span> · tris 2600040.00 <span class="">(0.0%)</span> · ms 66.54 <span class="up">(+19.6%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-6-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-6-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-6-sun-balanced-desktop</div>
+  <div class="stats">calls 4208.00 <span class="">(0.0%)</span> · tris 2433760.00 <span class="">(0.0%)</span> · ms 44.79 <span class="up">(+14.3%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-12-sun-high-desktop</div>
+  <div class="stats">calls 4768.00 <span class="">(0.0%)</span> · tris 2596968.00 <span class="">(0.0%)</span> · ms 61.20 <span class="up">(+14.1%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-12-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-12-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-12-sun-balanced-desktop</div>
+  <div class="stats">calls 4160.00 <span class="">(0.0%)</span> · tris 2432224.00 <span class="">(0.0%)</span> · ms 62.32 <span class="up">(+20.8%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-18-sun-high-desktop</div>
+  <div class="stats">calls 4832.00 <span class="">(0.0%)</span> · tris 2594376.00 <span class="">(0.0%)</span> · ms 70.01 <span class="down">(-1.4%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-18-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-18-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-18-sun-balanced-desktop</div>
+  <div class="stats">calls 4192.00 <span class="">(0.0%)</span> · tris 2430928.00 <span class="">(0.0%)</span> · ms 55.76 <span class="up">(+21.9%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-22-sun-high-desktop</div>
+  <div class="stats">calls 4608.00 <span class="">(0.0%)</span> · tris 2586040.00 <span class="">(0.0%)</span> · ms 69.05 <span class="up">(+68.4%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-22-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-22-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-22-sun-balanced-desktop</div>
+  <div class="stats">calls 4080.00 <span class="">(0.0%)</span> · tris 2426760.00 <span class="">(0.0%)</span> · ms 45.19 <span class="up">(+14.8%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-6-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-6-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-6-sun-high-desktop</div>
+  <div class="stats">calls 1352.00 <span class="">(0.0%)</span> · tris 394312.00 <span class="">(0.0%)</span> · ms 48.13 <span class="up">(+19.7%)</span> · programs 98</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-6-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-6-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-6-sun-balanced-desktop</div>
+  <div class="stats">calls 888.00 <span class="">(0.0%)</span> · tris 213632.00 <span class="">(0.0%)</span> · ms 55.65 <span class="up">(+70.2%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-12-sun-high-desktop</div>
+  <div class="stats">calls 1256.00 <span class="">(0.0%)</span> · tris 391240.00 <span class="">(0.0%)</span> · ms 55.51 <span class="up">(+74.3%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-12-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-12-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-12-sun-balanced-desktop</div>
+  <div class="stats">calls 816.00 <span class="down">(-2.9%)</span> · tris 209040.00 <span class="down">(-1.4%)</span> · ms 40.11 <span class="up">(+38.0%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-18-sun-high-desktop</div>
+  <div class="stats">calls 1320.00 <span class="">(0.0%)</span> · tris 388648.00 <span class="">(0.0%)</span> · ms 44.38 <span class="up">(+13.9%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-18-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-18-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-18-sun-balanced-desktop</div>
+  <div class="stats">calls 872.00 <span class="">(0.0%)</span> · tris 210800.00 <span class="">(0.0%)</span> · ms 46.14 <span class="up">(+57.6%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-22-sun-high-desktop</div>
+  <div class="stats">calls 1096.00 <span class="">(0.0%)</span> · tris 380312.00 <span class="">(0.0%)</span> · ms 59.16 <span class="up">(+105.3%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-22-sun-balanced-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-22-sun-balanced-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-22-sun-balanced-desktop</div>
+  <div class="stats">calls 760.00 <span class="">(0.0%)</span> · tris 206632.00 <span class="">(0.0%)</span> · ms 49.61 <span class="up">(+42.1%)</span> · programs 95</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-12-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-12-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-12-rain-high-desktop</div>
+  <div class="stats">calls 2328.00 <span class="">(0.0%)</span> · tris 712488.00 <span class="">(0.0%)</span> · ms 63.95 <span class="down">(-6.7%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-22-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-22-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-22-rain-high-desktop</div>
+  <div class="stats">calls 2168.00 <span class="">(0.0%)</span> · tris 701560.00 <span class="">(0.0%)</span> · ms 49.72 <span class="down">(-4.4%)</span> · programs 98</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-12-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-12-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-12-fog-high-desktop</div>
+  <div class="stats">calls 2312.00 <span class="">(0.0%)</span> · tris 712488.00 <span class="">(0.0%)</span> · ms 64.31 <span class="up">(+51.7%)</span> · programs 98</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-22-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-00-22-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-22-fog-high-desktop</div>
+  <div class="stats">calls 2168.00 <span class="">(0.0%)</span> · tris 701560.00 <span class="">(0.0%)</span> · ms 45.17 <span class="up">(+0.6%)</span> · programs 98</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-12-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-12-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-12-rain-high-desktop</div>
+  <div class="stats">calls 3912.00 <span class="">(0.0%)</span> · tris 1903440.00 <span class="">(0.0%)</span> · ms 59.49 <span class="up">(+10.2%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-22-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-22-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-22-rain-high-desktop</div>
+  <div class="stats">calls 4208.00 <span class="">(0.0%)</span> · tris 1921080.00 <span class="">(0.0%)</span> · ms 50.49 <span class="down">(-9.2%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-12-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-12-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-12-fog-high-desktop</div>
+  <div class="stats">calls 3896.00 <span class="">(0.0%)</span> · tris 1903440.00 <span class="">(0.0%)</span> · ms 57.45 <span class="up">(+14.9%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-22-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-01-22-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-22-fog-high-desktop</div>
+  <div class="stats">calls 4192.00 <span class="">(0.0%)</span> · tris 1921080.00 <span class="">(0.0%)</span> · ms 47.22 <span class="up">(+0.2%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-12-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-12-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-12-rain-high-desktop</div>
+  <div class="stats">calls 2448.00 <span class="">(0.0%)</span> · tris 915568.00 <span class="">(0.0%)</span> · ms 57.50 <span class="up">(+14.2%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-22-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-22-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-22-rain-high-desktop</div>
+  <div class="stats">calls 2744.00 <span class="">(0.0%)</span> · tris 933208.00 <span class="">(0.0%)</span> · ms 70.50 <span class="down">(-5.8%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-12-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-12-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-12-fog-high-desktop</div>
+  <div class="stats">calls 2432.00 <span class="">(0.0%)</span> · tris 915568.00 <span class="">(0.0%)</span> · ms 59.06 <span class="down">(-4.5%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-22-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-03-22-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-22-fog-high-desktop</div>
+  <div class="stats">calls 2728.00 <span class="">(0.0%)</span> · tris 933208.00 <span class="">(0.0%)</span> · ms 103.71 <span class="up">(+35.3%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-12-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-12-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-12-rain-high-desktop</div>
+  <div class="stats">calls 4784.00 <span class="">(0.0%)</span> · tris 2596968.00 <span class="">(0.0%)</span> · ms 72.60 <span class="up">(+40.9%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-22-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-22-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-22-rain-high-desktop</div>
+  <div class="stats">calls 4624.00 <span class="">(0.0%)</span> · tris 2586040.00 <span class="">(0.0%)</span> · ms 48.60 <span class="up">(+15.0%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-12-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-12-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-12-fog-high-desktop</div>
+  <div class="stats">calls 4768.00 <span class="">(0.0%)</span> · tris 2596968.00 <span class="">(0.0%)</span> · ms 41.56 <span class="down">(-17.4%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-22-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-07-22-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-22-fog-high-desktop</div>
+  <div class="stats">calls 4608.00 <span class="">(0.0%)</span> · tris 2586040.00 <span class="">(0.0%)</span> · ms 46.43 <span class="down">(-21.0%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-12-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-12-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-12-rain-high-desktop</div>
+  <div class="stats">calls 1272.00 <span class="">(0.0%)</span> · tris 391240.00 <span class="">(0.0%)</span> · ms 37.30 <span class="up">(+34.8%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-22-rain-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-22-rain-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-22-rain-high-desktop</div>
+  <div class="stats">calls 1112.00 <span class="">(0.0%)</span> · tris 380312.00 <span class="">(0.0%)</span> · ms 29.55 <span class="down">(-6.1%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-12-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-12-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-12-fog-high-desktop</div>
+  <div class="stats">calls 1256.00 <span class="">(0.0%)</span> · tris 391240.00 <span class="">(0.0%)</span> · ms 45.81 <span class="up">(+10.5%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-22-fog-high-desktop.jpg" alt="baseline"><img loading="lazy" src="hero-14-22-fog-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-22-fog-high-desktop</div>
+  <div class="stats">calls 1096.00 <span class="">(0.0%)</span> · tris 380312.00 <span class="">(0.0%)</span> · ms 31.81 <span class="down">(-14.7%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-12-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-00-12-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-12-sun-high-mobile3x</div>
+  <div class="stats">calls 2208.00 <span class="">(0.0%)</span> · tris 682632.00 <span class="">(0.0%)</span> · ms 53.89 <span class="down">(-18.0%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-00-22-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-00-22-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-00-22-sun-high-mobile3x</div>
+  <div class="stats">calls 2104.00 <span class="up">(+0.2%)</span> · tris 696184.00 <span class="up">(+0.0%)</span> · ms 42.24 <span class="up">(+21.9%)</span> · programs 98</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-12-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-01-12-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-12-sun-high-mobile3x</div>
+  <div class="stats">calls 3896.00 <span class="">(0.0%)</span> · tris 1878096.00 <span class="">(0.0%)</span> · ms 68.93 <span class="up">(+0.4%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-01-22-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-01-22-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-01-22-sun-high-mobile3x</div>
+  <div class="stats">calls 4080.00 <span class="">(0.0%)</span> · tris 1889784.00 <span class="">(0.0%)</span> · ms 130.82 <span class="up">(+69.3%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-12-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-03-12-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-12-sun-high-mobile3x</div>
+  <div class="stats">calls 2208.00 <span class="">(0.0%)</span> · tris 883056.00 <span class="">(0.0%)</span> · ms 104.76 <span class="up">(+65.4%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-03-22-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-03-22-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-03-22-sun-high-mobile3x</div>
+  <div class="stats">calls 2376.00 <span class="">(0.0%)</span> · tris 892952.00 <span class="">(0.0%)</span> · ms 92.74 <span class="up">(+80.2%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-12-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-07-12-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-12-sun-high-mobile3x</div>
+  <div class="stats">calls 4712.00 <span class="">(0.0%)</span> · tris 2585480.00 <span class="">(0.0%)</span> · ms 76.27 <span class="up">(+55.1%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-07-22-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-07-22-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-07-22-sun-high-mobile3x</div>
+  <div class="stats">calls 4552.00 <span class="">(0.0%)</span> · tris 2574552.00 <span class="">(0.0%)</span> · ms 55.09 <span class="down">(-2.1%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-12-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-14-12-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-12-sun-high-mobile3x</div>
+  <div class="stats">calls 1256.00 <span class="">(0.0%)</span> · tris 391240.00 <span class="">(0.0%)</span> · ms 46.76 <span class="up">(+0.9%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/hero-14-22-sun-high-mobile3x.jpg" alt="baseline"><img loading="lazy" src="hero-14-22-sun-high-mobile3x.jpg" alt="new"></div>
+  <figcaption><div class="title">hero-14-22-sun-high-mobile3x</div>
+  <div class="stats">calls 1096.00 <span class="">(0.0%)</span> · tris 380312.00 <span class="">(0.0%)</span> · ms 121.61 <span class="up">(+185.5%)</span> · programs 96</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-00-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-00-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-00-12-sun-high-desktop</div>
+  <div class="stats">calls 2312.00 <span class="">(0.0%)</span> · tris 712488.00 <span class="">(0.0%)</span> · ms 35.75 <span class="down">(-23.9%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-01-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-01-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-01-12-sun-high-desktop</div>
+  <div class="stats">calls 3896.00 <span class="">(0.0%)</span> · tris 1903440.00 <span class="">(0.0%)</span> · ms 61.16 <span class="up">(+26.6%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-02-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-02-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-02-12-sun-high-desktop</div>
+  <div class="stats">calls 1184.00 <span class="">(0.0%)</span> · tris 915304.00 <span class="">(0.0%)</span> · ms 71.01 <span class="up">(+116.1%)</span> · programs 100</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-03-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-03-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-03-12-sun-high-desktop</div>
+  <div class="stats">calls 2432.00 <span class="">(0.0%)</span> · tris 915568.00 <span class="">(0.0%)</span> · ms 61.40 <span class="down">(-18.4%)</span> · programs 100</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-04-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-04-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-04-12-sun-high-desktop</div>
+  <div class="stats">calls 1168.00 <span class="">(0.0%)</span> · tris 468840.00 <span class="">(0.0%)</span> · ms 49.77 <span class="up">(+50.8%)</span> · programs 102</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-05-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-05-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-05-12-sun-high-desktop</div>
+  <div class="stats">calls 1768.00 <span class="">(0.0%)</span> · tris 1355952.00 <span class="">(0.0%)</span> · ms 54.35 <span class="up">(+60.1%)</span> · programs 99</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-06-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-06-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-06-12-sun-high-desktop</div>
+  <div class="stats">calls 1968.00 <span class="">(0.0%)</span> · tris 592712.00 <span class="">(0.0%)</span> · ms 33.66 <span class="down">(-19.7%)</span> · programs 102</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-07-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-07-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-07-12-sun-high-desktop</div>
+  <div class="stats">calls 4768.00 <span class="up">(+1.0%)</span> · tris 2596968.00 <span class="up">(+0.2%)</span> · ms 46.47 <span class="down">(-65.8%)</span> · programs 101</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-08-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-08-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-08-12-sun-high-desktop</div>
+  <div class="stats">calls 1312.00 <span class="">(0.0%)</span> · tris 712464.00 <span class="">(0.0%)</span> · ms 33.41 <span class="down">(-27.1%)</span> · programs 103</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-09-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-09-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-09-12-sun-high-desktop</div>
+  <div class="stats">calls 1224.00 <span class="">(0.0%)</span> · tris 396024.00 <span class="">(0.0%)</span> · ms 25.21 <span class="down">(-56.6%)</span> · programs 102</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-10-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-10-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-10-12-sun-high-desktop</div>
+  <div class="stats">calls 968.00 <span class="">(0.0%)</span> · tris 332008.00 <span class="">(0.0%)</span> · ms 34.21 <span class="down">(-27.8%)</span> · programs 104</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-11-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-11-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-11-12-sun-high-desktop</div>
+  <div class="stats">calls 1256.00 <span class="">(0.0%)</span> · tris 302120.00 <span class="">(0.0%)</span> · ms 27.43 <span class="down">(-35.5%)</span> · programs 101</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-12-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-12-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-12-12-sun-high-desktop</div>
+  <div class="stats">calls 2240.00 <span class="">(0.0%)</span> · tris 498992.00 <span class="">(0.0%)</span> · ms 58.31 <span class="up">(+21.3%)</span> · programs 102</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-13-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-13-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-13-12-sun-high-desktop</div>
+  <div class="stats">calls 1328.00 <span class="">(0.0%)</span> · tris 488488.00 <span class="">(0.0%)</span> · ms 48.52 <span class="down">(-1.6%)</span> · programs 102</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-14-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-14-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-14-12-sun-high-desktop</div>
+  <div class="stats">calls 1256.00 <span class="">(0.0%)</span> · tris 391240.00 <span class="">(0.0%)</span> · ms 54.35 <span class="up">(+22.8%)</span> · programs 103</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-15-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-15-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-15-12-sun-high-desktop</div>
+  <div class="stats">calls 904.00 <span class="">(0.0%)</span> · tris 330696.00 <span class="">(0.0%)</span> · ms 43.47 <span class="up">(+0.8%)</span> · programs 102</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-16-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-16-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-16-12-sun-high-desktop</div>
+  <div class="stats">calls 776.00 <span class="">(0.0%)</span> · tris 263208.00 <span class="">(0.0%)</span> · ms 45.14 <span class="down">(-35.1%)</span> · programs 102</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-17-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-17-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-17-12-sun-high-desktop</div>
+  <div class="stats">calls 1352.00 <span class="">(0.0%)</span> · tris 805928.00 <span class="">(0.0%)</span> · ms 23.69 <span class="down">(-51.0%)</span> · programs 107</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-18-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-18-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-18-12-sun-high-desktop</div>
+  <div class="stats">calls 1216.00 <span class="">(0.0%)</span> · tris 742952.00 <span class="">(0.0%)</span> · ms 28.79 <span class="down">(-9.5%)</span> · programs 105</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-19-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-19-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-19-12-sun-high-desktop</div>
+  <div class="stats">calls 1440.00 <span class="">(0.0%)</span> · tris 375912.00 <span class="">(0.0%)</span> · ms 42.30 <span class="down">(-10.5%)</span> · programs 107</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-20-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-20-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-20-12-sun-high-desktop</div>
+  <div class="stats">calls 2176.00 <span class="">(0.0%)</span> · tris 673736.00 <span class="">(0.0%)</span> · ms 64.76 <span class="up">(+37.6%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-21-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-21-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-21-12-sun-high-desktop</div>
+  <div class="stats">calls 1248.00 <span class="">(0.0%)</span> · tris 445000.00 <span class="">(0.0%)</span> · ms 37.16 <span class="up">(+2.8%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-22-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-22-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-22-12-sun-high-desktop</div>
+  <div class="stats">calls 1624.00 <span class="">(0.0%)</span> · tris 493576.00 <span class="">(0.0%)</span> · ms 36.73 <span class="down">(-10.1%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-23-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-23-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-23-12-sun-high-desktop</div>
+  <div class="stats">calls 1000.00 <span class="">(0.0%)</span> · tris 413160.00 <span class="">(0.0%)</span> · ms 43.84 <span class="up">(+45.8%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-24-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-24-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-24-12-sun-high-desktop</div>
+  <div class="stats">calls 1560.00 <span class="">(0.0%)</span> · tris 414376.00 <span class="">(0.0%)</span> · ms 34.80 <span class="down">(-9.8%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-25-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-25-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-25-12-sun-high-desktop</div>
+  <div class="stats">calls 944.00 <span class="">(0.0%)</span> · tris 324520.00 <span class="">(0.0%)</span> · ms 45.70 <span class="up">(+29.7%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-26-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-26-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-26-12-sun-high-desktop</div>
+  <div class="stats">calls 2904.00 <span class="">(0.0%)</span> · tris 855024.00 <span class="">(0.0%)</span> · ms 57.52 <span class="up">(+26.4%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-27-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-27-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-27-12-sun-high-desktop</div>
+  <div class="stats">calls 1440.00 <span class="">(0.0%)</span> · tris 343272.00 <span class="">(0.0%)</span> · ms 42.16 <span class="up">(+27.9%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-28-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-28-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-28-12-sun-high-desktop</div>
+  <div class="stats">calls 752.00 <span class="">(0.0%)</span> · tris 317304.00 <span class="">(0.0%)</span> · ms 39.38 <span class="up">(+4.0%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-29-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-29-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-29-12-sun-high-desktop</div>
+  <div class="stats">calls 1576.00 <span class="">(0.0%)</span> · tris 445480.00 <span class="">(0.0%)</span> · ms 51.35 <span class="up">(+28.0%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-30-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-30-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-30-12-sun-high-desktop</div>
+  <div class="stats">calls 1136.00 <span class="">(0.0%)</span> · tris 408176.00 <span class="">(0.0%)</span> · ms 28.24 <span class="down">(-18.3%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-31-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-31-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-31-12-sun-high-desktop</div>
+  <div class="stats">calls 976.00 <span class="">(0.0%)</span> · tris 302184.00 <span class="">(0.0%)</span> · ms 29.16 <span class="down">(-19.4%)</span> · programs 107</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-32-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-32-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-32-12-sun-high-desktop</div>
+  <div class="stats">calls 736.00 <span class="">(0.0%)</span> · tris 330088.00 <span class="">(0.0%)</span> · ms 33.96 <span class="down">(-4.5%)</span> · programs 106</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-33-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-33-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-33-12-sun-high-desktop</div>
+  <div class="stats">calls 1416.00 <span class="">(0.0%)</span> · tris 429096.00 <span class="">(0.0%)</span> · ms 36.32 <span class="down">(-12.3%)</span> · programs 107</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-34-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-34-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-34-12-sun-high-desktop</div>
+  <div class="stats">calls 3376.00 <span class="">(0.0%)</span> · tris 2467312.00 <span class="">(0.0%)</span> · ms 43.61 <span class="down">(-7.4%)</span> · programs 108</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-35-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-35-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-35-12-sun-high-desktop</div>
+  <div class="stats">calls 1344.00 <span class="">(0.0%)</span> · tris 372136.00 <span class="">(0.0%)</span> · ms 38.98 <span class="up">(+49.2%)</span> · programs 109</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-36-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-36-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-36-12-sun-high-desktop</div>
+  <div class="stats">calls 1352.00 <span class="">(0.0%)</span> · tris 305128.00 <span class="">(0.0%)</span> · ms 49.54 <span class="up">(+81.4%)</span> · programs 109</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-37-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-37-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-37-12-sun-high-desktop</div>
+  <div class="stats">calls 1184.00 <span class="">(0.0%)</span> · tris 401384.00 <span class="">(0.0%)</span> · ms 38.11 <span class="up">(+11.9%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-38-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-38-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-38-12-sun-high-desktop</div>
+  <div class="stats">calls 936.00 <span class="">(0.0%)</span> · tris 298744.00 <span class="">(0.0%)</span> · ms 30.41 <span class="up">(+1.2%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-39-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-39-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-39-12-sun-high-desktop</div>
+  <div class="stats">calls 776.00 <span class="">(0.0%)</span> · tris 299304.00 <span class="">(0.0%)</span> · ms 54.39 <span class="up">(+89.4%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-40-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-40-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-40-12-sun-high-desktop</div>
+  <div class="stats">calls 1472.00 <span class="down">(-2.1%)</span> · tris 362760.00 <span class="down">(-1.7%)</span> · ms 36.05 <span class="down">(-2.1%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-41-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-41-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-41-12-sun-high-desktop</div>
+  <div class="stats">calls 2696.00 <span class="">(0.0%)</span> · tris 545576.00 <span class="">(0.0%)</span> · ms 44.04 <span class="down">(-2.9%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-42-12-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-42-12-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-42-12-sun-high-desktop</div>
+  <div class="stats">calls 1512.00 <span class="">(0.0%)</span> · tris 453768.00 <span class="">(0.0%)</span> · ms 39.71 <span class="up">(+1.6%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-00-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-00-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-00-18-sun-high-desktop</div>
+  <div class="stats">calls 2408.00 <span class="">(0.0%)</span> · tris 715560.00 <span class="">(0.0%)</span> · ms 36.23 <span class="down">(-15.2%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-01-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-01-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-01-18-sun-high-desktop</div>
+  <div class="stats">calls 3992.00 <span class="">(0.0%)</span> · tris 1906512.00 <span class="">(0.0%)</span> · ms 40.25 <span class="down">(-22.9%)</span> · programs 115</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-02-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-02-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-02-18-sun-high-desktop</div>
+  <div class="stats">calls 1280.00 <span class="">(0.0%)</span> · tris 918376.00 <span class="">(0.0%)</span> · ms 30.79 <span class="down">(-24.2%)</span> · programs 115</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-03-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-03-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-03-18-sun-high-desktop</div>
+  <div class="stats">calls 2528.00 <span class="">(0.0%)</span> · tris 918640.00 <span class="">(0.0%)</span> · ms 41.39 <span class="down">(-26.2%)</span> · programs 115</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-04-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-04-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-04-18-sun-high-desktop</div>
+  <div class="stats">calls 1264.00 <span class="">(0.0%)</span> · tris 471912.00 <span class="">(0.0%)</span> · ms 33.53 <span class="up">(+2.1%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-05-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-05-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-05-18-sun-high-desktop</div>
+  <div class="stats">calls 1864.00 <span class="">(0.0%)</span> · tris 1359024.00 <span class="">(0.0%)</span> · ms 52.30 <span class="up">(+24.1%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-06-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-06-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-06-18-sun-high-desktop</div>
+  <div class="stats">calls 2064.00 <span class="">(0.0%)</span> · tris 595784.00 <span class="">(0.0%)</span> · ms 35.98 <span class="down">(-13.1%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-07-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-07-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-07-18-sun-high-desktop</div>
+  <div class="stats">calls 4864.00 <span class="">(0.0%)</span> · tris 2600040.00 <span class="">(0.0%)</span> · ms 35.16 <span class="down">(-17.8%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-08-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-08-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-08-18-sun-high-desktop</div>
+  <div class="stats">calls 1408.00 <span class="up">(+0.4%)</span> · tris 715536.00 <span class="down">(-2.9%)</span> · ms 40.49 <span class="down">(-65.8%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-09-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-09-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-09-18-sun-high-desktop</div>
+  <div class="stats">calls 1320.00 <span class="">(0.0%)</span> · tris 399096.00 <span class="">(0.0%)</span> · ms 46.68 <span class="up">(+75.8%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-10-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-10-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-10-18-sun-high-desktop</div>
+  <div class="stats">calls 1064.00 <span class="">(0.0%)</span> · tris 335080.00 <span class="">(0.0%)</span> · ms 32.45 <span class="up">(+34.1%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-11-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-11-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-11-18-sun-high-desktop</div>
+  <div class="stats">calls 1352.00 <span class="">(0.0%)</span> · tris 305192.00 <span class="">(0.0%)</span> · ms 33.59 <span class="down">(-0.5%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-12-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-12-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-12-18-sun-high-desktop</div>
+  <div class="stats">calls 2336.00 <span class="">(0.0%)</span> · tris 502064.00 <span class="">(0.0%)</span> · ms 38.35 <span class="down">(-14.1%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-13-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-13-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-13-18-sun-high-desktop</div>
+  <div class="stats">calls 1424.00 <span class="">(0.0%)</span> · tris 491560.00 <span class="">(0.0%)</span> · ms 30.26 <span class="down">(-26.4%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-14-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-14-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-14-18-sun-high-desktop</div>
+  <div class="stats">calls 1352.00 <span class="">(0.0%)</span> · tris 394312.00 <span class="">(0.0%)</span> · ms 40.05 <span class="up">(+2.4%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-15-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-15-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-15-18-sun-high-desktop</div>
+  <div class="stats">calls 1000.00 <span class="">(0.0%)</span> · tris 333768.00 <span class="">(0.0%)</span> · ms 40.49 <span class="down">(-14.5%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-16-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-16-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-16-18-sun-high-desktop</div>
+  <div class="stats">calls 872.00 <span class="">(0.0%)</span> · tris 266280.00 <span class="">(0.0%)</span> · ms 37.81 <span class="down">(-17.6%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-17-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-17-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-17-18-sun-high-desktop</div>
+  <div class="stats">calls 1448.00 <span class="">(0.0%)</span> · tris 809000.00 <span class="">(0.0%)</span> · ms 41.66 <span class="up">(+37.8%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-18-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-18-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-18-18-sun-high-desktop</div>
+  <div class="stats">calls 1328.00 <span class="">(0.0%)</span> · tris 751656.00 <span class="">(0.0%)</span> · ms 31.82 <span class="up">(+13.2%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-19-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-19-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-19-18-sun-high-desktop</div>
+  <div class="stats">calls 1536.00 <span class="">(0.0%)</span> · tris 378984.00 <span class="">(0.0%)</span> · ms 38.46 <span class="down">(-4.1%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-20-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-20-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-20-18-sun-high-desktop</div>
+  <div class="stats">calls 2272.00 <span class="">(0.0%)</span> · tris 676808.00 <span class="">(0.0%)</span> · ms 37.88 <span class="down">(-16.1%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-21-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-21-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-21-18-sun-high-desktop</div>
+  <div class="stats">calls 1344.00 <span class="">(0.0%)</span> · tris 448072.00 <span class="">(0.0%)</span> · ms 38.76 <span class="up">(+43.8%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-22-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-22-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-22-18-sun-high-desktop</div>
+  <div class="stats">calls 1720.00 <span class="">(0.0%)</span> · tris 496648.00 <span class="">(0.0%)</span> · ms 43.67 <span class="up">(+34.3%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-23-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-23-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-23-18-sun-high-desktop</div>
+  <div class="stats">calls 1096.00 <span class="">(0.0%)</span> · tris 416232.00 <span class="">(0.0%)</span> · ms 37.77 <span class="up">(+28.5%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-24-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-24-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-24-18-sun-high-desktop</div>
+  <div class="stats">calls 1656.00 <span class="">(0.0%)</span> · tris 417448.00 <span class="">(0.0%)</span> · ms 43.84 <span class="up">(+7.8%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-25-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-25-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-25-18-sun-high-desktop</div>
+  <div class="stats">calls 1040.00 <span class="">(0.0%)</span> · tris 327592.00 <span class="">(0.0%)</span> · ms 27.53 <span class="down">(-31.3%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-26-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-26-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-26-18-sun-high-desktop</div>
+  <div class="stats">calls 3000.00 <span class="">(0.0%)</span> · tris 858096.00 <span class="">(0.0%)</span> · ms 75.69 <span class="up">(+26.7%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-27-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-27-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-27-18-sun-high-desktop</div>
+  <div class="stats">calls 1536.00 <span class="">(0.0%)</span> · tris 346344.00 <span class="">(0.0%)</span> · ms 39.79 <span class="down">(-6.1%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-28-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-28-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-28-18-sun-high-desktop</div>
+  <div class="stats">calls 848.00 <span class="">(0.0%)</span> · tris 320376.00 <span class="">(0.0%)</span> · ms 31.74 <span class="down">(-26.3%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-29-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-29-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-29-18-sun-high-desktop</div>
+  <div class="stats">calls 1672.00 <span class="">(0.0%)</span> · tris 448552.00 <span class="">(0.0%)</span> · ms 37.09 <span class="down">(-11.0%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-30-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-30-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-30-18-sun-high-desktop</div>
+  <div class="stats">calls 1232.00 <span class="">(0.0%)</span> · tris 411248.00 <span class="">(0.0%)</span> · ms 43.94 <span class="down">(-5.3%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-31-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-31-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-31-18-sun-high-desktop</div>
+  <div class="stats">calls 1072.00 <span class="">(0.0%)</span> · tris 305256.00 <span class="">(0.0%)</span> · ms 32.86 <span class="down">(-9.5%)</span> · programs 108</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-32-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-32-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-32-18-sun-high-desktop</div>
+  <div class="stats">calls 832.00 <span class="">(0.0%)</span> · tris 333160.00 <span class="">(0.0%)</span> · ms 36.68 <span class="down">(-8.8%)</span> · programs 107</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-33-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-33-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-33-18-sun-high-desktop</div>
+  <div class="stats">calls 1512.00 <span class="">(0.0%)</span> · tris 432168.00 <span class="">(0.0%)</span> · ms 39.66 <span class="up">(+3.7%)</span> · programs 108</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-34-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-34-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-34-18-sun-high-desktop</div>
+  <div class="stats">calls 3472.00 <span class="">(0.0%)</span> · tris 2470384.00 <span class="">(0.0%)</span> · ms 50.88 <span class="up">(+13.9%)</span> · programs 109</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-35-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-35-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-35-18-sun-high-desktop</div>
+  <div class="stats">calls 1440.00 <span class="">(0.0%)</span> · tris 375208.00 <span class="">(0.0%)</span> · ms 35.60 <span class="up">(+24.9%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-36-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-36-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-36-18-sun-high-desktop</div>
+  <div class="stats">calls 1448.00 <span class="">(0.0%)</span> · tris 308200.00 <span class="">(0.0%)</span> · ms 36.90 <span class="down">(-1.0%)</span> · programs 109</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-37-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-37-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-37-18-sun-high-desktop</div>
+  <div class="stats">calls 1280.00 <span class="">(0.0%)</span> · tris 404456.00 <span class="">(0.0%)</span> · ms 38.04 <span class="up">(+10.7%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-38-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-38-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-38-18-sun-high-desktop</div>
+  <div class="stats">calls 1032.00 <span class="">(0.0%)</span> · tris 301816.00 <span class="">(0.0%)</span> · ms 34.26 <span class="up">(+5.6%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-39-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-39-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-39-18-sun-high-desktop</div>
+  <div class="stats">calls 872.00 <span class="">(0.0%)</span> · tris 302376.00 <span class="">(0.0%)</span> · ms 36.10 <span class="down">(-30.2%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-40-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-40-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-40-18-sun-high-desktop</div>
+  <div class="stats">calls 1600.00 <span class="">(0.0%)</span> · tris 371944.00 <span class="">(0.0%)</span> · ms 30.44 <span class="down">(-33.5%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-41-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-41-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-41-18-sun-high-desktop</div>
+  <div class="stats">calls 2792.00 <span class="">(0.0%)</span> · tris 548648.00 <span class="">(0.0%)</span> · ms 50.66 <span class="up">(+8.3%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-42-18-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-42-18-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-42-18-sun-high-desktop</div>
+  <div class="stats">calls 1608.00 <span class="">(0.0%)</span> · tris 456840.00 <span class="">(0.0%)</span> · ms 30.79 <span class="down">(-39.1%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-00-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-00-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-00-22-sun-high-desktop</div>
+  <div class="stats">calls 2168.00 <span class="">(0.0%)</span> · tris 701560.00 <span class="">(0.0%)</span> · ms 39.25 <span class="up">(+20.6%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-01-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-01-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-01-22-sun-high-desktop</div>
+  <div class="stats">calls 4192.00 <span class="">(0.0%)</span> · tris 1921080.00 <span class="">(0.0%)</span> · ms 141.86 <span class="up">(+186.6%)</span> · programs 115</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-02-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-02-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-02-22-sun-high-desktop</div>
+  <div class="stats">calls 1024.00 <span class="">(0.0%)</span> · tris 904376.00 <span class="">(0.0%)</span> · ms 34.10 <span class="up">(+4.7%)</span> · programs 115</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-03-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-03-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-03-22-sun-high-desktop</div>
+  <div class="stats">calls 2728.00 <span class="">(0.0%)</span> · tris 933208.00 <span class="">(0.0%)</span> · ms 35.46 <span class="down">(-2.0%)</span> · programs 115</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-04-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-04-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-04-22-sun-high-desktop</div>
+  <div class="stats">calls 992.00 <span class="">(0.0%)</span> · tris 457912.00 <span class="">(0.0%)</span> · ms 35.11 <span class="up">(+9.3%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-05-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-05-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-05-22-sun-high-desktop</div>
+  <div class="stats">calls 1552.00 <span class="">(0.0%)</span> · tris 1342616.00 <span class="">(0.0%)</span> · ms 54.33 <span class="up">(+56.5%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-06-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-06-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-06-22-sun-high-desktop</div>
+  <div class="stats">calls 2080.00 <span class="">(0.0%)</span> · tris 597336.00 <span class="">(0.0%)</span> · ms 44.60 <span class="up">(+12.1%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-07-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-07-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-07-22-sun-high-desktop</div>
+  <div class="stats">calls 4608.00 <span class="">(0.0%)</span> · tris 2580760.00 <span class="">(0.0%)</span> · ms 40.29 <span class="down">(-4.0%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-08-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-08-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-08-22-sun-high-desktop</div>
+  <div class="stats">calls 1096.00 <span class="">(0.0%)</span> · tris 699128.00 <span class="">(0.0%)</span> · ms 31.05 <span class="up">(+35.1%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-09-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-09-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-09-22-sun-high-desktop</div>
+  <div class="stats">calls 1080.00 <span class="">(0.0%)</span> · tris 385096.00 <span class="">(0.0%)</span> · ms 33.78 <span class="up">(+37.1%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-10-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-10-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-10-22-sun-high-desktop</div>
+  <div class="stats">calls 808.00 <span class="">(0.0%)</span> · tris 321080.00 <span class="">(0.0%)</span> · ms 29.74 <span class="down">(-5.5%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-11-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-11-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-11-22-sun-high-desktop</div>
+  <div class="stats">calls 1080.00 <span class="">(0.0%)</span> · tris 291192.00 <span class="">(0.0%)</span> · ms 49.46 <span class="up">(+56.0%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-12-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-12-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-12-22-sun-high-desktop</div>
+  <div class="stats">calls 2024.00 <span class="">(0.0%)</span> · tris 485656.00 <span class="">(0.0%)</span> · ms 49.82 <span class="up">(+27.2%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-13-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-13-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-13-22-sun-high-desktop</div>
+  <div class="stats">calls 1184.00 <span class="">(0.0%)</span> · tris 477560.00 <span class="">(0.0%)</span> · ms 48.55 <span class="up">(+86.6%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-14-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-14-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-14-22-sun-high-desktop</div>
+  <div class="stats">calls 1096.00 <span class="">(0.0%)</span> · tris 380312.00 <span class="">(0.0%)</span> · ms 38.27 <span class="up">(+16.3%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-15-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-15-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-15-22-sun-high-desktop</div>
+  <div class="stats">calls 952.00 <span class="">(0.0%)</span> · tris 330136.00 <span class="">(0.0%)</span> · ms 52.77 <span class="up">(+71.8%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-16-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-16-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-16-22-sun-high-desktop</div>
+  <div class="stats">calls 616.00 <span class="">(0.0%)</span> · tris 252280.00 <span class="">(0.0%)</span> · ms 53.51 <span class="up">(+72.8%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-17-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-17-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-17-22-sun-high-desktop</div>
+  <div class="stats">calls 1960.00 <span class="">(0.0%)</span> · tris 836472.00 <span class="">(0.0%)</span> · ms 36.78 <span class="up">(+27.7%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-18-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-18-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-18-22-sun-high-desktop</div>
+  <div class="stats">calls 1056.00 <span class="">(0.0%)</span> · tris 737656.00 <span class="">(0.0%)</span> · ms 32.72 <span class="up">(+11.3%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-19-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-19-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-19-22-sun-high-desktop</div>
+  <div class="stats">calls 1264.00 <span class="">(0.0%)</span> · tris 364984.00 <span class="">(0.0%)</span> · ms 48.30 <span class="up">(+66.4%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-20-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-20-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-20-22-sun-high-desktop</div>
+  <div class="stats">calls 2784.00 <span class="">(0.0%)</span> · tris 704280.00 <span class="">(0.0%)</span> · ms 57.82 <span class="up">(+100.3%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-21-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-21-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-21-22-sun-high-desktop</div>
+  <div class="stats">calls 1104.00 <span class="">(0.0%)</span> · tris 434072.00 <span class="">(0.0%)</span> · ms 52.59 <span class="up">(+117.0%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-22-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-22-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-22-22-sun-high-desktop</div>
+  <div class="stats">calls 1480.00 <span class="">(0.0%)</span> · tris 482648.00 <span class="">(0.0%)</span> · ms 64.59 <span class="up">(+121.0%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-23-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-23-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-23-22-sun-high-desktop</div>
+  <div class="stats">calls 824.00 <span class="">(0.0%)</span> · tris 402232.00 <span class="">(0.0%)</span> · ms 47.13 <span class="up">(+53.3%)</span> · programs 114</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-24-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-24-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-24-22-sun-high-desktop</div>
+  <div class="stats">calls 1800.00 <span class="">(0.0%)</span> · tris 424184.00 <span class="">(0.0%)</span> · ms 49.54 <span class="up">(+80.2%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-25-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-25-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-25-22-sun-high-desktop</div>
+  <div class="stats">calls 784.00 <span class="">(0.0%)</span> · tris 313592.00 <span class="">(0.0%)</span> · ms 45.07 <span class="up">(+37.8%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-26-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-26-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-26-22-sun-high-desktop</div>
+  <div class="stats">calls 2672.00 <span class="">(0.0%)</span> · tris 841688.00 <span class="">(0.0%)</span> · ms 71.34 <span class="up">(+54.4%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-27-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-27-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-27-22-sun-high-desktop</div>
+  <div class="stats">calls 1552.00 <span class="">(0.0%)</span> · tris 347896.00 <span class="">(0.0%)</span> · ms 56.50 <span class="up">(+80.2%)</span> · programs 113</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-28-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-28-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-28-22-sun-high-desktop</div>
+  <div class="stats">calls 608.00 <span class="">(0.0%)</span> · tris 306376.00 <span class="">(0.0%)</span> · ms 64.17 <span class="up">(+95.6%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-29-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-29-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-29-22-sun-high-desktop</div>
+  <div class="stats">calls 1432.00 <span class="">(0.0%)</span> · tris 434552.00 <span class="">(0.0%)</span> · ms 41.55 <span class="up">(+38.5%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-30-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-30-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-30-22-sun-high-desktop</div>
+  <div class="stats">calls 936.00 <span class="">(0.0%)</span> · tris 394840.00 <span class="">(0.0%)</span> · ms 58.00 <span class="up">(+31.2%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-31-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-31-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-31-22-sun-high-desktop</div>
+  <div class="stats">calls 816.00 <span class="">(0.0%)</span> · tris 291256.00 <span class="">(0.0%)</span> · ms 37.90 <span class="up">(+11.6%)</span> · programs 108</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-32-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-32-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-32-22-sun-high-desktop</div>
+  <div class="stats">calls 560.00 <span class="">(0.0%)</span> · tris 319160.00 <span class="">(0.0%)</span> · ms 56.31 <span class="up">(+112.0%)</span> · programs 107</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-33-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-33-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-33-22-sun-high-desktop</div>
+  <div class="stats">calls 1240.00 <span class="">(0.0%)</span> · tris 418168.00 <span class="">(0.0%)</span> · ms 62.32 <span class="up">(+88.9%)</span> · programs 108</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-34-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-34-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-34-22-sun-high-desktop</div>
+  <div class="stats">calls 3416.00 <span class="">(0.0%)</span> · tris 2469464.00 <span class="">(0.0%)</span> · ms 62.13 <span class="up">(+71.3%)</span> · programs 109</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-35-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-35-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-35-22-sun-high-desktop</div>
+  <div class="stats">calls 1168.00 <span class="">(0.0%)</span> · tris 361208.00 <span class="">(0.0%)</span> · ms 50.81 <span class="up">(+83.2%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-36-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-36-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-36-22-sun-high-desktop</div>
+  <div class="stats">calls 1192.00 <span class="">(0.0%)</span> · tris 294200.00 <span class="">(0.0%)</span> · ms 64.53 <span class="up">(+66.3%)</span> · programs 109</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-37-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-37-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-37-22-sun-high-desktop</div>
+  <div class="stats">calls 1328.00 <span class="">(0.0%)</span> · tris 406008.00 <span class="">(0.0%)</span> · ms 41.24 <span class="up">(+32.9%)</span> · programs 110</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-38-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-38-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-38-22-sun-high-desktop</div>
+  <div class="stats">calls 760.00 <span class="">(0.0%)</span> · tris 287816.00 <span class="">(0.0%)</span> · ms 46.81 <span class="up">(+71.8%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-39-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-39-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-39-22-sun-high-desktop</div>
+  <div class="stats">calls 632.00 <span class="">(0.0%)</span> · tris 288376.00 <span class="">(0.0%)</span> · ms 39.61 <span class="up">(+18.8%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-40-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-40-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-40-22-sun-high-desktop</div>
+  <div class="stats">calls 1360.00 <span class="">(0.0%)</span> · tris 357944.00 <span class="">(0.0%)</span> · ms 37.47 <span class="up">(+33.0%)</span> · programs 111</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-41-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-41-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-41-22-sun-high-desktop</div>
+  <div class="stats">calls 2520.00 <span class="">(0.0%)</span> · tris 534648.00 <span class="">(0.0%)</span> · ms 61.28 <span class="up">(+45.6%)</span> · programs 112</div></figcaption>
+</figure>
+<figure>
+  <div class="pair"><img loading="lazy" src="../phase2/all-42-22-sun-high-desktop.jpg" alt="baseline"><img loading="lazy" src="all-42-22-sun-high-desktop.jpg" alt="new"></div>
+  <figcaption><div class="title">all-42-22-sun-high-desktop</div>
+  <div class="stats">calls 1336.00 <span class="">(0.0%)</span> · tris 442840.00 <span class="">(0.0%)</span> · ms 90.49 <span class="up">(+211.4%)</span> · programs 113</div></figcaption>
+</figure>
+</div></body></html>
