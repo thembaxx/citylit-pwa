@@ -19,9 +19,9 @@
     "ast_empty": true
   },
   "package.json": {
-    "mtime": 1795444234.9108028,
-    "seen": 1795444696.436683,
-    "ast_hash": "cc5b71345bb862447424c4dbfb0c7d89",
+    "mtime": 1795457527.7014253,
+    "seen": 1795458208.5326567,
+    "ast_hash": "04995e513784be2dc8fa527a83595252",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -1123,15 +1123,15 @@
     "semantic_hash": ""
   },
   "src/three/renderer/SceneRenderer.ts": {
-    "mtime": 1795385125.3781226,
-    "seen": 1795386619.2304294,
-    "ast_hash": "6796e4399b7905cfdb4b2402a7b749d0",
+    "mtime": 1795457504.9656694,
+    "seen": 1795458208.5337408,
+    "ast_hash": "3f89fdad1bb572e2f85333d12a9c9519",
     "semantic_hash": ""
   },
   "src/three/renderer/createRenderer.ts": {
-    "mtime": 1795451915.7040837,
-    "seen": 1795452110.092606,
-    "ast_hash": "2afde4897a78932291b16ff848e84ba9",
+    "mtime": 1795457496.1001878,
+    "seen": 1795458208.5337634,
+    "ast_hash": "7d2fa6676158ae9a805af2edf252830a",
     "semantic_hash": ""
   },
   "src/three/renderer/detectSoftwareGl.ts": {
@@ -1360,6 +1360,12 @@
     "mtime": 1795456484.058855,
     "seen": 1795456573.3151517,
     "ast_hash": "76956c1bf4ac0220098e36d6192e0891",
+    "semantic_hash": ""
+  },
+  "src/three/renderer/createRenderer.test.ts": {
+    "mtime": 1795457588.9573798,
+    "seen": 1795458208.5337534,
+    "ast_hash": "f2ebf5f5514de6707cedc2c4cb90ff99",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

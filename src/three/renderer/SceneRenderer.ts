@@ -15,7 +15,14 @@ class WebGLSceneRenderer implements SceneRenderer {
   get xr() {
     return { isPresenting: this.raw.xr.isPresenting };
   }
-  localClippingEnabled = false;
+  // Forward to the raw renderer: three only honours per-material clipping
+  // planes when local clipping is enabled on the renderer itself.
+  get localClippingEnabled() {
+    return this.raw.localClippingEnabled;
+  }
+  set localClippingEnabled(value: boolean) {
+    this.raw.localClippingEnabled = value;
+  }
   readonly shadowMap: SceneRenderer['shadowMap'];
   readonly debug: SceneRenderer['debug'];
   readonly capabilities: SceneRenderer['capabilities'];

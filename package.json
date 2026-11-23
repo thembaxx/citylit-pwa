@@ -10,7 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "lint": "oxlint && tsc --noEmit",
-    "test": "node --test src/lib/*.test.ts src/data/*.test.ts",
+    "test": "node --test src/lib/*.test.ts src/data/*.test.ts src/three/renderer/*.test.ts",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "qa:capture": "node scripts/capture-contact-sheets.mjs",

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { RendererPreference, RendererSelection } from './types';
+import type { RendererBackend, RendererPreference, RendererSelection } from './types';
 
 const PREFERENCE_KEY = 'cl-renderer-pref';
 
@@ -37,6 +37,38 @@ export function readRendererPreference(): RendererPreference {
   return 'auto';
 }
 
+/** Outcome of the async WebGPU probe, consumed by the pure decision below. */
+export interface RendererProbe {
+  preference: RendererPreference;
+  hasGpu: boolean;
+  hasAdapter: boolean;
+  /** True only when WebGPURenderer.init() produced a real WebGPU backend. */
+  webgpuReady: boolean;
+  /** Error text when probing or init threw. */
+  error?: string;
+}
+
+/**
+ * Backend policy, kept pure so the WebGPU -> WebGL fallback can be unit-tested
+ * without a browser or a GPU. WebGPU is used only when the user allows it and
+ * every probe succeeds; any miss keeps the original WebGL stack.
+ */
+export function decideRendererBackend(probe: RendererProbe): {
+  backend: RendererBackend;
+  reason: string;
+} {
+  if (probe.preference === 'webgl') {
+    return { backend: 'webgl', reason: 'WebGL requested by renderer preference' };
+  }
+  if (!probe.hasGpu) return { backend: 'webgl', reason: 'navigator.gpu unavailable' };
+  if (!probe.hasAdapter) return { backend: 'webgl', reason: 'no WebGPU adapter' };
+  if (probe.error) return { backend: 'webgl', reason: `WebGPU init failed: ${probe.error}` };
+  if (!probe.webgpuReady) {
+    return { backend: 'webgl', reason: 'WebGPURenderer fell back to WebGL2' };
+  }
+  return { backend: 'webgpu', reason: 'WebGPU backend initialised' };
+}
+
 export function createWebGLRendererSelection(softwareGl: boolean, reason: string): RendererSelection {
   const renderer = new THREE.WebGLRenderer({
     antialias: !softwareGl && wantsMsaa(),
@@ -53,17 +85,30 @@ export function createWebGLRendererSelection(softwareGl: boolean, reason: string
  */
 export async function selectRenderer(softwareGl: boolean): Promise<RendererSelection> {
   const preference = readRendererPreference();
-  if (preference === 'webgl') {
-    return createWebGLRendererSelection(softwareGl, 'WebGL requested by renderer preference');
-  }
-
   const gpu = (navigator as GPUCapableNavigator).gpu;
-  if (!gpu) return createWebGLRendererSelection(softwareGl, 'navigator.gpu unavailable');
+
+  if (preference === 'webgl' || !gpu) {
+    const decision = decideRendererBackend({
+      preference,
+      hasGpu: !!gpu,
+      hasAdapter: false,
+      webgpuReady: false,
+    });
+    return createWebGLRendererSelection(softwareGl, decision.reason);
+  }
 
   let candidate: import('three/webgpu').WebGPURenderer | null = null;
   try {
     const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
-    if (!adapter) return createWebGLRendererSelection(softwareGl, 'no WebGPU adapter');
+    if (!adapter) {
+      const decision = decideRendererBackend({
+        preference,
+        hasGpu: true,
+        hasAdapter: false,
+        webgpuReady: false,
+      });
+      return createWebGLRendererSelection(softwareGl, decision.reason);
+    }
 
     const [webgpu, tsl, bloomModule, ssaoModule, dofModule] = await Promise.all([
       import('three/webgpu'),
@@ -81,15 +126,21 @@ export async function selectRenderer(softwareGl: boolean): Promise<RendererSelec
     await candidate.init();
 
     const backend = candidate.backend as { isWebGPUBackend?: boolean };
-    if (!backend.isWebGPUBackend) {
+    const decision = decideRendererBackend({
+      preference,
+      hasGpu: true,
+      hasAdapter: true,
+      webgpuReady: !!backend.isWebGPUBackend,
+    });
+    if (decision.backend === 'webgl') {
       candidate.dispose();
-      return createWebGLRendererSelection(softwareGl, 'WebGPURenderer fell back to WebGL2');
+      return createWebGLRendererSelection(softwareGl, decision.reason);
     }
 
     return {
       backend: 'webgpu',
       renderer: candidate,
-      reason: 'WebGPU backend initialised',
+      reason: decision.reason,
       webgpuModule: webgpu,
       tslModule: tsl,
       bloomModule,
@@ -99,6 +150,13 @@ export async function selectRenderer(softwareGl: boolean): Promise<RendererSelec
   } catch (error) {
     candidate?.dispose();
     const message = error instanceof Error ? error.message : String(error);
-    return createWebGLRendererSelection(softwareGl, `WebGPU init failed: ${message}`);
+    const decision = decideRendererBackend({
+      preference,
+      hasGpu: true,
+      hasAdapter: true,
+      webgpuReady: false,
+      error: message,
+    });
+    return createWebGLRendererSelection(softwareGl, decision.reason);
   }
 }
