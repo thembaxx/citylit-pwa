@@ -159,6 +159,21 @@ const audioForward = new THREE.Vector3();
 const compassOffset = new THREE.Vector3();
 const compassDir = new THREE.Vector3();
 
+/**
+ * Camera preset spring — a local equivalent of
+ * `noBounce(springFromResponse(0.46, 1))` from `src/lib/motion.ts`. Keeping the
+ * maths here avoids pulling the React `motion` package into the dynamically
+ * imported engine chunk. response = 0.46 s gives stiffness ≈ 186.6 and a
+ * critically damped rate omega ≈ 13.66 /s (no overshoot, velocity handoff).
+ */
+const CAMERA_SPRING_RESPONSE = 0.46;
+// springFromResponse -> stiffness (2*pi/response)^2 ~= 186.6, mass 1;
+// noBounce -> damping 2*sqrt(stiffness) ~= 27.3, i.e. omega ~= 13.66 /s.
+const CAMERA_SPRING_OMEGA = (2 * Math.PI) / CAMERA_SPRING_RESPONSE;
+
+/** Duration of the archetype-flavoured lamp ignition envelope (seconds). */
+const LAMP_IGNITE_FLICKER_SECONDS = 0.1;
+
 /** Default night sky. Shared by the background, fog and particles so they stay in sync. */
 const SKY_COLOR = new THREE.Color('#0e0f13');
 
@@ -309,6 +324,8 @@ export class CitylitEngine {
   private exposureSampleRT: THREE.WebGLRenderTarget | null = null;
   private exposureReadPending = false;
   private exposureReadCounter = 0;
+  /** Frame dt accumulated between sampled WebGL exposure readbacks. */
+  private exposureDtAccum = 0;
   /** Optional WebGL approximation of ThreeRT-style path-traced lighting. */
   private cinematic = false;
   private theme: ResolvedTheme = 'daylight';
@@ -383,6 +400,27 @@ export class CitylitEngine {
   private camTargetAzimuth = 0;
   private camGoalHorizDist = 0;
   private camGoalHeightOffset = 0;
+  /** Spring progress (0..1) and velocity, in normalised path units per second. */
+  private camSpringV = 0;
+  private camGoalAzDelta = 0;
+  /** Latest camera motion while the user orbits, used to hand a flick into a preset. */
+  private camOrbitVelX = 0;
+  private camOrbitVelY = 0;
+  private camOrbitVelZ = 0;
+  private camOrbitAzVel = 0;
+  private camHandoffVelX = 0;
+  private camHandoffVelY = 0;
+  private camHandoffVelZ = 0;
+  private camHandoffAzVel = 0;
+  private camHandoffAt = -100;
+  private lastCamX = 0;
+  private lastCamY = 0;
+  private lastCamZ = 0;
+  private lastCamAzimuth = 0;
+  /** Dusk ignition envelope for the emissive lamp bulbs. */
+  private lampIgniteRemaining = 0;
+  private lampIgniteStyle: 'cobra' | 'victorian' | 'lantern' = 'victorian';
+  private prevLampGlow = -1;
   private targetStart = new THREE.Vector3();
   private targetEnd = new THREE.Vector3();
   private targetGoalActive = false;
@@ -398,6 +436,12 @@ export class CitylitEngine {
   private directionTargetYaw = 0;
   private directionCurrentYaw = 0;
   private lastInteractAt = 0;
+  /** Countdowns for the discrete animal voices (no per-frame allocations). */
+  private elephantAudioTimer = 4;
+  private penguinAudioTimer = 2.5;
+  private hippoAudioTimer = 5;
+  private hadedaAudioTimer = 3;
+  private whaleBreachPrevU = 0;
   private lastRenderAt = 0;
   private tapDown = { x: 0, y: 0, t: 0 };
   private lastPlaceTap = { sliceIndex: -1, t: 0 };
@@ -1659,6 +1703,49 @@ export class CitylitEngine {
    * Detect nighttime hours and toggle emissive materials for building windows
    * and streetlights across all loaded and cached landmark models.
    */
+  /**
+   * Two-to-three-frame ignition envelope for the emissive bulb shader. The
+   * bulb material already staggers instances by a world-position hash
+   * (`smoothstep(hh*0.45, hh*0.45+0.28, uLit)`), so briefly sweeping the shared
+   * `uLit` uniform plays differently across fixtures: urban cobra bulbs strike
+   * instantly, heritage victorian ones warm up, coastal/mountain lanterns
+   * flutter. Emissive only — no new lights, geometry or draw calls.
+   */
+  private updateLampIgnitionFlicker(dt: number, lampGlow: number, immediate: boolean): void {
+    const rising = lampGlow > 0.02 && this.prevLampGlow <= 0.02;
+    this.prevLampGlow = lampGlow;
+    if (immediate || this.motionScale === 0) {
+      this.lampIgniteRemaining = 0;
+      return;
+    }
+    if (rising) {
+      const biome = LANDMARKS[this.activeIndex]?.biome;
+      this.lampIgniteStyle =
+        biome === 'urban'
+          ? 'cobra'
+          : biome === 'coastal' || biome === 'mountain'
+            ? 'victorian'
+            : 'lantern';
+      this.lampIgniteRemaining = LAMP_IGNITE_FLICKER_SECONDS;
+    }
+    if (this.lampIgniteRemaining <= 0) return;
+
+    const u = 1 - this.lampIgniteRemaining / LAMP_IGNITE_FLICKER_SECONDS;
+    let envelope: number;
+    if (this.lampIgniteStyle === 'cobra') {
+      // Instant strike with a single stutter before it holds.
+      envelope = u < 0.22 ? 1 : u < 0.38 ? 0.32 : 1;
+    } else if (this.lampIgniteStyle === 'victorian') {
+      // Warm filament fade-in.
+      envelope = Math.min(1, 0.18 + u * 1.15);
+    } else {
+      // Lantern flutter: a few uneven pulses that settle.
+      envelope = 0.55 + 0.45 * Math.sin(u * Math.PI * 5) * (1 - u);
+    }
+    WU.streetLampLit.value *= envelope;
+    this.lampIgniteRemaining = Math.max(0, this.lampIgniteRemaining - dt);
+  }
+
   updateNighttimeEmissives(dt = 0, immediate = false): boolean {
     const nightHours = !this.isStudio() && this.isNighttimeHours();
     const hour = this.weather.current.timeOfDay;
@@ -1671,6 +1758,7 @@ export class CitylitEngine {
     WU.streetLampLit.value = immediate
       ? lampGlow
       : WU.streetLampLit.value + (lampGlow - WU.streetLampLit.value) * rate;
+    this.updateLampIgnitionFlicker(dt, lampGlow, immediate);
 
     const glowKey = litStrength + windowGlow * 2 + (nightHours ? 10 : 0);
     if (immediate || Math.abs(glowKey - this.lastGlowLit) >= 0.002) {
@@ -2543,6 +2631,13 @@ export class CitylitEngine {
       return;
     }
     if (!this.composer) return;
+    // A synchronous half-float readback stalls the WebGL pipeline on every
+    // rendered frame. Sample one row every 12th frame instead and let three's
+    // PBO path resolve it off the main thread; accumulate dt so the exposure
+    // lerp still advances by the same total elapsed time.
+    if (this.exposureReadPending || this.contextLost) return;
+    this.exposureDtAccum += Math.max(dt, 0);
+    if (this.exposureReadCounter++ % 12 !== 0) return;
     const rt = this.composer.readBuffer;
     const W = Math.floor(rt.width);
     const H = Math.floor(rt.height);
@@ -2556,33 +2651,55 @@ export class CitylitEngine {
       this.exposureBuf = new Uint16Array(sampleW * 4);
     }
     const buf = this.exposureBuf;
-    this.renderer.readRenderTargetPixels(rt, sampleX, Math.floor(H * 0.52), sampleW, 1, buf);
-    let sum = 0;
-    let n = 0;
-    for (let i = 0; i < sampleW; i++) {
-      const r = THREE.DataUtils.fromHalfFloat(buf[i * 4]);
-      const g = THREE.DataUtils.fromHalfFloat(buf[i * 4 + 1]);
-      const b = THREE.DataUtils.fromHalfFloat(buf[i * 4 + 2]);
-      if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
-        sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        n++;
-      }
-    }
-    const avg = n ? sum / n : 0;
-    if (!(avg > 0.02) || !Number.isFinite(avg)) return;
-    const k = 1 - Math.exp(-Math.max(dt, 0) * 0.9);
-    const desired = this.autoExposureValue * (0.58 / avg);
-    this.autoExposureValue += (desired - this.autoExposureValue) * k;
-    // A black night sky drags the sampled average down and used to drive this
-    // to 4x, blowing pale stone and cream strata to flat white (the landmark
-    // "white, high-contrast" look). Keep the range moonlit instead, and keep
-    // the dark theme visibly darker than daylight rather than equalising both.
-    const darkTheme = this.theme === 'dark';
-    const ceiling = darkTheme ? 1.28 : 1.9;
-    const floor = darkTheme ? 0.8 : 0.7;
-    this.autoExposureValue = Math.min(ceiling, Math.max(floor, this.autoExposureValue));
-    this.renderer.toneMappingExposure = this.autoExposureValue;
-    this.miniaturePass.setExposure(this.autoExposureValue);
+    const gl = this.renderer.getContext();
+    if (!gl || gl.isContextLost()) return;
+    const elapsed = this.exposureDtAccum;
+    const rowY = Math.floor(H * 0.52);
+    this.exposureDtAccum = 0;
+    this.exposureReadPending = true;
+    void (this.renderer.raw as THREE.WebGLRenderer)
+      .readRenderTargetPixelsAsync(
+        rt as THREE.WebGLRenderTarget,
+        sampleX,
+        rowY,
+        sampleW,
+        1,
+        buf
+      )
+      .then((data) => {
+        this.exposureReadPending = false;
+        if (this.disposed || this.contextLost || gl.isContextLost()) return;
+        const pixels = data as Uint16Array;
+        let sum = 0;
+        let n = 0;
+        for (let i = 0; i < sampleW; i++) {
+          const r = THREE.DataUtils.fromHalfFloat(pixels[i * 4]);
+          const g = THREE.DataUtils.fromHalfFloat(pixels[i * 4 + 1]);
+          const b = THREE.DataUtils.fromHalfFloat(pixels[i * 4 + 2]);
+          if (Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b)) {
+            sum += 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            n++;
+          }
+        }
+        const avg = n ? sum / n : 0;
+        if (!(avg > 0.02) || !Number.isFinite(avg)) return;
+        const k = 1 - Math.exp(-Math.max(elapsed, 0) * 0.9);
+        const desired = this.autoExposureValue * (0.58 / avg);
+        this.autoExposureValue += (desired - this.autoExposureValue) * k;
+        // A black night sky drags the sampled average down and used to drive
+        // this to 4x, blowing pale stone and cream strata to flat white (the
+        // landmark "white, high-contrast" look). Keep the range moonlit
+        // instead, and keep the dark theme visibly darker than daylight.
+        const darkTheme = this.theme === 'dark';
+        const ceiling = darkTheme ? 1.28 : 1.9;
+        const floor = darkTheme ? 0.8 : 0.7;
+        this.autoExposureValue = Math.min(ceiling, Math.max(floor, this.autoExposureValue));
+        this.renderer.toneMappingExposure = this.autoExposureValue;
+        this.miniaturePass.setExposure(this.autoExposureValue);
+      })
+      .catch(() => {
+        this.exposureReadPending = false;
+      });
   }
 
   /** Apply the per-theme + per-landmark miniature grade (DoF band, vignette, AO and exposure). */
@@ -3193,13 +3310,116 @@ export class CitylitEngine {
     ambientAudio.vibrateForLandmark(lm.biome, lm.c);
   }
 
+  /**
+   * Fire discrete animal voices from the same site/time state the diorama
+   * ticks use. Calls are synthesised in ambientAudio, which owns mute, volume
+   * and stereo pan. The whale blow follows the 11-second breach cycle from the
+   * Hermanus builder tick; reduced motion freezes that visual, so it is skipped.
+   */
+  private updateAnimalAudio(dt: number): void {
+    if (!ambientAudio.isEnabled() || this.isStudio()) return;
+    const key = LANDMARKS[this.activeIndex]?.k;
+    if (!key) return;
+    const hour = this.weather.current.timeOfDay;
+
+    this.elephantAudioTimer -= dt;
+    if (this.elephantAudioTimer <= 0) {
+      if (key === 'Kruger National Park') ambientAudio.playAnimalEvent('elephant-rumble', 0.85);
+      this.elephantAudioTimer = 8 + Math.random() * 6;
+    }
+    this.penguinAudioTimer -= dt;
+    if (this.penguinAudioTimer <= 0) {
+      if (key === 'Boulders Beach') ambientAudio.playAnimalEvent('penguin-bray', 0.8);
+      this.penguinAudioTimer = 3.5 + Math.random() * 3;
+    }
+    this.hippoAudioTimer -= dt;
+    if (this.hippoAudioTimer <= 0) {
+      if (key === 'iSimangaliso Wetland Park') ambientAudio.playAnimalEvent('hippo-grunt', 0.8);
+      this.hippoAudioTimer = 7 + Math.random() * 5;
+    }
+    if (key === 'Hermanus Whale Watching' && this.motionScale > 0) {
+      const u = ((this.elapsed * this.motionScale) % 11) / 11;
+      if (u >= 0.28 && (this.whaleBreachPrevU < 0.28 || u < this.whaleBreachPrevU)) {
+        ambientAudio.playAnimalEvent('whale-blow', 0.9);
+      }
+      this.whaleBreachPrevU = u;
+    }
+    this.hadedaAudioTimer -= dt;
+    if (this.hadedaAudioTimer <= 0) {
+      if (hour >= 4.8 && hour <= 7.6) ambientAudio.playAnimalEvent('hadeda-alarm', 0.75);
+      this.hadedaAudioTimer = 9 + Math.random() * 9;
+    }
+  }
+
+  /**
+   * Start a preset from progress 0 with the velocity the camera already has.
+   * A drag in progress uses the live orbit rate; a just-released flick uses the
+   * rate captured at `end`. Idle/autorotate cameras start from rest.
+   */
+  private seedCameraSpring(): void {
+    this.camGoalT = 0;
+    this.camSpringV = 0;
+    if (this.motionScale === 0) return;
+    const fromFlick =
+      this.isUserOrbiting || this.elapsed - this.camHandoffAt < 0.35;
+    if (!fromFlick) return;
+
+    const vx = this.isUserOrbiting ? this.camOrbitVelX : this.camHandoffVelX;
+    const vy = this.isUserOrbiting ? this.camOrbitVelY : this.camHandoffVelY;
+    const vz = this.isUserOrbiting ? this.camOrbitVelZ : this.camHandoffVelZ;
+    if (this.camGoalOrbital) {
+      const denom = Math.abs(this.camGoalAzDelta);
+      const azVel = this.isUserOrbiting ? this.camOrbitAzVel : this.camHandoffAzVel;
+      if (denom > 1e-3) {
+        this.camSpringV = THREE.MathUtils.clamp(azVel / denom, 0, 2.5);
+      }
+      return;
+    }
+    const dx = this.camTargetPos.x - this.camera.position.x;
+    const dy = this.camTargetPos.y - this.camera.position.y;
+    const dz = this.camTargetPos.z - this.camera.position.z;
+    const lenSq = dx * dx + dy * dy + dz * dz;
+    if (lenSq < 1e-4) return;
+    // (v . direction) / path length -> normalised progress units per second.
+    this.camSpringV = THREE.MathUtils.clamp((vx * dx + vy * dy + vz * dz) / lenSq, 0, 2.5);
+  }
+
+  /** Sample orbit velocity only while the user is actively dragging. */
+  private trackOrbitVelocity(dt: number): void {
+    const cam = this.camera;
+    const az = Math.atan2(
+      -(cam.position.x - this.controls.target.x),
+      cam.position.z - this.controls.target.z
+    );
+    if (this.isUserOrbiting && dt > 1e-4) {
+      const inv = 1 / dt;
+      const vx = (cam.position.x - this.lastCamX) * inv;
+      const vy = (cam.position.y - this.lastCamY) * inv;
+      const vz = (cam.position.z - this.lastCamZ) * inv;
+      // Ignore teleports (landmark switch, reset) rather than seeding a huge flick.
+      if (Math.abs(vx) < 30 && Math.abs(vy) < 30 && Math.abs(vz) < 30) {
+        this.camOrbitVelX += (vx - this.camOrbitVelX) * 0.45;
+        this.camOrbitVelY += (vy - this.camOrbitVelY) * 0.45;
+        this.camOrbitVelZ += (vz - this.camOrbitVelZ) * 0.45;
+        let dAz = az - this.lastCamAzimuth;
+        if (dAz > Math.PI) dAz -= 2 * Math.PI;
+        else if (dAz < -Math.PI) dAz += 2 * Math.PI;
+        this.camOrbitAzVel += (dAz * inv - this.camOrbitAzVel) * 0.45;
+      }
+    }
+    this.lastCamX = cam.position.x;
+    this.lastCamY = cam.position.y;
+    this.lastCamZ = cam.position.z;
+    this.lastCamAzimuth = az;
+  }
+
   flyCameraPreset(pos: [number, number, number]): void {
     this.lastInteractAt = this.elapsed;
     this.camGoalOrbital = false;
     this.camStart.copy(this.camera.position);
     this.camTargetPos.set(pos[0], pos[1], pos[2]);
     this.camGoal = this.camTargetPos;
-    this.camGoalT = 0;
+    this.seedCameraSpring();
     this.targetGoalActive = false;
     this.hasCustomFocus = false;
   }
@@ -3234,7 +3454,7 @@ export class CitylitEngine {
     }
     this.camStart.copy(this.camera.position);
     this.camGoal = this.camTargetPos;
-    this.camGoalT = 0;
+    this.seedCameraSpring();
     this.targetGoalActive = true;
     ambientAudio.setSpatialFocusBoost(preset === 'detail' ? 0.8 : 0);
   }
@@ -3339,6 +3559,7 @@ export class CitylitEngine {
     );
     this.camStartAzimuth = currentHeadingRad;
     this.camTargetAzimuth = currentHeadingRad + delta;
+    this.camGoalAzDelta = delta;
     this.camGoalHorizDist = horiz;
     this.camGoalHeightOffset = compassOffset.y;
     this.camGoalOrbital = true;
@@ -3349,7 +3570,7 @@ export class CitylitEngine {
       this.controls.target.z + Math.cos(targetRad) * horiz
     );
     this.camGoal = this.camTargetPos;
-    this.camGoalT = 0;
+    this.seedCameraSpring();
     this.targetGoalActive = false;
   }
 
@@ -3432,7 +3653,7 @@ export class CitylitEngine {
     this.camStart.copy(this.camera.position);
     this.camTargetPos.copy(this.targetEnd).addScaledVector(dir, zoomDist);
     this.camGoal = this.camTargetPos;
-    this.camGoalT = 0;
+    this.seedCameraSpring();
     this.targetGoalActive = true;
     this.hasCustomFocus = true;
     ambientAudio.setSpatialFocusBoost(0.95);
@@ -3516,7 +3737,7 @@ export class CitylitEngine {
     this.camStart.copy(this.camera.position);
     this.camTargetPos.copy(this.heroFitCenter).addScaledVector(this.heroFitDirection, distance);
     this.camGoal = this.camTargetPos;
-    this.camGoalT = 0;
+    this.seedCameraSpring();
     this.targetGoalActive = true;
     this.hasCustomFocus = false;
     this.miniaturePass.setFocus(distance);
@@ -4111,6 +4332,13 @@ export class CitylitEngine {
 
     const onControlEnd = () => {
       this.isUserOrbiting = false;
+      // Snapshot the flick velocity so a preset applied right after release
+      // continues the gesture instead of starting from a dead stop.
+      this.camHandoffVelX = this.camOrbitVelX;
+      this.camHandoffVelY = this.camOrbitVelY;
+      this.camHandoffVelZ = this.camOrbitVelZ;
+      this.camHandoffAzVel = this.camOrbitAzVel;
+      this.camHandoffAt = this.elapsed;
       this.lastInteractAt = this.elapsed;
       this.updateDynamicAoState();
     };
@@ -4699,10 +4927,29 @@ export class CitylitEngine {
       }
       this.renderCurrentPass();
     } else {
-      // Camera fly preset, compass heading sweep & fact-pin focus interpolation
+      // Sample drag velocity before the preset overwrites the camera position.
+      this.trackOrbitVelocity(dt);
+
+      // Camera fly preset, compass heading sweep & fact-pin focus interpolation.
+      // Critically damped spring (analytic step, no allocations): x'' + 2w x'
+      // + w^2 x = 0 with x = progress - 1. Seeded velocity carries a flick or
+      // an in-flight interruption straight into the new preset.
       if (this.camGoal) {
-        this.camGoalT = Math.min(1, this.camGoalT + dt * 1.4);
-        const s = this.camGoalT * this.camGoalT * (3 - 2 * this.camGoalT);
+        if (this.motionScale === 0) {
+          this.camGoalT = 1;
+          this.camSpringV = 0;
+        } else if (this.camGoalT < 1) {
+          const x0 = this.camGoalT - 1;
+          const b = this.camSpringV + CAMERA_SPRING_OMEGA * x0;
+          const decay = Math.exp(-CAMERA_SPRING_OMEGA * dt);
+          this.camGoalT = 1 + (x0 + b * dt) * decay;
+          this.camSpringV = (this.camSpringV - CAMERA_SPRING_OMEGA * b * dt) * decay;
+          if (this.camGoalT >= 1) {
+            this.camGoalT = 1;
+            this.camSpringV = 0;
+          }
+        }
+        const s = THREE.MathUtils.clamp(this.camGoalT, 0, 1);
         if (this.camGoalOrbital) {
           const az = THREE.MathUtils.lerp(this.camStartAzimuth, this.camTargetAzimuth, s);
           this.camera.position.set(
@@ -4809,6 +5056,7 @@ export class CitylitEngine {
       this.animateVehicleNightLights(dt);
       this.updateCoastalTide(dt);
       this.updateDaylightBirds(dt);
+      this.updateAnimalAudio(dt);
 
       // Fact pin & private User Pin sprite pulse + float + pop-in + hover boost
       this.markerSprites.forEach((sp, i) => {

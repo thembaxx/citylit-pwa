@@ -3,7 +3,19 @@ import test from 'node:test';
 import { LANDMARKS } from './landmarks.ts';
 import { WILDLIFE } from './wildlife.ts';
 
-const KINDS = ['generic', 'elephant', 'penguin', 'whale', 'hippo', 'gemsbok'];
+const KINDS = [
+  'generic',
+  'elephant',
+  'penguin',
+  'whale',
+  'hippo',
+  'gemsbok',
+  'flamingo',
+  'seabird',
+  'vulture',
+  'dassie',
+  'bird',
+];
 const IDLES = ['bob', 'graze', 'lookup', 'waddle', 'submerge', 'rock'];
 const SEASONS = ['summer', 'autumn', 'winter', 'spring'];
 
@@ -40,7 +52,7 @@ test('required showcase species are represented', () => {
     WILDLIFE.some((spot) => spot.siteKey === site && spot.species === species);
   assert.ok(at('Boulders Beach', 'penguin'));
   assert.ok(at('Hermanus Whale Watching', 'whale'));
-  assert.ok(at('iSimangaliso Wetland Park', 'generic'));
+  assert.ok(at('iSimangaliso Wetland Park', 'flamingo'));
   const whales = WILDLIFE.find((spot) => spot.siteKey === 'Hermanus Whale Watching');
   assert.ok((whales?.months?.length ?? 0) > 0);
 });

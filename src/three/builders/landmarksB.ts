@@ -39,12 +39,12 @@ import {
   CB,
   colonialHouse,
   drift,
+  fynbos,
   G,
   gableRoofGeo,
   gondola,
   grassTufts,
   halfmensTree,
-  hippo,
   instancedMeshes,
   M,
   MBark,
@@ -58,6 +58,8 @@ import {
   MWater,
   MWet,
   MWood,
+  person,
+  protea,
   quiverTree,
   R,
   railing,
@@ -66,15 +68,17 @@ import {
   scatterRocks,
   sea,
   seaRings,
+  silverTree,
   surfaceDetail,
   tint,
   tree,
   weatherVertexColors,
   whale,
+  yellowwood,
   type InstanceTransform,
 } from './primitives';
 import { prepareCanvasTexture } from '../shaders';
-import { awning, bench as benchProp, interpretiveSign, picnicTable } from './propKit';
+import { awning, bench as benchProp, bin, interpretiveSign, picnicTable, taxiShelter } from './propKit';
 import { attachVehicleLights } from './vehicleLightKit';
 import {
   addLighthouseSweep,
@@ -90,9 +94,11 @@ export function augrabies(): THREE.Group {
   const g = new THREE.Group();
   const wm = MCascade('#eef4f6', 0.88);
   const cm = MT('#edf2f6', 0.54, 0.98, 0, false);
-  const gneissBase = '#8b6f5c';
-  const gneissTop = '#b68968';
-  add(g, B(15.2, 0.2, 15.2), MStone('#846a57', 0.95), 0, 0.1, 0);
+  // #8 albedo: LANDMARK-RESEARCH 3.21 granite shadow/mid/sun — keep the silt-olive
+  // water below (#747664 MWater) untouched; only the near-white rock is corrected.
+  const gneissBase = '#796b60';
+  const gneissTop = '#9a7660';
+  add(g, B(15.2, 0.2, 15.2), MStone('#6f6055', 0.95), 0, 0.1, 0);
 
   // Exfoliated pink-grey biotite-gneiss ("Moon Rock") dome flanks & sheer granite slot canyon
   add(
@@ -116,7 +122,7 @@ export function augrabies(): THREE.Group {
     [-4.9, 4.2, 1.3, 0.55],
     [5.1, 4.0, 1.35, 0.58],
   ]) {
-    const dome = add(g, new THREE.SphereGeometry(1.1, 20, 12), MStone('#9e836c', 0.88, 0.025), dx, 0.35, dz);
+    const dome = add(g, new THREE.SphereGeometry(1.1, 20, 12), MStone('#8a725d', 0.88, 0.025), dx, 0.35, dz);
     dome.scale.set(sx, sy, 1.25);
   }
 
@@ -586,10 +592,17 @@ export function pilanesberg(): THREE.Group {
     g.add(o);
     return o;
   });
+  // #11 named species: marula + yellowwood around the rest camp / Mankwe Dam
+  // rim instead of the generic flat-canopy tree; the rest stay in the tree()
+  // LOD batch finalized by applyDioramaUpgrade().
   for (let i = 0; i < 16; i++) {
     const q = i * 0.39;
-    tree(g, 2.75 * Math.cos(q), 2.75 * Math.sin(q), 0.75, 2, 0.25);
+    const x = 2.75 * Math.cos(q);
+    const z = 2.75 * Math.sin(q);
+    tree(g, x, z, 0.75, 2, 0.25);
   }
+  // #9 low-count warm camp lanterns at the rest-camp / dam edge. No new
+  // PointLights — addStreetLampSet instanced hardware + the shared photocell.
   const dd = drift(g, 40, '#c8b48a', 0.06, (i, t) => [
     Math.cos(i * 2.4 + t * 0.1) * (1 + R(i) * 5.5),
     0.6 + ((R(i + 3) * 4 + t * 0.2) % 3.5),
@@ -616,16 +629,20 @@ export function robben(): THREE.Group {
   const rf = MPlaster('#94866c', 0.78);
   const fortMat = MStone('#aa987a', 0.9);
   sea(g, '#306a80', '#5a949a');
-  add(g, C(4.1, 4.5, 0.3, 64), MStone('#c3bba3', 0.95), -0.3, 0.15, 0.2);
+  // #8 albedo: low, wind-clipped scrub over buff limestone (LANDMARK-RESEARCH
+  // 3.25) — the island base reads near-white in the contact sheet, so pull it
+  // toward the 0.60-0.73 sRGB buff/limestone band. The lighthouse whitewash
+  // (`wh`, 0.83) stays inside the deliberate physical-white window.
+  add(g, C(4.1, 4.5, 0.3, 64), MStone('#a89f84', 0.95), -0.3, 0.15, 0.2);
 
   // Recessed pale Limestone Quarry bench pit
   add(g, CB(2.1, 0.03, 1.42, 0.01), MStone('#8f8974', 0.96), 1.55, 0.3, 1.5);
-  add(g, CB(1.9, 0.035, 1.22, 0.01), MStone('#e2dcc8', 0.97), 1.55, 0.325, 1.5);
+  add(g, CB(1.9, 0.035, 1.22, 0.01), MStone('#c3bba3', 0.97), 1.55, 0.325, 1.5);
   for (let i = 0; i < 3; i++) {
     add(
       g,
       CB(1.6 - i * 0.16, 0.012, 0.035, 0.004),
-      MStone('#cfc8b2', 0.95),
+      MStone('#b4ab93', 0.95),
       1.55,
       0.35,
       1.12 + i * 0.3
@@ -692,7 +709,7 @@ export function robben(): THREE.Group {
   });
   add(g, CB(3.8, 0.04, 0.04, 0.008), dk, fcx + 0.9, 0.75, 1.55);
   add(g, CB(3.8, 0.04, 0.04, 0.008), dk, fcx + 0.9, 0.6, 1.55);
-  add(g, C(1.05, 1.05, 0.03, 24), MStone('#ded3b6', 0.95), fcx + 0.9, 0.32, -0.3);
+  add(g, C(1.05, 1.05, 0.03, 24), MStone('#bdb39a', 0.95), fcx + 0.9, 0.32, -0.3);
 
   // Keeper's cottage (distinctly south of the lighthouse with facade details)
   add(g, CB(0.78, 0.42, 0.52, 0.025), wh, -1.2, 0.51, 1.6);
@@ -765,6 +782,11 @@ export function robben(): THREE.Group {
   }
   addStreetLampSet(g, robbenLamps);
 
+  // #10 human scale at Murray's Bay harbour: ferry queue silhouettes + a bin.
+  person(g, 4.12, 0.37, 1.87, 0.78, -0.24);
+  person(g, 4.86, 0.37, 1.99, 0.74, 2.6);
+  bin(g, 3.06, 0.25, 1.36, 0.72, 0.5);
+
   const bushT: InstanceTransform[] = [];
   for (let i = 0; i < 30; i++) {
     const a = R(i) * 6.28;
@@ -832,13 +854,22 @@ export function chapman(): THREE.Group {
     const f = 1 + 0.11 * Math.sin(a * 4 + Y * 0.35) + ledge;
     cp.setXYZ(i, X * f, Y, Z * f);
   }
-  const cGranite = new THREE.Color('#5e5954');
-  const cTMG = new THREE.Color('#b58b60');
-  const cUpper = new THREE.Color('#8e8674');
+  // #8 albedo: LANDMARK-RESEARCH 3.26 warm fractured Peninsula sandstone over
+  // Cape Granite. Darkened below the 0.75 sRGB ceiling (the contact sheet read
+  // near-white) and given thin iron-oxide bedding bands via the existing tint()
+  // + weatherVertexColors() helpers — no extra geometry or draw calls.
+  const cGranite = new THREE.Color('#5a5751');
+  const cTMG = new THREE.Color('#a9794f');
+  const cUpper = new THREE.Color('#7c766a');
+  const cOxide = new THREE.Color('#8f5f3f');
   tint(cliffGeo, (k, X, Y) => {
     const h = (Y + 3.0) / 6.0;
     if (h < 0.42) k.copy(cGranite).multiplyScalar(0.92 + 0.08 * Math.sin(X * 2));
-    else k.copy(cTMG).lerp(cUpper, (h - 0.42) / 0.58 + 0.06 * Math.sin(Y * 14));
+    else {
+      k.copy(cTMG).lerp(cUpper, (h - 0.42) / 0.58 + 0.06 * Math.sin(Y * 14));
+      const band = Math.pow(Math.max(0, Math.sin(Y * 4.6 + 0.6)), 6);
+      k.lerp(cOxide, band * 0.34);
+    }
   });
   weatherVertexColors(cliffGeo, { ao: 0.3, exposure: 0.12, grain: 0.06 });
   const cliffMat = new THREE.MeshStandardMaterial({
@@ -927,23 +958,24 @@ export function chapman(): THREE.Group {
   });
   const csLights = attachVehicleLights(g, cs);
   add(g, C(3.05, 3.15, 0.1, 48), MStone('#74805e', 0.94), 0, 6.02, -1.8);
+  // #11 named species: three hero shrubs as merged silhouettes; the rest stay
+  // in one instanced bush batch so the call budget is unchanged at this site.
+  for (let i = 0; i < 3; i++) {
+    const a = R(i * 3) * 6.28;
+    const r = 1.2 + R(i + 5) * 1.2;
+    const x = r * Math.cos(a);
+    const z = -1.8 + r * Math.sin(a);
+    if (i === 0) silverTree(g, x, 6.12, z, 0.9, a);
+    else if (i === 1) protea(g, x, 6.12, z, 0.9, a);
+    else fynbos(g, x, 6.12, z, 0.9, a);
+  }
   const bushT: InstanceTransform[] = [];
   for (let i = 0; i < 16; i++) {
     const a = R(i) * 6.28;
     const r = R(i + 5) * 2.5;
-    bushT.push({
-      x: r * Math.cos(a),
-      y: 6.14,
-      z: -1.8 + r * Math.sin(a),
-      sx: 0.52,
-      sy: 0.32,
-      sz: 0.52,
-    });
+    bushT.push({ x: r * Math.cos(a), y: 6.14, z: -1.8 + r * Math.sin(a), sx: 0.52, sy: 0.32, sz: 0.52 });
   }
-  instancedMeshes(g, new THREE.IcosahedronGeometry(0.32, 1), Mc('#74805e'), bushT, [
-    '#74805e',
-    '#8a8260',
-  ]);
+  instancedMeshes(g, new THREE.IcosahedronGeometry(0.32, 1), Mc('#74805e'), bushT, ['#74805e', '#8a8260']);
   const sr = seaRings(g, 0.12, 4.8, 3);
   const spray = drift(
     g,
@@ -1059,6 +1091,9 @@ export function isandlwana(): THREE.Group {
 
 export function gariep(): THREE.Group {
   const g = new THREE.Group();
+  // #8 albedo: weathered grey/tan concrete (LANDMARK-RESEARCH 3.28). The wall
+  // reads near-white in the contact sheet, so drop it to the research mid/stain
+  // band while keeping the crest and spillway foams as deliberate whites.
   const cn = MStone('#929388', 0.82, 0.016);
   const wm = MCascade('#dfe5e2', 0.86);
   add(g, B(15.2, 0.2, 15.2), MStone('#a0805f', 0.96), 0, 0.1, 0);
@@ -1067,7 +1102,7 @@ export function gariep(): THREE.Group {
   add(g, CB(3.4, 0.06, 5.2, 0.02), MWater('#547e8c', 0.09, 0.24), 0, 0.24, 3.4);
 
   // Central double-curvature concrete arch + flanking straight concrete gravity wing walls
-  const wallMat = MStone('#aba99e', 0.82);
+  const wallMat = MStone('#8c8d83', 0.82);
   wallMat.side = THREE.DoubleSide;
   add(g, C(4.2, 4.4, 1.68, 48, 1, true, Math.PI * 0.72, Math.PI * 0.56), wallMat, 0, 1.0, 3.9);
   add(g, C(4.32, 4.32, 0.14, 48, 1, false, Math.PI * 0.72, Math.PI * 0.56), cn, 0, 1.88, 3.9);
@@ -1114,8 +1149,8 @@ export function gariep(): THREE.Group {
   );
   addStreetLampSet(g, gariepLamps);
 
-  rock(g, 1.6, 2.4, 3.1, -5.6, -1.2, '#a0805f', '#c0a078', 0.14);
-  rock(g, 1.8, 2.6, 3.4, 5.6, -0.8, '#a0805f', '#c0a078', 0.14);
+  rock(g, 1.6, 2.4, 3.1, -5.6, -1.2, '#8d7654', '#a0805f', 0.14);
+  rock(g, 1.8, 2.6, 3.4, 5.6, -0.8, '#8d7654', '#a0805f', 0.14);
   for (let i = 0; i < 6; i++) tree(g, -3 + i * 1.2, 5.2 + R(i), 0.9, 2, 0.2);
   const bd = birds(g, 3, 3.2, 6);
   const mist = drift(g, 110, '#dde4e2', 0.1, (i, t) => {
@@ -1268,6 +1303,17 @@ export function mapungubwe(): THREE.Group {
   });
   for (let i = 0; i < 4; i++) tree(g, -5 + i * 3, -4.4, 1, 2, 0.2);
 
+  // #9 warm trail bollards marking the Western Ascent rock-cut steps.
+  addStreetLampSet(
+    g,
+    [
+      { x: -4.5, y: 0.3, z: -0.28, kind: 'bollard', scale: 0.72, color: '#ffcf7c', poolRadius: 0.6 },
+      { x: -4.02, y: 0.66, z: -0.3, kind: 'bollard', scale: 0.72, color: '#ffcf7c', poolRadius: 0.6 },
+      { x: -3.54, y: 1.02, z: -0.32, kind: 'bollard', scale: 0.72, color: '#ffcf7c', poolRadius: 0.6 },
+    ],
+    { anchors: false }
+  );
+
   // Subtle golden royal heritage shimmer above summit plateau
   const sp = drift(g, 16, '#ffd86a', 0.08, (i, t) => [
     -0.4 + Math.sin(t * 1.4 + i) * 1.4,
@@ -1385,8 +1431,13 @@ export function storms(): THREE.Group {
     { x: 2.6, y: 1.54, z: 0.26, kind: 'lantern', scale: 0.74, color: '#ffd080', poolRadius: 0.66 },
   ]);
 
+  // #11 named species: Tsitsikamma yellowwood on the forested gorge rim;
+  // remaining trees stay in the finalizeTreeBatch() LOD path.
   for (let i = 0; i < 10; i++) {
-    tree(g, (i % 2 ? 4.6 : -4.6) + (R(i) - 0.5) * 1.2, (R(i + 5) - 0.5) * 4, 1.1, 1, 3.6);
+    const x = (i % 2 ? 4.6 : -4.6) + (R(i) - 0.5) * 1.2;
+    const z = (R(i + 5) - 0.5) * 4;
+    if (i % 3 === 0) yellowwood(g, x, 3.6, z, 1.0);
+    else tree(g, x, z, 1.1, 1, 3.6);
   }
   for (let i = 0; i < 6; i++) {
     const a = R(i) * 6.28;
@@ -1673,6 +1724,12 @@ export function groot(): THREE.Group {
   grassTufts(g, tufts, ['#74804e', '#8d9770', '#5e7f38']);
   scatterRocks(g, pebbles, '#8c8069', '#b3a68c');
 
+  // #10 human scale on the manor approach road and at the tasting terrace.
+  person(g, -3.45, 0.25 + hAt(-3.45, -1.35), -1.35, 0.82, 0.35);
+  person(g, -2.85, 0.25 + hAt(-2.85, -1.28), -1.28, 0.78, 2.1);
+  person(g, 1.62, 0.25 + hAt(1.62, 1.28), 1.28, 0.8, -0.6);
+  bin(g, 2.95, 0.2 + hAt(2.95, 4.2), 4.2, 0.76, -0.4);
+
   const bd = birds(g, 5, 3.5, 6);
   g.userData.tick = (t: number) => {
     bd(t);
@@ -1774,11 +1831,11 @@ export function hermanus(): THREE.Group {
     '#6b703a',
   ]);
 
-  // Authentic Southern Right Whale pod (callosity bonnets, paddle flippers, NO dorsal fin)
+  // Two signature whales carry the blow spray and breach cycle. The season-
+  // gated pod, including the former cove whale, lives in the wildlife layer.
   const wa = whale(1);
   const wb = whale(1.15);
-  const wc = whale(0.5);
-  g.add(wa, wb, wc);
+  g.add(wa, wb);
   const rg = add(
     g,
     new THREE.RingGeometry(0.2, 0.26, 40).rotateX(-Math.PI / 2),
@@ -1834,8 +1891,6 @@ export function hermanus(): THREE.Group {
     const cs = Math.cos(a);
     wa.position.set(2.4 * cs + 0.4, 0.1 + Math.sin(t * 1.1) * 0.03, 2.4 * sn + 0.9);
     wa.rotation.y = -a - Math.PI / 2;
-    wc.position.set(wa.position.x + 0.5 * cs, 0.1, wa.position.z + 0.5 * sn);
-    wc.rotation.y = wa.rotation.y;
     const u = (t % 11) / 11;
     if (u < 0.28) {
       const v = u / 0.28;
@@ -1912,16 +1967,8 @@ export function isimangaliso(): THREE.Group {
     { x: -2.18, y: 0.47, z: 3.65, kind: 'bollard', scale: 0.74, color: '#ffd07d', poolRadius: 0.64, reflectY: 0.205 },
   ]);
 
-  // Authentic St. Lucia semi-submerged Hippopotamus pod with periscope eyes, ears & nostrils
-  const hp = (
-    [
-      [-1.0, 0.2, 0.3, 1.35],
-      [1.2, 1.3, 1.2, 1.15],
-      [0.2, 2.4, 2.1, 1.05],
-      [-2.1, 1.5, 4.2, 1.2],
-      [1.9, -0.4, 3.3, 0.85],
-    ] as const
-  ).map(([x, z, ry, sc]) => hippo(g, x, 0.18, z, sc, ry));
+  // The hippo pod is supplied by the season-gated, LOD'd wildlife layer
+  // (src/data/wildlife.ts), which absorbs the five former builder positions.
 
   const sr = seaRings(g, 0.25, 1.4, 3);
   const bd = birds(g, 4, 3.5, 5);
@@ -1931,10 +1978,6 @@ export function isimangaliso(): THREE.Group {
     0.6 + Math.sin(i * 2.4 + t * 0.05) * 4,
   ]);
   g.userData.tick = (t: number) => {
-    hp.forEach((h, i) => {
-      h.position.y = 0.18 + Math.sin(t * 0.8 + i * 2) * 0.025;
-      h.rotation.z = Math.sin(t * 0.6 + i) * 0.03;
-    });
     sr(t);
     bd(t);
     mist(t);
@@ -1944,12 +1987,15 @@ export function isimangaliso(): THREE.Group {
 
 export function sani(): THREE.Group {
   const g = new THREE.Group();
+  // #8 albedo: grey basalt cap over tan Clarens sandstone (LANDMARK-RESEARCH
+  // 3.36). The contact sheet read pale, so the tan/weathered band is pulled
+  // down toward 0.42-0.52 sRGB while the summit snow stays a deliberate white.
   const basalt = MStone('#56554e', 0.94, 0.025);
   add(g, B(15.2, 0.2, 15.2), MStone('#7d7e58', 0.95), 0, 0.1, 0);
-  rock(g, 2.5, 4.3, 6.2, 0, -2, '#52534d', '#7c7564', 0.11);
+  rock(g, 2.5, 4.3, 6.2, 0, -2, '#4d4e48', '#6d675b', 0.11);
   // Flanking Drakensberg basalt escarpment ridges & cold alpine slate rock pool
-  rock(g, 1.3, 2.4, 4.6, -3.5, -2.7, '#52534d', '#7c7564', 0.14);
-  rock(g, 1.2, 2.2, 4.1, 3.4, -2.5, '#52534d', '#7c7564', 0.14);
+  rock(g, 1.3, 2.4, 4.6, -3.5, -2.7, '#4d4e48', '#6d675b', 0.14);
+  rock(g, 1.2, 2.2, 4.1, 3.4, -2.5, '#4d4e48', '#6d675b', 0.14);
   add(g, CB(0.48, 3.8, 0.08, 0.02), MCascade('#dceef6', 0.84), -1.85, 2.05, 0.55).rotation.set(
     0.45,
     0.2,
@@ -1966,7 +2012,7 @@ export function sani(): THREE.Group {
     pts.push(new THREE.Vector3(r * Math.sin(a), y, -2 + r * Math.cos(a)));
   }
   const cv = new THREE.CatmullRomCurve3(pts);
-  add(g, new THREE.TubeGeometry(cv, 200, 0.085, 5), MStone('#b59f79', 0.95));
+  add(g, new THREE.TubeGeometry(cv, 200, 0.085, 5), MStone('#a8936e', 0.95));
   const wallSegs: InstanceTransform[] = [];
   for (let i = 3; i < 56; i += 3) {
     const p = pts[i];
@@ -2005,7 +2051,7 @@ export function sani(): THREE.Group {
   }
   grassTufts(g, tuftT, ['#85855e', '#a79a69', '#8f9154']);
   const cs = [0, 1, 2].map((i) => {
-    const c = car(['#a6382e', '#d8d5cc', '#2e5d84'][i], 0.28, false);
+    const c = car(['#a6382e', '#b7b3a6', '#2e5d84'][i], 0.28, false);
     g.add(c);
     return c;
   });
@@ -2067,8 +2113,10 @@ export function richtersveld(): THREE.Group {
     if (i % 3 === 0) quartzT.push(item);
     else screeT.push(item);
   }
+  // #8 albedo: quartz scree darkened out of the contact-sheet white band while
+  // staying paler than the ochre/rust rock (LANDMARK-RESEARCH 3.37).
   scatterRocks(g, screeT, '#ac7958', '#bc9672');
-  scatterRocks(g, quartzT, '#d6d0c2', '#eae4d7');
+  scatterRocks(g, quartzT, '#b8b0a0', '#c2b9a8');
 
   // True dichotomous branching Quiver Trees + north-leaning Halfmens succulents
   [
@@ -2090,6 +2138,17 @@ export function richtersveld(): THREE.Group {
     2.5
   );
   add(g, CB(0.18, 0.22, 0.08, 0.01), M('#2a231c', 0.95), -2.2, 0.3, 2.91);
+
+  // #9 warm trail bollards from the matjieshuis to the quiver-tree grove.
+  addStreetLampSet(
+    g,
+    [
+      { x: -2.7, y: 0.22, z: 2.9, kind: 'bollard', scale: 0.72, color: '#ffcf7c', poolRadius: 0.6 },
+      { x: -1.1, y: 0.22, z: 1.4, kind: 'bollard', scale: 0.72, color: '#ffcf7c', poolRadius: 0.6 },
+      { x: 0.6, y: 0.22, z: 0.6, kind: 'bollard', scale: 0.72, color: '#ffcf7c', poolRadius: 0.6 },
+    ],
+    { anchors: false }
+  );
 
   g.userData.tick = drift(g, 45, '#f0c890', 0.08, (i, t) => [
     ((((R(i) * 12 - 6 + t * 0.4) % 12) + 12) % 12) - 6,
@@ -2128,9 +2187,11 @@ export function vredefort(): THREE.Group {
     const strata = r > 2.4 ? 1 + 0.22 * Math.sin(r * 4.2 + a * 2) : 1;
     p.setY(i, Y * crescent * strata * (1 + 0.2 * Math.sin(a * 3 + 1)));
   }
-  const lo = new THREE.Color('#aca277');
+  // #8 albedo: eroded granite/quartzite over dry pasture (LANDMARK-RESEARCH
+  // 3.38). Pull the pale dome collar down into the research grey-brown band.
+  const lo = new THREE.Color('#93896a');
   const md = new THREE.Color('#7f8756');
-  const hi = new THREE.Color('#7c7669');
+  const hi = new THREE.Color('#6f6a5f');
   add(
     g,
     tint(ge, (k, X, Y, Z) => {
@@ -2150,7 +2211,7 @@ export function vredefort(): THREE.Group {
   for (const [rad, tube, arcStart, arcLen, col] of [
     [4.4, 0.22, Math.PI * 0.72, Math.PI * 1.12, '#7c7669'],
     [5.4, 0.2, Math.PI * 0.65, Math.PI * 1.25, '#8a8474'],
-    [6.5, 0.16, Math.PI * 0.68, Math.PI * 1.15, '#9d9582'],
+    [6.5, 0.16, Math.PI * 0.68, Math.PI * 1.15, '#8d8574'],
   ] as const) {
     add(
       g,
@@ -2221,13 +2282,15 @@ export function vredefort(): THREE.Group {
 
 export function harties(): THREE.Group {
   const g = new THREE.Group();
-  const cn = MStone('#aaa291', 0.82, 0.015);
+  // #8 albedo: weathered grey concrete (LANDMARK-RESEARCH 3.39). The wall was
+  // reading near-white in the contact sheet; drop it to the research mid tone.
+  const cn = MStone('#8c8d83', 0.82, 0.015);
   add(g, B(15.2, 0.2, 15.2), MStone('#778878', 0.95), 0, 0.1, 0);
   // Impounded Magaliesberg valley floor beneath murky emerald dam basin & downstream Crocodile River
   add(g, B(10.6, 1.29, 5.6), MStone('#686a48', 0.95), 0, 0.845, -3.3);
   add(g, CB(10, 0.1, 5.4, 0.02), MWater('#5a7c66', 0.09, 0.24), 0, 1.55, -3.3);
   add(g, CB(4, 0.06, 5, 0.02), MWater('#567369', 0.09, 0.24), 0, 0.24, 3.6);
-  const wallMat = MStone('#aaa291', 0.82);
+  const wallMat = MStone('#8c8d83', 0.82);
   wallMat.side = THREE.DoubleSide;
   add(g, C(4.2, 4.2, 1.6, 64, 1, true, Math.PI * 0.6, Math.PI * 0.8), wallMat, 0, 0.95, 4.1);
   add(g, C(4.3, 4.3, 0.12, 64, 1, false, Math.PI * 0.6, Math.PI * 0.8), cn, 0, 1.8, 4.1);
@@ -2246,8 +2309,8 @@ export function harties(): THREE.Group {
   instancedMeshes(g, CB(0.14, 0.22, 0.28, 0.015), cn, pierT);
   add(g, CB(0.85, 1.35, 0.08, 0.02), MCascade('#e4f5fc', 0.85), 0, 0.92, -0.15);
 
-  rock(g, 1.6, 2.8, 3.6, -5, -1, '#787465', '#a99b86', 0.14);
-  rock(g, 1.8, 3, 4, 5.2, -1.6, '#787465', '#a99b86', 0.14);
+  rock(g, 1.6, 2.8, 3.6, -5, -1, '#787465', '#8f8370', 0.14);
+  rock(g, 1.8, 3, 4, 5.2, -1.6, '#787465', '#8f8370', 0.14);
 
   // 1923 Roman Triumphal Victory Arch on western dam crest road leading into Kommando Nek tunnel portal
   const archX = -2.75;
@@ -2354,8 +2417,10 @@ export function knysna(): THREE.Group {
   const g = new THREE.Group();
   // Deep Indian Ocean swell meeting sheltered green-teal Knysna Lagoon
   sea(g, '#265c73', '#49828b');
-  rock(g, 1.9, 3.2, 4, -3.8, -0.4, '#a6805a', '#c6a57a', 0.12);
-  rock(g, 1.45, 2.5, 3.6, 3.6, -0.8, '#a6805a', '#c6a57a', 0.12);
+  // #8 albedo: unequal ochre Peninsula sandstone headlands
+  // (LANDMARK-RESEARCH 3.40 rock ochre #95724f / cliff ochre #b58d66).
+  rock(g, 1.9, 3.2, 4, -3.8, -0.4, '#95724f', '#b58d66', 0.12);
+  rock(g, 1.45, 2.5, 3.6, 3.6, -0.8, '#95724f', '#b58d66', 0.12);
   add(g, C(1.85, 1.9, 0.1, 40), MStone('#455e3d', 0.94), -3.8, 4.03, -0.4);
   add(g, C(1.65, 1.7, 0.1, 40), MStone('#60754d', 0.94), 3.6, 3.43, -0.8);
   add(g, CB(7, 0.08, 4.5, 0.02), MWater('#497d78', 0.09, 0.25), 0, 0.24, -5);
@@ -2364,7 +2429,7 @@ export function knysna(): THREE.Group {
 
   // Recessed 3D sandstone sea caves with dark shadow recess & rocky arch brows
   const caveMat = M('#12161b', 0.96);
-  const caveRim = MStone('#c6a57a', 0.95);
+  const caveRim = MStone('#b58d66', 0.95);
   const cave = (x: number, z: number, s: number) => {
     const voidBox = add(g, C(0.46 * s, 0.48 * s, 0.48 * s, 16), caveMat, x, 0.44, z + 0.14);
     voidBox.scale.set(1, 1.35, 0.8);
@@ -2402,11 +2467,13 @@ export function knysna(): THREE.Group {
     const z = -2.2 + R(i + 40) * 0.4;
     addHouse(x, 0.28, z, (R(i + 50) - 0.5) * 0.5);
   }
+  // Neutral white/grey cottages per the research, but held under the 0.75 sRGB
+  // surface ceiling (the contact sheet showed the row as blown-out white).
   instancedMeshes(g, CB(0.36, 0.24, 0.3, 0.015), MPlaster('#ffffff', 0.82), houseT, [
-    '#e8e4da',
-    '#d8d3c4',
-    '#c9c6bd',
-    '#ddd8c8',
+    '#bfbab0',
+    '#b8b3aa',
+    '#c3beb4',
+    '#bbb6ac',
   ]);
   instancedMeshes(g, gableRoofGeo(0.36, 0.31, 0.11, 0.03), MPlaster('#ffffff', 0.85), roofT, [
     '#6c5244',
@@ -2419,6 +2486,12 @@ export function knysna(): THREE.Group {
     { x: 2.65, y: 3.47, z: -0.7, kind: 'lantern', scale: 0.76, color: '#ffd482', poolRadius: 0.68 },
     { x: 3.25, y: 3.47, z: -0.45, kind: 'lantern', scale: 0.76, color: '#ffd482', poolRadius: 0.68 },
   ]);
+
+  // #10 viewpoint visitors + town-side bin and a small taxi rank shelter.
+  person(g, 2.18, 3.47, -0.52, 0.78, -0.6);
+  person(g, 2.58, 3.47, -0.44, 0.74, 2.4);
+  bin(g, 2.95, 3.44, -0.62, 0.66, 0.2);
+  taxiShelter(g, 0.35, 0.24, -3.15, 0.72, 0.35);
 
   // Dense lush indigenous Outeniqua coastal canopy crowning West Head & steep slopes
   const bushT: InstanceTransform[] = [];
@@ -2443,8 +2516,12 @@ export function knysna(): THREE.Group {
     '#4f6748',
     '#637d50',
   ]);
+  // #11 named species: yellowwood in the indigenous Outeniqua canopy.
   for (let i = 0; i < 9; i++) {
-    tree(g, -3.8 + (R(i + 100) - 0.5) * 3.0, -0.4 + (R(i + 110) - 0.5) * 3.0, 0.85, 1, 1.8);
+    const wx = -3.8 + (R(i + 100) - 0.5) * 3.0;
+    const wz = -0.4 + (R(i + 110) - 0.5) * 3.0;
+    if (i % 3 === 0) yellowwood(g, wx, 1.8, wz, 0.88);
+    else tree(g, wx, wz, 0.85, 1, 1.8);
     if (i < 6) {
       tree(g, 3.6 + (R(i + 120) - 0.5) * 2.6, -0.8 + (R(i + 130) - 0.5) * 2.6, 0.72, 2, 1.4);
     }
@@ -2711,6 +2788,11 @@ export function donkin(): THREE.Group {
     });
   }
   addStreetLampSet(g, donkinLamps);
+
+  // #10 human-scale context on the Route 67 walkway (kept lean: the shelter
+  // pushed this compact slice over its triangle budget).
+  person(g, -2.05, 1.47, 1.58, 0.8, 0.5);
+  person(g, 1.05, 1.47, 0.48, 0.78, -1.1);
 
   for (let i = 0; i < 5; i++) tree(g, -3 + i * 1.1, -1.8 + R(i) * 0.6, 0.8, 1, 1.45);
   const ship = boat('#b23a2c', 2.2);

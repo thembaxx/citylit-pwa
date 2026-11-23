@@ -5,12 +5,19 @@ import {
   CaretLeft,
   CaretRight,
   CheckCircle,
+  Clock,
+  CloudFog,
+  CloudRain,
+  CloudSnow,
+  CloudSun,
   Compass,
+  DotsThree,
   GlobeHemisphereEast,
   MapPin,
   SpeakerHigh,
   SpeakerSlash,
   X,
+  type Icon,
 } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
@@ -20,6 +27,7 @@ import type { PlacesSelectionInfo, PlacesWeatherMode } from '../three/placesScen
 import { PLACE_SLICE_SPECS } from '../three/placesSliceBuilders';
 import type { SavedCustomPlace, WeatherDisplayState } from '../types/citylit';
 import { WeatherIcon, type WeatherIconCondition } from './WeatherIcon';
+import { Menu, type MenuItem } from './ui/Menu';
 
 interface PlacesOverlayProps {
   open: boolean;
@@ -61,6 +69,13 @@ const WEATHER_MODES: ReadonlyArray<{ id: PlacesWeatherMode; label: string }> = [
   { id: 'snow', label: 'Snow' },
   { id: 'fog', label: 'Mist' },
 ];
+
+const MOBILE_WEATHER_ICONS: Record<PlacesWeatherMode, Icon> = {
+  auto: CloudSun,
+  rain: CloudRain,
+  snow: CloudSnow,
+  fog: CloudFog,
+};
 
 /**
  * The condition the selected slice's info card should mirror. When the user
@@ -132,10 +147,40 @@ export function PlacesOverlay({
         Math.abs(p.lon - activeExplorerCoords.lon) < 0.0002
     );
 
+  const headerMenuItems: MenuItem[] = [
+    { icon: Compass, label: 'Reset camera view', onSelect: onResetView },
+    {
+      icon: soundOn ? SpeakerHigh : SpeakerSlash,
+      label: soundOn ? 'Mute ambient sound' : 'Unmute ambient sound',
+      onSelect: onToggleSound,
+    },
+    { icon: ArrowLeft, label: 'Back to landmarks', onSelect: onBackToLandmarks },
+    {
+      icon: GlobeHemisphereEast,
+      label: 'Open 3D South Africa globe',
+      onSelect: onSwitchToGlobe,
+    },
+  ];
+
+  const timeWeatherMenuItems: MenuItem[] = [
+    ...QUICK_TIMES.map((preset) => ({
+      icon: Clock,
+      label: preset.label,
+      selected: Math.abs(activeTimeHour - preset.hour) < 1.5,
+      onSelect: () => onSelectTimePreset(preset.hour),
+    })),
+    ...WEATHER_MODES.map((mode) => ({
+      icon: MOBILE_WEATHER_ICONS[mode.id],
+      label: mode.label,
+      selected: weatherMode === mode.id,
+      onSelect: () => onSelectWeatherMode(mode.id),
+    })),
+  ];
+
   return (
     <div className="fixed inset-0 z-20 pointer-events-none">
       {/* Top Header Row */}
-      <div className="absolute left-3.5 sm:left-4 top-[calc(14px+env(safe-area-inset-top,0px))] right-3.5 sm:right-4 flex items-start justify-between gap-2">
+      <div className="absolute left-3.5 sm:left-4 top-[calc(14px+env(safe-area-inset-top,0px))] right-3.5 sm:right-4 flex items-center justify-between gap-2">
         <div className="min-w-0 drop-shadow-[0_1px_8px_rgba(0,0,0,0.85)]">
           <div className="font-serif-display italic text-[19px] sm:text-[22px] text-[#f3efe6] leading-tight whitespace-nowrap">
             South Africa
@@ -171,7 +216,7 @@ export function PlacesOverlay({
             onClick={onResetView}
             aria-label="Reset camera view"
             title="Reset camera view"
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full grid place-items-center bg-[#121319]/92 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
+            className="hidden sm:grid w-10 h-10 rounded-full place-items-center bg-[#121319]/92 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
           >
             <Compass size={17} />
           </motion.button>
@@ -186,7 +231,7 @@ export function PlacesOverlay({
             className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-full inline-flex items-center gap-1.5 bg-[#121319]/92 border border-white/15 text-[12.5px] sm:text-[13px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
           >
             <ArrowLeft size={15} weight="bold" />
-            <span>Landmarks</span>
+            <span className="hidden sm:inline">Landmarks</span>
           </motion.button>
 
           <motion.button
@@ -199,7 +244,7 @@ export function PlacesOverlay({
             className="h-9 sm:h-10 px-3 sm:px-3.5 rounded-full inline-flex items-center gap-1.5 bg-[#121319]/92 border border-white/15 text-[12.5px] sm:text-[13px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
           >
             <GlobeHemisphereEast size={15} weight="bold" />
-            <span>Globe</span>
+            <span className="hidden sm:inline">Globe</span>
           </motion.button>
 
           <motion.button
@@ -212,6 +257,23 @@ export function PlacesOverlay({
           >
             <X size={17} />
           </motion.button>
+
+          <Menu
+            ariaLabel="Places view actions"
+            reducedMotion={reducedMotion}
+            items={headerMenuItems}
+            trigger={
+              <motion.button
+                type="button"
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                aria-label="More Places actions"
+                title="More actions"
+                className="sm:hidden w-9 h-9 rounded-full grid place-items-center bg-[#121319]/92 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer shadow-lg"
+              >
+                <DotsThree size={17} weight="bold" />
+              </motion.button>
+            }
+          />
         </div>
       </div>
 
@@ -224,7 +286,24 @@ export function PlacesOverlay({
             <span className="text-[#a9a69e] hidden sm:inline">· {weather.label}</span>
           </div>
 
-          <div className="inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md">
+          <Menu
+            ariaLabel="Time and weather controls"
+            reducedMotion={reducedMotion}
+            items={timeWeatherMenuItems}
+            trigger={
+              <motion.button
+                type="button"
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                aria-label="Time and weather controls"
+                className="sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#121319]/90 border border-white/15 text-[11px] text-[#f3efe6] shadow-md cursor-pointer"
+              >
+                <Clock size={13} className="text-[#e8b04a]" />
+                <span>Time &amp; weather</span>
+              </motion.button>
+            }
+          />
+
+          <div className="hidden sm:inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md">
             {QUICK_TIMES.map((preset) => {
               const active = Math.abs(activeTimeHour - preset.hour) < 1.5;
               return (
@@ -247,7 +326,7 @@ export function PlacesOverlay({
           <div
             role="group"
             aria-label="Atmosphere shader mode"
-            className="inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md"
+            className="hidden sm:inline-flex items-center p-0.5 rounded-full bg-[#121319]/90 border border-white/15 shadow-md"
           >
             {WEATHER_MODES.map((wm) => {
               const active = weatherMode === wm.id;

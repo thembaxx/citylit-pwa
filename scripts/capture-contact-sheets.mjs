@@ -13,15 +13,22 @@
  * No npm dependencies are used: CDP is driven over Node's built-in fetch +
  * WebSocket. Node >= 22 is required for the global WebSocket.
  *
+ * Perf guardrail: every stats run compares each sampled site's calls/triangles
+ * against docs/baseline/current-stats.json (+10% ceiling, harness-matched).
+ * Breaches are
+ * printed as a per-site table and fail the run (exit code 1); the emitted
+ * stats.json is unchanged and stays JSON-compatible.
+ *
  * Usage:
  *   pnpm qa:capture
  *   pnpm qa:shots -- --base-url http://localhost:3004 --out docs/qa/latest
  *   node scripts/capture-contact-sheets.mjs --stats-only --cdp http://127.0.0.1:9222
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
 
 const HOUR_KEYS = { 12: 'noon', 18: 'golden', 22: 'night' };
 const SHOT_FILES = {
@@ -32,6 +39,14 @@ const SHOT_FILES = {
 const EXPECTED_LANDMARKS = 43;
 const SAMPLES_PER_SITE = 8;
 const WARMUP_FRAMES = 2;
+// Default to the most recent harness-matched capture. Older phase baselines
+// (baseline/phase1/phase2) were captured with a different browser/renderer
+// stack and can differ by ~10% in draw calls on untouched sites; pass
+// --baseline <file> to compare against any of them explicitly.
+const BASELINE_PATH = fileURLToPath(
+  new URL('../docs/baseline/current-stats.json', import.meta.url)
+);
+const PERF_GUARDRAIL_FACTOR = 1.1;
 
 const HELP = `
 Capture dev-only contact-sheet screenshots and renderer stats via CDP.
@@ -40,6 +55,7 @@ Options:
   --base-url <url>        Dev server base URL (default: http://localhost:3004)
   --out <dir>             Output directory (default: docs/qa/latest)
   --cdp <url>             Chrome DevTools HTTP endpoint (default: http://127.0.0.1:9222)
+  --baseline <file>       Perf baseline JSON (default: docs/baseline/current-stats.json)
   --hours <list>          Comma-separated hours to capture (default: 12,18,22)
   --chunk-size <n>        Sites per page evaluation (default: 9)
   --status-timeout-ms <n> Max wait for the "43 landmarks" status (default: 180000)
@@ -48,6 +64,10 @@ Options:
   --help                  Show this help
 
 The dev server and a remote-debugging Chrome must already be running.
+
+Perf guardrail: with stats enabled, calls/triangles are checked against
+docs/baseline/current-stats.json (+10% per site, harness-matched) or --baseline.
+Violations print a per-site table and exit non-zero; stats.json stays JSON-compatible.
 `;
 
 function parseCli() {
@@ -56,6 +76,7 @@ function parseCli() {
       'base-url': { type: 'string', default: 'http://localhost:3004' },
       out: { type: 'string', default: 'docs/qa/latest' },
       cdp: { type: 'string', default: 'http://127.0.0.1:9222' },
+      baseline: { type: 'string', default: BASELINE_PATH },
       hours: { type: 'string', default: '12,18,22' },
       'chunk-size': { type: 'string', default: '9' },
       'status-timeout-ms': { type: 'string', default: '180000' },
@@ -91,6 +112,7 @@ function parseCli() {
     baseUrl: values['base-url'].replace(/\/+$/, ''),
     outDir: resolve(values.out),
     cdp: values.cdp.replace(/\/+$/, ''),
+    baseline: resolve(values.baseline),
     hours,
     chunkSize,
     statusTimeoutMs,
@@ -101,6 +123,64 @@ function parseCli() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pad = (n) => String(n).padStart(2, '0');
+
+/**
+ * Compare sampled renderer.info figures with the documented per-site ceilings.
+ * The sampling method matches the baseline (same warmup/sample frame counts),
+ * so no extra allowance is needed beyond the +10% guardrail; Math.ceil only
+ * absorbs integer rounding. Missing baseline rows are reported, not assumed.
+ */
+function checkPerfGuardrails(stats, baseline) {
+  const violations = [];
+  let checked = 0;
+  for (const key of Object.values(HOUR_KEYS)) {
+    const rows = stats[key];
+    if (!Array.isArray(rows)) continue;
+    const baseRows = baseline[key];
+    if (!Array.isArray(baseRows)) {
+      console.warn(`  guardrail: no baseline for ${key}, skipping`);
+      continue;
+    }
+    const byIndex = new Map(baseRows.map((row) => [row.i, row]));
+    for (const row of rows) {
+      const base = byIndex.get(row.i);
+      if (!base || !Number.isFinite(base.calls) || !Number.isFinite(base.tris)) continue;
+      checked++;
+      const callLimit = Math.ceil(base.calls * PERF_GUARDRAIL_FACTOR);
+      const trisLimit = Math.ceil(base.tris * PERF_GUARDRAIL_FACTOR);
+      if (row.calls <= callLimit && row.tris <= trisLimit) continue;
+      violations.push({
+        hour: key,
+        site: row.name,
+        calls: row.calls,
+        callLimit,
+        tris: row.tris,
+        trisLimit,
+      });
+    }
+  }
+  return { violations, checked };
+}
+
+function reportPerfGuardrails(violations, checked) {
+  if (violations.length === 0) {
+    console.log(`Perf guardrail: PASS (${checked} site checks, +10% calls/tris ceiling).`);
+    return;
+  }
+  console.error(`Perf guardrail: FAIL — ${violations.length} site(s) exceed baseline +10%:`);
+  console.error(
+    [
+      '  hour   site                                                calls     limit       tris     limit',
+      ...violations.map(
+        (v) =>
+          `  ${v.hour.padEnd(7)} ${v.site.slice(0, 44).padEnd(45)} ` +
+          `${String(v.calls).padStart(7)} ${String(v.callLimit).padStart(8)} ` +
+          `${String(v.tris).padStart(10)} ${String(v.trisLimit).padStart(9)}`
+      ),
+    ].join('\n')
+  );
+  process.exitCode = 1;
+}
 
 /** Minimal CDP session over the global WebSocket (Node >= 22). */
 class CdpSession {
@@ -231,18 +311,18 @@ function setupEval() {
   return `(() => {
     const e = window.citylitEngine;
     if (!e) return { ok: false, reason: 'window.citylitEngine missing' };
-    if (window.__qaPrevAutoReset === undefined) window.__qaPrevAutoReset = e.renderer.info.autoReset;
+    if (window.__qaPrevAutoReset === undefined) window.__qaPrevAutoReset = e.renderer.raw.info.autoReset;
     window.__qaPrevSoftwareGl = e.isSoftwareGl;
     e.isSoftwareGl = false;
     e.applyQuality('high');
-    e.renderer.info.autoReset = false;
+    e.renderer.raw.info.autoReset = false;
     return {
       ok: true,
       figures: document.querySelectorAll('#grid figure').length,
       qualitySetting: e.qualitySetting,
       qualityIndex: e.qualityIndex,
       isSoftwareGl: e.isSoftwareGl,
-      autoReset: e.renderer.info.autoReset
+      autoReset: e.renderer.raw.info.autoReset
     };
   })()`;
 }
@@ -251,9 +331,9 @@ function restoreEval() {
   return `(() => {
     const e = window.citylitEngine;
     if (!e) return false;
-    e.renderer.info.autoReset = window.__qaPrevAutoReset !== undefined ? window.__qaPrevAutoReset : true;
+    e.renderer.raw.info.autoReset = window.__qaPrevAutoReset !== undefined ? window.__qaPrevAutoReset : true;
     if (window.__qaPrevSoftwareGl !== undefined) e.isSoftwareGl = window.__qaPrevSoftwareGl;
-    return e.renderer.info.autoReset;
+    return e.renderer.raw.info.autoReset;
   })()`;
 }
 
@@ -261,7 +341,7 @@ function restoreEval() {
 function statsChunkEval(start, end) {
   return `(async () => {
     const e = window.citylitEngine;
-    const info = e.renderer.info;
+    const info = e.renderer.raw.info;
     const raf = () => new Promise((r) => requestAnimationFrame(r));
     const captions = [...document.querySelectorAll('#grid figcaption')];
     const out = [];
@@ -293,7 +373,9 @@ function statsChunkEval(start, end) {
 async function captureHour(cdp, cfg, hour, stats) {
   const key = HOUR_KEYS[hour];
   const expectedStatus = `${EXPECTED_LANDMARKS} landmarks · daylight · ${pad(hour)}:00`;
-  const url = `${cfg.baseUrl}/contact-sheet.html?theme=daylight&hour=${hour}&_qa=${Date.now()}`;
+  // The harness samples WebGLRenderer.info, so pin the WebGL backend explicitly:
+  // on WebGPU-capable browsers `auto` selects WebGPU, whose wrapper has no .info.
+  const url = `${cfg.baseUrl}/contact-sheet.html?theme=daylight&hour=${hour}&renderer=webgl&_qa=${Date.now()}`;
 
   await cdp.send('Page.enable');
   await cdp.send('Page.navigate', { url });
@@ -360,7 +442,7 @@ async function main() {
         renderer: true,
       },
       method:
-        'renderer.info.autoReset=false; per-site showLandmarkImmediate; two warmup rAF frames; ' +
+        'renderer.raw.info.autoReset=false; per-site showLandmarkImmediate; two warmup rAF frames; ' +
         'info.reset(); 8 rAF samples; calls/tris read after the 8-frame window; ' +
         'FPS=1000/mean(frame ms). Sampling split into chunks to bound page evaluations.',
       caveat:
@@ -377,9 +459,26 @@ async function main() {
     }
 
     if (cfg.stats) {
+      let guardrail = null;
+      try {
+        const baseline = JSON.parse(readFileSync(cfg.baseline, 'utf8'));
+        guardrail = checkPerfGuardrails(stats, baseline);
+      } catch (err) {
+        guardrail = {
+          violations: [],
+          checked: 0,
+          error: `cannot load ${cfg.baseline}: ${err?.message || err}`,
+        };
+      }
       const file = resolve(cfg.outDir, 'stats.json');
       writeFileSync(file, `${JSON.stringify(stats, null, 2)}\n`);
       console.log(`stats: ${file}`);
+      if (guardrail.error) {
+        console.error(`Perf guardrail: FAILED: ${guardrail.error}`);
+        process.exitCode = 1;
+      } else {
+        reportPerfGuardrails(guardrail.violations, guardrail.checked);
+      }
     }
     console.log('Done.');
   } finally {

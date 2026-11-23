@@ -1,7 +1,13 @@
 import { MapPin, Sparkle, Trash, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
-import { DURATION, EASE_SMOOTH_OUT, SPRING, toastVariants } from './lib/motion';
+import {
+  COMPACT_BREAKPOINT_PX,
+  DURATION,
+  EASE_SMOOTH_OUT,
+  SPRING,
+  toastVariants,
+} from './lib/motion';
 import { referenceDisplayFactor } from './lib/scale';
 import { msUntilNextThemeBoundary, resolveAutoTheme, resolveTheme } from './lib/theme';
 import {
@@ -358,7 +364,7 @@ export function App() {
     } catch {
       // Ignore storage failures.
     }
-    return window.matchMedia('(max-width: 640px)').matches;
+    return window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`).matches;
   });
   const [showDirection, setShowDirection] = useState(false);
   const [cutawayActive, setCutawayActive] = useState(false);
@@ -410,6 +416,46 @@ export function App() {
       typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     );
   }, [settings.motion]);
+
+  // Keep the compact shell in step with the breakpoint token. A persisted
+  // manual choice (cl-compact) still wins, as it did before this listener.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`);
+    const onChange = (e: MediaQueryListEvent) => {
+      try {
+        if (window.localStorage.getItem('cl-compact') !== null) return;
+      } catch {
+        // Ignore storage failures.
+      }
+      setCompact(e.matches);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // Publish how much of the visual viewport the on-screen keyboard covers.
+  // With `interactive-widget=resizes-content` this is usually 0 on Chromium;
+  // on Safari the layout viewport stays tall and the delta keeps the focused
+  // sheet input / note composer above the keyboard via --cl-kbd-inset.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    const publish = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--cl-kbd-inset', `${Math.round(inset)}px`);
+    };
+    publish();
+    vv.addEventListener('resize', publish);
+    vv.addEventListener('scroll', publish);
+    window.addEventListener('resize', publish);
+    return () => {
+      vv.removeEventListener('resize', publish);
+      vv.removeEventListener('scroll', publish);
+      window.removeEventListener('resize', publish);
+      document.documentElement.style.removeProperty('--cl-kbd-inset');
+    };
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     ambientAudio.playUi('info');
@@ -1632,7 +1678,7 @@ export function App() {
           !placesOpen &&
           !fullscreen &&
           scaleFact?.magnitudeM && (
-            <div className="fixed left-4 top-[calc(116px+env(safe-area-inset-top,0px))] z-40 max-w-[min(320px,calc(100vw-32px))] px-3 py-2 rounded-xl bg-[#121319]/90 border border-[#e8b04a]/35 text-[11.5px] text-[#f3efe6] pointer-events-none sm:top-[calc(70px+env(safe-area-inset-top,0px))]">
+            <div className="fixed left-[calc(1rem+env(safe-area-inset-left,0px))] top-[calc(116px+env(safe-area-inset-top,0px))] z-40 max-w-[min(320px,calc(100vw-32px))] px-3 py-2 rounded-xl bg-[#121319]/90 border border-[#e8b04a]/35 text-[11.5px] text-[#f3efe6] pointer-events-none sm:top-[calc(70px+env(safe-area-inset-top,0px))]">
               <div className="font-medium">
                 {formatMetres(scaleFact.magnitudeM)} {scaleFact.label} · ≈
                 {Math.round(scaleRatio(scaleFact.magnitudeM, referenceHeightM(scaleKind))).toLocaleString('en-ZA')}{' '}
@@ -1825,7 +1871,7 @@ export function App() {
         {/* Desktop Orbit Hint */}
         {!fullscreen && !globeOpen && !placesOpen && hintVisible && (
           <div
-            className={`hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] pointer-events-none transition-colors duration-500 ${
+            className={`hidden md:block fixed right-[calc(1rem+env(safe-area-inset-right,0px))] bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] pointer-events-none transition-colors duration-500 ${
               effectiveTheme === 'dark' ? 'text-[#a9a69e]' : 'text-[#1c2330]/75'
             }`}
           >
@@ -1941,7 +1987,7 @@ export function App() {
               exit="exit"
               transition={reducedMotion ? { duration: 0 } : undefined}
               onClick={() => setFactText(null)}
-              className="fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#e8b04a]/45 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl cursor-pointer"
+              className="fixed left-[calc(0.875rem+env(safe-area-inset-left,0px))] bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border border-[#e8b04a]/45 rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl cursor-pointer"
             >
               <Sparkle size={16} weight="fill" className="text-[#e8b04a] shrink-0 mt-0.5" />
               <span>{factText}</span>
@@ -1969,7 +2015,7 @@ export function App() {
                   animate="animate"
                   exit="exit"
                   transition={reducedMotion ? { duration: 0 } : undefined}
-                  className={`fixed left-3.5 bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border ${catInfo.border} rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl`}
+                  className={`fixed left-[calc(0.875rem+env(safe-area-inset-left,0px))] bottom-[calc(var(--cl-card-h,218px)+env(safe-area-inset-bottom,0px)+26px)] z-20 w-[min(532px,calc(100vw-28px))] px-4 py-3 bg-[#121319]/95 border ${catInfo.border} rounded-2xl text-[13.5px] text-[#f3efe6] flex items-start gap-2.5 shadow-xl`}
                 >
                   <MapPin
                     size={17}
@@ -2145,7 +2191,10 @@ export function App() {
           onToggleFavorite={toggleFavorite}
           onOpenPassport={() => setPassportOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenRuler={() => setRulerOpen(true)}
+          onOpenRuler={() => {
+            setSearchOpen(false);
+            setRulerOpen(true);
+          }}
           onExploreCoordinates={(center) => void exploreCoordinates(center)}
           exploring={exploring}
           onInstalledToast={showToast}
@@ -2183,7 +2232,10 @@ export function App() {
           reducedMotion={reducedMotion}
           onClose={() => setPassportOpen(false)}
           onJumpToNote={handleJumpToNote}
-          onOpenRuler={() => setRulerOpen(true)}
+          onOpenRuler={() => {
+            setPassportOpen(false);
+            setRulerOpen(true);
+          }}
           onResetEggs={resetEggs}
           onSelectRoute={handleSelectRoute}
           onViewRouteOnGlobe={handleViewRouteOnGlobe}

@@ -117,6 +117,19 @@ interface SpatialEmitter {
   phase: number;
 }
 
+/**
+ * Discrete, fully synthesised animal voices triggered from the engine's
+ * wildlife ticks. No samples, no network: each call is built from the same
+ * oscillators/noise buffers as the rest of the ambience and routed through
+ * the master bus, so volume, mute and stereo panning stay authoritative.
+ */
+export type AnimalAudioEvent =
+  | 'elephant-rumble'
+  | 'penguin-bray'
+  | 'whale-blow'
+  | 'hippo-grunt'
+  | 'hadeda-alarm';
+
 export interface SpatialListener {
   /** Listener (camera) position in diorama space. */
   position: readonly [x: number, y: number, z: number];
@@ -1089,6 +1102,116 @@ class AmbientAudioController {
       osc.start(at);
       osc.stop(at + dur + 0.015);
       osc.onended = () => g.disconnect();
+    }
+  }
+
+  /**
+   * Play a one-shot animal call. `intensity` is a gain trim, not a bypass:
+   * mute, master volume and the mixer all still apply. The whale blow is tied
+   * to the breach animation, so reduced motion suppresses just that voice.
+   */
+  playAnimalEvent(kind: AnimalAudioEvent, intensity = 1): void {
+    if (
+      !this.ctx ||
+      !this.masterGain ||
+      !this.enabled ||
+      this.volume <= 0.001 ||
+      intensity <= 0.01
+    ) {
+      return;
+    }
+    if (kind === 'whale-blow' && this.reducedMotion) return;
+
+    const ctx = this.ctx;
+    const t = ctx.currentTime;
+    const amp = Math.max(0.2, Math.min(1, intensity));
+    const pan = this.eventPan((Math.random() - 0.5) * 0.5);
+
+    const tone = (
+      type: OscillatorType,
+      f0: number,
+      f1: number,
+      dur: number,
+      gain: number,
+      delay = 0
+    ) => {
+      const at = t + delay;
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(f0, at);
+      osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + dur);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(gain * amp, at + Math.min(0.05, dur * 0.25));
+      g.gain.exponentialRampToValueAtTime(0.0008, at + dur);
+      osc.connect(g);
+      this.connectPanned(g, pan);
+      osc.start(at);
+      osc.stop(at + dur + 0.04);
+      osc.onended = () => g.disconnect();
+    };
+
+    const noise = (
+      buf: AudioBuffer | null,
+      type: BiquadFilterType,
+      f0: number,
+      f1: number,
+      dur: number,
+      gain: number,
+      q: number
+    ) => {
+      if (!buf) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const fl = ctx.createBiquadFilter();
+      fl.type = type;
+      fl.Q.value = q;
+      fl.frequency.setValueAtTime(f0, t);
+      fl.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(gain * amp, t + Math.min(0.08, dur * 0.2));
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      src.connect(fl);
+      fl.connect(g);
+      this.connectPanned(g, pan);
+      src.start(t);
+      src.stop(t + dur + 0.05);
+      src.onended = () => {
+        fl.disconnect();
+        g.disconnect();
+      };
+    };
+
+    switch (kind) {
+      case 'elephant-rumble':
+        // Low, long infrasonic swell with a breathy body.
+        tone('sine', 42, 26, 1.8, 0.16);
+        tone('triangle', 84, 54, 1.5, 0.035);
+        noise(this.brownBuf, 'lowpass', 180, 70, 1.7, 0.05, 0.7);
+        break;
+      case 'penguin-bray':
+        // Boulders colony: harsh, nasal brays in quick succession.
+        for (let i = 0; i < 3; i++) {
+          tone('sawtooth', 470 + i * 45 + Math.random() * 30, 250, 0.16, 0.032, i * 0.19);
+        }
+        break;
+      case 'whale-blow':
+        // Breath blast descending into the low moan of the surfacing whale.
+        noise(this.brownBuf, 'bandpass', 900, 320, 0.85, 0.11, 0.9);
+        tone('sine', 120, 70, 0.7, 0.045);
+        break;
+      case 'hippo-grunt':
+        // St Lucia: two guttural, short grunts.
+        tone('sawtooth', 115, 68, 0.34, 0.075);
+        tone('square', 78, 52, 0.22, 0.028, 0.38);
+        break;
+      case 'hadeda-alarm':
+        // Dawn patrol: three rising, squawking alarm notes.
+        for (let i = 0; i < 3; i++) {
+          tone('sawtooth', 950 + i * 90, 520, 0.14, 0.03, i * 0.22);
+        }
+        break;
     }
   }
 

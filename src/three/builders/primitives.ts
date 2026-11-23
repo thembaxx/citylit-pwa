@@ -29,6 +29,7 @@ import {
   WU,
 } from '../shaders';
 import { createWindowFacade } from '../windowLights';
+import { getSeasonMonth, isSpeciesBlooming } from '../../lib/season';
 
 export interface SwayItem {
   o: THREE.Object3D;
@@ -484,6 +485,12 @@ export function M(c: THREE.ColorRepresentation, r = 0.7, m = 0): THREE.MeshStand
   return cacheMat(key, finalMat);
 }
 
+/**
+ * One tiny specular dot shared by every animal eye. `M()` caches by colour, so
+ * all glints resolve to a single material and merge/instance into one batch.
+ */
+const EYE_GLINT = M('#fbfaf6', 0.22);
+
 export function MStone(
   c: THREE.ColorRepresentation,
   r = 0.9,
@@ -748,11 +755,17 @@ export function mergeByMaterial(g: THREE.Group): THREE.Group {
 export const B = (w: number, h: number, d: number): THREE.BoxGeometry =>
   new THREE.BoxGeometry(w, h, d);
 
-export function CB(w: number, h: number, d: number, r = 0.04, segs = 3): THREE.BufferGeometry {
+export function CB(w: number, h: number, d: number, r = 0.04, segs?: number): THREE.BufferGeometry {
   const cr = Math.min(r, Math.min(w, h, d) * 0.42);
-  const key = `cb_${w.toFixed(3)}_${h.toFixed(3)}_${d.toFixed(3)}_${cr.toFixed(3)}_${segs}`;
+  // A 7x7x7 subdivided box costs 588 triangles however small the bevel is.
+  // Only silhouette-sized parts resolve three segments; tiny fittings get 1-2.
+  // An explicit `segs` from the caller is always honoured exactly.
+  const maxDim = Math.max(w, h, d);
+  const effective = segs ?? (maxDim < 0.3 ? 1 : maxDim < 1.5 ? 2 : 3);
+  // Key on the effective count so the cache stays unique per geometry variant.
+  const key = `cb_${w.toFixed(3)}_${h.toFixed(3)}_${d.toFixed(3)}_${cr.toFixed(3)}_${effective}`;
   if (geoCache[key]) return geoCache[key];
-  const geo = new RoundedBoxGeometry(w, h, d, segs, cr);
+  const geo = new RoundedBoxGeometry(w, h, d, effective, cr);
   return cacheGeo(key, geo);
 }
 
@@ -2387,9 +2400,187 @@ export function animal(col: string): THREE.Group {
   add(a, C(0.004, 0.006, 0.08, 6), dk, -0.11, 0.12, 0).rotation.z = 0.5;
   for (const s of [-1, 1]) {
     add(a, new THREE.ConeGeometry(0.01, 0.05, 6), dk, 0.15, 0.22, s * 0.025).rotation.z = -0.4;
+    // Eyes: dark sphere joins the existing `dk` batch, glint uses the shared dot.
+    add(a, new THREE.SphereGeometry(0.009, 6, 5), dk, 0.152, 0.185, s * 0.022);
+    add(a, new THREE.SphereGeometry(0.004, 5, 4), EYE_GLINT, 0.158, 0.187, s * 0.024);
   }
   mergeByMaterial(a);
   return a;
+}
+
+/** Greater flamingo (Phoenicopterus roseus): stilt biped, S-neck, down-bent bill. */
+export function flamingo(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const fl = new THREE.Group();
+  fl.position.set(x, y, z);
+  fl.rotation.y = ry;
+  fl.scale.setScalar(sc);
+  const pink = M('#e8868a', 0.8);
+  const pale = M('#f3c9c4', 0.82);
+  const blk = M('#24202a', 0.7);
+  const leg = M('#c47b78', 0.72);
+
+  add(fl, new THREE.SphereGeometry(0.13, 12, 10), pink, 0, 0.34, 0).scale.set(1.12, 0.82, 0.86);
+  add(fl, new THREE.ConeGeometry(0.07, 0.2, 6).rotateZ(Math.PI / 2), pink, -0.17, 0.36, 0);
+  // Black flight feathers folded along the flanks.
+  for (const s of [-1, 1]) {
+    const feather = add(fl, CB(0.12, 0.012, 0.045, 0.004), blk, -0.11, 0.37, s * 0.055);
+    feather.rotation.z = -0.2;
+  }
+  // Signature S-curve neck.
+  const neckCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.1, 0.4, 0),
+    new THREE.Vector3(0.18, 0.53, 0),
+    new THREE.Vector3(0.1, 0.66, 0),
+    new THREE.Vector3(0.18, 0.63, 0),
+  ]);
+  add(fl, new THREE.TubeGeometry(neckCurve, 10, 0.026, 6, false), pink);
+  add(fl, new THREE.SphereGeometry(0.045, 8, 6), pale, 0.19, 0.63, 0);
+  const bill = add(
+    fl,
+    new THREE.ConeGeometry(0.022, 0.14, 6).rotateZ(-Math.PI / 2),
+    blk,
+    0.26,
+    0.59,
+    0
+  );
+  bill.rotation.z = -0.45;
+  for (const s of [-1, 1]) {
+    add(fl, new THREE.SphereGeometry(0.009, 6, 5), blk, 0.205, 0.645, s * 0.03);
+    add(fl, new THREE.SphereGeometry(0.004, 5, 4), EYE_GLINT, 0.212, 0.647, s * 0.033);
+    add(fl, C(0.008, 0.01, 0.32, 6), leg, s * 0.035, 0.16, 0);
+    add(fl, CB(0.05, 0.008, 0.04, 0.003), blk, s * 0.035, 0.012, 0.015);
+  }
+  mergeByMaterial(fl);
+  g.add(fl);
+  return fl;
+}
+
+/** Gannet-like seabird: white body, black wingtips, golden head, pointed bill. */
+export function seabird(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const sb = new THREE.Group();
+  sb.position.set(x, y, z);
+  sb.rotation.y = ry;
+  sb.scale.setScalar(sc);
+  const wht = M('#f2f1ea', 0.72);
+  const gold = M('#d8a94e', 0.72);
+  const blk = M('#22262c', 0.66);
+  const billMat = M('#cf9a52', 0.6);
+
+  add(sb, new THREE.SphereGeometry(0.12, 12, 10), wht, 0, 0.3, 0).scale.set(1, 0.8, 1.5);
+  add(sb, new THREE.SphereGeometry(0.06, 10, 8), gold, 0, 0.42, 0.14);
+  add(sb, new THREE.ConeGeometry(0.016, 0.11, 6).rotateX(Math.PI / 2), billMat, 0, 0.41, 0.22);
+  add(
+    sb,
+    new THREE.ConeGeometry(0.05, 0.16, 6).rotateX(-Math.PI / 2),
+    wht,
+    0,
+    0.3,
+    -0.19
+  ).scale.set(1, 0.25, 1);
+  for (const s of [-1, 1]) {
+    const wing = add(sb, CB(0.26, 0.02, 0.085, 0.008), wht, s * 0.16, 0.33, 0);
+    wing.rotation.z = s * 0.16;
+    const tip = add(sb, CB(0.08, 0.02, 0.085, 0.006), blk, s * 0.31, 0.33, 0);
+    tip.rotation.z = s * 0.16;
+    add(sb, new THREE.SphereGeometry(0.008, 6, 5), blk, s * 0.035, 0.44, 0.18);
+    add(sb, new THREE.SphereGeometry(0.004, 5, 4), EYE_GLINT, s * 0.037, 0.445, 0.183);
+    add(sb, C(0.007, 0.009, 0.16, 6), blk, s * 0.03, 0.1, 0.02);
+  }
+  mergeByMaterial(sb);
+  g.add(sb);
+  return sb;
+}
+
+/** Bearded vulture: hunched shoulders, bare neck, hooked bill, broad wings. */
+export function vulture(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const vu = new THREE.Group();
+  vu.position.set(x, y, z);
+  vu.rotation.y = ry;
+  vu.scale.setScalar(sc);
+  const body = M('#6b5b4a', 0.88);
+  const feather = M('#3a332d', 0.84);
+  const bare = M('#9a7868', 0.86);
+  const beak = M('#c9a24b', 0.55);
+
+  add(vu, new THREE.SphereGeometry(0.15, 12, 10), body, 0, 0.3, 0).scale.set(1.05, 0.95, 0.82);
+  add(vu, new THREE.SphereGeometry(0.1, 10, 8), feather, -0.02, 0.42, -0.01).scale.set(
+    1.2,
+    0.7,
+    0.95
+  );
+  const neck = add(vu, C(0.032, 0.045, 0.18, 7), bare, 0.13, 0.5, 0);
+  neck.rotation.z = -0.5;
+  add(vu, new THREE.SphereGeometry(0.05, 8, 6), bare, 0.2, 0.57, 0);
+  const hook = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.23, 0.55, 0),
+    new THREE.Vector3(0.28, 0.53, 0),
+    new THREE.Vector3(0.28, 0.49, 0),
+  ]);
+  add(vu, new THREE.TubeGeometry(hook, 8, 0.014, 6, false), beak);
+  for (const s of [-1, 1]) {
+    const wing = add(vu, CB(0.32, 0.022, 0.15, 0.01), feather, -0.02, 0.34, s * 0.19);
+    wing.rotation.z = s * 0.2;
+    add(vu, new THREE.SphereGeometry(0.009, 6, 5), feather, 0.215, 0.58, s * 0.032);
+    add(vu, new THREE.SphereGeometry(0.0045, 5, 4), EYE_GLINT, 0.222, 0.582, s * 0.035);
+    add(vu, C(0.012, 0.014, 0.14, 6), beak, s * 0.04, 0.1, 0);
+  }
+  add(vu, CB(0.16, 0.02, 0.24, 0.01), feather, -0.18, 0.28, 0);
+  mergeByMaterial(vu);
+  g.add(vu);
+  return vu;
+}
+
+/** Rock dassie (Procavia capensis): small rounded hyrax sprawled in the sun. */
+export function dassie(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const ds = new THREE.Group();
+  ds.position.set(x, y, z);
+  ds.rotation.y = ry;
+  ds.scale.setScalar(sc);
+  const fur = M('#9a8f7c', 0.9);
+  const dk = M('#5c5347', 0.86);
+
+  add(ds, new THREE.SphereGeometry(0.14, 12, 10), fur, 0, 0.12, 0).scale.set(1.3, 0.72, 1);
+  add(ds, new THREE.SphereGeometry(0.085, 10, 8), fur, 0.17, 0.11, 0).scale.set(1, 0.85, 0.95);
+  for (const s of [-1, 1]) {
+    add(ds, new THREE.SphereGeometry(0.025, 6, 5), dk, 0.16, 0.17, s * 0.05).scale.set(0.5, 1, 0.8);
+    add(ds, new THREE.SphereGeometry(0.009, 6, 5), dk, 0.23, 0.125, s * 0.04);
+    add(ds, new THREE.SphereGeometry(0.004, 5, 4), EYE_GLINT, 0.236, 0.128, s * 0.042);
+    for (const lx of [-0.1, 0.1]) {
+      add(ds, C(0.016, 0.02, 0.08, 6), fur, lx, 0.05, s * 0.09).rotation.x = s * 0.7;
+    }
+  }
+  add(ds, new THREE.SphereGeometry(0.014, 6, 5), dk, 0.25, 0.1, 0);
+  mergeByMaterial(ds);
+  g.add(ds);
+  return ds;
 }
 
 /** Dichotomous-branching Namaqua/Karoo Quiver Tree (Aloidendron dichotomum). */
@@ -2568,6 +2759,12 @@ export function elephant(
     add(el, new THREE.TubeGeometry(tCurve, 10, 0.017, 6, false), tusk);
   }
 
+  // Eyes: reuse the existing darker mud batch; the tusk batch supplies the glint.
+  for (const s of [-1, 1]) {
+    add(el, new THREE.SphereGeometry(0.013, 7, 6), legMud, 0.46, 0.61, s * 0.09);
+    add(el, new THREE.SphereGeometry(0.0055, 5, 4), tusk, 0.468, 0.613, s * 0.094);
+  }
+
   // Columnar mud-caked legs with subtle knee bulge
   for (const [lx, lz] of [
     [0.2, 0.11],
@@ -2621,6 +2818,9 @@ export function penguin(
   add(pg, new THREE.ConeGeometry(0.012, 0.042, 6).rotateX(Math.PI / 2), blk, 0, 0.19, 0.055);
   for (const s of [-1, 1]) {
     add(pg, new THREE.SphereGeometry(0.009, 6, 6), pink, s * 0.022, 0.205, 0.026).scale.set(0.7, 0.8, 1.1);
+    // Dark eye on the black head; the white chest material gives it a glint.
+    add(pg, new THREE.SphereGeometry(0.008, 6, 5), blk, s * 0.016, 0.193, 0.037);
+    add(pg, new THREE.SphereGeometry(0.004, 5, 4), wht, s * 0.017, 0.195, 0.041);
     // Wing flippers
     const w = add(pg, CB(0.012, 0.09, 0.035, 0.004), blk, s * 0.052, 0.105, 0);
     w.rotation.z = s * 0.18;
@@ -2663,6 +2863,9 @@ export function whale(sc = 1): THREE.Group {
   for (const s of [-1, 1]) {
     add(wh, new THREE.SphereGeometry(0.032, 6, 5), callosity, 0.43, 0.11, s * 0.09);
     add(wh, new THREE.SphereGeometry(0.024, 6, 5), callosity, 0.3, 0.13, s * 0.05);
+    // Small dark eye on each side of the rostrum; callosity cream reads as the glint.
+    add(wh, new THREE.SphereGeometry(0.012, 7, 6), body, 0.46, 0.01, s * 0.125);
+    add(wh, new THREE.SphereGeometry(0.0055, 5, 4), callosity, 0.468, 0.014, s * 0.129);
   }
 
   mergeByMaterial(wh);
@@ -2689,9 +2892,11 @@ export function hippo(
   add(hp, new THREE.SphereGeometry(0.18, 12, 10), skin, 0, 0.02, 0).scale.set(1.6, 0.72, 0.88);
   add(hp, new THREE.SphereGeometry(0.11, 10, 8), skin, 0.28, 0.06, 0).scale.set(1.25, 0.78, 0.86);
   add(hp, CB(0.12, 0.08, 0.15, 0.03), skin, 0.37, 0.04, 0);
-  // Periscope eyes, ears & nostrils above waterline
+  // Periscope eyes, ears & nostrils above waterline. Glints go on the eyes of
+  // the visible head only — the ears and nostrils stay plain dark.
   for (const s of [-1, 1]) {
     add(hp, new THREE.SphereGeometry(0.022, 6, 5), dark, 0.24, 0.145, s * 0.055);
+    add(hp, new THREE.SphereGeometry(0.006, 5, 4), EYE_GLINT, 0.246, 0.149, s * 0.058);
     add(hp, new THREE.SphereGeometry(0.016, 6, 5), dark, 0.19, 0.155, s * 0.068);
     add(hp, new THREE.SphereGeometry(0.014, 6, 5), dark, 0.41, 0.085, s * 0.036);
   }
@@ -2724,6 +2929,9 @@ export function gemsbok(
   add(gm, CB(0.075, 0.025, 0.062, 0.01), blk, 0.24, 0.38, 0);
   for (const s of [-1, 1]) {
     add(gm, C(0.005, 0.011, 0.26, 6), blk, 0.14, 0.5, s * 0.02).rotation.z = 0.68;
+    // Eyes sit on the black face mask; the white coat batch supplies the glint.
+    add(gm, new THREE.SphereGeometry(0.009, 6, 5), blk, 0.253, 0.384, s * 0.023);
+    add(gm, new THREE.SphereGeometry(0.0045, 5, 4), wht, 0.258, 0.386, s * 0.025);
   }
   for (const [lx, lz] of [
     [0.11, 0.045],
@@ -2997,4 +3205,264 @@ export function setContactShadowFade(g: THREE.Object3D | null, alpha: number): v
   const clamped = Math.max(0, Math.min(1, alpha));
   mat.opacity = clamped;
   mesh.visible = clamped > 0.01;
+}
+
+/* ------------------------------------------------------------------ */
+/* Batch 2 — human-scale figures + named botanical species             */
+/*                                                                      */
+/* Every builder below is a self-contained, mergeByMaterial-finished    */
+/* group placed with the shared (g, x, y, z, sc, ry) convention. They    */
+/* use only the cached M()/MBark() materials and the existing add()/     */
+/* C()/CB() helpers, so a whole crowd or grove collapses to one mesh    */
+/* per material and never adds a light or a per-frame update.           */
+/* ------------------------------------------------------------------ */
+
+function kitHolder(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc: number,
+  ry: number
+): THREE.Group {
+  const holder = new THREE.Group();
+  holder.position.set(x, y, z);
+  holder.rotation.y = ry;
+  holder.scale.setScalar(sc > 0 ? sc : 1);
+  g.add(holder);
+  return holder;
+}
+
+/**
+ * Static charcoal human silhouette. Three poses are selected
+ * deterministically from `ry`/`sc` (no extra argument, no animation state):
+ * 0 = standing, 1 = walking, 2 = pointing. One shared material → one draw
+ * call no matter how many figures a site places.
+ */
+export function person(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const charcoal = M('#292c30', 0.94);
+  const pose = Math.floor(Math.abs(ry) * 9 + sc * 31) % 3;
+  const stride = pose === 1 ? 0.055 : pose === 2 ? -0.02 : 0;
+
+  add(h, CB(0.22, 0.4, 0.14, 0.05), charcoal, 0, 0.74, 0);
+  add(h, new THREE.SphereGeometry(0.105, 8, 6), charcoal, 0, 1.04, 0);
+  add(h, C(0.052, 0.058, 0.12, 6), charcoal, 0, 0.95, 0);
+  add(h, CB(0.19, 0.06, 0.13, 0.02), charcoal, 0, 0.92, 0);
+  add(h, C(0.048, 0.052, 0.36, 6), charcoal, -0.062, 0.19, stride);
+  add(h, C(0.048, 0.052, 0.36, 6), charcoal, 0.062, 0.19, -stride);
+  add(h, CB(0.1, 0.045, 0.18, 0.015), charcoal, -0.062, 0.035, stride + 0.03);
+  add(h, CB(0.1, 0.045, 0.18, 0.015), charcoal, 0.062, 0.035, -stride + 0.03);
+  const armL = add(h, C(0.038, 0.042, 0.34, 6), charcoal, -0.15, 0.66, pose === 1 ? -0.06 : 0);
+  armL.rotation.x = pose === 2 ? -2.1 : pose === 1 ? -0.5 : 0.04;
+  const armR = add(h, C(0.038, 0.042, 0.34, 6), charcoal, 0.15, 0.66, pose === 1 ? 0.06 : 0);
+  armR.rotation.x = pose === 1 ? 0.5 : -0.04;
+  add(h, new THREE.SphereGeometry(0.045, 6, 5), charcoal, -0.15, 0.47, pose === 1 ? -0.15 : 0);
+  add(h, new THREE.SphereGeometry(0.045, 6, 5), charcoal, 0.15, 0.47, pose === 1 ? 0.15 : 0);
+  return mergeByMaterial(h);
+}
+
+/** Low Peninsula fynbos shrub: clustered restios with ochre flower tips. */
+export function fynbos(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const bark = MBark('#6d5438', 0.94, 0.02);
+  const green = M('#506b34', 0.94);
+  const bloom = M('#c0894b', 0.9);
+  add(h, C(0.035, 0.055, 0.26, 6), bark, 0, 0.13, 0);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + ry * 0.3;
+    add(
+      h,
+      new THREE.IcosahedronGeometry(0.15 + i * 0.012, 0),
+      green,
+      Math.cos(a) * 0.12,
+      0.24 + (i % 2) * 0.05,
+      Math.sin(a) * 0.12
+    );
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const px = Math.cos(a) * 0.17;
+    const pz = Math.sin(a) * 0.17;
+    const stem = add(h, C(0.008, 0.012, 0.3, 5), green, px, 0.34, pz);
+    stem.rotation.set(-Math.sin(a) * 0.16, 0, Math.cos(a) * 0.16);
+    add(h, new THREE.SphereGeometry(0.035, 6, 4), bloom, px * 1.3, 0.5, pz * 1.3);
+  }
+  return mergeByMaterial(h);
+}
+
+/** Silver tree: layered silvery foliage whorls above a forked bole. */
+export function silverTree(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const bark = MBark('#4c3b2c', 0.94, 0.03);
+  const silver = M('#9da98a', 0.84);
+  const shaded = M('#647850', 0.92);
+  add(h, C(0.05, 0.08, 0.6, 7), bark, 0, 0.3, 0);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + ry;
+    const b = add(h, C(0.018, 0.03, 0.34, 6), bark, Math.cos(a) * 0.07, 0.5, Math.sin(a) * 0.07);
+    b.rotation.set(Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + ry * 0.4;
+    add(
+      h,
+      new THREE.ConeGeometry(0.19 - i * 0.022, 0.3, 6),
+      i % 2 ? shaded : silver,
+      Math.cos(a) * 0.12,
+      0.62 + i * 0.08,
+      Math.sin(a) * 0.12
+    );
+  }
+  add(h, new THREE.ConeGeometry(0.12, 0.24, 6), silver, 0, 1.06, 0);
+  return mergeByMaterial(h);
+}
+
+/** Protea: stiff leaves around two coprime pink-ivory flower heads. */
+export function protea(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const stem = MBark('#5e4a32', 0.94, 0.02);
+  const leaf = M('#4e6b39', 0.93);
+  const petal = M('#c98c86', 0.86);
+  add(h, C(0.024, 0.034, 0.46, 6), stem, 0, 0.23, 0);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + ry;
+    const lf = add(h, new THREE.ConeGeometry(0.07, 0.3, 4), leaf, Math.cos(a) * 0.08, 0.24, Math.sin(a) * 0.08);
+    lf.rotation.set(Math.sin(a) * 0.85, 0, -Math.cos(a) * 0.85);
+  }
+  for (let i = 0; i < 2; i++) {
+    const bx = i === 0 ? -0.075 : 0.085;
+    add(h, new THREE.ConeGeometry(0.13, 0.2, 7), petal, bx, 0.52 + i * 0.04, i * 0.02);
+    for (let p = 0; p < 2; p++) {
+      add(h, new THREE.SphereGeometry(0.045, 6, 4), i === 0 ? petal : leaf, bx + (p ? 0.05 : -0.05), 0.55 + i * 0.04, 0.06);
+    }
+  }
+  return mergeByMaterial(h);
+}
+
+/** Marula: stout bleached bole, spreading crown and a couple of fruit. */
+export function marula(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const bark = MBark('#89745a', 0.94, 0.03);
+  const leaf = M('#4d6f38', 0.93);
+  const fruit = M('#c8a23c', 0.82);
+  add(h, C(0.075, 0.12, 0.66, 8), bark, 0, 0.33, 0);
+  add(h, C(0.16, 0.18, 0.12, 8), bark, 0, 0.06, 0);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + ry;
+    const b = add(h, C(0.02, 0.032, 0.38, 6), bark, Math.cos(a) * 0.1, 0.62, Math.sin(a) * 0.1);
+    b.rotation.set(Math.sin(a) * 0.7, 0, -Math.cos(a) * 0.7);
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.4;
+    add(h, new THREE.IcosahedronGeometry(0.24, 0), leaf, Math.cos(a) * 0.17, 0.82 + (i % 2) * 0.09, Math.sin(a) * 0.17);
+  }
+  add(h, new THREE.SphereGeometry(0.05, 6, 5), fruit, 0.14, 0.72, 0.11);
+  add(h, new THREE.SphereGeometry(0.05, 6, 5), fruit, -0.12, 0.76, -0.09);
+  return mergeByMaterial(h);
+}
+
+/** Yellowwood: tall straight bole with tiered, drooping conifer boughs. */
+export function yellowwood(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const bark = MBark('#544232', 0.94, 0.03);
+  const leaf = M('#38663c', 0.92);
+  add(h, C(0.045, 0.075, 0.95, 8), bark, 0, 0.48, 0);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + ry * 0.4;
+    const bough = add(h, C(0.014, 0.026, 0.36, 5), bark, Math.cos(a) * 0.09, 0.58 + i * 0.08, Math.sin(a) * 0.09);
+    bough.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+  }
+  for (let i = 0; i < 3; i++) {
+    add(h, new THREE.ConeGeometry(0.26 - i * 0.055, 0.4, 7), leaf, 0, 0.82 + i * 0.17, 0);
+  }
+  return mergeByMaterial(h);
+}
+
+/**
+ * Jacaranda. The violet blossom shell is always built but tagged on its
+ * material, so callers can toggle it with the shared season gate. In October
+ * and November it is visible from construction; at build time elsewhere it
+ * starts hidden and dioramaKit's bloom tick re-shows it when the month changes.
+ */
+export function jacaranda(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const bark = MBark('#5b4636', 0.94, 0.03);
+  const leaf = M('#557245', 0.92);
+  const bloom = M('#9a63d6', 0.88);
+  bloom.userData.seasonalSpecies = 'jacaranda';
+  add(h, C(0.055, 0.085, 0.72, 8), bark, 0, 0.36, 0);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + ry;
+    const b = add(h, C(0.02, 0.034, 0.4, 6), bark, Math.cos(a) * 0.09, 0.6, Math.sin(a) * 0.09);
+    b.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.3;
+    add(h, new THREE.IcosahedronGeometry(0.22, 0), leaf, Math.cos(a) * 0.17, 0.84 + (i % 2) * 0.08, Math.sin(a) * 0.17);
+  }
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    add(h, new THREE.IcosahedronGeometry(0.2, 0), bloom, Math.cos(a) * 0.24, 0.94 + (i % 2) * 0.1, Math.sin(a) * 0.24);
+  }
+  // Fallen petal carpets read as two flat violet patches at the trunk base.
+  for (let i = 0; i < 2; i++) {
+    add(h, C(0.24, 0.24, 0.008, 10), bloom, i ? 0.14 : -0.15, 0.012, i ? 0.1 : -0.12);
+  }
+  const built = mergeByMaterial(h);
+  if (!isSpeciesBlooming(getSeasonMonth(), 'jacaranda')) {
+    built.children.forEach((child) => {
+      if (child instanceof THREE.Mesh && child.material === bloom) child.visible = false;
+    });
+  }
+  return built;
 }

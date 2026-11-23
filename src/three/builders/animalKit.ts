@@ -23,7 +23,18 @@ try {
   primitives = null;
 }
 
-export type AnimalKind = 'generic' | 'elephant' | 'penguin' | 'whale' | 'hippo' | 'gemsbok';
+export type AnimalKind =
+  | 'generic'
+  | 'elephant'
+  | 'penguin'
+  | 'whale'
+  | 'hippo'
+  | 'gemsbok'
+  | 'flamingo'
+  | 'seabird'
+  | 'vulture'
+  | 'dassie'
+  | 'bird';
 export type AnimalIdle = 'bob' | 'graze' | 'lookup' | 'waddle' | 'submerge' | 'rock';
 /** Southern-hemisphere seasons, matching South African sites. */
 export type AnimalSeason = 'summer' | 'autumn' | 'winter' | 'spring';
@@ -227,6 +238,292 @@ const scratchScale = new THREE.Vector3();
 const scratchMatrix = new THREE.Matrix4();
 const scratchPartMatrix = new THREE.Matrix4();
 
+/* ------------------------------------------------------------------ */
+/* Near-tier articulation (count <= 6)                                  */
+/*                                                                      */
+/* The body stays in the merged/instanced batches. A handful of small    */
+/* accents get their own parented pivots plus one InstancedMesh per part  */
+/* type, so the whole herd still costs only 2-3 extra draw calls. All     */
+/* matrices are written into preallocated scratch objects; motionScale=0  */
+/* feeds phase 0 to the same maths, giving a deterministic rest pose.    */
+/* ------------------------------------------------------------------ */
+
+type ArticulationAxis = 'x' | 'y' | 'z';
+
+interface NearPartTemplate {
+  key: string;
+  geo: THREE.BufferGeometry;
+  mat: THREE.Material;
+  /** Local offset from the animal's origin before member yaw/scale. */
+  offset: readonly [number, number, number];
+  tilt: readonly [number, number, number];
+  scale: readonly [number, number, number];
+  axis: ArticulationAxis;
+  amp: number;
+  freq: number;
+  seed: number;
+}
+
+interface NearPlacement {
+  x: number;
+  y: number;
+  z: number;
+  rx: number;
+  ry: number;
+  rz: number;
+}
+
+interface NearPartBatch {
+  pivot: THREE.Group;
+  mesh: THREE.InstancedMesh;
+  template: NearPartTemplate;
+  placements: NearPlacement[];
+}
+
+const nearGeoCache = new Map<string, THREE.BufferGeometry>();
+let nearTemplateCache: Partial<Record<AnimalKind, NearPartTemplate[]>> | null = null;
+
+function nearGeo(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  let geo = nearGeoCache.get(key);
+  if (!geo) {
+    geo = make();
+    geo.userData.sharedResource = true;
+    nearGeoCache.set(key, geo);
+  }
+  return geo;
+}
+
+function getNearPartTemplates(kind: AnimalKind, p: PrimitiveModule): NearPartTemplate[] {
+  if (nearTemplateCache?.[kind]) return nearTemplateCache[kind]!;
+  const parts: NearPartTemplate[] = [];
+  const dark = p.M('#3a3129', 0.92);
+  const steel = p.M('#5b6872', 0.72, 0.18);
+
+  if (kind === 'elephant') {
+    parts.push(
+      {
+        key: 'trunk',
+        geo: nearGeo('near_trunk', () => new THREE.CylinderGeometry(0.022, 0.048, 0.34, 6)),
+        mat: dark,
+        offset: [0, 0.26, 0.27],
+        tilt: [0.5, 0, 0],
+        scale: [1, 1, 1],
+        axis: 'z',
+        amp: 0.2,
+        freq: 1.1,
+        seed: 0.4,
+      },
+      {
+        key: 'earL',
+        geo: nearGeo('near_ear', () => new THREE.BoxGeometry(0.2, 0.24, 0.025)),
+        mat: dark,
+        offset: [-0.21, 0.36, 0.13],
+        tilt: [0, 0, 0.2],
+        scale: [1, 1, 1],
+        axis: 'y',
+        amp: 0.3,
+        freq: 0.7,
+        seed: 1.3,
+      },
+      {
+        key: 'earR',
+        geo: nearGeo('near_ear', () => new THREE.BoxGeometry(0.2, 0.24, 0.025)),
+        mat: dark,
+        offset: [0.21, 0.36, 0.13],
+        tilt: [0, 0, -0.2],
+        scale: [1, 1, 1],
+        axis: 'y',
+        amp: 0.3,
+        freq: 0.7,
+        seed: 2.1,
+      }
+    );
+  } else if (kind === 'penguin') {
+    parts.push(
+      {
+        key: 'flipperL',
+        geo: nearGeo('near_flipper', () => new THREE.BoxGeometry(0.045, 0.22, 0.09)),
+        mat: dark,
+        offset: [-0.14, 0.24, 0.01],
+        tilt: [0, 0, 0.22],
+        scale: [1, 1, 1],
+        axis: 'z',
+        amp: 0.5,
+        freq: 2.2,
+        seed: 0.7,
+      },
+      {
+        key: 'flipperR',
+        geo: nearGeo('near_flipper', () => new THREE.BoxGeometry(0.045, 0.22, 0.09)),
+        mat: dark,
+        offset: [0.14, 0.24, 0.01],
+        tilt: [0, 0, -0.22],
+        scale: [1, 1, 1],
+        axis: 'z',
+        amp: 0.5,
+        freq: 2.2,
+        seed: 0.7 + Math.PI,
+      }
+    );
+  } else if (kind === 'whale') {
+    parts.push(
+      {
+        key: 'fluke',
+        geo: nearGeo('near_fluke', () => new THREE.BoxGeometry(0.42, 0.035, 0.18)),
+        mat: steel,
+        offset: [0, 0.16, -0.62],
+        tilt: [0, 0, 0],
+        scale: [1, 1, 1],
+        axis: 'x',
+        amp: 0.26,
+        freq: 1.1,
+        seed: 0.9,
+      },
+      {
+        key: 'fin',
+        geo: nearGeo('near_fin', () => new THREE.BoxGeometry(0.17, 0.035, 0.1)),
+        mat: steel,
+        offset: [0.21, 0.11, 0.04],
+        tilt: [0, 0, -0.2],
+        scale: [1, 1, 1],
+        axis: 'x',
+        amp: 0.18,
+        freq: 1.4,
+        seed: 2.4,
+      }
+    );
+  } else if (kind === 'gemsbok') {
+    parts.push(
+      {
+        key: 'head',
+        geo: nearGeo('near_head', () => new THREE.BoxGeometry(0.11, 0.13, 0.19)),
+        mat: dark,
+        offset: [0, 0.46, 0.25],
+        tilt: [0, 0, 0],
+        scale: [1, 1, 1],
+        axis: 'x',
+        amp: 0.32,
+        freq: 0.7,
+        seed: 0.6,
+      },
+      {
+        key: 'hornL',
+        geo: nearGeo('near_horn', () => new THREE.ConeGeometry(0.018, 0.28, 6)),
+        mat: dark,
+        offset: [-0.04, 0.62, 0.27],
+        tilt: [-0.32, 0, 0],
+        scale: [1, 1, 1],
+        axis: 'x',
+        amp: 0.1,
+        freq: 0.7,
+        seed: 0.6,
+      },
+      {
+        key: 'hornR',
+        geo: nearGeo('near_horn', () => new THREE.ConeGeometry(0.018, 0.28, 6)),
+        mat: dark,
+        offset: [0.04, 0.62, 0.27],
+        tilt: [-0.32, 0, 0],
+        scale: [1, 1, 1],
+        axis: 'x',
+        amp: 0.1,
+        freq: 0.7,
+        seed: 0.8,
+      }
+    );
+  }
+  if (!nearTemplateCache) nearTemplateCache = {};
+  nearTemplateCache[kind] = parts;
+  return parts;
+}
+
+function createNearParts(
+  kind: AnimalKind,
+  members: AnimalMember[],
+  p: PrimitiveModule,
+  group: THREE.Group
+): NearPartBatch[] {
+  const templates = getNearPartTemplates(kind, p);
+  if (!templates.length) return [];
+  const batches: NearPartBatch[] = [];
+  for (const template of templates) {
+    const pivot = new THREE.Group();
+    group.add(pivot);
+    const placements: NearPlacement[] = [];
+    const transforms: InstanceTransform[] = [];
+    for (const m of members) {
+      const cos = Math.cos(m.yaw);
+      const sin = Math.sin(m.yaw);
+      const [lx, ly, lz] = template.offset;
+      const x = m.ox + (lx * cos + lz * sin) * m.scale;
+      const z = m.oz + (-lx * sin + lz * cos) * m.scale;
+      const y = ly * m.scale;
+      placements.push({ x, y, z, rx: template.tilt[0], ry: m.yaw + template.tilt[1], rz: template.tilt[2] });
+      transforms.push({
+        x,
+        y,
+        z,
+        rx: template.tilt[0],
+        ry: m.yaw + template.tilt[1],
+        rz: template.tilt[2],
+        sx: m.scale * template.scale[0],
+        sy: m.scale * template.scale[1],
+        sz: m.scale * template.scale[2],
+      });
+    }
+    const mesh = p.instancedMeshes(pivot, template.geo, template.mat, transforms);
+    if (!mesh) continue;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    // Keep these out of contact-stamp scans and any future static merge pass.
+    mesh.userData.noShadow = true;
+    mesh.userData.cannotReceiveAO = true;
+    mesh.userData.animatedPart = true;
+    batches.push({ pivot, mesh, template, placements });
+  }
+  return batches;
+}
+
+function poseNearParts(
+  batches: readonly NearPartBatch[],
+  members: readonly AnimalMember[],
+  time: number,
+  frozen: boolean,
+  idle: AnimalIdle,
+  lodScale: number
+): void {
+  for (let b = 0; b < batches.length; b++) {
+    const batch = batches[b];
+    const t = batch.template;
+    const m0 = members[0];
+    const ph0 = frozen ? 0 : time * m0.freq + m0.phase;
+    const collective = Math.sin(ph0 * t.freq + t.seed) * t.amp * 0.2;
+    batch.pivot.rotation.set(0, 0, 0);
+    if (t.axis === 'x') batch.pivot.rotation.x = collective;
+    else if (t.axis === 'y') batch.pivot.rotation.y = collective;
+    else batch.pivot.rotation.z = collective;
+    for (let i = 0; i < members.length; i++) {
+      const m = members[i];
+      const phase = frozen ? 0 : time * m.freq + m.phase;
+      writeAnimalPose(poseScratch, idle, phase, m.amp);
+      const swing = Math.sin(phase * t.freq + t.seed) * t.amp;
+      const pl = batch.placements[i];
+      scratchPos.set(pl.x, pl.y + poseScratch.y, pl.z);
+      scratchEuler.set(
+        pl.rx + (t.axis === 'x' ? swing : 0),
+        pl.ry + (t.axis === 'y' ? swing : 0),
+        pl.rz + (t.axis === 'z' ? swing : 0)
+      );
+      scratchQuat.setFromEuler(scratchEuler);
+      const s = m.scale * lodScale;
+      scratchScale.set(s * t.scale[0], s * t.scale[1], s * t.scale[2]);
+      scratchMatrix.compose(scratchPos, scratchQuat, scratchScale);
+      batch.mesh.setMatrixAt(i, scratchMatrix);
+    }
+    batch.mesh.instanceMatrix.needsUpdate = true;
+  }
+}
+
 function createAnimalTemplate(kind: AnimalKind, color: string, p: PrimitiveModule): THREE.Group {
   const holder = new THREE.Group();
   switch (kind) {
@@ -244,6 +541,22 @@ function createAnimalTemplate(kind: AnimalKind, color: string, p: PrimitiveModul
       break;
     case 'whale':
       holder.add(p.whale(1));
+      break;
+    case 'flamingo':
+      p.flamingo(holder, 0, 0, 0, 1, 0);
+      break;
+    case 'seabird':
+      p.seabird(holder, 0, 0, 0, 1, 0);
+      break;
+    case 'vulture':
+      p.vulture(holder, 0, 0, 0, 1, 0);
+      break;
+    case 'dassie':
+      p.dassie(holder, 0, 0, 0, 1, 0);
+      break;
+    case 'bird':
+      // Small flying birds reuse the existing animated gull template.
+      holder.add(p.bird());
       break;
     case 'generic':
       holder.add(p.animal(color));
@@ -321,6 +634,9 @@ export function createAnimalScaffold(spec: AnimalScaffoldSpec): AnimalScaffold {
     }
   }
 
+  // Far/instanced herds (count > 6) stay as the merged body batches above.
+  const nearParts = count <= 6 ? createNearParts(spec.kind, members, p, group) : [];
+
   let time = 0;
   let timeSeeded = false;
   let frozen = true;
@@ -336,6 +652,7 @@ export function createAnimalScaffold(spec: AnimalScaffoldSpec): AnimalScaffold {
       pivot.position.set(0, poseScratch.y, 0);
       pivot.rotation.set(poseScratch.rx, poseScratch.ry, poseScratch.rz);
       pivot.scale.set(lodScale, lodScale * poseScratch.sy, lodScale);
+      poseNearParts(nearParts, members, time, frozen, spec.idle, lodScale);
       return;
     }
     for (let i = 0; i < members.length; i++) {
@@ -353,6 +670,7 @@ export function createAnimalScaffold(spec: AnimalScaffoldSpec): AnimalScaffold {
       }
     }
     for (let b = 0; b < batches.length; b++) batches[b].instanceMatrix.needsUpdate = true;
+    poseNearParts(nearParts, members, time, frozen, spec.idle, lodScale);
   };
 
   if (spec.contact) {

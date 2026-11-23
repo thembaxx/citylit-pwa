@@ -8,6 +8,7 @@ import {
   G,
   instancedMeshes,
   M,
+  MSteel,
   MStone,
   mergeByMaterial,
   type InstanceTransform,
@@ -159,4 +160,148 @@ export function awning(width = 1.6): THREE.Group {
     add(g, C(0.025, 0.03, 1.05, 8), frame, x, 0.52, -0.38);
   }
   return mergeByMaterial(g);
+}
+
+/* ------------------------------------------------------------------ */
+/* Batch 2 — placed props (parent + transform convention)              */
+/*                                                                      */
+/* Unlike the original zero-argument kit above, these helpers take the   */
+/* parent and placement directly so call sites never build a throwaway   */
+/* group. Each finishes with mergeByMaterial and uses only cached        */
+/* materials/geometry from primitives.ts — no lights, no per-frame work. */
+/* ------------------------------------------------------------------ */
+
+function placedProp(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc: number,
+  ry: number
+): THREE.Group {
+  const holder = new THREE.Group();
+  holder.position.set(x, y, z);
+  holder.rotation.y = ry;
+  holder.scale.setScalar(sc > 0 ? sc : 1);
+  g.add(holder);
+  return holder;
+}
+
+/** Wheelie bin: moulded body, domed lid, axle and two wheels. */
+export function bin(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = placedProp(g, x, y, z, sc, ry);
+  const shell = M('#3d6b53', 0.86);
+  const dark = M('#272c30', 0.9);
+  const lid = M('#4c7d61', 0.84);
+  add(h, CB(0.46, 0.68, 0.42, 0.055), shell, 0, 0.47, 0);
+  add(h, CB(0.5, 0.08, 0.46, 0.03), lid, 0, 0.84, -0.01);
+  add(h, CB(0.42, 0.06, 0.05, 0.014), dark, 0, 0.9, -0.2);
+  add(h, B(0.3, 0.04, 0.05), dark, 0, 0.7, 0.23);
+  add(h, C(0.012, 0.012, 0.36, 6), dark, -0.23, 0.16, 0);
+  add(h, C(0.012, 0.012, 0.36, 6), dark, 0.23, 0.16, 0);
+  add(h, C(0.075, 0.075, 0.05, 8), dark, -0.26, 0.08, 0).rotation.z = Math.PI / 2;
+  add(h, C(0.075, 0.075, 0.05, 8), dark, 0.26, 0.08, 0).rotation.z = Math.PI / 2;
+  for (const py of [0.3, 0.5, 0.7]) {
+    add(h, B(0.47, 0.025, 0.43), lid, 0, py, 0);
+  }
+  return mergeByMaterial(h);
+}
+
+/**
+ * Flagpole with a stylised SA-flag tricolour. `colour` overrides the accent
+ * band so a site can tint the flag (Union Buildings/Castle use the national
+ * palette by default); everything else stays in the shared material cache.
+ */
+export function flagpole(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0,
+  colour: string = '#de3831'
+): THREE.Group {
+  const h = placedProp(g, x, y, z, sc, ry);
+  const pole = MSteel('#b9bec2', 0.4, 0.74);
+  const base = MStone('#b7aa92', 0.9, 0.02);
+  const accent = M(colour, 0.78, 0.04);
+  const blue = M('#002395', 0.78, 0.04);
+  const green = M('#007a4d', 0.78, 0.04);
+  const white = M('#f2f0e6', 0.82);
+  add(h, C(0.18, 0.21, 0.1, 12), base, 0, 0.05, 0);
+  add(h, C(0.022, 0.03, 2.1, 8), pole, 0, 1.1, 0);
+  add(h, new THREE.SphereGeometry(0.045, 8, 6), pole, 0, 2.17, 0);
+  cableBatch(h, [[[0, 0.4, 0], [0, 2.05, 0]]], 0.006, pole);
+  add(h, B(0.5, 0.3, 0.012), accent, 0.26, 1.86, 0);
+  add(h, B(0.5, 0.16, 0.012), blue, 0.26, 1.71, 0);
+  add(h, B(0.5, 0.16, 0.012), white, 0.26, 1.63, 0);
+  add(h, B(0.5, 0.16, 0.012), green, 0.26, 1.55, 0);
+  add(h, B(0.28, 0.06, 0.014), white, 0.15, 1.78, 0.008);
+  add(h, B(0.28, 0.06, 0.014), accent, 0.15, 1.62, 0.008);
+  add(h, C(0.05, 0.06, 0.04, 8), base, 0, 2.02, 0);
+  return mergeByMaterial(h);
+}
+
+/** Washing line with a sagging cord and five pieces of coloured cloth. */
+export function washingLine(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = placedProp(g, x, y, z, sc, ry);
+  const post = darkWood();
+  const cord = metal();
+  const cloths = [M('#d6c39a', 0.95), M('#7fa3b8', 0.95), M('#b96a5c', 0.95), M('#d9c977', 0.95), M('#8ba67d', 0.95)];
+  add(h, C(0.035, 0.045, 1.5, 7), post, -1.0, 0.75, 0);
+  add(h, C(0.035, 0.045, 1.5, 7), post, 1.0, 0.75, 0);
+  add(h, C(0.05, 0.06, 0.06, 7), post, -1.0, 0.03, 0);
+  add(h, C(0.05, 0.06, 0.06, 7), post, 1.0, 0.03, 0);
+  cableBatch(h, [[[-1, 1.44, 0], [-0.5, 1.3, 0]], [[-0.5, 1.3, 0], [0, 1.25, 0]], [[0, 1.25, 0], [0.5, 1.3, 0]], [[0.5, 1.3, 0], [1, 1.44, 0]]], 0.008, cord);
+  for (let i = 0; i < 5; i++) {
+    const px = -0.72 + i * 0.36;
+    const sag = 1.28 + Math.abs(px) * 0.1;
+    const cloth = add(h, B(0.3, 0.34, 0.012), cloths[i], px, sag - 0.18, 0);
+    cloth.rotation.z = (i % 2 ? 1 : -1) * 0.06;
+  }
+  return mergeByMaterial(h);
+}
+
+/** Taxi-rank shelter: roof, back panel, bench and route board. */
+export function taxiShelter(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = placedProp(g, x, y, z, sc, ry);
+  const frame = MSteel('#4a5259', 0.44, 0.76);
+  const roof = M('#2c6b8c', 0.8, 0.08);
+  const panel = M('#c8c2ad', 0.86);
+  const seat = darkWood();
+  for (const px of [-1.0, 1.0]) {
+    for (const pz of [-0.42, 0.42]) {
+      add(h, C(0.035, 0.042, 1.85, 7), frame, px, 0.93, pz);
+    }
+  }
+  add(h, CB(2.3, 0.09, 1.1, 0.03), roof, 0, 1.92, 0);
+  add(h, CB(2.3, 0.16, 0.06, 0.02), frame, 0, 1.8, 0.52);
+  add(h, B(2.1, 0.9, 0.035), panel, 0, 1.2, -0.44);
+  add(h, CB(1.8, 0.07, 0.38, 0.02), seat, 0, 0.56, -0.24);
+  for (const px of [-0.78, 0.78]) {
+    add(h, B(0.06, 0.5, 0.34), frame, px, 0.3, -0.24);
+  }
+  add(h, CB(0.5, 0.34, 0.03, 0.014), roof, 0, 1.34, -0.41);
+  return mergeByMaterial(h);
 }

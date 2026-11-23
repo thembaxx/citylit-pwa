@@ -13,7 +13,7 @@ import {
   CB,
   colonialHouse,
   drift,
-  elephant,
+  fynbos,
   G,
   gableRoofGeo,
   gondola,
@@ -33,7 +33,8 @@ import {
   MWet,
   MWood,
   n,
-  penguin,
+  person,
+  protea,
   R,
   railing,
   rock,
@@ -41,6 +42,7 @@ import {
   scatterRocks,
   sea,
   seaRings,
+  silverTree,
   swayItems,
   surfaceDetail,
   tint,
@@ -60,7 +62,7 @@ import {
   shopfrontBand,
   type StreetLampSpec,
 } from './dioramaKit';
-import { bench, crateStack, interpretiveSign, kraalFence } from './propKit';
+import { bench, bin, crateStack, flagpole, interpretiveSign, kraalFence, washingLine } from './propKit';
 import { attachVehicleLights } from './vehicleLightKit';
 
 /** One deep Platteklip notch on the north-facing cliff, shared by cap and cliffs. */
@@ -269,9 +271,15 @@ export function table(): THREE.Group {
   const cab = gondola('#32373d');
   const cab2 = gondola('#32373d');
   g.add(cab, cab2);
-  [1.8, 2, 2.2, 2.4, -0.5, -0.8, -1.1].forEach((a, i) =>
-    tree(g, 6.3 * Math.cos(a), 6.3 * Math.sin(a), 0.95 + R(i) * 0.45, i % 3 === 0 ? 4 : 1, 0.5)
-  );
+  // Peninsula fynbos, not conifers, on the lower slopes (research §3.1 / #11).
+  [1.8, 2, 2.2, 2.4, -0.5, -0.8, -1.1].forEach((a, i) => {
+    const x = 6.3 * Math.cos(a);
+    const z = 6.3 * Math.sin(a);
+    const sc = 0.9 + R(i) * 0.35;
+    if (i % 3 === 0) silverTree(g, x, 0.5, z, sc, a);
+    else if (i % 3 === 1) protea(g, x, 0.5, z, sc, a);
+    else fynbos(g, x, 0.5, z, sc, a);
+  });
   const gls = [0, 1, 2, 3, 4].map(() => {
     const b = bird();
     g.add(b);
@@ -636,6 +644,20 @@ export function union(): THREE.Group {
     );
   }
 
+  // Human-scale context on the terraced gardens (#10) + SA flagpoles.
+  (
+    [
+      [-3.4, 0.24, 2.25, 0.2],
+      [-1.2, 0.44, 1.5, 1.4],
+      [1.4, 0.24, 2.25, 2.8],
+      [3.5, 0.44, 1.5, 4.3],
+      [-2.2, 0.07, 4.6, 1.0],
+      [2.2, 0.07, 4.6, 4.0],
+    ] as const
+  ).forEach(([x, y, z, ry]) => person(g, x, y, z, 0.95, ry));
+  flagpole(g, -4.5, 0.18, 3.25, 1, 0, '#007749');
+  flagpole(g, 4.5, 0.18, 3.25, 1, 0, '#007749');
+
   add(g, CB(12.4, 0.06, 0.9, 0.02), plaza, 0, 0.04, 4.6);
   const laneT: InstanceTransform[] = [];
   for (let i = -7; i <= 7; i++) laneT.push({ x: i * 0.8, y: 0.08, z: 4.6 });
@@ -910,10 +932,12 @@ export function bridge(): THREE.Group {
     add(g, CB(13.8, 0.24, 0.025, 0.005), MGlass('#a8d6e4', 0.45, 0.06), 0, 1.9, s);
   }
 
-  // Railway tracks + overhead catenary gantries under span
+  // 42 real rail lines (#15b): one low-poly instanced strip per line. Wider
+  // spacing across the yard keeps the deck clearance readable, and a plain box
+  // instead of a rounded one keeps the batch cheap (12 tris × 42 = 504).
   const railTransforms: InstanceTransform[] = [];
-  for (let k = 0; k < 8; k++) railTransforms.push({ x: 0, y: 0.05, z: -3.2 + k * 0.9 });
-  instancedMeshes(g, CB(18, 0.04, 0.055, 0.008), M('#6e6960', 0.4, 0.8), railTransforms);
+  for (let k = 0; k < 42; k++) railTransforms.push({ x: 0, y: 0.05, z: -5.8 + k * 0.28 });
+  instancedMeshes(g, B(18, 0.035, 0.05), M('#6e6960', 0.4, 0.8), railTransforms);
   for (const gx of [-5.2, 5.2]) {
     add(g, CB(0.06, 0.95, 0.06, 0.01), dk, gx, 0.48, -3.5);
     add(g, CB(0.06, 0.95, 0.06, 0.01), dk, gx, 0.48, 3.3);
@@ -1028,6 +1052,11 @@ export function bridge(): THREE.Group {
   }
   addStreetLampSet(g, bridgeLamps);
 
+  // Commuters on the two narrow sidewalks (#10) — merged, shared-material silhouettes.
+  [-6.1, -3.4, 1.3, 5.2].forEach((x, i) =>
+    person(g, x, 1.78, i % 2 ? 0.68 : -0.68, 0.85, i % 2 ? 0 : Math.PI)
+  );
+
   const cars = [0, 1, 2, 3].map((i) => {
     // Left-hand traffic: eastbound keeps left (north, -Z), westbound keeps
     // left (south, +Z). Lights are batched below instead of per-car meshes.
@@ -1096,8 +1125,8 @@ export function hole(): THREE.Group {
     }
   }
   // Real Kimberley pipe stratigraphy: red soil -> pale dolerite sill -> dark Ventersdorp shale
-  const topSoil = new THREE.Color('#9e6445');
-  const dolerite = new THREE.Color('#a7997f');
+  const topSoil = new THREE.Color('#a68b61');
+  const dolerite = new THREE.Color('#8a8577'); // grey rock faces below the ochre benches
   const shale = new THREE.Color('#3b3e42');
   tint(geo, (k, _x, yy, z) => {
     if (yy < -3.28) return k.copy(shale);
@@ -1122,7 +1151,7 @@ export function hole(): THREE.Group {
   add(
     g,
     new THREE.TorusGeometry(6.02, 0.07, 8, 128).rotateX(Math.PI / 2),
-    MStone('#9e6445', 0.92, 0.03),
+    MStone('#a68b61', 0.92, 0.03),
     0,
     0.07,
     0
@@ -1334,9 +1363,9 @@ export function hole(): THREE.Group {
 
 export function voortrekker(): THREE.Group {
   const g = new THREE.Group();
-  const gr = MStone('#9d8f78', 0.82, 0.022);
+  const gr = MStone('#9c8a80', 0.82, 0.022);
   const dk = MStone('#685f52', 0.88, 0.025);
-  const plaza = MWet('#9d8f78', 0.86, 0.18, 0.04, 'stone');
+  const plaza = MWet('#9c8a80', 0.86, 0.18, 0.04, 'stone');
   const bz = M('#4d5548', 0.42, 0.72);
   const gl = G('#b69c55', 1.25);
 
@@ -1367,7 +1396,7 @@ export function voortrekker(): THREE.Group {
     width: 0.55,
     height: 1.5,
     depth: 0.12,
-    frame: '#9d8f78',
+    frame: '#9c8a80',
     glass: '#2c2418',
   });
   for (const s of [-1, 1]) {
@@ -1378,7 +1407,7 @@ export function voortrekker(): THREE.Group {
       width: 0.5,
       height: 1.6,
       depth: 0.12,
-      frame: '#9d8f78',
+      frame: '#9c8a80',
       glass: '#2c2418',
       rotationY: s * (Math.PI / 2),
     });
@@ -1389,7 +1418,7 @@ export function voortrekker(): THREE.Group {
       width: 0.42,
       height: 0.7,
       depth: 0.1,
-      frame: '#9d8f78',
+      frame: '#9c8a80',
       glass: '#2c2418',
     });
   }
@@ -1430,6 +1459,28 @@ export function voortrekker(): THREE.Group {
   }
   instancedMeshes(g, CB(0.26, 0.07, 0.06, 0.01), gr, chevT);
 
+  // Assegai gateway flanking the entrance + black-wildebeest frieze (#15b).
+  // Both are static instanced/merged silhouettes in the existing dark materials.
+  const assegaiT: InstanceTransform[] = [
+    { x: -1.05, y: 1.35, z: 2.55, rx: 0.08 },
+    { x: 1.05, y: 1.35, z: 2.55, rx: -0.08 },
+  ];
+  instancedMeshes(g, C(0.028, 0.034, 2.3, 6), dk, assegaiT);
+  instancedMeshes(
+    g,
+    new THREE.ConeGeometry(0.09, 0.36, 5),
+    dk,
+    assegaiT.map((t) => ({ x: t.x, y: 2.68, z: t.z, rx: t.rx }))
+  );
+  const frieze = new THREE.Group();
+  for (let i = 0; i < 9; i++) {
+    const x = -1.9 + i * 0.475;
+    add(frieze, B(0.24, 0.11, 0.04), bz, x, 4.36, 2.3);
+    add(frieze, B(0.08, 0.09, 0.045), bz, x + 0.13, 4.43, 2.3);
+    add(frieze, B(0.03, 0.11, 0.03), bz, x + 0.09, 4.52, 2.3);
+  }
+  g.add(mergeByMaterial(frieze));
+
   // Shallow stepped granite dome with a dark central oculus
   add(g, C(1.8, 1.94, 0.78, 48), gr, 0, 5.34, 0);
   const dome = add(
@@ -1450,6 +1501,26 @@ export function voortrekker(): THREE.Group {
     6.65,
     0
   );
+  // Tapered additive light shaft from the oculus onto the Hall of Heroes.
+  // Entirely static (no tick), so reduced-motion needs no special case. Depth
+  // test is relaxed so the faint cone reads through the solid dome shell.
+  const oculusShaft = add(
+    g,
+    new THREE.ConeGeometry(0.44, 3, 12, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: '#ffe6a8',
+      transparent: true,
+      opacity: 0.06,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+    0,
+    5.16,
+    0
+  );
+  oculusShaft.renderOrder = 3;
 
   // Anton van Wouw bronze mother-and-child pedestal
   add(g, CB(0.55, 0.6, 0.55, 0.03), dk, 0, 0.9, 3.4);
@@ -1513,20 +1584,20 @@ export function capePoint(): THREE.Group {
   const dk = M('#343c3d', 0.45, 0.65);
   sea(g, '#28627c', '#3fa3b5');
   // Two distinct sandstone humps: the high old-light peak and a lower shoulder.
-  rock(g, 1.55, 3.3, 3.8, -1.6, -0.2, '#73755d', '#aaa394', 0.14);
-  rock(g, 1.15, 2.0, 2.2, 1.9, 0.7, '#73755d', '#9a9a7a', 0.14);
-  rock(g, 1.2, 2.3, 1.5, 0.3, 0.2, '#697051', '#8e937f', 0.13);
+  rock(g, 1.55, 3.3, 3.8, -1.6, -0.2, '#73755d', '#a08f6d', 0.14);
+  rock(g, 1.15, 2.0, 2.2, 1.9, 0.7, '#73755d', '#95866a', 0.14);
+  rock(g, 1.2, 2.3, 1.5, 0.3, 0.2, '#697051', '#8a8468', 0.13);
   [
     [3.4, 2.2, 0.8],
     [-3.6, -2, 0.7],
     [2.4, -3.4, 0.6],
   ].forEach(([x, z, r], i) =>
-    rock(g, r * 0.7, r * 1.3, 1.2 + i * 0.3, x, z, '#697051', '#8e937f', 0.13)
+    rock(g, r * 0.7, r * 1.3, 1.2 + i * 0.3, x, z, '#697051', '#8a8468', 0.13)
   );
   // Extra buttresses and a skirt of weathered scree at the cliff foot.
-  rock(g, 0.7, 1.3, 2.4, 2.0, -1.5, '#73755d', '#9a9a7a', 0.16);
-  rock(g, 0.6, 1.15, 2.0, -2.4, 2.3, '#73755d', '#9a9a7a', 0.16);
-  rock(g, 0.9, 1.5, 1.5, 4.7, -1.9, '#697051', '#8e937f', 0.14);
+  rock(g, 0.7, 1.3, 2.4, 2.0, -1.5, '#73755d', '#95866a', 0.16);
+  rock(g, 0.6, 1.15, 2.0, -2.4, 2.3, '#73755d', '#95866a', 0.16);
+  rock(g, 0.9, 1.5, 1.5, 4.7, -1.9, '#697051', '#8a8468', 0.14);
   const screeT: InstanceTransform[] = [];
   for (let i = 0; i < 26; i++) {
     const a = R(i + 70) * 6.28;
@@ -1540,7 +1611,7 @@ export function capePoint(): THREE.Group {
       sz: 0.3 + R(i + 6) * 0.35,
     });
   }
-  scatterRocks(g, screeT, '#73755d', '#9a9a7a');
+  scatterRocks(g, screeT, '#73755d', '#95866a');
   // Separate fynbos caps make the two-summit profile legible from any angle.
   add(g, C(1.15, 1.2, 0.1, 48), MStone('#697051', 0.95), -1.6, 3.84, -0.2);
   add(g, C(0.92, 0.98, 0.09, 40), MStone('#5f7639', 0.95), 1.9, 2.24, 0.7);
@@ -1694,7 +1765,7 @@ export function capePoint(): THREE.Group {
     const r = 4.9 + R(i + 120) * 0.9;
     const x = -0.4 + r * Math.cos(a);
     const z = 0.2 + r * Math.sin(a);
-    rock(g, 0.75, 1.25, 0.55, x, z, '#73755d', '#9a9a7a', 0.14);
+    rock(g, 0.75, 1.25, 0.55, x, z, '#73755d', '#95866a', 0.14);
     add(g, C(0.78, 0.82, 0.06, 24), MStone('#697051', 0.95), x, 0.58, z);
     for (let k = 0; k < 3; k++) {
       const aa = R(i * 7 + k) * 6.28;
@@ -1851,6 +1922,14 @@ export function bokaap(): THREE.Group {
     }
   }
   instancedMeshes(g, CB(0.4, 0.07, 0.16, 0.02), MWood('#6a4a32', 0.86), benchT);
+
+  // Lane life (#10): stoep silhouettes, washing lines across the lanes, wheelie bins.
+  person(g, -2.6, 0.34, 3.32, 0.9, 0.6);
+  person(g, 1.4, 1.09, 1.81, 0.86, 2.5);
+  washingLine(g, -1.2, 0.34, 2.6, 1, 0);
+  washingLine(g, 2.4, 1.09, 1.05, 0.9, 0.2);
+  bin(g, -3.9, 0.34, 3.3, 0.8);
+  bin(g, 3.9, 1.09, 1.78, 0.8);
 
   // Authentic flat-parapet Auwal Mosque (NO dome!) + arched green doors + 3-tier sage/white square minaret
   const sage = MPlaster('#6f8572', 0.78);
@@ -2095,6 +2174,26 @@ export function rondavels(): THREE.Group {
   rock(g, 1.18, 1.56, 2.75, -0.15, 0.15, '#a56e4b', '#c0a37b', 0.09, mapBase);
   add(crest, C(1.14, 1.16, 0.12, 32), helmetMat, -0.15, mapBase + 2.74, 0.15);
   mergeByMaterial(crest);
+
+  // Visible chacma baboon troop on a middle-peak ledge (#15b): four merged,
+  // high-contrast silhouettes against the ochre rock — no glow, no marker.
+  const troop = new THREE.Group();
+  const baboonMat = MStone('#3a322c', 0.95, 0.02);
+  const ledgeY = hAt(3.05, 0.05) - 0.18 + 3.45 * 0.72;
+  (
+    [
+      [2.8, 1, 0],
+      [3.0, 1.1, 0.5],
+      [3.2, 0.9, -0.2],
+      [3.4, 1.05, 0.25],
+    ] as const
+  ).forEach(([x, sc, ry], i) => {
+    const z = -0.12 + i * 0.16;
+    add(troop, new THREE.IcosahedronGeometry(0.13 * sc, 0), baboonMat, x, ledgeY + 0.14 * sc, z);
+    add(troop, new THREE.IcosahedronGeometry(0.07 * sc, 0), baboonMat, x + 0.1 * sc, ledgeY + 0.27 * sc, z);
+    add(troop, B(0.02, 0.02, 0.2 * sc), baboonMat, x - 0.12 * sc, ledgeY + 0.12 * sc, z).rotation.y = ry;
+  });
+  g.add(mergeByMaterial(troop));
 
   // Canyon floor mist & soaring eagles
   const ms = Array.from({ length: 8 }, (_, i) => {
@@ -2380,8 +2479,8 @@ export function holewall(): THREE.Group {
 
 export function castle(): THREE.Group {
   const g = new THREE.Group();
-  const wl = MPlaster('#837662', 0.84);
-  const och = MPlaster('#b88f42', 0.78);
+  const wl = MPlaster('#887c69', 0.84); // weathered rubble-stone outer curtains (research §3.13)
+  const och = MPlaster('#bd9648', 0.78); // warm yellow-ochre De Kat plaster, ≤0.75 sRGB
   const deKatWhite = MPlaster('#dcd4c4', 0.74);
   const rf = MPlaster('#8a4932', 0.78);
   const st = MStone('#9a8f77', 0.9);
@@ -2445,7 +2544,7 @@ export function castle(): THREE.Group {
     g,
     new THREE.PlaneGeometry(2.5, 0.84),
     litWindowMaterial({
-      wall: '#b88f42',
+      wall: '#bd9648',
       lit: '#ffd58a',
       dark: '#5d4d30',
       cols: 9,
@@ -2562,9 +2661,9 @@ export function amphi(): THREE.Group {
       wp.setXYZ(i, X * f, Y, Z * f);
     }
   }
-  const cLower = new THREE.Color('#b49d76'); // Pale Clarens Sandstone lower cliff bench
-  const cBasalt = new THREE.Color('#4e524b'); // Dark Drakensberg columnar basalt upper wall
-  const cHigh = new THREE.Color('#6a7266');
+  const cLower = new THREE.Color('#a89272'); // Tan Clarens Sandstone lower cliff bench
+  const cBasalt = new THREE.Color('#5a625b'); // Grey Drakensberg columnar basalt upper wall
+  const cHigh = new THREE.Color('#798178'); // Grey basalt light faces
   const cCrest = new THREE.Color('#688446');
   tint(wallGeo, (k, X, Y, Z) => {
     const h = (Y + 3.05) / 6.1;
@@ -2584,8 +2683,8 @@ export function amphi(): THREE.Group {
   add(g, wallGeo, wallMat, 0, 3.25, -0.7);
 
   // Sentinel Peak (left buttress) and Eastern Buttress (right peak)
-  rock(g, 1.35, 2.05, 5.8, -5.2, -1.8, '#4e524b', '#8d8b74', 0.15);
-  rock(g, 1.3, 2.0, 5.2, 5.25, -2.0, '#4e524b', '#8d8b74', 0.15);
+  rock(g, 1.35, 2.05, 5.8, -5.2, -1.8, '#5a625b', '#7c8178', 0.15);
+  rock(g, 1.3, 2.0, 5.2, 5.25, -2.0, '#5a625b', '#7c8178', 0.15);
 
   const a = -Math.PI / 2 - 0.18;
   const wx = 4.42 * Math.cos(a);
@@ -2909,11 +3008,8 @@ export function kruger(): THREE.Group {
   const g = new THREE.Group();
   add(g, B(15.2, 0.2, 15.2), MStone('#b89f5c', 0.96), 0, 0.1, 0);
 
-  // Authentic African bush elephant herd (matriarch, bull, 2 calves) with concave saddle backs & curved tusks
-  const bull = elephant(g, -0.6, 0.2, 0.55, 2.35, 0.15);
-  const matriarch = elephant(g, 0.25, 0.2, -1.65, 2.05, -0.45);
-  const calfA = elephant(g, -2.7, 0.2, 1.9, 1.18, 0.52);
-  const calfB = elephant(g, -1.8, 0.2, -1.45, 1.05, 0.1);
+  // The elephant herd is supplied by the season-gated, LOD'd wildlife layer
+  // (src/data/wildlife.ts); this builder keeps only the waterhole scenery.
 
   // Organic Lowveld muddy-edged waterhole
   add(g, C(2.15, 2.35, 0.04, 48), MStone('#7c6b53', 0.96), 3.35, 0.205, 2.65);
@@ -2956,10 +3052,6 @@ export function kruger(): THREE.Group {
   ]);
   g.userData.tick = (t: number) => {
     dd(t);
-    bull.position.y = 0.2 + 0.018 * Math.sin(t * 1.4);
-    matriarch.position.y = 0.2 + 0.015 * Math.sin(t * 1.4 + 0.9);
-    calfA.position.y = 0.2 + 0.02 * Math.sin(t * 1.8 + 1.6);
-    calfB.position.y = 0.2 + 0.02 * Math.sin(t * 1.8 + 2.4);
   };
   return g;
 }
@@ -3138,7 +3230,6 @@ export function ponte(): THREE.Group {
 
 export function boulders(): THREE.Group {
   const g = new THREE.Group();
-  const P: THREE.Group[] = [];
   // Cool False Bay slate-turquoise water + sloping pale shell-sand beach submerged beneath tide
   sea(g, '#236e79', '#478c8b');
   const shoreMat = MStone('#dfcfa8', 0.95);
@@ -3193,18 +3284,15 @@ export function boulders(): THREE.Group {
   });
   scatterRocks(g, pebbleT, '#7e7b73', '#a39a8c');
 
-  // Authentic African Penguin colony (pink supraorbital glands, horseshoe chest band, black feet!)
+  // The waddling foreground penguins are supplied by the season-gated, LOD'd
+  // wildlife layer at the three boulder clusters (src/data/wildlife.ts).
+  // Only the cheap static far tier is built here.
   const penguinSpot = (i: number): [number, number, number] => {
     const c = i % 3 === 0 ? clusterA : i % 3 === 1 ? clusterB : clusterC;
     const a = R(i + 20) * 6.28;
     const r = 1.15 + R(i + 30) * 0.85;
     return [c[0] + r * Math.cos(a), 0.2, c[1] + r * Math.sin(a)];
   };
-  for (let i = 0; i < 16; i++) {
-    const [px, py, pz] = penguinSpot(i);
-    const pg = penguin(g, px, py, pz, 1.45 + R(i) * 0.35, R(i + 40) * 6.28);
-    P.push(pg);
-  }
 
   // Batched background colony with authentic pink eye spots + black feet
   const penT: InstanceTransform[] = [];
@@ -3233,8 +3321,6 @@ export function boulders(): THREE.Group {
   instancedMeshes(g, new THREE.SphereGeometry(0.032, 6, 5).translate(-0.075, 0.81, 0.085), pk, penT);
   instancedMeshes(g, CB(0.18, 0.035, 0.16, 0.01).translate(0, 0.02, 0.06), bk, penT);
 
-  // Penguin colony is supplied by the data-driven wildlife layer in
-  // dioramaKit (see src/data/wildlife.ts), keeping one scaffold per site.
   const colonySign = interpretiveSign('#d8a64a');
   colonySign.position.set(1.2, 0.32, -3.2);
   colonySign.rotation.y = -Math.PI / 2;
@@ -3304,10 +3390,6 @@ export function boulders(): THREE.Group {
   const sr = seaRings(g, 0.14, 4, 3);
   const bd = birds(g, 3, 3, 5);
   g.userData.tick = (t: number) => {
-    P.forEach((p, i) => {
-      p.rotation.z = Math.sin(t * 4 + i * 2) * (i % 3 ? 0.04 : 0.1);
-      p.position.y = 0.2 + (i % 3 ? 0 : Math.abs(Math.sin(t * 4 + i * 2)) * 0.04);
-    });
     sr(t);
     bd(t);
     shoreFoam.forEach((ring, i) => {

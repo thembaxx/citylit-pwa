@@ -22,6 +22,12 @@ interface SheetProps {
   className?: string;
   label: string;
   showClose?: boolean;
+  /** Height utility for bottom sheets; defaults to h-[80%]. */
+  bottomHeightClass?: string;
+  /** Two-stage sheets: drag up past the threshold to expand. */
+  onExpand?: () => void;
+  /** Two-stage sheets: drag down past the threshold to collapse (before dismiss). */
+  onCollapse?: () => void;
   children: ReactNode;
 }
 
@@ -36,6 +42,9 @@ export function Sheet({
   className = '',
   label,
   showClose = false,
+  bottomHeightClass = 'h-[80%]',
+  onExpand,
+  onCollapse,
   children,
 }: SheetProps) {
   const controls = useDragControls();
@@ -67,6 +76,14 @@ export function Sheet({
   const to = { x: 0, y: 0 };
   const axis: 'x' | 'y' = horizontal ? 'x' : 'y';
   const end = (_: unknown, info: PanInfo) => {
+    if (!horizontal && onExpand && info.offset.y < -48) {
+      onExpand();
+      return;
+    }
+    if (!horizontal && onCollapse && info.offset.y > 48) {
+      onCollapse();
+      return;
+    }
     if (shouldDismiss(info, horizontal ? 96 : 110, 520, axis)) onClose();
   };
 
@@ -83,16 +100,23 @@ export function Sheet({
             transition={{ duration: reducedMotion ? 0 : 0.2 }}
             onClick={onClose}
           />
+          {/* Keyboard inset wrapper: a bottom sheet with an auto-focused input
+              is lifted by the visual-viewport delta so the caret stays visible.
+              --cl-kbd-inset is maintained by App.tsx (0 when no keyboard). */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ transform: 'translateY(calc(-1 * var(--cl-kbd-inset, 0px)))' }}
+          >
           <motion.div
             ref={panelRef}
             role="dialog"
             aria-modal="true"
             aria-label={label}
             tabIndex={-1}
-            className={`absolute flex flex-col overflow-hidden bg-[#121319] text-[#f3efe6] border-white/15 shadow-2xl outline-none ${
+            className={`pointer-events-auto absolute flex flex-col overflow-hidden bg-[#121319] text-[#f3efe6] border-white/15 shadow-2xl outline-none ${
               horizontal
                 ? 'inset-y-0 right-0 w-full sm:max-w-[460px] border-l'
-                : 'inset-x-0 bottom-0 mx-auto h-[80%] w-full rounded-t-[28px] border-x border-t'
+                : `inset-x-0 bottom-0 mx-auto w-full rounded-t-[28px] border-x border-t ${bottomHeightClass}`
             } ${className}`}
             initial={instant ? { opacity: 0 } : reducedMotion ? { opacity: 0 } : from}
             animate={instant ? { opacity: 1 } : reducedMotion ? { opacity: 1 } : to}
@@ -108,7 +132,11 @@ export function Sheet({
             dragControls={controls}
             dragListener={false}
             dragConstraints={{ top: 0, left: 0, right: 0, bottom: 0 }}
-            dragElastic={horizontal ? { left: 0, right: 0.55 } : { top: 0, bottom: 0.55 }}
+            dragElastic={
+              horizontal
+                ? { left: 0, right: 0.55 }
+                : { top: onExpand ? 0.55 : 0, bottom: 0.55 }
+            }
             dragMomentum={false}
             dragTransition={{ bounceStiffness: 700, bounceDamping: 45 }}
             onDragEnd={end}
@@ -143,6 +171,7 @@ export function Sheet({
             )}
             {children}
           </motion.div>
+          </div>
         </div>
       )}
     </AnimatePresence>,

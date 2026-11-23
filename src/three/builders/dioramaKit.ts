@@ -19,6 +19,7 @@ import {
   waterize,
 } from '../shaders';
 import { MAX_REFERENCE_UNITS, MIN_REFERENCE_UNITS } from '../../lib/scale';
+import { getSeasonMonth, isSpeciesBlooming } from '../../lib/season';
 import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
 import {
   add,
@@ -28,11 +29,15 @@ import {
   CB,
   finalizeContactShadows,
   finalizeTreeBatch,
+  fynbos,
   G,
   grassTufts,
   instancedMeshes,
+  jacaranda,
   M,
+  marula,
   Mc,
+  protea,
   mergeByMaterial,
   MGlass,
   MSteel,
@@ -42,14 +47,15 @@ import {
   PANE_VARIANTS,
   R,
   scatterRocks,
+  silverTree,
   stampContactShadow,
   stampContactShadowsFromMeshes,
   stream,
   surfaceDetail,
   swayItems,
   tree,
+  yellowwood,
   weatherVertexColors,
-  whale,
   windowPaneMaterial,
   type InstanceTransform,
 } from './primitives';
@@ -84,6 +90,9 @@ export type DioramaFx =
   | 'cityGlow'
   | 'ridgeFog';
 
+/** Named species selectable through `SITE_PROFILES.ring` (Batch 2 vocabulary). */
+type SiteSpecies = 'fynbos' | 'silverTree' | 'protea' | 'marula' | 'yellowwood' | 'jacaranda';
+
 interface SiteProfile {
   biome: LandmarkBiome;
   /** [top bevel, outer edge, strata band, base wall] */
@@ -94,6 +103,12 @@ interface SiteProfile {
   count: readonly [number, number];
   /** [count, tree kind, scale] */
   ring: readonly [number, number, number];
+  /**
+   * Optional named-species vocabulary for the ring. When present the ring is
+   * built from the shared species builders in primitives.ts (instanced per
+   * material) instead of the numeric generic tree kinds.
+   */
+  species?: readonly SiteSpecies[];
   fx: readonly DioramaFx[];
   anchor: AnchorKind;
   audio: AmbientSiteProfile;
@@ -117,6 +132,7 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     plants: ['#3d5a2e', '#5f7c3b', '#8d8a4d'],
     count: [14, 18],
     ring: [5, 1, 0.7],
+    species: ['fynbos', 'silverTree', 'protea'],
     fx: ['ridgeFog'],
     anchor: 'deck',
     audio: au(0.1),
@@ -128,6 +144,7 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     plants: ['#3f6136', '#587a3f'],
     count: [8, 12],
     ring: [6, 2, 0.8],
+    species: ['jacaranda'],
     fx: ['cityGlow'],
     anchor: 'bollards',
     audio: au(-0.15),
@@ -181,7 +198,8 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     rock: ['#6f6a58', '#a9a189'],
     plants: ['#5b6e3a', '#7d8b4c', '#a49a55'],
     count: [0, 0],
-    ring: [0, 0, 0],
+    ring: [3, 1, 0.6],
+    species: ['fynbos', 'protea'],
     fx: ['surf', 'spray'],
     anchor: 'jetty',
     audio: au(0.4, ['shorebird']),
@@ -292,6 +310,7 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     plants: ['#6f7440', '#8d8a4b'],
     count: [14, 18],
     ring: [5, 2, 0.8],
+    species: ['marula'],
     fx: ['dust', 'haze'],
     anchor: 'windpump',
     audio: au(-0.25, ['cicada'], 1.3),
@@ -390,6 +409,7 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     plants: ['#6a7040', '#8a854a'],
     count: [16, 12],
     ring: [4, 2, 0.75],
+    species: ['marula'],
     fx: ['ridgeFog', 'dust'],
     anchor: 'deck',
     audio: au(-0.2),
@@ -477,7 +497,8 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     rock: ['#676b5f', '#9ba087'],
     plants: ['#3f6437', '#5c7f45'],
     count: [0, 0],
-    ring: [0, 0, 0],
+    ring: [3, 1, 0.6],
+    species: ['yellowwood'],
     fx: ['surf', 'spray', 'mist'],
     anchor: 'jetty',
     audio: au(0.4, ['shorebird']),
@@ -566,7 +587,8 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     rock: ['#6a6d5f', '#9ea28a'],
     plants: ['#3f6437', '#5f8246'],
     count: [0, 0],
-    ring: [0, 0, 0],
+    ring: [3, 1, 0.6],
+    species: ['yellowwood'],
     fx: ['surf', 'spray', 'ridgeFog'],
     anchor: 'jetty',
     audio: au(-0.45, ['shorebird']),
@@ -1327,14 +1349,85 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
   g.add(lod);
 }
 
-function addTreeRing(g: THREE.Group, profile: SiteProfile, angle: number): void {
+const SPECIES_BUILDERS: Record<
+  SiteSpecies,
+  (g: THREE.Object3D, x: number, y: number, z: number, sc: number, ry: number) => THREE.Group
+> = { fynbos, silverTree, protea, marula, yellowwood, jacaranda };
+
+interface SpeciesPart {
+  geo: THREE.BufferGeometry;
+  mat: THREE.Material;
+  /** Violet jacaranda bloom shell: toggled by the shared October/November gate. */
+  seasonal: boolean;
+}
+
+const speciesPartsCache = new Map<SiteSpecies, SpeciesPart[]>();
+
+/**
+ * Reuse the builder's merged output as an instancing template. The throwaway
+ * group never enters the scene; its merged geometry/material pairs are cached
+ * as shared resources and drawn once per material regardless of tree count.
+ */
+function getSpeciesParts(name: SiteSpecies): SpeciesPart[] {
+  const cached = speciesPartsCache.get(name);
+  if (cached) return cached;
+  const scratch = new THREE.Group();
+  SPECIES_BUILDERS[name](scratch, 0, 0, 0, 1, 0);
+  const parts: SpeciesPart[] = [];
+  scratch.children.forEach((child) => {
+    if (!(child instanceof THREE.Mesh) || Array.isArray(child.material)) return;
+    child.geometry.userData.sharedResource = true;
+    parts.push({
+      geo: child.geometry,
+      mat: child.material,
+      seasonal: Boolean((child.material.userData as { seasonalSpecies?: string }).seasonalSpecies),
+    });
+  });
+  speciesPartsCache.set(name, parts);
+  return parts;
+}
+
+function addTreeRing(g: THREE.Group, profile: SiteProfile, angle: number): Update[] {
   const [count, kind, scale] = profile.ring;
-  if (count <= 0) return;
+  if (count <= 0) return [];
+  const species = profile.species;
+  if (!species?.length) {
+    for (let i = 0; i < count; i++) {
+      const a = angle + (i / count) * 6.2832 + (R(i * 4.7 + 1) - 0.5) * 0.4;
+      const r = 7.0 + R(i * 2.3 + 6) * 0.22;
+      tree(g, Math.cos(a) * r, Math.sin(a) * r, scale * (0.88 + R(i + 8) * 0.24), kind, 0.19);
+    }
+    return [];
+  }
+
+  const placements = new Map<SiteSpecies, InstanceTransform[]>();
   for (let i = 0; i < count; i++) {
+    const name = species[i % species.length];
     const a = angle + (i / count) * 6.2832 + (R(i * 4.7 + 1) - 0.5) * 0.4;
     const r = 7.0 + R(i * 2.3 + 6) * 0.22;
-    tree(g, Math.cos(a) * r, Math.sin(a) * r, scale * (0.88 + R(i + 8) * 0.24), kind, 0.19);
+    const sc = scale * (0.88 + R(i + 8) * 0.24);
+    let list = placements.get(name);
+    if (!list) {
+      list = [];
+      placements.set(name, list);
+    }
+    list.push({ x: Math.cos(a) * r, y: 0.19, z: Math.sin(a) * r, ry: a, sx: sc, sy: sc, sz: sc });
   }
+
+  const bloomMeshes: THREE.InstancedMesh[] = [];
+  placements.forEach((transforms, name) => {
+    for (const part of getSpeciesParts(name)) {
+      const im = instancedMeshes(g, part.geo, part.mat, transforms);
+      if (im && part.seasonal) bloomMeshes.push(im);
+    }
+  });
+  if (!bloomMeshes.length) return [];
+  return [
+    () => {
+      const blooming = isSpeciesBlooming(getSeasonMonth(), 'jacaranda');
+      for (let i = 0; i < bloomMeshes.length; i++) bloomMeshes[i].visible = blooming;
+    },
+  ];
 }
 
 /* ------------------------------------------------------------------ */
@@ -1885,21 +1978,8 @@ function addSiteMotion(g: THREE.Group, key: string, profile: SiteProfile, angle:
     });
   }
 
-  // Hermanus Whale Watching: surfacing Southern Right whale (callosities, no dorsal fin)
-  if (key.includes('Hermanus')) {
-    const coveWhale = whale(0.62);
-    coveWhale.position.set(-4.35, -0.25, 4.55);
-    coveWhale.rotation.y = 0.85;
-    g.add(coveWhale);
-
-    updates.push((t) => {
-      const cycle = (t * 0.12) % 1;
-      const arch = Math.max(0, Math.sin(cycle * Math.PI * 2.2));
-      coveWhale.position.y = -0.34 + arch * 0.48;
-      coveWhale.rotation.z = Math.cos(cycle * Math.PI * 2.2) * 0.38;
-      coveWhale.visible = arch > 0.02;
-    });
-  }
+  // Hermanus' cove whale is now a season-gated, LOD'd wildlife spot at the
+  // same tuned position (src/data/wildlife.ts); no duplicate builder whale here.
 
   if (
     key.includes('Union Buildings') ||
@@ -2228,6 +2308,18 @@ export interface StreetLampSpec {
   coneHeight?: number;
   /** Volumetric haze cone outer radius (default chosen per kind). */
   coneRadius?: number;
+}
+
+/**
+ * Places/OSM slices reuse the same instanced lamp hardware but never own a
+ * point light and do not need the diorama contact-shadow pass, so both can be
+ * opted out without forking the material/geometry pipeline.
+ */
+export interface StreetLampSetOptions {
+  /** Publish promoted fixtures as anchors for the hero-only 4-light pool. */
+  anchors?: boolean;
+  /** Queue baked contact-shadow stamps (finalised by the diorama build). */
+  contactShadows?: boolean;
 }
 
 interface LampArchetype {
@@ -2869,8 +2961,14 @@ function addWetRoadStreaks(
   im.userData.noDissolve = true;
 }
 
-export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSpec[]): void {
+export function addStreetLampSet(
+  g: THREE.Object3D,
+  specs: readonly StreetLampSpec[],
+  options?: StreetLampSetOptions
+): void {
   if (!specs.length) return;
+  const withAnchors = options?.anchors !== false;
+  const withContactShadows = options?.contactShadows !== false;
 
   const byKind = new Map<StreetLampKind, InstanceTransform[]>();
   const bulbTransforms: InstanceTransform[] = [];
@@ -2889,7 +2987,7 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
     const kind: StreetLampKind = specs[i].kind ?? 'victorian';
     if (!LAMP_ARCHETYPES[kind].upward && kind !== 'flood') lightCandidates.push(i);
   }
-  const promotedCount = Math.min(STREET_POINT_LIGHT_LIMIT, lightCandidates.length);
+  const promotedCount = withAnchors ? Math.min(STREET_POINT_LIGHT_LIMIT, lightCandidates.length) : 0;
   const promotedIndices: number[] = [];
   for (let k = 0; k < promotedCount; k++) {
     promotedIndices.push(lightCandidates[Math.floor(((k + 0.5) * lightCandidates.length) / promotedCount)]);
@@ -2962,7 +3060,9 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
         .getHex()
     );
     // Poles cast no real shadows, so seat each post with a baked contact blob.
-    stampContactShadow(g, s.x, s.z, Math.max(0.14, 0.26 * sc), 0.18, s.y + 0.006);
+    if (withContactShadows) {
+      stampContactShadow(g, s.x, s.z, Math.max(0.14, 0.26 * sc), 0.18, s.y + 0.006);
+    }
     if (s.reflectY !== undefined) {
       reflections.push({ x: s.x, z: s.z, y: s.reflectY, color: col, scale: sc });
     }
@@ -3628,8 +3728,9 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
     addEdgeWaterfall(group, angle, profile);
   }
   addBaseScatter(group, profile);
-  addTreeRing(group, profile, angle);
+  const treeUpdates = addTreeRing(group, profile, angle);
   const updates = addAnchor(group, profile, angle);
+  for (let i = 0; i < treeUpdates.length; i++) updates.push(treeUpdates[i]);
   const wildlife = addWildlifeLayer(group, sourceKey);
   for (let i = 0; i < wildlife.length; i++) updates.push(wildlife[i]);
   finalizeTreeBatch(group);

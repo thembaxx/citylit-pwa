@@ -126,6 +126,18 @@ export default defineConfig({
         manualChunks(id) {
           const path = id.replace(/\\/g, '/');
           if (!path.includes('node_modules')) return;
+          // The WebGPU/TSL stack is reached only through the dynamic imports in
+          // createRenderer.ts. Match it BEFORE the generic `/three/` rule:
+          // folding these builds into the eager `three` chunk makes every
+          // WebGL-only visitor download WebGPURenderer + NodeMaterial code.
+          if (
+            /\/three\/build\/three\.(webgpu|webgpu\.nodes|tsl)\.js$/.test(path) ||
+            path.includes('/three/src/renderers/webgpu/') ||
+            path.includes('/three/src/nodes/') ||
+            path.includes('/three/examples/jsm/tsl/')
+          ) {
+            return 'three-webgpu';
+          }
           if (
             path.includes('/three/') ||
             path.includes('/n8ao/') ||

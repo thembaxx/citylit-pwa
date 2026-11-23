@@ -7,6 +7,7 @@ import {
   PLANT_SPECIES,
   type PlantSpecies,
 } from '../lib/season';
+import { addStreetLampSet, type StreetLampSpec } from './builders/dioramaKit';
 import { BESPOKE_INTERIORS, type BespokeInteriorKind } from './placesInteriors';
 import { createCloudPuffMesh, createSliceCloudLayer } from './placesClouds';
 import { grassWindy, windy, WU } from './shaders';
@@ -1044,6 +1045,14 @@ function makeSafariVehicle(
   return g;
 }
 
+/**
+ * Road-ribbon builds happen inside a single synchronous `buildPlaceSlice`
+ * call, so a module-local sink can collect lamp positions without threading a
+ * new argument through all fourteen curated call sites. It is cleared as soon
+ * as the slice's lamps are batched.
+ */
+let roadLampSink: StreetLampSpec[] | null = null;
+
 function addRoadRibbon(
   parent: THREE.Group,
   points: THREE.Vector3[],
@@ -1053,6 +1062,26 @@ function addRoadRibbon(
   matsToDispose: THREE.Material[]
 ): void {
   const curve = new THREE.CatmullRomCurve3(points);
+  if (roadLampSink && roadLampSink.length < 10 && width >= 0.16) {
+    for (let i = 1; i <= 2; i++) {
+      const t = i / 3;
+      const p = curve.getPoint(t);
+      const tangent = curve.getTangent(t);
+      const len = Math.hypot(tangent.x, tangent.z) || 1;
+      const side = i % 2 === 0 ? 1 : -1;
+      const offset = width * 0.5 + 0.07;
+      roadLampSink.push({
+        x: p.x + (-tangent.z / len) * side * offset,
+        y: p.y + 0.01,
+        z: p.z + (tangent.x / len) * side * offset,
+        kind: width >= 0.28 ? 'cobra' : 'lantern',
+        ry: -Math.atan2(tangent.z, tangent.x),
+        scale: 0.38,
+        color: '#ffd694',
+        poolRadius: 0.42,
+      });
+    }
+  }
   const segs = 38;
   const pos: number[] = [];
   const idx: number[] = [];
@@ -1287,6 +1316,8 @@ export function buildPlaceSlice(
   shared: SliceSharedAssets,
   seed: number
 ): BuiltPlaceSlice {
+  const sliceLamps: StreetLampSpec[] = [];
+  roadLampSink = sliceLamps;
   const root = new THREE.Group();
   root.position.set(0, 0, 0);
   root.visible = false;
@@ -4723,6 +4754,14 @@ export function buildPlaceSlice(
 
   for (const dec of postDecorators) {
     dec(terrainCfg.heightAt);
+  }
+
+  // Street furniture lamps sampled from the curated road ribbons. Reuses the
+  // diorama instanced hardware/bulb/pool shaders without promoting a light or
+  // queuing contact stamps — the hero-only 4-light pool is untouched.
+  roadLampSink = null;
+  if (sliceLamps.length) {
+    addStreetLampSet(root, sliceLamps, { anchors: false, contactShadows: false });
   }
 
   // Hovering instanced stylised cloud clusters above the slice (GPU drift/bob)

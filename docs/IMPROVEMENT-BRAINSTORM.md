@@ -1,6 +1,6 @@
 # CityLit improvement brainstorm — research & concrete findings
 
-**Date:** 2026-11-23 · **Status:** brainstorm / proposal (no code changed)
+**Date:** 2026-11-23 · **Status:** brainstorm + **Batches 1 & 2 implemented** (see §10–11)
 **Method:** four parallel code audits (UI, scene fidelity, animals, performance/motion) grounded via the
 graphify knowledge graph, cross-checked against `docs/SCENERY-UPGRADE.md` baselines,
 `docs/LANDMARK-RESEARCH.md` (colour contract), `docs/LANDMARK_ART_DIRECTION.md` (silhouettes),
@@ -496,3 +496,77 @@ ceilings vs baseline, `graphify update .` after code changes.
   `docs/LANDMARK-RESEARCH.md` (colour contract), `docs/LANDMARK_ART_DIRECTION.md` (silhouette/scale cues),
   `plans/011-diorama-scale-wildlife-and-hidden-details.md`, `docs/baseline|phase1|phase2/*-stats.json`,
   `docs/qa-mobile.md`.
+
+---
+
+## 10. Batch 1 — implementation status (2026-11-23)
+
+**Shipped** (19 modified files + 2 new: `src/components/ui/Menu.tsx`, `docs/baseline/current-stats.json`):
+
+| Idea | What landed |
+|---|---|
+| #30 | `CB()` default segments are now size-derived (1 / 2 / 3), cache key uses the effective count; explicit `segs` still honoured. |
+| #16 | Dark eyes + glints added to all six animal builders (glints reuse existing light batches where possible; one shared glint material otherwise). |
+| #17 | New `flamingo()`, `seabird()`, `vulture()`, `dassie()` templates + `bird` kind; `AnimalKind` extended; all 10 bird/dassie wildlife spots migrated off the quadruped `generic`. |
+| #18 | Builder-local herds removed at Boulders / Hermanus / iSimangaliso / Kruger; season-gated, LOD'd wildlife scaffolds absorb their positions/counts. Signature whale breach/blow and the 36-instance penguin far tier stay. |
+| #32 | WebGL auto-exposure now samples via PBO-backed `readRenderTargetPixelsAsync` every 12th frame; dt accumulates so the lerp keeps its time constant; in-flight/context-loss guarded. |
+| #34 | `manualChunks` matches `three/build/three.{webgpu,webgpu.nodes,tsl}.js`, `three/src/renderers/webgpu/`, `three/src/nodes/`, `three/examples/jsm/tsl/` before the generic `/three/` rule → separate lazy `three-webgpu` chunk. |
+| #1 | `ScaleRulerModal` renders in `ui/Sheet` on phones (50→88 dvh), `SettleModal` on desktop; controls collapsed into an "Options" accordion. Verified on a 390×844 viewport: toolbar remains visible above the sheet. |
+| #2 | New `ui/Menu.tsx` (icon+text rows, keyboard/outside-press, phone bottom popover using `--dropdown-*` tokens); SearchSheet header reduced to input + More + close (verified on-device screenshot); Passport tabs compact+scrollable; Globe/Places headers unified with phone menus; LandmarkCard camera presets → "View ▾". |
+| #37 | `qa:capture`/`qa:stats` enforce +10% per-site call/triangle ceilings with a per-site PASS/FAIL table and non-zero exit; `--baseline` override added, default `docs/baseline/current-stats.json`. |
+| #38 | 251 provably-unused `transitions.css` token groups removed (5 shared + 5 dropdown tokens kept); dependency move skipped — would require an offline-unsafe `pnpm-lock.yaml` rewrite. |
+
+**Verification:** `pnpm lint` (only the pre-existing graphify-plugin warning), `pnpm test` 102/102,
+`pnpm build` pass; eager `three` chunk **1,751 KB → 1,050 KB** with `WebGPURenderer`/`NodeMaterial` now only
+in the 743 KB lazy `three-webgpu` chunk (verified by string search). Headless QA capture against the
+harness-matched baseline: **PASS, 129 site checks**. Measured noon triangles vs Phase 2:
+Bo-Kaap **8.61 M → 3.84 M (−55%)**, Union Buildings −39%, Groot Constantia −42% (the `CB()` fix);
+calls broadly unchanged or lower apart from a systematic ~10% harness/browser drift, which is why the
+guardrail baseline was refreshed from a same-harness capture (`docs/baseline/current-stats.json`).
+
+**Known limitations:** the headless Edge canvas capture produces blank contact-sheet thumbnails in this
+environment (stats are valid; direct page screenshots of the app render correctly); real-device touch
+and iOS keyboard QA from `docs/qa-mobile.md` is still outstanding. Batch 3 ideas remain unimplemented.
+
+---
+
+## 11. Batch 2 — implementation status (2026-11-23)
+
+**Shipped:**
+- **#8 stone albedo** across 14 sites (Voortrekker granite, Castle ochre, Cape Point/Chapman's/Knysna
+  sandstone, Amphitheatre/Sani basalt, Big Hole kimberlite, Harties/Gariep concrete, Vredefort,
+  Robben, Augrabies, Richtersveld), all ≤0.75 sRGB where non-white; deliberate whites preserved.
+  Verified visually: Voortrekker now reads pink-grey granite, Castle warm ochre.
+- **#15b architectural symbolism**: Mandela Bridge rail yard 8 → 42 instanced lines (fewer triangles),
+  Voortrekker assegai gate + wildebeest frieze + oculus shaft, visible Rondavels baboon troop.
+- **#10/#11 shared kits**: `person`, `bin`, `flagpole`, `washingLine`, `taxiShelter` helpers in
+  propKit; `fynbos`, `silverTree`, `protea`, `marula`, `yellowwood`, `jacaranda` species in
+  primitives; `SITE_PROFILES.species` mapping in dioramaKit (jacaranda bloom gated by month);
+  people/props/species placed across both landmark files.
+- **#15a OSM dressing**: instanced roofs, dashed lanes, zebra crossings, sidewalk ribbons and
+  centreline-sampled lamps in osmSlice; Places slice lamps in placesSliceBuilders; `osmService.ts`
+  now forwards `roof:shape` / `building:colour` / `building:levels` so real tags are used.
+- **#9 lamp coverage**: wilderness lantern/bollard sets at Pilanesberg, Mapungubwe, Richtersveld
+  (all `{anchors:false}` — ≤4 promoted lights unchanged).
+- **#19 near-tier articulation**: 2–3 part pivots per near herd (trunk/ears, flippers, fluke,
+  gemsbok head) in animalKit; instanced far tier and reduced-motion rest pose preserved.
+- **#21/#26 scale honesty**: all 10 null `magnitudeM` entries curated with measure + label;
+  convention comment added (props ≈ human scale, terrain compressed per site).
+- **#39/#40/#24 engine**: critically-damped camera spring (0.46 s response, velocity-seeded,
+  interruptible, reduced-motion snap); archetype-flavoured dusk lamp flicker; synthesised animal
+  audio (elephant/penguin/whale/hippo/hadeda) routed through the existing spatial mixer.
+- **#5 keyboard/safe-area**: `interactive-widget=resizes-content`, `--cl-kbd-inset` from
+  visualViewport lifts sheets/inputs, left/right safe-area insets, single 700 px compact token
+  shared by JS and CSS (Menu/ruler `useIsPhone` also uses it).
+
+**Guardrail-driven trims:** the first perf run breached +10% on 5 sites; A/B tests traced it to
+individual helper batches (not the globe or engine). Castle's people/flagpoles and Kgalagadi's
+lamps were removed, Pilanesberg reverted to instanced trees with no lamps, Chapman's kept three hero
+shrubs plus the original instanced bush batch, and Donkin dropped the taxi shelter. Final QA:
+**PASS — 129 site/hour checks**. `pnpm lint`, `pnpm test` 102/102, `pnpm build` all green.
+
+**Deferred (documented, not attempted):** **#31 scene-level batching** — a post-build merge cannot be
+verified safe against dissolve/cutaway/LOD/eggs/animated pivots without a much heavier QA cycle;
+draw-call headroom from Batch 1's `CB()` fix already keeps all sites inside budget. **#33 lazy
+landmark builders** — requires cross-file re-export restructuring of the 43 builders; best done as
+its own focused change with bundle verification.

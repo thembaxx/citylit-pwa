@@ -1,4 +1,5 @@
 import {
+  ArrowDown,
   BookmarkSimple,
   Camera,
   CaretDown,
@@ -8,10 +9,12 @@ import {
   Check,
   Clock,
   Crosshair,
+  Drone,
   GlobeHemisphereEast,
   Heart,
   Images,
   Info,
+  MagnifyingGlass,
   MapPin,
   NavigationArrow,
   NotePencil,
@@ -21,6 +24,7 @@ import {
   Stack,
   Trash,
   X,
+  type Icon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, type Variants } from 'motion/react';
@@ -28,6 +32,7 @@ import { LANDMARKS } from '../data/landmarks';
 import { animate, DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
 import type { CameraPreset, HeritageRoute, LandmarkNote, NoteCategory } from '../types/citylit';
+import { Menu, type MenuItem } from './ui/Menu';
 
 interface SlideCustom {
   dir: number;
@@ -116,11 +121,11 @@ const NOTE_CATEGORIES: ReadonlyArray<{
   },
 ];
 
-const CAMERA_PRESETS: ReadonlyArray<{ id: CameraPreset; label: string }> = [
-  { id: 'default', label: 'Default' },
-  { id: 'aerial', label: 'Aerial' },
-  { id: 'low', label: 'Low' },
-  { id: 'detail', label: 'Macro' },
+const CAMERA_PRESETS: ReadonlyArray<{ id: CameraPreset; label: string; icon: Icon }> = [
+  { id: 'default', label: 'Default', icon: Crosshair },
+  { id: 'aerial', label: 'Aerial', icon: Drone },
+  { id: 'low', label: 'Low', icon: ArrowDown },
+  { id: 'detail', label: 'Macro', icon: MagnifyingGlass },
 ];
 
 interface LandmarkCardProps {
@@ -229,6 +234,7 @@ export function LandmarkCard({
   onDragParallax,
 }: LandmarkCardProps) {
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
+  const [activePreset, setActivePreset] = useState<CameraPreset>('default');
   const [notesOpen, setNotesOpen] = useState(false);
   const [draftNote, setDraftNote] = useState('');
   const [noteCategory, setNoteCategory] = useState<NoteCategory>('memory');
@@ -392,7 +398,7 @@ export function LandmarkCard({
 
   if (compact) {
     return (
-      <div className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] lg:max-w-[560px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none">
+      <div className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] lg:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none">
         <motion.div
           initial={reducedMotion ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -443,11 +449,21 @@ export function LandmarkCard({
     );
   }
 
+  const cameraMenuItems: MenuItem[] = CAMERA_PRESETS.map((preset) => ({
+    icon: preset.icon,
+    label: preset.label,
+    selected: activePreset === preset.id,
+    onSelect: () => {
+      setActivePreset(preset.id);
+      onApplyCameraPreset?.(preset.id);
+    },
+  }));
+
   return (
     <>
       <div
         ref={cardWrapRef}
-        className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] md:landscape:max-w-[490px] lg:max-w-[560px] lg:landscape:max-w-[560px] px-3.5 pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
+        className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] md:landscape:max-w-[490px] lg:max-w-[560px] lg:landscape:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
       >
         <motion.div
           initial={reducedMotion ? false : { opacity: 0, y: 12, scale: 0.985 }}
@@ -657,22 +673,25 @@ export function LandmarkCard({
           {(onApplyCameraPreset || onStepPin) && (
             <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5">
               {onApplyCameraPreset && (
-                <div
-                  className="inline-flex items-center gap-1"
-                  role="group"
-                  aria-label="3D camera views"
-                >
-                  {CAMERA_PRESETS.map((preset) => (
+                <Menu
+                  ariaLabel="3D camera views"
+                  reducedMotion={reducedMotion}
+                  items={cameraMenuItems}
+                  trigger={
                     <button
-                      key={preset.id}
                       type="button"
-                      onClick={() => onApplyCameraPreset(preset.id)}
-                      className="h-6 px-2 rounded-full bg-white/[0.04] border border-white/10 text-[10.5px] text-[#c8c4bc] hover:border-[#e8b04a]/65 hover:text-[#e8b04a] transition-colors cursor-pointer"
+                      aria-label={`3D camera view: ${
+                        CAMERA_PRESETS.find((p) => p.id === activePreset)?.label ?? 'Default'
+                      }`}
+                      title="Choose 3D camera view"
+                      className="h-6 px-2 rounded-full inline-flex items-center gap-1 bg-white/[0.04] border border-white/10 text-[10.5px] text-[#c8c4bc] hover:border-[#e8b04a]/65 hover:text-[#e8b04a] transition-colors cursor-pointer"
                     >
-                      {preset.label}
+                      <Camera size={11} />
+                      <span>View</span>
+                      <CaretDown size={9} />
                     </button>
-                  ))}
-                </div>
+                  }
+                />
               )}
               {onStepPin && totalInteractivePins > 0 && (
                 <button
@@ -699,7 +718,12 @@ export function LandmarkCard({
                 transition={{ duration: reducedMotion ? 0 : DURATION.quick, ease: EASE_SMOOTH_OUT }}
                 className="overflow-hidden"
               >
-                <div className="mt-2.5 pt-2.5 border-t border-white/12 space-y-2">
+                {/* Lift the note composer by the on-screen keyboard delta so the
+                    focused textarea stays above the keyboard (see App.tsx). */}
+                <div
+                  className="mt-2.5 pt-2.5 border-t border-white/12 space-y-2"
+                  style={{ transform: 'translateY(calc(-1 * var(--cl-kbd-inset, 0px)))' }}
+                >
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -787,6 +811,11 @@ export function LandmarkCard({
                       ref={noteInputRef}
                       value={draftNote}
                       onChange={(e) => setDraftNote(e.target.value)}
+                      onFocus={() => {
+                        window.requestAnimationFrame(() =>
+                          noteInputRef.current?.scrollIntoView({ block: 'nearest' })
+                        );
+                      }}
                       onKeyDown={(e) => {
                         if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
                           e.preventDefault();

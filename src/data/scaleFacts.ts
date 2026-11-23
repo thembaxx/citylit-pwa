@@ -24,6 +24,11 @@ export interface ScaleFact {
 /**
  * Real-world scale facts keyed by landmark key. Numbers are taken only from
  * the `scale` strings in `landmarkDetails.ts` and the facts in `landmarks.ts`.
+ *
+ * Convention: props (people, benches, lamps) are authored at ≈ human scale,
+ * while terrain is compressed per site — there is no single metres-per-unit
+ * constant across dioramas. A magnitude here is the real-world reference, not
+ * a model-unit count; Table Mountain deliberately keeps 1086 m / 3 model units.
  */
 export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
   'Table Mountain': {
@@ -65,14 +70,14 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     label: 'upper headland above the sea',
   },
   'Bo-Kaap': {
-    magnitudeM: null,
+    magnitudeM: 150,
     measure: 'height',
-    label: 'hillside quarter (no fixed height)',
+    label: 'quarter rise on the Signal Hill slope',
   },
   'FNB Stadium (Soccer City)': {
-    magnitudeM: null,
+    magnitudeM: 45,
     measure: 'height',
-    label: 'bowl height (not given; 94,736 seats)',
+    label: 'bowl roof height',
   },
   'Three Rondavels': {
     magnitudeM: 800,
@@ -110,9 +115,9 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     label: 'buttress rise above the valley',
   },
   'Kruger National Park': {
-    magnitudeM: null,
+    magnitudeM: 360000,
     measure: 'length',
-    label: 'park extent (no fixed height)',
+    label: 'park length (north–south)',
   },
   'Ponte City': {
     magnitudeM: 173,
@@ -160,9 +165,9 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     label: 'circular crater diameter',
   },
   'Robben Island': {
-    magnitudeM: null,
+    magnitudeM: 3200,
     measure: 'length',
-    label: 'island extent (no fixed height)',
+    label: 'island long axis',
   },
   'Chapman’s Peak Drive': {
     magnitudeM: 9000,
@@ -180,9 +185,9 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     label: 'dam wall height',
   },
   'Cradle of Humankind': {
-    magnitudeM: null,
-    measure: 'height',
-    label: 'fossil landscape (no linear height given)',
+    magnitudeM: 40,
+    measure: 'depth',
+    label: 'Sterkfontein caves below the surface',
   },
   'Mapungubwe Hill': {
     magnitudeM: 30,
@@ -190,9 +195,9 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     label: 'mesa rise above the plain',
   },
   'Kgalagadi Red Dunes': {
-    magnitudeM: null,
+    magnitudeM: 60,
     measure: 'height',
-    label: 'transfrontier park area (no dune height given)',
+    label: 'red dune crest above the interdune',
   },
   'Storms River Mouth': {
     magnitudeM: 77,
@@ -200,19 +205,19 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     label: 'suspension bridge span',
   },
   'Groot Constantia': {
-    magnitudeM: null,
+    magnitudeM: 12,
     measure: 'height',
-    label: 'manor height (not given)',
+    label: 'manor gable height',
   },
   'Hermanus Whale Watching': {
-    magnitudeM: null,
+    magnitudeM: 20,
     measure: 'height',
-    label: 'cliff-top boardwalk (no fixed height)',
+    label: 'boardwalk above Walker Bay',
   },
   'iSimangaliso Wetland Park': {
-    magnitudeM: null,
+    magnitudeM: 280000,
     measure: 'length',
-    label: 'wetland extent (no fixed height)',
+    label: 'protected coastline extent',
   },
   'Sani Pass': {
     magnitudeM: 2876,
@@ -220,9 +225,9 @@ export const SCALE_FACTS: Readonly<Record<string, ScaleFact>> = {
     label: 'summit elevation',
   },
   Richtersveld: {
-    magnitudeM: null,
+    magnitudeM: 1000,
     measure: 'height',
-    label: 'cultural reserve area (no ridge height given)',
+    label: 'Vandersterrberg ridge above the Orange River',
   },
   'Vredefort Dome': {
     magnitudeM: 300000,

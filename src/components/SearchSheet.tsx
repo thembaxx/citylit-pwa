@@ -1,6 +1,7 @@
 import {
   CheckCircle,
   Clock,
+  DotsThree,
   DownloadSimple,
   GearSix,
   Heart,
@@ -19,6 +20,7 @@ import { countLandmarksByTag, filterLandmarks, parseSearch } from '../lib/landma
 import { PRESS_SCALE, SPRING, revealItem, revealVariants, swapTransition } from '../lib/motion';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import type { LandmarkTag } from '../types/citylit';
+import { Menu, type MenuItem } from './ui/Menu';
 import { Sheet } from './ui/Sheet';
 
 interface SearchSheetProps {
@@ -148,6 +150,19 @@ export function SearchSheet({
   const iconButton =
     'w-10 h-10 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer shrink-0';
 
+  const menuItems: MenuItem[] = [
+    {
+      label: locating || exploring ? 'Exploring location…' : 'Explore coordinates or place',
+      icon: MapPin,
+      onSelect: () => void exploreQuery(),
+    },
+    { label: 'Explorer Passport', icon: Stamp, onSelect: onOpenPassport },
+    ...(onOpenRuler
+      ? [{ label: 'Compare heights on a ruler', icon: Ruler, onSelect: onOpenRuler }]
+      : []),
+    { label: 'Settings', icon: GearSix, onSelect: onOpenSettings },
+  ];
+
   return (
     <Sheet
       open={open}
@@ -167,6 +182,13 @@ export function SearchSheet({
             onChange={(e) => {
               setQuery(e.target.value);
               setLocationHint('');
+            }}
+            onFocus={() => {
+              // The Sheet wrapper lifts by --cl-kbd-inset; nudge the caret into
+              // view too for browsers that scroll the visual viewport instead.
+              window.requestAnimationFrame(() =>
+                inputRef.current?.scrollIntoView({ block: 'nearest' })
+              );
             }}
             placeholder={`Search ${LANDMARKS.length} landmarks · try “sunset at Table Mountain”`}
             className="w-full bg-white/[0.06] border border-white/15 rounded-xl px-3.5 py-2 text-[15px] text-[#f3efe6] placeholder:text-[#a9a69e]/70 focus-visible:outline-2 focus-visible:outline-[#e8b04a] [&::-webkit-search-cancel-button]:hidden"
@@ -194,32 +216,33 @@ export function SearchSheet({
             )}
           </AnimatePresence>
         </div>
-        {[
-          {
-            label: locating || exploring ? 'Exploring location…' : 'Explore coordinates or place',
-            icon: MapPin,
-            onClick: () => void exploreQuery(),
-          },
-          { label: 'Explorer Passport', icon: Stamp, onClick: onOpenPassport },
-          ...(onOpenRuler
-            ? [{ label: 'Compare heights on a ruler', icon: Ruler, onClick: onOpenRuler }]
-            : []),
-          { label: 'Settings', icon: GearSix, onClick: onOpenSettings },
-          { label: 'Close search sheet', icon: X, onClick: onClose },
-        ].map(({ label, icon: Icon, onClick }) => (
-          <motion.button
-            key={label}
-            type="button"
-            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-            transition={SPRING.snappy}
-            onClick={onClick}
-            aria-label={label}
-            title={label}
-            className={iconButton}
-          >
-            <Icon size={18} />
-          </motion.button>
-        ))}
+        <Menu
+          ariaLabel="Search actions"
+          reducedMotion={reducedMotion}
+          items={menuItems}
+          trigger={
+            <motion.button
+              type="button"
+              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+              aria-label="More search actions"
+              title="More actions"
+              className={iconButton}
+            >
+              <DotsThree size={19} weight="bold" />
+            </motion.button>
+          }
+        />
+        <motion.button
+          type="button"
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+          transition={SPRING.snappy}
+          onClick={onClose}
+          aria-label="Close search sheet"
+          title="Close search"
+          className={iconButton}
+        >
+          <X size={18} />
+        </motion.button>
       </div>
 
       <AnimatePresence initial={false}>

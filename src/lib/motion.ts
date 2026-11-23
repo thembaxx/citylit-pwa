@@ -11,6 +11,14 @@ export const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
 /** Subtle press feedback for interactive controls (0.95–0.98 band). */
 export const PRESS_SCALE = 0.96;
 
+/**
+ * Single compact-shell breakpoint (px), shared with the wide-landscape CSS
+ * media query in `src/index.css` (`--cl-compact-max`). The JS `compact` flag
+ * switches at `<= 700px`; the wide-landscape layout begins at `701px` so the
+ * two never overlap. Keep both locations in sync with this token.
+ */
+export const COMPACT_BREAKPOINT_PX = 700;
+
 export const DURATION = {
   stagger: 0.04,
   micro: 0.08,

@@ -28,6 +28,8 @@ export interface OsmBuilding {
   height: number;
   /** OSM building tag, e.g. "house", "church", "commercial". */
   kind: string;
+  /** Selected raw tags consumed by osmSlice.ts for roof shape/colour/levels. */
+  tags?: Record<string, string>;
 }
 
 export interface OsmRoad {
@@ -297,7 +299,17 @@ export async function loadOsmPlace(
           : tags.building === 'house'
             ? 7
             : 11;
-        buildings.push({ id: element.id, outline: path, height, kind: tags.building });
+        buildings.push({
+          id: element.id,
+          outline: path,
+          height,
+          kind: tags.building,
+          tags: {
+            ...(tags['roof:shape'] ? { 'roof:shape': tags['roof:shape'] } : {}),
+            ...(tags['building:colour'] ? { 'building:colour': tags['building:colour'] } : {}),
+            ...(tags['building:levels'] ? { 'building:levels': tags['building:levels'] } : {}),
+          },
+        });
       } else if (tags.highway) {
         const width = tags.highway === 'primary' ? 11 : tags.highway === 'secondary' ? 8 : 5;
         roads.push({ id: element.id, path, kind: tags.highway, width });

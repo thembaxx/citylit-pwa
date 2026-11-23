@@ -315,14 +315,17 @@ export function PassportModal({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <PillNavigation
-            options={PASSPORT_TABS}
-            value={activeTab}
-            onChange={setActiveTab}
-            layoutId="passport-tab-pill"
-            reducedMotion={reducedMotion}
-          />
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 overflow-x-auto no-scrollbar">
+            <PillNavigation
+              options={PASSPORT_TABS}
+              value={activeTab}
+              onChange={setActiveTab}
+              layoutId="passport-tab-pill"
+              reducedMotion={reducedMotion}
+              compact
+            />
+          </div>
           <span className="text-[11px] font-mono tabular-nums text-[#a9a69e]">
             {activeTab === 'hidden'
               ? `${foundEggs.size}/${totalEggs} found`

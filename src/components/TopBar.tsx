@@ -106,7 +106,7 @@ export function TopBar({
           initial={reducedMotion ? false : { opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={reducedMotion ? { duration: 0 } : { duration: DURATION.slow, ease: EASE_SMOOTH_OUT }}
-          className="fixed inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-[calc(14px+env(safe-area-inset-top,0px))] pointer-events-none"
+          className="fixed inset-x-0 top-0 z-10 flex items-center justify-between pl-[calc(1rem+env(safe-area-inset-left,0px))] pr-[calc(1rem+env(safe-area-inset-right,0px))] pt-[calc(14px+env(safe-area-inset-top,0px))] pointer-events-none"
         >
           <div
             className={`font-serif-display italic text-[22px] tracking-[0.01em] select-none transition-colors duration-300 ${
@@ -171,7 +171,7 @@ export function TopBar({
           // first waking the UI with a pointer move (impossible on touch).
           animate={{ opacity: idleInFullscreen ? 0.45 : 0.8 }}
           transition={{ duration: reducedMotion ? 0 : 0.3 }}
-          className="fixed right-4 top-[calc(14px+env(safe-area-inset-top,0px))] z-20 w-10 h-10 rounded-full grid place-items-center bg-[#121319]/90 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
+          className="fixed right-[calc(1rem+env(safe-area-inset-right,0px))] top-[calc(14px+env(safe-area-inset-top,0px))] z-20 w-10 h-10 rounded-full grid place-items-center bg-[#121319]/90 border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] cursor-pointer"
         >
           <CornersIn size={18} />
         </motion.button>
