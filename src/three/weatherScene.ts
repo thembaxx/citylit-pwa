@@ -10,6 +10,13 @@ import type {
   WeatherConditionKey,
   WeatherMoment,
 } from '../types/citylit';
+import {
+  KELVIN_KEY_MIX,
+  KELVIN_LIGHTING,
+  MIDDAY_HIGHLIGHT_TRIM,
+  middayHighlightGuard,
+  writeTimeOfDaySunColour,
+} from './lightingRig';
 import { getSoftTexture, SKY_NOISE_GLSL, WU } from './shaders';
 import { solarHalfDay } from './streetLights';
 
@@ -616,9 +623,12 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   const studioKeyPos = new THREE.Vector3(9, 13, 7);
   const studioKeyCol = new THREE.Color('#fffaf0');
   const studioFillCol = new THREE.Color('#e9efff');
-  const studioHemiSky = new THREE.Color('#ffffff');
+  // No pure-white lights: even the studio hemisphere keeps a trace of blue.
+  const studioHemiSky = new THREE.Color('#f4f7fb');
   const studioHemiGround = new THREE.Color('#cdd2d8');
 
+  // Preallocated target for the time-of-day Kelvin curve (zero per-frame GC).
+  const kelvinSunTmp = new THREE.Color();
   const skyTmp = new THREE.Color();
   const skyDarkTmp = new THREE.Color();
   const daylightBgTmp = new THREE.Color();
@@ -1140,6 +1150,13 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       .copy(winterKeyCol)
       .lerp(summerKeyCol, seasonCurrent.warmth)
       .lerp(autumnKeyTint, seasonCurrent.autumn * 0.22);
+    // Physical colour-temperature curve (brief A): a gentle Kelvin tint on top
+    // of the seasonal palette. Dawn 3500K -> noon 5800K -> dusk 2800K ->
+    // night 9000K moonlight, with no change to the light count.
+    if (KELVIN_LIGHTING && wStudio < 0.5 && day > 0.05) {
+      writeTimeOfDaySunColour(hr, kelvinSunTmp);
+      dayColTmp.lerp(kelvinSunTmp, KELVIN_KEY_MIX * day);
+    }
     sunColTmp.copy(dayColTmp).lerp(sunGlowTmp, hor * (0.75 + 0.2 * seasonCurrent.warmth));
     const seasonalIntensityScale = 0.88 + 0.22 * seasonCurrent.warmth;
     const dayBlend = THREE.MathUtils.smoothstep(day, 0.05, 0.45);
@@ -1149,6 +1166,12 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     const dayKeyIntensity =
       3.05 * seasonalIntensityScale * day * (1 - current.cover * 0.5) * (0.68 + 0.32 * (1 - hor));
     let keyIntensityTarget = THREE.MathUtils.lerp(1.45, dayKeyIntensity, dayBlend);
+    // Trim only high-noon intensity: pale stone and cream strata keep their
+    // highlight detail instead of bleaching at the 8-bit shoulder.
+    if (KELVIN_LIGHTING && wStudio < 0.5) {
+      const midday = middayHighlightGuard(alt) * (1 - hor);
+      keyIntensityTarget *= 1 - MIDDAY_HIGHLIGHT_TRIM * midday;
+    }
     if (eclipseAmount > 0) keyIntensityTarget *= 1 - eclipseAmount * 0.55;
 
     seasonFillTmp.copy(winterFillCol).lerp(summerFillCol, seasonCurrent.warmth);

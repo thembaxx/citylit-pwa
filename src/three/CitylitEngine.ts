@@ -77,6 +77,7 @@ import {
   WU,
 } from './shaders';
 import {
+  AUTO_EXPOSURE_ADAPT_RATE,
   configureDioramaShadow,
   createBounceLight,
   createRimLight,
@@ -2786,7 +2787,7 @@ export class CitylitEngine {
         }
         const avg = n ? sum / n : 0;
         if (!(avg > 0.02) || !Number.isFinite(avg)) return;
-        const k = 1 - Math.exp(-Math.max(elapsed, 0) * 0.9);
+        const k = 1 - Math.exp(-Math.max(elapsed, 0) * AUTO_EXPOSURE_ADAPT_RATE);
         const desired = this.autoExposureValue * (0.58 / avg);
         this.autoExposureValue += (desired - this.autoExposureValue) * k;
         // A black night sky drags the sampled average down and used to drive
