@@ -37,9 +37,9 @@
     "semantic_hash": "35dd85453f93a5abefa6aab3a66dea63"
   },
   "src/App.tsx": {
-    "mtime": 1795389931.274532,
-    "seen": 1795390450.613669,
-    "ast_hash": "bc11e0aad32ad02077d0fc06c63e42e9",
+    "mtime": 1795428621.372803,
+    "seen": 1795429409.9895525,
+    "ast_hash": "1e504f7fc8d0dfbe46b5dbbe8fa8562c",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -109,9 +109,9 @@
     "semantic_hash": ""
   },
   "src/components/SettingsModal.tsx": {
-    "mtime": 1795384981.0239038,
-    "seen": 1795386619.2105277,
-    "ast_hash": "205c93eebe60386777d692a137ebddfe",
+    "mtime": 1795428728.309816,
+    "seen": 1795429409.9896407,
+    "ast_hash": "fbe841456c51eb8465621cf36f4b1388",
     "semantic_hash": ""
   },
   "src/components/TopBar.tsx": {
@@ -1129,9 +1129,9 @@
     "semantic_hash": ""
   },
   "src/three/renderer/createRenderer.ts": {
-    "mtime": 1795385005.9705205,
-    "seen": 1795386619.2304387,
-    "ast_hash": "d4f16ec1a6020962f8c3b6e6772d34bf",
+    "mtime": 1795428650.593764,
+    "seen": 1795429409.990194,
+    "ast_hash": "63a11e9edc213ff56aabd99681a23667",
     "semantic_hash": ""
   },
   "src/three/renderer/detectSoftwareGl.ts": {
@@ -1147,15 +1147,15 @@
     "semantic_hash": ""
   },
   "src/three/renderer/webgpuCompat.ts": {
-    "mtime": 1795389987.164046,
-    "seen": 1795390450.641417,
-    "ast_hash": "9a98b78f9a6d9fb4442e8b72d30e679e",
+    "mtime": 1795428011.1213331,
+    "seen": 1795429409.9902139,
+    "ast_hash": "060d4fae907792e7da20bd2920c916ea",
     "semantic_hash": ""
   },
   "docs/WEBGPU_AND_QUALITY.md": {
-    "mtime": 1795390086.629822,
-    "seen": 1795390450.6513267,
-    "ast_hash": "f6d4a95c9434760a2b2e980bbe4cf8ed",
+    "mtime": 1795428786.0747082,
+    "seen": 1795429409.9904137,
+    "ast_hash": "c2080cc7b2912b4e5e5107a361bc09cc",
     "semantic_hash": ""
   },
   "src/three/renderer/webgpuPostFX.ts": {
@@ -1165,9 +1165,9 @@
     "semantic_hash": ""
   },
   "scripts/compare-renderers.mjs": {
-    "mtime": 1795384382.511015,
-    "seen": 1795386619.2100532,
-    "ast_hash": "26cabc65aa0c41e7c90337abf10d733d",
+    "mtime": 1795427453.9040794,
+    "seen": 1795429409.9895387,
+    "ast_hash": "e32e3b36cf1024502b52b52b50f03749",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

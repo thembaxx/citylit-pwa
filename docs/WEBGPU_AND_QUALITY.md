@@ -70,6 +70,9 @@ the down caret collapses the card, the up caret restores it. On phones
 the expand caret only. Auto-tour remains available from the Space shortcut.
 The top-bar hero-view button was removed. The scale-mode badge sits above the
 other fixed controls on small screens (and is offset below the weather widget).
+Auto-tour is also exposed as a toggle in Settings (Space still works). The
+compact/full choice is stored in `localStorage['cl-compact']`, so a manual choice
+survives reloads; the mobile default only applies when nothing is stored.
 
 ## Comparing backends
 

@@ -37,6 +37,8 @@ interface SettingsModalProps {
   open: boolean;
   settings: CitylitSettings;
   reducedMotion?: boolean;
+  tourActive?: boolean;
+  onToggleTour?: () => void;
   onUpdate: (next: Partial<CitylitSettings>) => void;
   onRequestTilt: () => Promise<boolean>;
   onClose: () => void;
@@ -147,6 +149,8 @@ export function SettingsModal({
   open,
   settings,
   reducedMotion = false,
+  tourActive = false,
+  onToggleTour,
   onUpdate,
   onRequestTilt,
   onClose,
@@ -260,6 +264,21 @@ export function SettingsModal({
             }}
             options={RENDERER_OPTIONS}
             compact
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Auto tour</span>
+            <p className="mt-0.5 m-0 text-[11.5px] text-[#a9a69e]/80">
+              Step through landmarks automatically · Space
+            </p>
+          </div>
+          <LiquidToggle
+            label="Auto tour"
+            value={!!tourActive}
+            onChange={() => onToggleTour?.()}
+            reducedMotion={reducedMotion}
           />
         </div>
 

@@ -246,6 +246,87 @@ export function createWebGPUCompat(webgpu: WebGPUModule, tsl: TSLModule): WebGPU
     return material;
   }
 
+  /** Simplified TSL water: depth-tinted shallow/deep blend + Fresnel + gentle waves. */
+  function tryWaterMaterial(src: THREE.ShaderMaterial): THREE.Material | null {
+    const u = src.uniforms;
+    if (!u.uShallow || !u.uDeep || !u.uTime) return null;
+    const shallow = uniformColor(u.uShallow, '#7fc6d6');
+    const deep = uniformColor(u.uDeep, '#123a52');
+    const time = uniformNumber(u.uTime, 0);
+    const wind = u.uWind ? uniformNumber(u.uWind, 0) : null;
+    const minAlpha = u.uMinAlpha ? uniformNumber(u.uMinAlpha, 0.32) : null;
+    const sun = u.uSun ? uniformNumber(u.uSun, 0) : null;
+
+    const local = tsl.positionLocal;
+    const displaced = wind
+      ? tsl.vec3(
+          local.x,
+          local.y.add(tsl.sin(local.x.mul(2).add(time.mul(1.3))).mul(wind).mul(0.02)),
+          local.z
+        )
+      : local;
+    const facing = tsl.abs(tsl.dot(tsl.normalView, tsl.positionViewDirection));
+    const fresnel = tsl.pow(tsl.float(1).sub(facing), 3);
+    const base = tsl.mix(deep.rgb, shallow.rgb, fresnel.mul(0.7).add(0.2));
+    const color = sun ? base.add(shallow.rgb.mul(sun).mul(fresnel).mul(0.15)) : base;
+    const opacity = (minAlpha ?? tsl.float(0.32)).add(fresnel.mul(0.35));
+
+    const material = new webgpu.MeshBasicNodeMaterial();
+    if (wind) material.positionNode = displaced;
+    material.colorNode = color;
+    material.opacityNode = opacity;
+    material.transparent = src.transparent;
+    material.depthWrite = src.depthWrite;
+    material.side = src.side;
+    material.toneMapped = src.toneMapped;
+    return material;
+  }
+
+  /** Animated rain/snow points: the GLSL vertex fall and drift, in TSL. */
+  function tryWeatherParticles(
+    src: THREE.ShaderMaterial,
+    isPoints: boolean
+  ): THREE.Material | null {
+    const u = src.uniforms;
+    if (!isPoints || !u.uTime || !u.uWind || !u.uOpacity || !u.uColor) return null;
+    const isRain = src.vertexShader.includes('vec4 aSeed');
+
+    const time = uniformNumber(u.uTime, 0);
+    const wind = uniformNumber(u.uWind, 0);
+    const opacity = uniformNumber(u.uOpacity, 0);
+    const color = uniformColor(u.uColor, '#f2f6ff');
+
+    const seed4 = isRain ? tsl.attribute('aSeed', 'vec4') : null;
+    const seed3 = isRain ? null : tsl.attribute('aSeed', 'vec3');
+    let position;
+    let fade;
+    if (seed4) {
+      const fall = tsl.mod(seed4.y.sub(time.mul(19)), 18);
+      const driftX = tsl.mod(seed4.x.add(time.mul(wind).mul(1.4)).add(14), 28).sub(14);
+      position = tsl.vec3(driftX, fall.sub(seed4.w.mul(0.65)), seed4.z);
+      fade = tsl
+        .smoothstep(0, 1.5, fall)
+        .mul(tsl.float(1).sub(tsl.smoothstep(15.5, 18, fall)));
+    } else if (seed3) {
+      const fall = tsl.mod(seed3.y.sub(time.mul(2.2)), 20);
+      const drift = tsl.sin(time.mul(0.45).add(seed3.z.mul(0.7))).mul(0.8).add(wind.mul(0.14));
+      position = tsl.vec3(seed3.x.add(drift), fall, seed3.z);
+      fade = tsl.smoothstep(0, 1, fall).mul(tsl.float(1).sub(tsl.smoothstep(17, 20, fall)));
+    } else {
+      return null;
+    }
+
+    const material = new webgpu.PointsNodeMaterial();
+    material.positionNode = position;
+    material.colorNode = color;
+    material.opacityNode = opacity.mul(fade);
+    material.transparent = src.transparent;
+    material.depthWrite = src.depthWrite;
+    material.blending = src.blending;
+    material.toneMapped = src.toneMapped;
+    return material;
+  }
+
   function convert(material: THREE.Material, isPoints: boolean): THREE.Material {
     const cached = converted.get(material);
     if (cached) return cached;
@@ -273,6 +354,18 @@ export function createWebGPUCompat(webgpu: WebGPUModule, tsl: TSLModule): WebGPU
       converted.set(material, ground);
       replacements.add(ground);
       return ground;
+    }
+    const particles = tryWeatherParticles(src, isPoints);
+    if (particles) {
+      converted.set(material, particles);
+      replacements.add(particles);
+      return particles;
+    }
+    const water = tryWaterMaterial(src);
+    if (water) {
+      converted.set(material, water);
+      replacements.add(water);
+      return water;
     }
     const baseColor = findColorUniform(src);
     const alpha = findAlphaUniform(src);

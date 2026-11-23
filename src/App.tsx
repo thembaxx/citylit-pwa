@@ -341,9 +341,15 @@ export function App() {
   const [postcardPreviewHour, setPostcardPreviewHour] = useState(13);
 
   const [tourActive, setTourActive] = useState(false);
-  const [compact, setCompact] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
-  );
+  const [compact, setCompact] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem('cl-compact');
+      if (stored === '0' || stored === '1') return stored === '1';
+    } catch {
+      // Ignore storage failures.
+    }
+    return window.matchMedia('(max-width: 640px)').matches;
+  });
   const [showDirection, setShowDirection] = useState(false);
   const [cutawayActive, setCutawayActive] = useState(false);
   const [pinDropMode, setPinDropMode] = useState(false);
@@ -1714,7 +1720,14 @@ export function App() {
           compact={compact}
           onToggleCompact={() => {
             ambientAudio.playUi('toggle');
-            setCompact((v) => !v);
+            setCompact((v) => {
+              try {
+                window.localStorage.setItem('cl-compact', v ? '0' : '1');
+              } catch {
+                // Ignore storage failures.
+              }
+              return !v;
+            });
           }}
           directionActive={showDirection}
           cutawayActive={cutawayActive}
@@ -2167,6 +2180,11 @@ export function App() {
           open={settingsOpen}
           settings={settings}
           reducedMotion={reducedMotion}
+          tourActive={tourActive}
+          onToggleTour={() => {
+            ambientAudio.playUi('toggle');
+            setTourActive((v) => !v);
+          }}
           onUpdate={(patch) => setSettings((prev) => ({ ...prev, ...patch }))}
           onRequestTilt={() => engineRef.current?.requestTiltPermission() ?? Promise.resolve(false)}
           onClose={() => setSettingsOpen(false)}

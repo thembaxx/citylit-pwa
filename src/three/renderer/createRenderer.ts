@@ -27,15 +27,6 @@ export function readRendererPreference(): RendererPreference {
   return 'auto';
 }
 
-export function storeRendererPreference(preference: RendererPreference): void {
-  try {
-    if (preference === 'auto') window.localStorage.removeItem(PREFERENCE_KEY);
-    else window.localStorage.setItem(PREFERENCE_KEY, preference);
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
 export function createWebGLRendererSelection(softwareGl: boolean, reason: string): RendererSelection {
   const renderer = new THREE.WebGLRenderer({
     antialias: !softwareGl,
