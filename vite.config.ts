@@ -1,11 +1,26 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { createMemoryMiddleware } from './server/memory.js';
+
+function memoryApiPlugin(): Plugin {
+  const middleware = createMemoryMiddleware();
+  return {
+    name: 'citylit-memory-api',
+    configureServer(server) {
+      server.middlewares.use(middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
     react(),
+    memoryApiPlugin(),
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
