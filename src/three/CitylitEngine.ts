@@ -7,8 +7,9 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { N8AOPass } from 'n8ao';
-import { ambientAudio } from '../audio/ambientAudio';
+import { ambientAudio, type SpatialListener } from '../audio/ambientAudio';
 import { LANDMARKS } from '../data/landmarks';
+import { frameThrottleMs, stageQuiet } from '../lib/framePacing';
 import type { OsmPlaceData } from '../services/osmService';
 import type {
   AmbientSiteProfile,
@@ -160,6 +161,29 @@ const audioRight = new THREE.Vector3();
 const audioForward = new THREE.Vector3();
 const compassOffset = new THREE.Vector3();
 const compassDir = new THREE.Vector3();
+
+// Reused every frame: ambientAudio retains the listener object, so mutate one
+// instance instead of allocating position/right/forward tuples on each tick.
+const spatialPosition: [number, number, number] = [0, 0, 0];
+const spatialRight: [number, number, number] = [0, 0, 0];
+const spatialForward: [number, number, number] = [0, 0, 0];
+const spatialListener: SpatialListener = {
+  position: spatialPosition,
+  right: spatialRight,
+  forward: spatialForward,
+};
+function setSpatialListener(camera: THREE.Camera, right: THREE.Vector3, forward: THREE.Vector3): void {
+  spatialPosition[0] = camera.position.x;
+  spatialPosition[1] = camera.position.y;
+  spatialPosition[2] = camera.position.z;
+  spatialRight[0] = right.x;
+  spatialRight[1] = right.y;
+  spatialRight[2] = right.z;
+  spatialForward[0] = forward.x;
+  spatialForward[1] = forward.y;
+  spatialForward[2] = forward.z;
+  ambientAudio.updateSpatialListener(spatialListener);
+}
 
 /**
  * Camera preset spring — a local equivalent of
@@ -452,6 +476,14 @@ export class CitylitEngine {
   private hadedaAudioTimer = 3;
   private whaleBreachPrevU = 0;
   private lastRenderAt = 0;
+  /** Previous-frame camera poses per stage, used to detect motion for idle pacing. */
+  private readonly prevPlacesCamPos = new THREE.Vector3();
+  private readonly prevPlacesTarget = new THREE.Vector3();
+  private readonly prevGlobeCamPos = new THREE.Vector3();
+  private readonly onThunder = (): void => {
+    ambientAudio.playSfx('thunder');
+    this.callbacks.onThunder?.();
+  };
   private tapDown = { x: 0, y: 0, t: 0 };
   private lastPlaceTap = { sliceIndex: -1, t: 0 };
   private lastGlobeTap = 0;
@@ -1645,6 +1677,9 @@ export class CitylitEngine {
       }
       if (rig) {
         rig.visible = nightMode;
+        // Cache the reference: the per-frame animation loop otherwise walks
+        // every active car's subtree with getObjectByName() at 60 fps.
+        obj.userData.nightLightRig = rig;
       }
     });
   }
@@ -1663,7 +1698,7 @@ export class CitylitEngine {
     if (nightMode && heroActive && this.currentGroup) {
       let needsSync = false;
       for (let i = 0; i < this.activeVehicles.length; i++) {
-        const rig = this.activeVehicles[i].getObjectByName('engine-vehicle-night-lights');
+        const rig = this.activeVehicles[i].userData.nightLightRig as THREE.Group | undefined;
         if (!rig || !rig.visible) {
           needsSync = true;
           break;
@@ -1674,7 +1709,7 @@ export class CitylitEngine {
       }
     } else if (!nightMode && this.activeVehicles.length > 0) {
       for (let i = 0; i < this.activeVehicles.length; i++) {
-        const rig = this.activeVehicles[i].getObjectByName('engine-vehicle-night-lights');
+        const rig = this.activeVehicles[i].userData.nightLightRig as THREE.Group | undefined;
         if (rig && rig.visible) rig.visible = false;
       }
     }
@@ -1934,7 +1969,8 @@ export class CitylitEngine {
    * CPU-hinged foliage sway according to current weather wind intensity.
    */
   updateFoliageWindSway(dt = 0, immediate = false): void {
-    const targetWind = this.isStudio()
+    const studio = this.isStudio();
+    const targetWind = studio
       ? 0
       : computeFoliageWindStrength(
           this.weather.current.wind,
@@ -1955,7 +1991,7 @@ export class CitylitEngine {
       if (sw.o.userData.baseRz === undefined) sw.o.userData.baseRz = sw.o.rotation.z;
       const baseRx = sw.o.userData.baseRx as number;
       const baseRz = sw.o.userData.baseRz as number;
-      if (this.isStudio()) {
+      if (studio) {
         sw.o.rotation.x = baseRx;
         sw.o.rotation.z = baseRz;
         continue;
@@ -4594,6 +4630,14 @@ export class CitylitEngine {
         }
         if (this.places.isOpen) {
           const picked = this.places.pickAt(ndcX, ndcY);
+          if (picked && picked.highlightIndex !== undefined) {
+            // Editorial marker: focus the camera on its field note rather than
+            // treating the tap as a slice selection / double-tap entry.
+            ambientAudio.playSfx('ping');
+            this.places.focusHighlight(picked.highlightIndex);
+            this.callbacks.onSelectPlaceSlice?.(picked);
+            return;
+          }
           if (picked) {
             const now = performance.now();
             const isDoubleTap =
@@ -4881,6 +4925,22 @@ export class CitylitEngine {
     this.afterDrawTimer = window.setTimeout(poll, 4);
   }
 
+  /**
+   * Pacing for the currently active stage. `reducedExtraQuiet` carries the
+   * hero's additional cursor-glow gate; the other stages pass the default.
+   */
+  private stageThrottle(active: boolean, reducedExtraQuiet = true, reducedThresholdSeconds = 2): number {
+    const idleSeconds = this.elapsed - this.lastInteractAt;
+    const quiet = stageQuiet({ active, idleSeconds });
+    const reducedQuiet = stageQuiet({ active, idleSeconds, thresholdSeconds: reducedThresholdSeconds });
+    return frameThrottleMs({
+      fpsCapMs: this.fpsCapMs,
+      reducedStaticIdle: this.motionScale === 0 && reducedQuiet && reducedExtraQuiet,
+      batterySoftIdle: this.isSoftwareGl && quiet,
+      quietIdle: quiet,
+    });
+  }
+
   private readonly frame = (now: number): void => {
     if (this.disposed || this.contextLost || this.paused) return;
 
@@ -4939,7 +4999,17 @@ export class CitylitEngine {
 
     if (this.globe.isOpen) {
       this.globe.update(dt, this.elapsed, this.motionScale, this.keyLight);
-      this.renderer.render(this.globe.group, this.globe.camera);
+      // Auto-rotation and fly-to moves the globe camera; only a settled view
+      // drops to the shared 30 fps idle cadence.
+      const globeCamMoving =
+        this.globe.camera.position.distanceToSquared(this.prevGlobeCamPos) > 1e-6;
+      this.prevGlobeCamPos.copy(this.globe.camera.position);
+      const throttleMs = this.stageThrottle(globeCamMoving);
+      if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
+        this.renderer.render(this.globe.group, this.globe.camera);
+        this.lastRenderAt = now;
+        this.updateAutoExposure(dt);
+      }
     } else if (this.places.isOpen) {
       this.weather.update(dt, this.elapsed, {
         qualityIndex: this.qualityIndex,
@@ -4951,10 +5021,7 @@ export class CitylitEngine {
         scene: this.scene,
         renderer: this.renderer,
         camera: this.camera,
-        onThunder: () => {
-          ambientAudio.playSfx('thunder');
-          this.callbacks.onThunder?.();
-        },
+        onThunder: this.onThunder,
       });
       updateRimLight(
         this.rimLight,
@@ -5015,15 +5082,7 @@ export class CitylitEngine {
           this.places.camera.position.z - this.places.controls.target.z
         )
       );
-      ambientAudio.updateSpatialListener({
-        position: [
-          this.places.camera.position.x,
-          this.places.camera.position.y,
-          this.places.camera.position.z,
-        ],
-        right: [audioRight.x, audioRight.y, audioRight.z],
-        forward: [audioForward.x, audioForward.y, audioForward.z],
-      });
+      setSpatialListener(this.places.camera, audioRight, audioForward);
       ambientAudio.update(
         dt,
         this.elapsed,
@@ -5037,14 +5096,26 @@ export class CitylitEngine {
         this.weather.current.timeOfDay
       );
 
-      if (
-        !this.isSoftwareGl &&
-        this.qualityIndex < 2 &&
-        (sliceChanged || (this.shadowFrameCounter++ & 1) === 0)
-      ) {
-        this.renderer.shadowMap.needsUpdate = true;
+      // Orbit, pan, a fly-to or a slice change keeps Places at full rate; a
+      // settled cutaway joins the same idle cadence as the hero stage.
+      const placesCamMoving =
+        this.places.camera.position.distanceToSquared(this.prevPlacesCamPos) > 1e-6 ||
+        this.places.controls.target.distanceToSquared(this.prevPlacesTarget) > 1e-6;
+      this.prevPlacesCamPos.copy(this.places.camera.position);
+      this.prevPlacesTarget.copy(this.places.controls.target);
+      const throttleMs = this.stageThrottle(placesCamMoving || sliceChanged);
+      if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
+        if (
+          !this.isSoftwareGl &&
+          this.qualityIndex < 2 &&
+          (sliceChanged || (this.shadowFrameCounter++ & 1) === 0)
+        ) {
+          this.renderer.shadowMap.needsUpdate = true;
+        }
+        this.renderCurrentPass();
+        this.lastRenderAt = now;
+        this.updateAutoExposure(dt);
       }
-      this.renderCurrentPass();
     } else {
       // Sample drag velocity before the preset overwrites the camera position.
       this.trackOrbitVelocity(dt);
@@ -5263,10 +5334,7 @@ export class CitylitEngine {
         scene: this.scene,
         renderer: this.renderer,
         camera: this.camera,
-        onThunder: () => {
-          ambientAudio.playSfx('thunder');
-          this.callbacks.onThunder?.();
-        },
+        onThunder: this.onThunder,
       });
       this.updateFoliageWindSway(dt);
       const hoverLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 7);
@@ -5462,7 +5530,7 @@ export class CitylitEngine {
       this.updateLods(this.camera);
 
       // Update ambient audio synthesizer and position the listener in the diorama
-      const lm = LANDMARKS[this.activeIndex];
+      const lm = LANDMARKS[this.activeIndex] ?? LANDMARKS[0];
       this.camera.updateMatrixWorld();
       audioRight.setFromMatrixColumn(this.camera.matrixWorld, 0).normalize();
       audioForward.setFromMatrixColumn(this.camera.matrixWorld, 2).normalize().negate();
@@ -5472,11 +5540,7 @@ export class CitylitEngine {
           this.camera.position.z - this.controls.target.z
         )
       );
-      ambientAudio.updateSpatialListener({
-        position: [this.camera.position.x, this.camera.position.y, this.camera.position.z],
-        right: [audioRight.x, audioRight.y, audioRight.z],
-        forward: [audioForward.x, audioForward.y, audioForward.z],
-      });
+      setSpatialListener(this.camera, audioRight, audioForward);
       ambientAudio.update(
         dt,
         this.elapsed,
@@ -5490,45 +5554,21 @@ export class CitylitEngine {
         this.weather.current.timeOfDay
       );
 
-      // Adaptive idle frame pacing: when reduced-motion is active or camera/controls
-      // are completely settled with no active transitions, throttle redraws cleanly.
+      // Adaptive idle frame pacing, now shared with the Places and Globe
+      // stages. Never throttle while orbiting, dissolving, flying, time-lapsing
+      // or within the settle window; simulation still advances every rAF.
       const camDeltaSq = this.camera.position.distanceToSquared(this.prevFrameCamPos);
       this.prevFrameCamPos.copy(this.camera.position);
-      const isReducedStaticIdle =
-        this.motionScale === 0 &&
-        !this.isUserOrbiting &&
-        this.dissolvePhase === 0 &&
-        !this.camGoal &&
-        !this.timeLapsePlaying &&
-        camDeltaSq < 1e-6 &&
-        WU.cursorStrength.value < 0.01 &&
-        this.elapsed - this.lastInteractAt > 1.5;
-
-      const isBatterySoftIdle =
-        this.isSoftwareGl &&
-        !this.isUserOrbiting &&
-        this.dissolvePhase === 0 &&
-        !this.camGoal &&
-        !this.timeLapsePlaying &&
-        camDeltaSq < 1e-6 &&
-        this.elapsed - this.lastInteractAt > 2.0;
-
-      // Ordinary hardware GL had no idle cap at all: a visually static scene
-      // rendered at full rAF forever. Match the software-GL cadence (30 fps)
-      // once camera, tweens and input have all been quiet for two seconds.
-      const isQuietIdle =
-        !this.isUserOrbiting &&
-        this.dissolvePhase === 0 &&
-        !this.camGoal &&
-        !this.timeLapsePlaying &&
-        camDeltaSq < 1e-6 &&
-        this.elapsed - this.lastInteractAt > 2.0;
-
-      // A user cap is a ceiling, not an override: reduced-motion, software-GL
-      // and settled-idle pacing can still render slower than the chosen rate.
-      const throttleMs = Math.max(
-        this.fpsCapMs,
-        isReducedStaticIdle ? 66 : isBatterySoftIdle ? 50 : isQuietIdle ? 33 : 0
+      const heroActive =
+        this.isUserOrbiting ||
+        this.dissolvePhase > 0 ||
+        this.camGoal !== null ||
+        this.timeLapsePlaying ||
+        camDeltaSq >= 1e-6;
+      const throttleMs = this.stageThrottle(
+        heroActive,
+        WU.cursorStrength.value < 0.01,
+        1.5
       );
 
       if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
@@ -5562,10 +5602,6 @@ export class CitylitEngine {
       }
     }
 
-    if (this.globe.isOpen || this.places.isOpen) {
-      this.lastRenderAt = now;
-      this.updateAutoExposure(dt);
-    }
     this.afterDraw(() => this.scheduleNextFrame());
   };
 

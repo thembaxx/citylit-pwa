@@ -1,5 +1,6 @@
 import {
   ArrowDown,
+  ArrowSquareOut,
   BookmarkSimple,
   Camera,
   CaretDown,
@@ -22,6 +23,7 @@ import {
   PencilSimple,
   ShareNetwork,
   Stack,
+  Tag,
   Trash,
   X,
   type Icon,
@@ -29,6 +31,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, type Variants } from 'motion/react';
 import { LANDMARKS } from '../data/landmarks';
+import { resolvePlaceEditorial } from '../lib/placeEditorial';
 import { animate, DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
 import type { CameraPreset, HeritageRoute, LandmarkNote, NoteCategory } from '../types/citylit';
@@ -165,6 +168,8 @@ interface LandmarkCardProps {
   onToggleCompact: () => void;
   directionActive: boolean;
   cutawayActive?: boolean;
+  /** Local clipping is unavailable on WebGPU; hide the Inspect control there. */
+  cutawaySupported?: boolean;
   pinDropMode?: boolean;
   pendingDropPos?: readonly [number, number, number] | null;
   activeRoute?: HeritageRoute | null;
@@ -233,6 +238,7 @@ export function LandmarkCard({
   onToggleCompact,
   directionActive,
   cutawayActive = false,
+  cutawaySupported = true,
   pinDropMode = false,
   pendingDropPos = null,
   activeRoute = null,
@@ -263,6 +269,7 @@ export function LandmarkCard({
   onVibrate,
   onDragParallax,
 }: LandmarkCardProps) {
+  const editorial = resolvePlaceEditorial(index);
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
   const [activePreset, setActivePreset] = useState<CameraPreset>('default');
   const [notesOpen, setNotesOpen] = useState(false);
@@ -677,7 +684,7 @@ export function LandmarkCard({
               <NotePencil size={13} weight={notesOpen || notes.length > 0 ? 'fill' : 'regular'} />
               {notes.length > 0 ? `Add Note (${notes.length})` : 'Add Note'}
             </motion.button>
-            {onToggleCutaway && (
+            {onToggleCutaway && cutawaySupported && (
               <motion.button
                 type="button"
                 whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
@@ -1019,6 +1026,27 @@ export function LandmarkCard({
               </motion.div>
             )}
           </AnimatePresence>
+
+          {editorial && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-2 text-[10px] text-[#a9a69e]">
+              <span className="inline-flex items-center gap-1 min-w-0">
+                <Tag size={10} className="shrink-0" />
+                <span className="truncate">Marker positions are illustrative, not survey-accurate</span>
+              </span>
+              {editorial.sources.map((source) => (
+                <a
+                  key={source.label}
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[#e8b04a] hover:underline"
+                >
+                  {source.label}
+                  <ArrowSquareOut size={10} />
+                </a>
+              ))}
+            </div>
+          )}
 
           <div className="flex items-center gap-2.5 mt-3 landscape:mt-2 [@media(max-height:700px)]:mt-2">
             <motion.button

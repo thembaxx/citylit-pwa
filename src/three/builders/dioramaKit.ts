@@ -26,6 +26,7 @@ import {
   B,
   boostBuiltVibrancy,
   C,
+  camelthorn,
   CB,
   finalizeContactShadows,
   finalizeTreeBatch,
@@ -37,6 +38,7 @@ import {
   M,
   marula,
   Mc,
+  milkwood,
   protea,
   mergeByMaterial,
   MGlass,
@@ -91,7 +93,15 @@ export type DioramaFx =
   | 'ridgeFog';
 
 /** Named species selectable through `SITE_PROFILES.ring` (Batch 2 vocabulary). */
-type SiteSpecies = 'fynbos' | 'silverTree' | 'protea' | 'marula' | 'yellowwood' | 'jacaranda';
+type SiteSpecies =
+  | 'fynbos'
+  | 'silverTree'
+  | 'protea'
+  | 'marula'
+  | 'yellowwood'
+  | 'jacaranda'
+  | 'camelthorn'
+  | 'milkwood';
 
 interface SiteProfile {
   biome: LandmarkBiome;
@@ -486,7 +496,8 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     rock: ['#8f5a3d', '#c58a63'],
     plants: ['#7d7540', '#95894a'],
     count: [14, 10],
-    ring: [0, 0, 0],
+    ring: [4, 1, 0.7],
+    species: ['camelthorn'],
     fx: ['dust', 'haze'],
     anchor: 'windpump',
     audio: au(-0.3, [], 1.2),
@@ -497,8 +508,8 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     rock: ['#676b5f', '#9ba087'],
     plants: ['#3f6437', '#5c7f45'],
     count: [0, 0],
-    ring: [3, 1, 0.6],
-    species: ['yellowwood'],
+    ring: [4, 1, 0.6],
+    species: ['yellowwood', 'milkwood'],
     fx: ['surf', 'spray', 'mist'],
     anchor: 'jetty',
     audio: au(0.4, ['shorebird']),
@@ -587,8 +598,8 @@ const SITE_PROFILES: Record<string, SiteProfile> = {
     rock: ['#6a6d5f', '#9ea28a'],
     plants: ['#3f6437', '#5f8246'],
     count: [0, 0],
-    ring: [3, 1, 0.6],
-    species: ['yellowwood'],
+    ring: [4, 1, 0.6],
+    species: ['yellowwood', 'milkwood'],
     fx: ['surf', 'spray', 'ridgeFog'],
     anchor: 'jetty',
     audio: au(-0.45, ['shorebird']),
@@ -1352,7 +1363,7 @@ function addBaseScatter(g: THREE.Group, profile: SiteProfile): void {
 const SPECIES_BUILDERS: Record<
   SiteSpecies,
   (g: THREE.Object3D, x: number, y: number, z: number, sc: number, ry: number) => THREE.Group
-> = { fynbos, silverTree, protea, marula, yellowwood, jacaranda };
+> = { fynbos, silverTree, protea, marula, yellowwood, jacaranda, camelthorn, milkwood };
 
 interface SpeciesPart {
   geo: THREE.BufferGeometry;

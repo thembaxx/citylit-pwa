@@ -374,6 +374,7 @@ export function App() {
   });
   const [showDirection, setShowDirection] = useState(false);
   const [cutawayActive, setCutawayActive] = useState(false);
+  const [cutawaySupported, setCutawaySupported] = useState(true);
   const [pinDropMode, setPinDropMode] = useState(false);
   const [pendingDropPos, setPendingDropPos] = useState<[number, number, number] | null>(null);
   const [activeRouteId, setActiveRouteId] = useState<string | null>(null);
@@ -660,6 +661,8 @@ export function App() {
         });
         engine = instance;
         engineRef.current = instance;
+        // Clipping planes are not forwarded by the WebGPU scene renderer.
+        setCutawaySupported(instance.rendererBackend !== 'webgpu');
         instance.setPaused(document.hidden || galleryOpenRef.current);
 
         const initialIdx = readInitialLandmarkIndex();
@@ -1038,10 +1041,13 @@ export function App() {
     engineRef.current?.setDirectionGuide(showDirection && !fullscreen, index);
   }, [showDirection, index, fullscreen]);
 
-  // Sync cutaway Inspect mode & active Heritage Route onto 3D scene and Globe
+  // Sync cutaway Inspect mode & active Heritage Route onto 3D scene and Globe.
+  // The clipping-plane cutaway is WebGL-only: WebGPU has no local clipping path.
   useEffect(() => {
-    engineRef.current?.setCutawayMode(cutawayActive && !globeOpen && !placesOpen);
-  }, [cutawayActive, globeOpen, placesOpen]);
+    engineRef.current?.setCutawayMode(
+      cutawaySupported && cutawayActive && !globeOpen && !placesOpen
+    );
+  }, [cutawaySupported, cutawayActive, globeOpen, placesOpen]);
 
   useEffect(() => {
     engineRef.current?.globe.setActiveRoute(
@@ -1827,6 +1833,7 @@ export function App() {
           }}
           directionActive={showDirection}
           cutawayActive={cutawayActive}
+          cutawaySupported={cutawaySupported}
           pinDropMode={pinDropMode}
           pendingDropPos={pendingDropPos}
           activeRoute={activeRoute}
@@ -1933,6 +1940,7 @@ export function App() {
 
         {/* Places 3D Geological Diorama Archipelago HUD */}
         <PlacesOverlay
+          key={placesOpen ? 'places-open' : 'places-closed'}
           open={placesOpen}
           activeProvince={activeProvince}
           selectedPlace={selectedPlace}
@@ -1972,6 +1980,12 @@ export function App() {
           onSwitchToGlobe={toggleGlobe}
           onBackToLandmarks={backToLandmarks}
           onToggleSound={handleToggleSound}
+          onFocusHighlight={(highlightIndex) => {
+            engineRef.current?.places.focusHighlight(highlightIndex);
+          }}
+          onToggleSection={(active) => {
+            engineRef.current?.places.setSectionView(active);
+          }}
           onSelectTimePreset={(h) => {
             setTimeHour(h);
             setTimeScrubbed(true);

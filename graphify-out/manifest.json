@@ -37,9 +37,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1795454924.1108422,
-    "seen": 1795456573.3100584,
-    "ast_hash": "747e648bce035f51b8f8024b6099d8ce",
+    "mtime": 1795461640.8814938,
+    "seen": 1795461895.9862633,
+    "ast_hash": "af7afb5900818e071508c7f22a73b2ad",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -79,9 +79,9 @@
     "semantic_hash": ""
   },
   "src/components/LandmarkCard.tsx": {
-    "mtime": 1795442710.329986,
-    "seen": 1795444696.4420745,
-    "ast_hash": "e7c6fd2a589546fa5add0b04d61dc485",
+    "mtime": 1795461548.5412495,
+    "seen": 1795461895.986306,
+    "ast_hash": "13ff75de71372c0797026288244eb150",
     "semantic_hash": ""
   },
   "src/components/PassportModal.tsx": {
@@ -91,9 +91,9 @@
     "semantic_hash": ""
   },
   "src/components/PlacesOverlay.tsx": {
-    "mtime": 1795434591.0047445,
-    "seen": 1795437839.942973,
-    "ast_hash": "b907274318c5541f47f703e422c49c2e",
+    "mtime": 1795461409.6034548,
+    "seen": 1795461895.9863148,
+    "ast_hash": "bf27cb1d159edbf1cd703ee7ab5fc5b1",
     "semantic_hash": ""
   },
   "src/components/PostcardModal.tsx": {
@@ -127,9 +127,9 @@
     "semantic_hash": "9a9d9aaf6fba8f765bac5012208ff7f6"
   },
   "src/components/WeatherWidget.tsx": {
-    "mtime": 1795433778.3224876,
-    "seen": 1795437839.9430208,
-    "ast_hash": "0fb68aae835a8172770a020cc96a2f4a",
+    "mtime": 1795461386.1422298,
+    "seen": 1795461895.986345,
+    "ast_hash": "c8ce0dc1aa88a803b7d2e8c120502c1b",
     "semantic_hash": ""
   },
   "src/components/ui/AnimatedNumber.tsx": {
@@ -223,21 +223,21 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795455538.65526,
-    "seen": 1795456573.314202,
-    "ast_hash": "6c26797fa1eb9f8a2ba237c04c3787e1",
+    "mtime": 1795463023.866948,
+    "seen": 1795463393.8449974,
+    "ast_hash": "86a2f20d68ca2ce616896986ef70faee",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795438590.0247746,
-    "seen": 1795441657.6774204,
-    "ast_hash": "6ccf8aec0cb0067dc5dd1711bca4c122",
+    "mtime": 1795461210.5608988,
+    "seen": 1795461895.9868114,
+    "ast_hash": "6abc508c07b48ca82bd2f20499daf8f1",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795451832.1963406,
-    "seen": 1795452110.092246,
-    "ast_hash": "fb2f9e63033dfaa7256330d8c029c74e",
+    "mtime": 1795462760.90824,
+    "seen": 1795463393.8451185,
+    "ast_hash": "36e06475400ca4c5b1131f4edc10f9c5",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
@@ -247,9 +247,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795451832.189348,
-    "seen": 1795452110.0924594,
-    "ast_hash": "801631c0a861eec19e61f36a09219069",
+    "mtime": 1795461141.9732,
+    "seen": 1795461895.9868238,
+    "ast_hash": "70bdb5f651eaadbbc99cd5e1dcd6121f",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
@@ -271,9 +271,9 @@
     "semantic_hash": ""
   },
   "src/three/placesScene.ts": {
-    "mtime": 1795366454.5440843,
-    "seen": 1795367782.9408412,
-    "ast_hash": "f64077c58f7d0fabfcf6246b56752fed",
+    "mtime": 1795459842.5885077,
+    "seen": 1795460237.5101569,
+    "ast_hash": "1799af53939cf9a05256152325632c3f",
     "semantic_hash": ""
   },
   "src/three/placesShaders.ts": {
@@ -559,9 +559,9 @@
     "semantic_hash": ""
   },
   "src/three/horizonScenery.ts": {
-    "mtime": 1795360844.8361015,
-    "seen": 1795361149.43776,
-    "ast_hash": "1ab1b51f13d3d1d316b74d933842f596",
+    "mtime": 1795461003.1976488,
+    "seen": 1795461895.986854,
+    "ast_hash": "8aeb80c6ff89fce8a779e668622ab776",
     "semantic_hash": ""
   },
   "src/three/shaders/season.glsl.ts": {
@@ -643,9 +643,9 @@
     "semantic_hash": ""
   },
   "plans/README.md": {
-    "mtime": 1795456497.9983742,
-    "seen": 1795456573.315396,
-    "ast_hash": "392c97f699a2ab07c2d527dad8725818",
+    "mtime": 1795463341.246286,
+    "seen": 1795463393.8457851,
+    "ast_hash": "7f46d82cb0a01ff8ccf826b74fd428dd",
     "semantic_hash": ""
   },
   "probe-flicker.mjs": {
@@ -1366,6 +1366,84 @@
     "mtime": 1795457588.9573798,
     "seen": 1795458208.5337534,
     "ast_hash": "f2ebf5f5514de6707cedc2c4cb90ff99",
+    "semantic_hash": ""
+  },
+  "src/lib/placeEditorial.test.ts": {
+    "mtime": 1795459450.8541586,
+    "seen": 1795459777.4955595,
+    "ast_hash": "37e773442d7b5fbcca9001ae151f1f8e",
+    "semantic_hash": ""
+  },
+  "src/lib/placeEditorial.ts": {
+    "mtime": 1795459646.087848,
+    "seen": 1795459777.49557,
+    "ast_hash": "6fd32ec4554551377104efe56332e450",
+    "semantic_hash": ""
+  },
+  "src/lib/timePresets.test.ts": {
+    "mtime": 1795461759.6640687,
+    "seen": 1795461895.9867232,
+    "ast_hash": "aaafbad5824145bca2dde4a5e756822a",
+    "semantic_hash": ""
+  },
+  "src/lib/timePresets.ts": {
+    "mtime": 1795461343.9578445,
+    "seen": 1795461895.986731,
+    "ast_hash": "2646ffe283232f3d65e239cd3fc7ed68",
+    "semantic_hash": ""
+  },
+  "plans/024-diorama-context-kit.md": {
+    "mtime": 1795461786.8274403,
+    "seen": 1795461895.9872289,
+    "ast_hash": "97bad132670726ee23a0b8acea55c318",
+    "semantic_hash": ""
+  },
+  "src/lib/framePacing.test.ts": {
+    "mtime": 1795462718.5095818,
+    "seen": 1795463393.8447158,
+    "ast_hash": "1703aa24c7bcfb8e1e84bc170b108229",
+    "semantic_hash": ""
+  },
+  "src/lib/framePacing.ts": {
+    "mtime": 1795462632.5324438,
+    "seen": 1795463393.8447263,
+    "ast_hash": "d99bd68824f342ef9003304a3eec36df",
+    "semantic_hash": ""
+  },
+  "src/lib/landmarkGeometry.test.ts": {
+    "mtime": 1795462726.569392,
+    "seen": 1795463393.8447547,
+    "ast_hash": "a7ecfcd413c8bd9c636c6f5e89c57528",
+    "semantic_hash": ""
+  },
+  "src/lib/landmarkGeometry.ts": {
+    "mtime": 1795462654.5491438,
+    "seen": 1795463393.8447611,
+    "ast_hash": "f68554fb99453974f410ba07ec45917c",
+    "semantic_hash": ""
+  },
+  "docs/TYPEGPU-KIT-RESEARCH.md": {
+    "mtime": 1795463288.747968,
+    "seen": 1795463393.8455665,
+    "ast_hash": "bc8f651467d1cebb9e002baaa226b6fa",
+    "semantic_hash": ""
+  },
+  "plans/025-typegpu-kit-webgpu-stage.md": {
+    "mtime": 1795463316.1396444,
+    "seen": 1795463393.845777,
+    "ast_hash": "8f4e1e7f3e405569cce1f2727d084678",
+    "semantic_hash": ""
+  },
+  "scripts/measure-idle-pacing.mjs": {
+    "mtime": 1795464604.2417033,
+    "seen": 1795464896.2810693,
+    "ast_hash": "f14aa4a4e47d1f3926b1ca4c22bfcd9c",
+    "semantic_hash": ""
+  },
+  "plans/026-shared-idle-pacing-and-landmark-geometry.md": {
+    "mtime": 1795464553.3950386,
+    "seen": 1795464896.283147,
+    "ast_hash": "4498c19ecf045a622ce032c1a386404a",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

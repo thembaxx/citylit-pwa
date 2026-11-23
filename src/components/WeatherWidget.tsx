@@ -35,6 +35,7 @@ import type {
   WeatherMomentKind,
 } from '../types/citylit';
 import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, swapTransition } from '../lib/motion';
+import { TIME_PRESETS as SHARED_TIME_PRESETS, type TimePresetKey } from '../lib/timePresets';
 import { HourlyForecast } from './HourlyForecast';
 import { WeatherIcon } from './WeatherIcon';
 import { AnimatedNumber } from './ui/AnimatedNumber';
@@ -67,19 +68,21 @@ interface WeatherWidgetProps {
   onToggleGlobe: () => void;
 }
 
-type PresetKey = 'dawn' | 'noon' | 'dusk' | 'night';
+type PresetKey = TimePresetKey;
 
-const TIME_PRESETS: ReadonlyArray<{
-  value: PresetKey;
-  label: string;
-  hour: number;
-  icon: typeof Sun;
-}> = [
-  { value: 'dawn', label: 'Dawn', hour: 6.3, icon: SunHorizon },
-  { value: 'noon', label: 'Noon', hour: 13, icon: Sun },
-  { value: 'dusk', label: 'Dusk', hour: 17.8, icon: SunDim },
-  { value: 'night', label: 'Night', hour: 22, icon: Moon },
-];
+const PRESET_ICONS: Record<PresetKey, typeof Sun> = {
+  dawn: SunHorizon,
+  noon: Sun,
+  dusk: SunDim,
+  night: Moon,
+};
+
+const TIME_PRESETS = SHARED_TIME_PRESETS.map((preset) => ({
+  value: preset.key,
+  label: preset.label,
+  hour: preset.hour,
+  icon: PRESET_ICONS[preset.key],
+}));
 
 const WARNING_STYLE: Record<
   ExtremeWeatherWarningKind,

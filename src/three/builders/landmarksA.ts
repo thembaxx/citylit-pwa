@@ -51,6 +51,7 @@ import {
   type InstanceTransform,
 } from './primitives';
 import { headingYaw, leftLaneOffset } from '../../lib/trafficMath';
+import { bridgeStayAnchors, catenaryArchHeight } from '../../lib/landmarkGeometry';
 import { getSoftTexture, prepareCanvasTexture } from '../shaders';
 import {
   addLighthouseSweep,
@@ -92,7 +93,9 @@ const warpTable = <T extends THREE.BufferGeometry>(geo: T, cap: boolean): T => {
     const a = Math.atan2(z, x);
     const gorge = platteklip(x, z);
     const ribs = 0.045 * Math.cos(a * 11) * Math.max(0, (y + 1.2) / 2.4);
-    const f = 1 + 0.09 * n(a * 3, y * 2) + ribs - gorge * 0.32;
+    // The plateau outline cuts in further than the cliff shell so the notch
+    // reads as one continuous gorge from the summit down the north face.
+    const f = 1 + 0.09 * n(a * 3, y * 2) + ribs - gorge * (cap ? 0.5 : 0.32);
     if (cap) {
       // Very subtle summit undulation — enough to break a perfectly flat disc
       // under raking sun without disturbing the tors, beacon or cableway.
@@ -158,7 +161,7 @@ export function table(): THREE.Group {
     vertexColors: true,
     roughness: 0.93,
     metalness: 0.02,
-    ...surfaceDetail('stone', 0.03),
+    ...surfaceDetail('stone', 0.06),
     side: THREE.DoubleSide,
   });
   add(g, B(12.4, 0.5, 12.4), MStone('#697051', 0.95), 0, 0.25, 0);
@@ -194,7 +197,7 @@ export function table(): THREE.Group {
   const cmOuter = MT('#dce4ec', 0.38, 0.96, 0, false);
   const cmInner = MT('#eaeef2', 0.48, 0.96, 0, false);
   const cl: THREE.Mesh[] = [];
-  const clothCount = 16;
+  const clothCount = 22;
   for (let i = 0; i < clothCount; i++) {
     const x = -3.2 + i * (6.4 / (clothCount - 1));
     const z = Math.sqrt(Math.max(0.4, 12.4 - x * x)) * 0.79;
@@ -250,6 +253,22 @@ export function table(): THREE.Group {
     });
   }
   scatterRocks(g, torTransforms, '#797a73', '#aaa394');
+
+  // Shallow sandstone reservoirs: flat dark discs tucked between the tors.
+  // They give the plateau a lived-in top surface at macro-camera distance.
+  const reservoirWater = MWater('#3f5d5a', 0.06, 0.18);
+  const reservoirRim = MStone('#8d8a79', 0.93, 0.02);
+  const reservoirs: ReadonlyArray<readonly [number, number, number]> = [
+    [-2.15, 0.95, 0.21],
+    [-0.8, -1.85, 0.16],
+    [0.55, 2.05, 0.18],
+    [1.95, -0.55, 0.15],
+    [-1.65, -0.35, 0.13],
+  ];
+  reservoirs.forEach(([x, z, r], i) => {
+    add(g, C(r + 0.035, r + 0.035, 0.028, 12), reservoirRim, x, 2.67, z);
+    add(g, C(r, r, 0.03, 12), reservoirWater, x, 2.69 + (i % 2) * 0.002, z);
+  });
 
   // Maclear's Beacon stone cairn at the eastern plateau
   const beaconStone = MStone('#aaa394', 0.94, 0.03);
@@ -799,16 +818,18 @@ export function stadium(): THREE.Group {
   add(bowl, new THREE.TorusGeometry(4.35, 0.1, 10, 128).rotateX(Math.PI / 2), gl, 0, 2.35, 0);
   add(bowl, new THREE.TorusGeometry(4.4, 0.05, 8, 128).rotateX(Math.PI / 2), gl, 0, 1.3, 0);
 
-  // Split-Y signature parabolic box-girder arch spine
+  // Split-Y signature catenary box-girder arch spine. A true inverted catenary
+  // flares more naturally than the old parabola; 60 guide points keep the
+  // cable-stay anchors smooth without changing the tube's 120 segments.
   const H = 7.2;
-  const yFn = (x: number) => Math.max(0.1, H * (1 - (x / 5.6) ** 2));
+  const yFn = (x: number) => catenaryArchHeight(x, 5.6, H);
   const dzFn = (x: number, s: number) =>
     s * (x < -0.7 ? Math.pow((-0.7 - x) / 4.9, 1.25) * 1.45 + 0.08 : 0.08);
 
   [-1, 1].forEach((s) => {
     const pts: THREE.Vector3[] = [];
-    for (let i = 0; i <= 40; i++) {
-      const x = -5.6 + i * 0.28;
+    for (let i = 0; i <= 60; i++) {
+      const x = -5.6 + i * (11.2 / 60);
       pts.push(new THREE.Vector3(x, yFn(x), dzFn(x, s)));
     }
     add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 120, 0.135, 10), st);
@@ -950,9 +971,13 @@ export function bridge(): THREE.Group {
       add(g, C(0.068, 0.14, ph, 12), wh, mx, 1.7 + ph / 2, mz);
       add(g, new THREE.SphereGeometry(0.08, 12, 8), G('#ff3b3b', 1.9), mx, topY, mz);
       add(g, C(0.085, 0.085, 0.14, 12), nightWash, mx, 2.2, mz);
-      for (let i = -6; i <= 6; i++) {
-        if (!i) continue;
-        staySegs.push([[mx, topY - 0.15 - Math.abs(i) * 0.26, mz], [mx + i * 0.55, 1.82, mz]]);
+      // 24 semi-fan stays per mast (the real bridge's arrangement); spacing is
+      // compressed so the outer cables still land on the authored deck.
+      for (const stay of bridgeStayAnchors(mx, topY)) {
+        staySegs.push([
+          [mx, stay.topY, mz],
+          [stay.deckX, 1.82, mz],
+        ]);
       }
     });
     // Cross-portal H-beam & diagonal X-bracing trusses

@@ -62,6 +62,14 @@ FPS-cap setting, half-resolution bokeh, persistent procedural-texture cache and
 an overdraw debug view. The idle point-light hypothesis needs a frame-time test
 before any fidelity trade-off.
 
+### Fifth pass — 2026-11-23 (TypeGPU Kit exploration)
+
+Research: [`docs/TYPEGPU-KIT-RESEARCH.md`](../docs/TYPEGPU-KIT-RESEARCH.md).
+Proposal: [025 — TypeGPU Kit WebGPU stage](025-typegpu-kit-webgpu-stage.md).
+Status: **proposed**. It adds a WebGPU-only, kit-owned stage behind a flag; the
+three.js/WebGL stack stays the fallback. Phases: compatibility spike →
+replicate the "lit models" look → port the hero diorama → decide and consolidate.
+
 ## Recommended execution order (second audit)
 
 11. **012** — pure CSS gate, zero risk; do it first.

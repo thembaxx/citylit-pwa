@@ -20,7 +20,7 @@ export interface HorizonSceneryController {
   root: THREE.Group;
   setBiome: (biome: LandmarkBiome) => void;
   setSiteTint: (horizonHex: string) => void;
-  /** Select the per-site far silhouette signature (region resolved from the site key). */
+  /** Select the far silhouette: a named site signature, else its region fallback. */
   setSiteSignature: (name: string, biome: LandmarkBiome) => void;
   setHidden: (hidden: boolean) => void;
   update: (dt: number, motionScale: number, opts: HorizonUpdateOptions) => void;
@@ -126,6 +126,103 @@ const SIGNATURE_PARTS: Readonly<Record<RegionalPaletteKey, readonly SignaturePar
     { angle: 0.055, y: 0, width: 3.6, height: 1.1, depth: 1.0 },
   ],
 };
+
+/**
+ * Named sites get their own far silhouette instead of sharing a regional one.
+ * These are low-contrast recognition cues only — never survey geometry — and
+ * stay within SIGNATURE_MAX_PARTS so the instanced batch keeps one draw call.
+ */
+const SITE_SIGNATURES: Readonly<Record<string, readonly SignaturePart[]>> = {
+  'table mountain': [
+    { angle: 0, y: 0, width: 8.4, height: 1.9, depth: 1.2 },
+    { angle: -0.1, y: 0, width: 2.1, height: 1.15, depth: 0.9 },
+    { angle: 0.11, y: 0, width: 2.8, height: 1.35, depth: 0.9 },
+  ],
+  'chapman': [
+    { angle: 0, y: 0, width: 7.2, height: 2.6, depth: 1.1 },
+    { angle: -0.09, y: 0, width: 2.4, height: 1.2, depth: 0.9 },
+  ],
+  'cape point': [
+    { angle: -0.04, y: 0, width: 4.2, height: 1.7, depth: 1.1 },
+    { angle: -0.04, y: 1.7, width: 0.7, height: 2.0, depth: 0.7 },
+    { angle: -0.04, y: 3.7, width: 1.1, height: 0.32, depth: 0.8 },
+  ],
+  'cape agulhas': [
+    { angle: -0.03, y: 0, width: 0.9, height: 2.3, depth: 0.8 },
+    { angle: -0.03, y: 2.3, width: 1.25, height: 0.4, depth: 0.85 },
+    { angle: 0.07, y: 0, width: 2.6, height: 0.8, depth: 1.0 },
+  ],
+  'drakensberg': [
+    { angle: 0, y: 0, width: 8.6, height: 2.9, depth: 1.1 },
+    { angle: -0.09, y: 0, width: 3.4, height: 1.6, depth: 1.0 },
+    { angle: 0.09, y: 0, width: 2.8, height: 1.3, depth: 1.0 },
+  ],
+  'sani pass': [
+    { angle: 0, y: 0, width: 6.2, height: 3.1, depth: 1.1 },
+    { angle: -0.08, y: 0, width: 2.6, height: 1.8, depth: 0.9 },
+  ],
+  'three rondavels': [
+    { angle: -0.05, y: 0, width: 2.0, height: 3.0, depth: 1.0 },
+    { angle: 0.01, y: 0, width: 2.2, height: 3.4, depth: 1.0 },
+    { angle: 0.07, y: 0, width: 1.9, height: 2.6, depth: 1.0 },
+  ],
+  'orlando towers': [
+    { angle: -0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
+    { angle: 0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
+    { angle: 0, y: 1.4, width: 3.2, height: 0.22, depth: 0.8 },
+  ],
+  'soweto': [
+    { angle: -0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
+    { angle: 0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
+  ],
+  'ponte city': [
+    { angle: 0, y: 0, width: 1.9, height: 5.2, depth: 1.3 },
+    { angle: 0, y: 5.2, width: 2.2, height: 0.35, depth: 1.0 },
+  ],
+  'moses mabhida': [
+    { angle: 0, y: 0, width: 6.8, height: 0.7, depth: 1.2 },
+    { angle: 0, y: 0.7, width: 1.0, height: 3.3, depth: 0.9, tilt: 0.32 },
+    { angle: 0.06, y: 0.7, width: 1.0, height: 3.3, depth: 0.9, tilt: -0.32 },
+  ],
+  'nelson mandela bridge': [
+    { angle: -0.05, y: 0, width: 0.55, height: 3.4, depth: 0.8 },
+    { angle: 0.05, y: 0, width: 0.55, height: 2.2, depth: 0.8 },
+    { angle: 0, y: 1.5, width: 7.0, height: 0.24, depth: 0.8 },
+  ],
+  'voortrekker': [
+    { angle: 0, y: 0, width: 3.8, height: 3.2, depth: 1.5 },
+    { angle: 0, y: 3.2, width: 2.4, height: 0.8, depth: 1.2 },
+  ],
+  'the big hole': [
+    { angle: 0, y: 0, width: 5.0, height: 0.55, depth: 1.2 },
+    { angle: -0.03, y: 0.55, width: 0.4, height: 2.6, depth: 0.7, tilt: 0.26 },
+    { angle: 0.03, y: 0.55, width: 0.4, height: 2.6, depth: 0.7, tilt: -0.26 },
+  ],
+  'knysna': [
+    { angle: -0.06, y: 0, width: 3.4, height: 2.4, depth: 1.1 },
+    { angle: 0.06, y: 0, width: 3.0, height: 1.8, depth: 1.1 },
+  ],
+  'augrabies': [
+    { angle: 0, y: 0, width: 6.0, height: 2.4, depth: 1.1 },
+    { angle: 0.05, y: 0.6, width: 0.7, height: 1.5, depth: 0.7 },
+  ],
+  'robben island': [
+    { angle: -0.03, y: 0, width: 3.6, height: 0.6, depth: 1.2 },
+    { angle: -0.03, y: 0.6, width: 0.6, height: 1.8, depth: 0.7 },
+  ],
+};
+
+/** Apostrophes/quotes resolve identically; exact keys win over fragments. */
+function resolveSignatureParts(name: string, biome: LandmarkBiome): readonly SignaturePart[] {
+  const key = name.replace(/[’‘`]/g, "'").trim().toLowerCase();
+  const exact = SITE_SIGNATURES[key];
+  if (exact) return exact;
+  for (const [candidate, parts] of Object.entries(SITE_SIGNATURES)) {
+    if (key.includes(candidate)) return parts;
+  }
+  const region = resolveRegionalPalette(name, biome)?.region ?? 'fynbos';
+  return SIGNATURE_PARTS[region];
+}
 
 function createHorizonRing(
   radius: number,
@@ -451,16 +548,14 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
   };
 
   const setSiteSignature: HorizonSceneryController['setSiteSignature'] = (name, biome) => {
-    // The resolver owns apostrophe/curly-quote normalization and the biome fallback.
+    // Colour still follows the region; only the silhouette can be site-specific.
     const palette = resolveRegionalPalette(name, biome);
-    const region = palette?.region ?? 'fynbos';
-
     tmpPaletteDark.set(palette?.aoShadowColor ?? '#181a2a');
     tmpPaletteLight.set(palette?.skyHorizonTint ?? '#a5b3c1');
     tmpPaletteRim.set(palette?.rimColor ?? '#e3c3c0');
     signatureBase.copy(tmpPaletteDark).lerp(tmpPaletteLight, 0.62).lerp(tmpPaletteRim, 0.08);
 
-    const parts = SIGNATURE_PARTS[region];
+    const parts = resolveSignatureParts(name, biome);
     for (let s = 0; s < SIGNATURE_SECTORS; s++) {
       const sectorAngle = (s / SIGNATURE_SECTORS) * Math.PI * 2;
       for (let p = 0; p < parts.length; p++) {

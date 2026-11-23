@@ -16,6 +16,7 @@ import {
   type PlaceSliceSpec,
 } from './placesSliceBuilders';
 import { getSoftTexture, WU } from './shaders';
+import { HIGHLIGHT_COLORS, HIGHLIGHT_FOCUS } from '../lib/placeEditorial';
 import type { OsmPlaceData } from '../services/osmService';
 import { createOsmSlice } from './osmSlice';
 
@@ -34,6 +35,8 @@ export interface PlacesSelectionInfo {
   subtitle: string;
   /** Present for on-demand coordinate slices (landmarkIndex is -1). */
   explorer?: ExplorerInfo;
+  /** Set when the pick landed on an editorial highlight marker. */
+  highlightIndex?: number;
 }
 
 export interface PlacesController {
@@ -56,6 +59,11 @@ export interface PlacesController {
   updatePointerWake: (ndcX: number, ndcY: number) => boolean;
   pickAt: (ndcX: number, ndcY: number) => PlacesSelectionInfo | null;
   getSelectedInfo: () => PlacesSelectionInfo;
+  /** Spring the camera onto one of the editorial highlight markers. */
+  focusHighlight: (index: number) => void;
+  /** Low, front-on camera that reads the geological cut face of the slice. */
+  setSectionView: (active: boolean) => void;
+  isSectionView: () => boolean;
   zoomBy: (factor: number) => void;
   resetOverview: () => void;
   setWeatherMode: (mode: PlacesWeatherMode) => void;
@@ -129,6 +137,34 @@ export function createPlacesScene(
   shadowDisc.userData.cannotReceiveAO = true;
   cartoGroup.add(shadowDisc);
 
+  // One shared set of editorial markers for whichever slice is active. They
+  // use the same focus table as the Places card, so a marker and its chip
+  // always point at the same place. No per-slice geometry or lights.
+  const markerGeo = new THREE.SphereGeometry(0.085, 10, 8);
+  const markerMats = (Object.keys(HIGHLIGHT_COLORS) as Array<keyof typeof HIGHLIGHT_COLORS>).map(
+    (category) =>
+      new THREE.MeshBasicMaterial({
+        color: HIGHLIGHT_COLORS[category],
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false,
+      })
+  );
+  const markerGroup = new THREE.Group();
+  markerGroup.name = 'places-editorial-markers';
+  markerGroup.visible = false;
+  const markerMeshes = HIGHLIGHT_FOCUS.map((focus, index) => {
+    const marker = new THREE.Mesh(markerGeo, markerMats[index % markerMats.length]);
+    marker.position.set(focus[0], focus[1], focus[2]);
+    marker.userData.highlightIndex = index;
+    marker.userData.noShadow = true;
+    marker.userData.cannotReceiveAO = true;
+    marker.renderOrder = 4;
+    markerGroup.add(marker);
+    return marker;
+  });
+  group.add(markerGroup);
+
   // The slice's own geological block is the base: no separate plinth, so the
   // layered cutaway walls run to the bottom exactly like the reference blocks.
 
@@ -164,6 +200,7 @@ export function createPlacesScene(
   let hoveredSliceIndex: number | null = null;
   let visitedSet = new Set<number>();
   let weatherMode: PlacesWeatherMode = 'auto';
+  let sectionActive = false;
 
   let flyGoalCam: THREE.Vector3 | null = null;
   let flyGoalTarget: THREE.Vector3 | null = null;
@@ -313,6 +350,8 @@ export function createPlacesScene(
     controller.isOpen = true;
     group.visible = true;
     controls.enabled = true;
+    markerGroup.visible = true;
+    sectionActive = false;
     visitedSet = visited;
 
     if (activeLandmarkIndex !== undefined) {
@@ -338,6 +377,8 @@ export function createPlacesScene(
     controller.isOpen = false;
     group.visible = false;
     controls.enabled = false;
+    markerGroup.visible = false;
+    sectionActive = false;
     hoveredSliceIndex = null;
     flyGoalCam = null;
     flyGoalTarget = null;
@@ -347,6 +388,29 @@ export function createPlacesScene(
     flyGoalTarget = HERO_TARGET.clone();
     flyGoalCam = HERO_CAM.clone();
   };
+
+  const focusHighlight = (index: number) => {
+    const focus = HIGHLIGHT_FOCUS[index];
+    if (!focus || !isOpen) return;
+    sectionActive = false;
+    // Keep the offset just beyond OrbitControls.minDistance so the damping
+    // pass never fights the fly goal.
+    flyGoalTarget = new THREE.Vector3(focus[0], focus[1], focus[2]);
+    flyGoalCam = new THREE.Vector3(focus[0] + 1.8, focus[1] + 1.05, focus[2] + 2.7);
+  };
+
+  const setSectionView = (active: boolean) => {
+    if (!isOpen) return;
+    sectionActive = active;
+    if (active) {
+      flyGoalTarget = new THREE.Vector3(0, 0.72, 0);
+      flyGoalCam = new THREE.Vector3(0.6, 1.15, 5.3);
+    } else {
+      resetOverview();
+    }
+  };
+
+  const isSectionView = () => sectionActive;
 
   const setWeatherMode = (mode: PlacesWeatherMode) => {
     weatherMode = mode;
@@ -360,6 +424,12 @@ export function createPlacesScene(
     if (!activeSlice) return null;
     pointerVec.set(ndcX, ndcY);
     raycaster.setFromCamera(pointerVec, camera);
+    // Markers are tiny spheres and act as their own tap proxies; check them
+    // before the coarse island hit-box so a marker tap always wins.
+    if (raycaster.intersectObjects(markerMeshes, false).length > 0) {
+      hoveredSliceIndex = selectedSliceIndex;
+      return hoveredSliceIndex;
+    }
     const hits = raycaster.intersectObject(activeSlice.hitBox, false);
     if (!hits.length) {
       hoveredSliceIndex = null;
@@ -388,6 +458,13 @@ export function createPlacesScene(
     if (!activeSlice) return null;
     pointerVec.set(ndcX, ndcY);
     raycaster.setFromCamera(pointerVec, camera);
+    const markerHits = raycaster.intersectObjects(markerMeshes, false);
+    if (markerHits.length > 0) {
+      return {
+        ...getSelectedInfo(),
+        highlightIndex: markerHits[0].object.userData.highlightIndex as number,
+      };
+    }
     const hits = raycaster.intersectObject(activeSlice.hitBox, false);
     if (!hits.length) return null;
     return getSelectedInfo();
@@ -565,6 +642,8 @@ export function createPlacesScene(
     cloudMat.dispose();
     shadowDiscGeo.dispose();
     shadowDiscMat.dispose();
+    markerGeo.dispose();
+    markerMats.forEach((mat) => mat.dispose());
   };
 
   const controller: PlacesController = {
@@ -585,6 +664,9 @@ export function createPlacesScene(
     updatePointerWake,
     pickAt,
     getSelectedInfo,
+    focusHighlight,
+    setSectionView,
+    isSectionView,
     zoomBy,
     resetOverview,
     setWeatherMode,

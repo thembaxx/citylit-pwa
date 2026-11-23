@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  ArrowSquareOut,
   ArrowUpRight,
   BookmarkSimple,
   CaretLeft,
@@ -16,13 +17,23 @@ import {
   MapPin,
   SpeakerHigh,
   SpeakerSlash,
+  Stack,
+  Tag,
   X,
   type Icon,
 } from '@phosphor-icons/react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARKS, PROVINCES } from '../data/landmarks';
 import { getMonthCondition } from '../data/weatherData';
+import {
+  HIGHLIGHT_COLORS,
+  resolveExplorerEditorial,
+  resolvePlaceEditorial,
+  type PlaceEditorial,
+} from '../lib/placeEditorial';
 import { DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, SPRING } from '../lib/motion';
+import { TIME_PRESETS } from '../lib/timePresets';
 import type { PlacesSelectionInfo, PlacesWeatherMode } from '../three/placesScene';
 import { PLACE_SLICE_SPECS } from '../three/placesSliceBuilders';
 import type { SavedCustomPlace, WeatherDisplayState } from '../types/citylit';
@@ -48,6 +59,8 @@ interface PlacesOverlayProps {
   onResetView: () => void;
   onSwitchToGlobe: () => void;
   onToggleSound: () => void;
+  onFocusHighlight: (index: number) => void;
+  onToggleSection: (active: boolean) => void;
   onSelectTimePreset: (hour: number) => void;
   onSelectWeatherMode: (mode: PlacesWeatherMode) => void;
   onToggleSavePlace?: (place: { lat: number; lon: number; label: string; detail: string }) => void;
@@ -56,12 +69,7 @@ interface PlacesOverlayProps {
   onClose: () => void;
 }
 
-const QUICK_TIMES = [
-  { label: 'Dawn', hour: 6.3 },
-  { label: 'Noon', hour: 13 },
-  { label: 'Dusk', hour: 17.8 },
-  { label: 'Night', hour: 22 },
-] as const;
+const QUICK_TIMES = TIME_PRESETS.map(({ label, hour }) => ({ label, hour }));
 
 const WEATHER_MODES: ReadonlyArray<{ id: PlacesWeatherMode; label: string }> = [
   { id: 'auto', label: 'Auto' },
@@ -94,6 +102,68 @@ function placeCardCondition(
   return getMonthCondition(index, Math.min(12, Math.max(1, new Date().getMonth() + 1)), hour).k;
 }
 
+/** Compact marker chips: the same editorial grammar the diorama card ships. */
+function EditorialMarkers({
+  editorial,
+  onFocusHighlight,
+  reducedMotion,
+}: {
+  editorial: PlaceEditorial | null;
+  onFocusHighlight: (index: number) => void;
+  reducedMotion: boolean;
+}) {
+  if (!editorial || editorial.highlights.length === 0) return null;
+  return (
+    <div
+      role="group"
+      aria-label="Editorial field markers"
+      className="mt-2 flex flex-wrap gap-1.5"
+    >
+      {editorial.highlights.map((highlight, index) => (
+        <motion.button
+          key={highlight.id}
+          type="button"
+          whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+          transition={SPRING.snappy}
+          onClick={() => onFocusHighlight(index)}
+          title={`${highlight.label}: ${highlight.text} — tap to focus the camera`}
+          className="inline-flex items-center gap-1.5 max-w-[160px] px-2 py-1 rounded-full border border-white/15 bg-white/[0.05] text-[10.5px] text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer"
+        >
+          <span
+            aria-hidden="true"
+            className="size-1.5 rounded-full shrink-0"
+            style={{ backgroundColor: HIGHLIGHT_COLORS[highlight.category] }}
+          />
+          <span className="truncate">{highlight.label}</span>
+        </motion.button>
+      ))}
+    </div>
+  );
+}
+
+function EditorialSources({ editorial }: { editorial: PlaceEditorial | null }) {
+  if (!editorial) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[10px] text-[#a9a69e]">
+      <span className="inline-flex items-center gap-1">
+        <Tag size={10} /> Marker positions are illustrative, not survey-accurate
+      </span>
+      {editorial.sources.map((source) => (
+        <a
+          key={source.label}
+          href={source.url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-[#e8b04a] hover:underline"
+        >
+          {source.label}
+          <ArrowSquareOut size={10} />
+        </a>
+      ))}
+    </div>
+  );
+}
+
 export function PlacesOverlay({
   open,
   activeProvince,
@@ -113,6 +183,8 @@ export function PlacesOverlay({
   onResetView,
   onSwitchToGlobe,
   onToggleSound,
+  onFocusHighlight,
+  onToggleSection,
   onSelectTimePreset,
   onSelectWeatherMode,
   onToggleSavePlace,
@@ -120,6 +192,14 @@ export function PlacesOverlay({
   onRemoveSavedPlace,
   onClose,
 }: PlacesOverlayProps) {
+  // Remounted on every open via a key in App, so this never shows a stale
+  // pressed state after the engine clears the section camera on close.
+  const [sectionActive, setSectionActive] = useState(false);
+  const handleToggleSection = () => {
+    const next = !sectionActive;
+    setSectionActive(next);
+    onToggleSection(next);
+  };
   if (!open) return null;
 
   const matchingSpecs =
@@ -134,6 +214,22 @@ export function PlacesOverlay({
     : 0;
   const activeLandmark = selectedPlace ? LANDMARKS[selectedPlace.landmarkIndex] : null;
   const isVisited = selectedPlace ? visited.has(selectedPlace.landmarkIndex) : false;
+  const editorial = selectedPlace
+    ? selectedPlace.landmarkIndex >= 0
+      ? resolvePlaceEditorial(selectedPlace.landmarkIndex)
+      : resolveExplorerEditorial({
+          label: selectedPlace.explorer?.label ?? 'Coordinate explorer',
+          detail: selectedPlace.explorer?.detail ?? '',
+          stats: selectedPlace.explorer?.stats ?? {
+            buildings: 0,
+            roads: 0,
+            water: 0,
+            green: 0,
+            elevation: 0,
+          },
+          coords: activeExplorerCoords ?? { lat: 0, lon: 0 },
+        })
+    : null;
   const cardCondition =
     selectedPlace && selectedPlace.landmarkIndex >= 0
       ? placeCardCondition(weatherMode, selectedPlace.landmarkIndex, activeTimeHour)
@@ -389,7 +485,7 @@ export function PlacesOverlay({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.985 }}
             transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
-            className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] md:w-[min(490px,calc(100vw-28px))] lg:w-[min(540px,calc(100vw-28px))] bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3.5 shadow-2xl pointer-events-auto"
+            className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] md:w-[min(490px,calc(100vw-28px))] lg:w-[min(540px,calc(100vw-28px))] max-h-[70vh] overflow-y-auto overscroll-contain bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3.5 shadow-2xl pointer-events-auto"
           >
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 min-w-0 text-[10.5px] uppercase tracking-[0.12em] text-[#e8b04a] truncate">
@@ -419,6 +515,24 @@ export function PlacesOverlay({
             </div>
             <div className="text-[12px] text-[#a9a69e] mt-1 truncate">{selectedPlace.subtitle}</div>
 
+            {editorial && (
+              <>
+                <p className="text-[11.5px] leading-snug text-[#d9d5cc]/90 mt-2 mb-0 line-clamp-2">
+                  {editorial.narrative}
+                </p>
+                {editorial.tags.length > 0 && (
+                  <div className="text-[10px] text-[#a9a69e] mt-1.5 truncate">
+                    {editorial.tags.join(' · ')}
+                  </div>
+                )}
+                <EditorialMarkers
+                  editorial={editorial}
+                  onFocusHighlight={onFocusHighlight}
+                  reducedMotion={reducedMotion}
+                />
+              </>
+            )}
+
             <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/10">
               <div className="flex items-center gap-1.5">
                 <motion.button
@@ -444,17 +558,38 @@ export function PlacesOverlay({
                 </motion.button>
               </div>
 
-              <motion.button
-                type="button"
-                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-                transition={SPRING.snappy}
-                onClick={() => onOpenLandmark(selectedPlace.landmarkIndex)}
-                className="h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 bg-[#e8b04a] text-[#1a1405] text-[12px] font-semibold hover:bg-[#f2be5d] transition-colors cursor-pointer"
-              >
-                <span>Open diorama</span>
-                <ArrowUpRight size={14} weight="bold" />
-              </motion.button>
+              <div className="flex items-center gap-1.5">
+                <motion.button
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                  transition={SPRING.snappy}
+                  onClick={handleToggleSection}
+                  aria-pressed={sectionActive}
+                  aria-label="Section view of the cutaway layers"
+                  title="Section view of the cutaway layers"
+                  className={`h-8 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[12px] transition-colors cursor-pointer ${
+                    sectionActive
+                      ? 'bg-[#5cd6a9]/18 border-[#5cd6a9] text-[#5cd6a9]'
+                      : 'bg-white/[0.06] border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a]'
+                  }`}
+                >
+                  <Stack size={13} weight={sectionActive ? 'fill' : 'regular'} />
+                  <span className="hidden sm:inline">Section</span>
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                  transition={SPRING.snappy}
+                  onClick={() => onOpenLandmark(selectedPlace.landmarkIndex)}
+                  className="h-8 px-3.5 rounded-full inline-flex items-center gap-1.5 bg-[#e8b04a] text-[#1a1405] text-[12px] font-semibold hover:bg-[#f2be5d] transition-colors cursor-pointer"
+                >
+                  <span>Open diorama</span>
+                  <ArrowUpRight size={14} weight="bold" />
+                </motion.button>
+              </div>
             </div>
+
+            <EditorialSources editorial={editorial} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -467,7 +602,7 @@ export function PlacesOverlay({
             initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.985 }}
-            className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] md:w-[min(490px,calc(100vw-28px))] bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3.5 shadow-2xl pointer-events-auto"
+            className="absolute left-3.5 bottom-[calc(58px+env(safe-area-inset-bottom,0px))] w-[min(420px,calc(100vw-28px))] md:w-[min(490px,calc(100vw-28px))] max-h-[70vh] overflow-y-auto overscroll-contain bg-[#121319]/92 border border-white/15 squircle-card px-4 py-3.5 shadow-2xl pointer-events-auto"
           >
             <div className="text-[10.5px] uppercase tracking-[0.12em] text-[#e8b04a]">
               Coordinate Explorer
@@ -481,6 +616,18 @@ export function PlacesOverlay({
               <span>{selectedPlace.explorer.stats.roads} roads</span>
               <span>{selectedPlace.explorer.stats.elevation} m elevation</span>
             </div>
+            {editorial && (
+              <>
+                <p className="text-[11px] leading-snug text-[#d9d5cc]/80 mt-2 mb-0 line-clamp-2">
+                  {editorial.narrative}
+                </p>
+                <EditorialMarkers
+                  editorial={editorial}
+                  onFocusHighlight={onFocusHighlight}
+                  reducedMotion={reducedMotion}
+                />
+              </>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-2.5 border-t border-white/10">
               <span className="text-[10px] text-[#a9a69e]">© OpenStreetMap contributors</span>
               <div className="flex items-center gap-1.5">
@@ -514,13 +661,14 @@ export function PlacesOverlay({
                 </button>
               </div>
             </div>
+            <EditorialSources editorial={editorial} />
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Desktop Gesture Hint */}
       <div className="hidden md:block fixed right-4 bottom-[calc(64px+env(safe-area-inset-bottom,0px))] text-[11.5px] text-[#c8c4bc] drop-shadow-[0_1px_6px_rgba(0,0,0,0.9)] pointer-events-none">
-        Drag to orbit · Scroll to zoom · Double-tap slice to open · ← / → switch places
+        Drag to orbit · Tap a marker to focus · Double-tap slice to open · ← / → switch places
       </div>
 
       {/* Province Filter Pills */}

@@ -3473,3 +3473,73 @@ export function jacaranda(
   }
   return built;
 }
+
+/** Camel thorn: forked grey bole under a wide, flat acacia canopy. */
+export function camelthorn(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const bark = MBark('#6b5a45', 0.95, 0.03);
+  const canopy = M('#5b7040', 0.94);
+  const shade = M('#425834', 0.95);
+  add(h, C(0.055, 0.1, 0.62, 8), bark, 0, 0.31, 0);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + ry;
+    const b = add(h, C(0.016, 0.03, 0.36, 6), bark, Math.cos(a) * 0.1, 0.64, Math.sin(a) * 0.1);
+    b.rotation.set(Math.sin(a) * 1.05, 0, -Math.cos(a) * 1.05);
+  }
+  // Flat-topped umbrella crown: much wider than it is tall.
+  add(h, C(0.015, 0.015, 0.055, 12), bark, 0, 0.83, 0);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.35;
+    add(
+      h,
+      new THREE.SphereGeometry(0.2, 8, 5),
+      i % 2 ? canopy : shade,
+      Math.cos(a) * 0.25,
+      0.88 + (i % 2) * 0.035,
+      Math.sin(a) * 0.25
+    ).scale.y = 0.32;
+  }
+  add(h, new THREE.SphereGeometry(0.23, 8, 5), canopy, 0, 0.93, 0).scale.y = 0.3;
+  return mergeByMaterial(h);
+}
+
+/** Milkwood: dense coastal evergreen with a low, rounded, glossy crown. */
+export function milkwood(
+  g: THREE.Object3D,
+  x: number,
+  y: number,
+  z: number,
+  sc = 1,
+  ry = 0
+): THREE.Group {
+  const h = kitHolder(g, x, y, z, sc, ry);
+  const bark = MBark('#5d4c3a', 0.94, 0.02);
+  const leaf = M('#3f6a45', 0.82);
+  const lit = M('#688a56', 0.78);
+  add(h, C(0.06, 0.11, 0.58, 8), bark, 0, 0.29, 0);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + ry;
+    const b = add(h, C(0.018, 0.032, 0.3, 6), bark, Math.cos(a) * 0.07, 0.6, Math.sin(a) * 0.07);
+    b.rotation.set(Math.sin(a) * 0.6, 0, -Math.cos(a) * 0.6);
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.2;
+    add(
+      h,
+      new THREE.IcosahedronGeometry(0.19, 0),
+      i % 2 ? leaf : lit,
+      Math.cos(a) * 0.17,
+      0.78 + (i % 3) * 0.06,
+      Math.sin(a) * 0.17
+    );
+  }
+  add(h, new THREE.IcosahedronGeometry(0.24, 0), lit, 0, 0.98, 0);
+  return mergeByMaterial(h);
+}
