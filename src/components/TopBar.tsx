@@ -10,6 +10,7 @@ import {
 import type { ComponentType } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, swapTransition } from '../lib/motion';
+import { resolveTheme } from '../lib/theme';
 import type { ThemeSetting } from '../types/citylit';
 
 interface TopBarProps {
@@ -109,7 +110,7 @@ export function TopBar({
         >
           <div
             className={`font-serif-display italic text-[22px] tracking-[0.01em] select-none transition-colors duration-300 ${
-              theme === 'dark' ? 'text-[#f3efe6]' : 'text-[#16202e]'
+              resolveTheme(theme) === 'dark' ? 'text-[#f3efe6]' : 'text-[#16202e]'
             }`}
           >
             cıtylit

@@ -23,6 +23,10 @@ export const WU = {
   wake: { value: new THREE.Vector3(0, -100, 0) },
   wakeStrength: { value: 0 },
   lit: { value: 0 },
+  /** Explicit nighttime-hours toggle factor (0..1) for streetlight emissives. */
+  streetLampLit: { value: 0 },
+  /** Night-mode activation ramp (0..1) for spawned & batched vehicle lights. */
+  vehicleNightLit: { value: 0 },
   rain: { value: 0 },
   /** Weather fog density (0..1); lamp halos bloom wider in fog. */
   fog: { value: 0 },
@@ -599,6 +603,7 @@ export function waterize(
   mat: THREE.MeshStandardMaterial,
   flow?: WaterFlow
 ): THREE.MeshStandardMaterial {
+  mat.userData.isWaterSurface = true;
   const rawX = flow?.x ?? 0;
   const rawZ = flow?.z ?? 0;
   const flowLen = Math.hypot(rawX, rawZ);

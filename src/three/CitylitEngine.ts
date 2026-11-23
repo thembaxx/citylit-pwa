@@ -20,6 +20,7 @@ import type {
   NoteCategory,
   QualityIndex,
   QualitySetting,
+  ResolvedTheme,
   ScaleReferenceKind,
   SkyEvent,
   ThemeSetting,
@@ -33,6 +34,8 @@ import {
   PLINTH_INNER_HALF_EXTENT,
 } from '../lib/fitMath';
 import { setSeasonMonth as setFoliageSeasonMonth } from '../lib/season';
+import { computeCoastalTideOffset } from '../lib/tide';
+import { resolveTheme } from '../lib/theme';
 import { setAnimalSeasonMonth } from './builders/animalKit';
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
 import {
@@ -86,6 +89,7 @@ import {
   createStreetLampPool,
   lampTintForBiome,
   streetLampNightFactor,
+  sunAltitudeDeg,
   type StreetLampAnchor,
 } from './streetLights';
 import { updateWindowLights, windowLitFraction } from './windowLights';
@@ -217,6 +221,20 @@ export class CitylitEngine {
   /** Fixed pool of streetlamp point lights (see syncStreetLamps). */
   private streetLampPool: THREE.PointLight[] = [];
   private streetLampAnchors: StreetLampAnchor[] = [];
+  /** Fixed pool of small moving vehicle point lights active during night mode. */
+  private static readonly VEHICLE_LIGHT_POOL_SIZE = 4;
+  private vehicleLightPool: THREE.PointLight[] = [];
+  private activeVehicles: THREE.Object3D[] = [];
+  private vehicleLightMix = 0;
+  private readonly vehicleBulbGeo: THREE.BufferGeometry;
+  private readonly vehicleHaloGeo: THREE.BufferGeometry;
+  private readonly vehicleHeadBulbMat: THREE.MeshStandardMaterial;
+  private readonly vehicleTailBulbMat: THREE.MeshStandardMaterial;
+  private readonly vehicleHeadHaloMat: THREE.ShaderMaterial;
+  private readonly tmpVehicleLocal = new THREE.Vector3();
+  private readonly visitedNightEmissiveMats = new Set<THREE.Material>();
+  private coastalWaterMeshes: Array<{ mesh: THREE.Object3D; baseY: number }> = [];
+  private coastalTideOffset = 0;
   /** Per-biome lamp colour temperature, refreshed on each landmark switch. */
   private readonly streetLampTint = new THREE.Color('#ffd280');
   /** Dynamic material lists of the showing landmark, kept for cache recycling. */
@@ -286,7 +304,7 @@ export class CitylitEngine {
   private exposureReadCounter = 0;
   /** Optional WebGL approximation of ThreeRT-style path-traced lighting. */
   private cinematic = false;
-  private theme: ThemeSetting = 'daylight';
+  private theme: ResolvedTheme = 'daylight';
   private studioWeight = 0;
   private targetRingCol = new THREE.Color('#e8b04a');
   private targetRingEmissive = 0.35;
@@ -744,6 +762,74 @@ export class CitylitEngine {
     // count never changes between landmarks: a change would recompile every
     // material on the frame a lamp-heavy diorama swaps in or out.
     this.streetLampPool = createStreetLampPool(this.scene);
+
+    // Fixed-size pool + shared micro emitter resources for night-mode vehicle lights.
+    this.vehicleBulbGeo = new THREE.SphereGeometry(0.044, 8, 6);
+    this.vehicleBulbGeo.userData.sharedResource = true;
+    this.vehicleHaloGeo = new THREE.PlaneGeometry(0.36, 0.36).rotateY(Math.PI / 2);
+    this.vehicleHaloGeo.userData.sharedResource = true;
+    this.vehicleHeadBulbMat = new THREE.MeshStandardMaterial({
+      color: '#fff6d8',
+      emissive: '#ffe7a6',
+      emissiveIntensity: 0,
+      roughness: 0.2,
+      metalness: 0.1,
+    });
+    this.vehicleHeadBulbMat.userData.sharedResource = true;
+    this.vehicleTailBulbMat = new THREE.MeshStandardMaterial({
+      color: '#ff4242',
+      emissive: '#ff2222',
+      emissiveIntensity: 0,
+      roughness: 0.25,
+      metalness: 0.1,
+    });
+    this.vehicleTailBulbMat.userData.sharedResource = true;
+    this.vehicleHeadHaloMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uNightMix: { value: 0 },
+        uTime: WU.t,
+        uDY: WU.dy,
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        void main() {
+          vUv = uv;
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform float uNightMix, uTime, uDY;
+        varying vec2 vUv;
+        varying vec3 vWorldPos;
+        void main() {
+          if (uDY < 90.0 && vWorldPos.y > uDY && vWorldPos.y < 14.0) discard;
+          if (uNightMix <= 0.005) discard;
+          float r = length((vUv - 0.5) * 2.0);
+          if (r >= 1.0) discard;
+          float shimmer = 0.9 + 0.1 * sin(uTime * 4.5 + vWorldPos.x * 2.3 + vWorldPos.z * 1.9);
+          float glow = exp(-r * r * 4.8) * smoothstep(1.0, 0.12, r);
+          float alpha = glow * uNightMix * shimmer * 0.42;
+          gl_FragColor = vec4(vec3(1.0, 0.91, 0.66) * alpha * 1.6, alpha);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    this.vehicleHeadHaloMat.userData.sharedResource = true;
+    this.vehicleHeadHaloMat.userData.noDissolve = true;
+    for (let i = 0; i < CitylitEngine.VEHICLE_LIGHT_POOL_SIZE; i++) {
+      const vl = new THREE.PointLight('#ffe8b6', 0, 2.5, 2);
+      vl.castShadow = false;
+      vl.userData.vehicleNightLight = true;
+      this.scene.add(vl);
+      this.vehicleLightPool.push(vl);
+    }
 
     this.markerGroup = new THREE.Group();
     this.scene.add(this.markerGroup);
@@ -1421,6 +1507,278 @@ export class CitylitEngine {
     }
   }
 
+  /**
+   * Detect whether the active scene time is within nighttime hours
+   * (19:00–06:00 or sun below the horizon in winter).
+   */
+  isNighttimeHours(hour = this.weather.current.timeOfDay): boolean {
+    const h = ((hour % 24) + 24) % 24;
+    if (h < 6 || h >= 19) return true;
+    return sunAltitudeDeg(h, WU.season.value) < -0.6;
+  }
+
+  /** True when vehicle night lights should be active (night hours or dark backdrop). */
+  isNightModeActive(): boolean {
+    return (
+      !this.isStudio() &&
+      (this.isNighttimeHours() || this.theme === 'dark' || this.weather.current.night > 0.25)
+    );
+  }
+
+  /**
+   * Spawn (or show/hide) small headlight/taillight emitter sources on vehicle
+   * models inside the target landmark group during night mode and register
+   * vehicles for moving point-light animation.
+   */
+  spawnVehicleNightLights(root: THREE.Object3D | null = this.currentGroup): void {
+    const isCurrent = root === this.currentGroup;
+    if (isCurrent) this.activeVehicles = [];
+    if (!root) return;
+
+    const nightMode = this.isNightModeActive();
+    root.traverse((obj) => {
+      if (obj.userData.isVehicle !== true) return;
+      if (isCurrent) this.activeVehicles.push(obj);
+
+      let rig = obj.getObjectByName('engine-vehicle-night-lights') as THREE.Group | undefined;
+      if (nightMode && !rig) {
+        rig = new THREE.Group();
+        rig.name = 'engine-vehicle-night-lights';
+        for (const z of [-0.13, 0.13]) {
+          const headBulb = new THREE.Mesh(this.vehicleBulbGeo, this.vehicleHeadBulbMat);
+          headBulb.position.set(0.525, 0.13, z);
+          headBulb.castShadow = false;
+          headBulb.receiveShadow = false;
+          headBulb.userData.noShadow = true;
+          headBulb.userData.cannotReceiveAO = true;
+          headBulb.userData.noDissolve = true;
+          rig.add(headBulb);
+
+          const halo = new THREE.Mesh(this.vehicleHaloGeo, this.vehicleHeadHaloMat);
+          halo.position.set(0.57, 0.13, z);
+          halo.castShadow = false;
+          halo.receiveShadow = false;
+          halo.renderOrder = 4;
+          halo.userData.noShadow = true;
+          halo.userData.cannotReceiveAO = true;
+          halo.userData.noDissolve = true;
+          rig.add(halo);
+
+          const tailBulb = new THREE.Mesh(this.vehicleBulbGeo, this.vehicleTailBulbMat);
+          tailBulb.position.set(-0.525, 0.15, z);
+          tailBulb.scale.setScalar(0.85);
+          tailBulb.castShadow = false;
+          tailBulb.receiveShadow = false;
+          tailBulb.userData.noShadow = true;
+          tailBulb.userData.cannotReceiveAO = true;
+          tailBulb.userData.noDissolve = true;
+          rig.add(tailBulb);
+        }
+        obj.add(rig);
+      }
+      if (rig) {
+        rig.visible = nightMode;
+      }
+    });
+  }
+
+  /**
+   * Animate spawned vehicle headlight/taillight intensities and bind the fixed
+   * vehicle PointLight pool to active cars as they travel in night mode.
+   */
+  animateVehicleNightLights(dt: number, immediate = false): void {
+    const heroActive = this.heroRoot.visible && !this.globe.isOpen && !this.places.isOpen;
+    const nightMode = this.isNightModeActive();
+    const targetMix = nightMode ? 1 : 0;
+    const rate = immediate || this.motionScale === 0 ? 1 : Math.min(1, dt * 5.2);
+    this.vehicleLightMix += (targetMix - this.vehicleLightMix) * rate;
+
+    if (nightMode && heroActive && this.currentGroup) {
+      let needsSync = false;
+      for (let i = 0; i < this.activeVehicles.length; i++) {
+        const rig = this.activeVehicles[i].getObjectByName('engine-vehicle-night-lights');
+        if (!rig || !rig.visible) {
+          needsSync = true;
+          break;
+        }
+      }
+      if (needsSync || this.activeVehicles.length === 0) {
+        this.spawnVehicleNightLights(this.currentGroup);
+      }
+    } else if (!nightMode && this.activeVehicles.length > 0) {
+      for (let i = 0; i < this.activeVehicles.length; i++) {
+        const rig = this.activeVehicles[i].getObjectByName('engine-vehicle-night-lights');
+        if (rig && rig.visible) rig.visible = false;
+      }
+    }
+
+    const overcastBoost = this.isStudio() ? 0 : this.weather.current.cover * 0.3;
+    WU.vehicleNightLit.value = Math.min(1, Math.max(this.vehicleLightMix, overcastBoost));
+
+    const shimmer = 0.92 + 0.08 * Math.sin(this.shaderTime * 4.8);
+    const brakePulse = 0.85 + 0.15 * Math.sin(this.shaderTime * 2.1);
+    this.vehicleHeadBulbMat.emissiveIntensity = this.vehicleLightMix * 2.1 * shimmer;
+    this.vehicleTailBulbMat.emissiveIntensity = this.vehicleLightMix * 1.85 * brakePulse;
+    this.vehicleHeadHaloMat.uniforms.uNightMix.value = this.vehicleLightMix;
+
+    if (heroActive && nightMode && this.activeVehicles.length > 0) {
+      this.heroRoot.updateWorldMatrix(true, true);
+    }
+    const activeLightLimit =
+      this.isSoftwareGl || this.qualityIndex >= 2
+        ? Math.min(2, this.vehicleLightPool.length)
+        : this.vehicleLightPool.length;
+
+    for (let i = 0; i < this.vehicleLightPool.length; i++) {
+      const vl = this.vehicleLightPool[i];
+      const vehicle =
+        heroActive && nightMode && i < activeLightLimit && i < this.activeVehicles.length
+          ? this.activeVehicles[i]
+          : undefined;
+      if (vehicle && this.vehicleLightMix > 0.01) {
+        this.tmpVehicleLocal.set(0.88, 0.24, 0).applyMatrix4(vehicle.matrixWorld);
+        vl.position.copy(this.tmpVehicleLocal);
+        const carPulse = 0.86 + 0.14 * Math.sin(this.shaderTime * (3.4 + i * 0.75) + i * 1.9);
+        const goal = this.vehicleLightMix * 0.45 * carPulse;
+        vl.intensity = immediate ? goal : vl.intensity + (goal - vl.intensity) * rate;
+      } else {
+        vl.intensity = immediate ? 0 : vl.intensity + (0 - vl.intensity) * rate;
+      }
+    }
+  }
+
+  /**
+   * Detect nighttime hours and toggle emissive materials for building windows
+   * and streetlights across all loaded and cached landmark models.
+   */
+  updateNighttimeEmissives(dt = 0, immediate = false): boolean {
+    const nightHours = !this.isStudio() && this.isNighttimeHours();
+    const hour = this.weather.current.timeOfDay;
+    const windowGlow = nightHours ? streetLampNightFactor(hour, 0, WU.season.value) : 0;
+    const lampGlow = nightHours ? Math.max(0.24, windowGlow) : 0;
+    const windowHaze = 1 - this.weather.current.rain * 0.22;
+    const litStrength = WU.lit.value;
+    const rate = immediate || this.motionScale === 0 ? 1 : Math.min(1, dt * 5);
+
+    WU.streetLampLit.value = immediate
+      ? lampGlow
+      : WU.streetLampLit.value + (lampGlow - WU.streetLampLit.value) * rate;
+
+    const glowKey = litStrength + windowGlow * 2 + (nightHours ? 10 : 0);
+    if (immediate || Math.abs(glowKey - this.lastGlowLit) >= 0.002) {
+      this.lastGlowLit = glowKey;
+      const visited = this.visitedNightEmissiveMats;
+      visited.clear();
+
+      const applyMat = (mat: THREE.Material, forceStreetLamp = false) => {
+        if (visited.has(mat)) return;
+        visited.add(mat);
+        if (mat === this.ringMat) return;
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          const baseI = (mat.userData.i as number | undefined) ?? 1;
+          if (mat.userData.windowLit) {
+            mat.emissiveIntensity = nightHours
+              ? baseI * (0.06 + windowGlow * 1.55) * windowHaze
+              : 0;
+          } else if (mat.userData.streetLampEmissive || forceStreetLamp) {
+            mat.emissiveIntensity = nightHours ? baseI * (0.35 + lampGlow * 1.35) : 0;
+          } else if (glowMaterials.includes(mat)) {
+            mat.emissiveIntensity = baseI * (0.15 + litStrength * 1.45);
+          }
+        }
+      };
+
+      const scanGroup = (group: THREE.Object3D | null | undefined) => {
+        if (!group) return;
+        group.traverse((obj) => {
+          const anyObj = obj as THREE.Object3D & { material?: THREE.Material | THREE.Material[] };
+          if (!anyObj.material) return;
+          const isLampObj = Boolean(obj.userData.isStreetLamp);
+          const mats = Array.isArray(anyObj.material) ? anyObj.material : [anyObj.material];
+          for (let i = 0; i < mats.length; i++) {
+            const mat = mats[i];
+            if (!mat) continue;
+            if (isLampObj || mat.userData.windowLit || mat.userData.streetLampEmissive) {
+              applyMat(mat, isLampObj);
+            }
+          }
+        });
+      };
+
+      scanGroup(this.currentGroup);
+      scanGroup(this.outgoingGroup);
+      for (const cached of this.landmarkCache.values()) {
+        scanGroup(cached.group);
+        for (let i = 0; i < cached.glow.length; i++) {
+          applyMat(cached.glow[i]);
+        }
+      }
+      for (let i = 0; i < glowMaterials.length; i++) {
+        applyMat(glowMaterials[i]);
+      }
+    }
+
+    this.syncStreetLamps(dt, immediate);
+    return nightHours;
+  }
+
+  private isCoastalLandmark(group: THREE.Object3D | null = this.currentGroup): boolean {
+    return (
+      (group?.userData.biome as string | undefined) === 'coastal' ||
+      LANDMARKS[this.activeIndex]?.biome === 'coastal'
+    );
+  }
+
+  /**
+   * Register all coastal water surface meshes (plus tide-riding surf rings) so
+   * tidal oscillation never drifts when landmarks are recycled from the LRU cache.
+   */
+  private collectCoastalWaterSurfaces(group: THREE.Object3D | null): void {
+    this.coastalWaterMeshes = [];
+    if (!group || !this.isCoastalLandmark(group)) return;
+    group.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      let isWater =
+        obj.userData.isWaterSurface === true || obj.userData.tracksCoastalTide === true;
+      if (!isWater) {
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (let i = 0; i < mats.length; i++) {
+          if (mats[i]?.userData?.isWaterSurface === true) {
+            isWater = true;
+            break;
+          }
+        }
+      }
+      if (!isWater) return;
+      const storedBase = obj.userData.baseWaterY as number | undefined;
+      const baseY = typeof storedBase === 'number' ? storedBase : obj.position.y;
+      obj.userData.baseWaterY = baseY;
+      this.coastalWaterMeshes.push({ mesh: obj, baseY });
+    });
+  }
+
+  /**
+   * Subtly oscillate water surface meshes on coastal landmarks across the
+   * 24-hour cycle to simulate semidiurnal tides and gentle ocean breathing.
+   */
+  updateCoastalTide(dt = 0, immediate = false): void {
+    if (this.coastalWaterMeshes.length === 0) {
+      this.coastalTideOffset = 0;
+      return;
+    }
+    const target = this.isStudio()
+      ? 0
+      : computeCoastalTideOffset(this.weather.current.timeOfDay, this.shaderTime, this.motionScale);
+    const rate = immediate || this.motionScale === 0 ? 1 : Math.min(1, dt * 4.5);
+    this.coastalTideOffset = immediate
+      ? target
+      : this.coastalTideOffset + (target - this.coastalTideOffset) * rate;
+    for (let i = 0; i < this.coastalWaterMeshes.length; i++) {
+      const entry = this.coastalWaterMeshes[i];
+      entry.mesh.position.y = entry.baseY + this.coastalTideOffset;
+    }
+  }
+
   private buildLandmarkGroup(index: number): THREE.Group {
     const meta = LANDMARKS[index];
     const builder = LANDMARK_BUILDERS[meta.k];
@@ -1487,6 +1845,7 @@ export class CitylitEngine {
       if (evicted) this.disposeTransientResources(evicted.group);
     }
     this.landmarkCache.set(targetIndex, entry);
+    this.lastGlowLit = -1;
 
     if (!this.bootPrewarmDone) {
       this.bootPrewarmDone = true;
@@ -1784,7 +2143,11 @@ export class CitylitEngine {
       { length: wanted },
       (_, i) => denseAnchors[Math.floor(((i + 0.5) * denseAnchors.length) / wanted)]
     );
-    this.syncStreetLamps(0, true);
+    this.spawnVehicleNightLights(this.currentGroup);
+    this.animateVehicleNightLights(0, true);
+    this.updateNighttimeEmissives(0, true);
+    this.collectCoastalWaterSurfaces(this.currentGroup);
+    this.updateCoastalTide(0, true);
 
     // Obstruction beacons for this skyline, drawn as one instanced mesh that the
     // beacon shader blinks on a shared clock with per-structure phase.
@@ -2395,15 +2758,16 @@ export class CitylitEngine {
   }
 
   setTheme(theme: ThemeSetting, immediate = false): void {
+    const resolvedTheme = resolveTheme(theme);
     const wasStudio = this.isStudio();
-    const themeChanged = this.theme !== theme;
-    this.theme = theme;
+    const themeChanged = this.theme !== resolvedTheme;
+    this.theme = resolvedTheme;
     this.lastInteractAt = this.elapsed;
-    this.weather.setTheme(theme, immediate);
+    this.weather.setTheme(resolvedTheme, immediate);
     this.updatePlinthVisibility();
     this.applyPostGrade();
 
-    if (theme === 'studio') {
+    if (resolvedTheme === 'studio') {
       this.scene.environment = this.roomEnvTex;
       this.targetBloomThreshold = 1.15;
       this.targetBloomStrength = 0.14;
@@ -2418,6 +2782,7 @@ export class CitylitEngine {
       this.camera.updateProjectionMatrix();
       this.controls.autoRotate = false;
       if (!wasStudio && !immediate) this.frameCurrentLandmark();
+      this.updateCoastalTide(0, immediate);
       return;
     }
 
@@ -2433,7 +2798,7 @@ export class CitylitEngine {
       this.frameCurrentLandmark();
     }
 
-    if (theme === 'daylight') {
+    if (resolvedTheme === 'daylight') {
       this.targetRingCol.set(this.activeSiteVisual.plinthRingDay);
       this.targetRingEmissive = 0.16;
       this.targetBloomThreshold = 0.98;
@@ -2453,6 +2818,9 @@ export class CitylitEngine {
       this.bloomPass.threshold = this.targetBloomThreshold;
       this.bloomPass.strength = this.targetBloomStrength;
     }
+    this.animateVehicleNightLights(0, immediate);
+    this.updateNighttimeEmissives(0, immediate);
+    this.updateCoastalTide(0, immediate);
   }
 
   setMotionPreferences(reduced: boolean): void {
@@ -2549,6 +2917,9 @@ export class CitylitEngine {
       renderer: this.renderer,
       camera: this.camera,
     });
+    this.updateNighttimeEmissives(0, true);
+    this.animateVehicleNightLights(0, true);
+    this.updateCoastalTide(0, true);
   }
 
   toggleRainRainbow(): void {
@@ -2579,8 +2950,9 @@ export class CitylitEngine {
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
     this.cutawayCap.visible = false;
-    // Park the streetlamps; the hero frame loop stops running in globe mode.
+    // Park the streetlamps and vehicle lights; the hero frame loop pauses in globe mode.
     this.syncStreetLamps(0, true);
+    this.animateVehicleNightLights(0, true);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
@@ -2633,8 +3005,9 @@ export class CitylitEngine {
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
     this.cutawayCap.visible = false;
-    // Park the streetlamps; the hero frame loop stops running in Places mode.
+    // Park the streetlamps and vehicle lights; the hero frame loop pauses in Places mode.
     this.syncStreetLamps(0, true);
+    this.animateVehicleNightLights(0, true);
     this.plinthGroup.visible = false;
     this.markerGroup.visible = false;
     this.dustPoints.visible = false;
@@ -4319,28 +4692,11 @@ export class CitylitEngine {
           (0.6 + this.weather.current.wind * 0.35);
       }
       const litStrength = WU.lit.value;
-      // Window glow follows the solar clock (and hazes down in rain) instead of
-      // the generic night lift, so occupied panes stay matte in daylight.
-      const windowGlow = streetLampNightFactor(
-        this.weather.current.timeOfDay,
-        0,
-        WU.season.value
-      );
-      const windowHaze = 1 - this.weather.current.rain * 0.22;
-      const glowKey = litStrength + windowGlow * 2;
-      if (Math.abs(glowKey - this.lastGlowLit) >= 0.002) {
-        this.lastGlowLit = glowKey;
-        for (const gm of glowMaterials) {
-          const baseI = (gm.userData.i as number | undefined) ?? 1;
-          gm.emissiveIntensity = gm.userData.windowLit
-            ? baseI * (0.02 + windowGlow * 1.55) * windowHaze
-            : baseI * (0.15 + litStrength * 1.45);
-        }
-      }
-
-      // Solar clock: anchor/fade the streetlamps once the sun is below the
-      // horizon. (The window schedule itself runs in every camera mode above.)
-      this.syncStreetLamps(dt);
+      // Detect nighttime hours and toggle window & streetlight emissive materials
+      // across all landmark models, then animate night-mode vehicle light sources.
+      this.updateNighttimeEmissives(dt);
+      this.animateVehicleNightLights(dt);
+      this.updateCoastalTide(dt);
 
       // Fact pin & private User Pin sprite pulse + float + pop-in + hover boost
       this.markerSprites.forEach((sp, i) => {
@@ -4754,6 +5110,11 @@ export class CitylitEngine {
     this.directionPulseMat.dispose();
     this.dustGeo.dispose();
     this.dustMat.dispose();
+    this.vehicleBulbGeo.dispose();
+    this.vehicleHaloGeo.dispose();
+    this.vehicleHeadBulbMat.dispose();
+    this.vehicleTailBulbMat.dispose();
+    this.vehicleHeadHaloMat.dispose();
     this.controls.dispose();
     this.globe.dispose();
     this.places.dispose();

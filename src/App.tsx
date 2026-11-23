@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { DURATION, EASE_SMOOTH_OUT, SPRING, toastVariants } from './lib/motion';
 import { referenceDisplayFactor } from './lib/scale';
+import { msUntilNextThemeBoundary, resolveAutoTheme, resolveTheme } from './lib/theme';
 import {
   readInitialCoordinate,
   readInitialGlobeState,
@@ -54,6 +55,7 @@ import type {
   LandmarkNote,
   LiveWeatherSample,
   NoteCategory,
+  ResolvedTheme,
   ScaleReferenceKind,
   SavedCustomPlace,
   SkyEvent,
@@ -183,10 +185,13 @@ function readSettings(): CitylitSettings {
         uiSounds: parsed.uiSounds ?? true,
         motion: parsed.motion ?? 'auto',
         tilt: parsed.tilt ?? false,
-        // Keep an explicit persisted choice (including 'dark'); only fall back
-        // to the first-run default when no valid theme was stored.
+        // Keep an explicit persisted choice (including 'auto' or 'dark'); only
+        // fall back to the first-run default when no valid theme was stored.
         theme:
-          parsed.theme === 'dark' || parsed.theme === 'daylight' || parsed.theme === 'studio'
+          parsed.theme === 'auto' ||
+          parsed.theme === 'dark' ||
+          parsed.theme === 'daylight' ||
+          parsed.theme === 'studio'
             ? parsed.theme
             : 'daylight',
         cinematic: parsed.cinematic ?? false,
@@ -241,6 +246,11 @@ export function App() {
   const visitedRef = useRef(visited);
   const [settings, setSettings] = useState<CitylitSettings>(readSettings);
   const settingsRef = useRef(settings);
+  const [autoResolvedTheme, setAutoResolvedTheme] = useState<'daylight' | 'dark'>(() =>
+    resolveAutoTheme()
+  );
+  const effectiveTheme: ResolvedTheme =
+    settings.theme === 'auto' ? autoResolvedTheme : resolveTheme(settings.theme);
   const [thumbnails, setThumbnails] = useState<Record<number, string>>({});
 
   const [soundOn, setSoundOn] = useState(false);
@@ -601,7 +611,7 @@ export function App() {
         instance.setPaused(document.hidden || galleryOpenRef.current);
 
         const initialIdx = readInitialLandmarkIndex();
-        const initialTheme = readSettings().theme;
+        const initialTheme = resolveTheme(readSettings().theme);
         document.documentElement.dataset.theme = initialTheme;
         instance.setTheme(initialTheme, true);
         instance.setSeasonMonth(new Date().getMonth() + 1, true);
@@ -687,6 +697,33 @@ export function App() {
     engineRef.current?.setPaused(docHidden || galleryOpen);
   }, [docHidden, galleryOpen]);
 
+  // Dynamically update resolved theme from local wall-clock time when 'auto' is selected.
+  useEffect(() => {
+    if (settings.theme !== 'auto') return undefined;
+    let boundaryTimer = 0;
+    const syncAndSchedule = () => {
+      const now = new Date();
+      setAutoResolvedTheme(resolveAutoTheme(now));
+      window.clearTimeout(boundaryTimer);
+      boundaryTimer = window.setTimeout(syncAndSchedule, msUntilNextThemeBoundary(now));
+    };
+    syncAndSchedule();
+    const interval = window.setInterval(() => {
+      setAutoResolvedTheme(resolveAutoTheme());
+    }, 30_000);
+    const onResume = () => {
+      if (!document.hidden) syncAndSchedule();
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    return () => {
+      window.clearTimeout(boundaryTimer);
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+    };
+  }, [settings.theme]);
+
   // Sync audio & engine settings
   useEffect(() => {
     document.body.classList.toggle('rm', reducedMotion);
@@ -697,9 +734,9 @@ export function App() {
       reducedMotion,
       uiSounds: settings.uiSounds,
     });
-    document.documentElement.dataset.theme = settings.theme;
+    document.documentElement.dataset.theme = effectiveTheme;
     engineRef.current?.applyQuality(settings.quality);
-    engineRef.current?.setTheme(settings.theme);
+    engineRef.current?.setTheme(effectiveTheme);
     engineRef.current?.setMotionPreferences(reducedMotion);
     engineRef.current?.setTiltEnabled(settings.tilt);
     engineRef.current?.setCinematic(settings.cinematic);
@@ -714,7 +751,7 @@ export function App() {
     } catch {
       // Ignore storage failures
     }
-  }, [settings, reducedMotion]);
+  }, [settings, effectiveTheme, reducedMotion]);
 
   useEffect(() => {
     foundEggsRef.current = foundEggs;
@@ -1551,13 +1588,13 @@ export function App() {
             <div
               aria-hidden="true"
               className={`fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_58%,rgba(0,0,0,0.42))] transition-opacity duration-700 ease-out ${
-                settings.theme === 'dark' ? 'opacity-100' : 'opacity-0'
+                effectiveTheme === 'dark' ? 'opacity-100' : 'opacity-0'
               }`}
             />
             <div
               aria-hidden="true"
               className={`fixed inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,transparent_64%,rgba(16,32,48,0.16))] transition-opacity duration-700 ease-out ${
-                settings.theme === 'daylight' ? 'opacity-100' : 'opacity-0'
+                effectiveTheme === 'daylight' ? 'opacity-100' : 'opacity-0'
               }`}
             />
           </>
@@ -1570,7 +1607,7 @@ export function App() {
           fullscreen={fullscreen}
           idleInFullscreen={idleInFullscreen}
           globeOpen={globeOpen || placesOpen}
-          theme={settings.theme}
+          theme={effectiveTheme}
           scaleMode={settings.scaleMode ?? false}
           reducedMotion={reducedMotion}
           onToggleScale={() => {
@@ -1788,7 +1825,7 @@ export function App() {
         {!fullscreen && !globeOpen && !placesOpen && hintVisible && (
           <div
             className={`hidden md:block fixed right-4 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] text-[12px] pointer-events-none transition-colors duration-500 ${
-              settings.theme === 'dark' ? 'text-[#a9a69e]' : 'text-[#1c2330]/75'
+              effectiveTheme === 'dark' ? 'text-[#a9a69e]' : 'text-[#1c2330]/75'
             }`}
           >
             Drag to orbit · Scroll to zoom · Space tour · R reframe · Tap pins
@@ -1796,7 +1833,7 @@ export function App() {
         )}
 
         {/* Minimalist Ambient Audio Frequency Bar (visible only when sound is ON) */}
-        <AudioVisualizerBar active={soundOn} theme={settings.theme} reducedMotion={reducedMotion} />
+        <AudioVisualizerBar active={soundOn} theme={effectiveTheme} reducedMotion={reducedMotion} />
 
         {/* Globe Overlay HUD */}
         <GlobeOverlay
@@ -2179,6 +2216,7 @@ export function App() {
         <SettingsModal
           open={settingsOpen}
           settings={settings}
+          effectiveTheme={effectiveTheme}
           reducedMotion={reducedMotion}
           tourActive={tourActive}
           onToggleTour={() => {

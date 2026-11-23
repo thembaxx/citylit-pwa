@@ -1183,6 +1183,7 @@ function addSquareWaterPlate(g: THREE.Group, profile: SiteProfile): void {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = 0.06;
   mesh.userData.noShadow = true;
+  mesh.userData.isWaterSurface = true;
   g.add(mesh);
 }
 
@@ -2402,7 +2403,7 @@ function getLampBulbMat(): THREE.ShaderMaterial {
   if (lampBulbMatShared) return lampBulbMatShared;
   lampBulbMatShared = new THREE.ShaderMaterial({
     uniforms: {
-      uLit: WU.lit,
+      uLit: WU.streetLampLit,
       uWT: WU.t,
       uDY: WU.dy,
     },
@@ -2456,6 +2457,7 @@ function getLampBulbMat(): THREE.ShaderMaterial {
   });
   lampBulbMatShared.userData.sharedResource = true;
   lampBulbMatShared.userData.noDissolve = true;
+  lampBulbMatShared.userData.streetLampEmissive = true;
   return lampBulbMatShared;
 }
 
@@ -2463,7 +2465,7 @@ function getLampPoolMat(): THREE.ShaderMaterial {
   if (lampPoolMatShared) return lampPoolMatShared;
   lampPoolMatShared = new THREE.ShaderMaterial({
     uniforms: {
-      uLit: WU.lit,
+      uLit: WU.streetLampLit,
       uWT: WU.t,
       uDY: WU.dy,
     },
@@ -2518,6 +2520,7 @@ function getLampPoolMat(): THREE.ShaderMaterial {
   });
   lampPoolMatShared.userData.sharedResource = true;
   lampPoolMatShared.userData.noDissolve = true;
+  lampPoolMatShared.userData.streetLampEmissive = true;
   return lampPoolMatShared;
 }
 
@@ -2526,7 +2529,7 @@ function getLampConeMat(upward: boolean): THREE.ShaderMaterial {
   if (!upward && lampDownConeMatShared) return lampDownConeMatShared;
   const mat = new THREE.ShaderMaterial({
     uniforms: {
-      uLit: WU.lit,
+      uLit: WU.streetLampLit,
       uDY: WU.dy,
       uUpward: { value: upward ? 1.0 : 0.0 },
     },
@@ -2587,6 +2590,7 @@ function getLampConeMat(upward: boolean): THREE.ShaderMaterial {
   });
   mat.userData.sharedResource = true;
   mat.userData.noDissolve = true;
+  mat.userData.streetLampEmissive = true;
   if (upward) lampUpConeMatShared = mat;
   else lampDownConeMatShared = mat;
   return mat;
@@ -2596,7 +2600,7 @@ function getLampHaloMat(): THREE.ShaderMaterial {
   if (lampHaloMatShared) return lampHaloMatShared;
   lampHaloMatShared = new THREE.ShaderMaterial({
     uniforms: {
-      uLit: WU.lit,
+      uLit: WU.streetLampLit,
       uDY: WU.dy,
       uWT: WU.t,
       // Fog swells the halo so lamps bloom in mist.
@@ -2652,6 +2656,7 @@ function getLampHaloMat(): THREE.ShaderMaterial {
   });
   lampHaloMatShared.userData.sharedResource = true;
   lampHaloMatShared.userData.noDissolve = true;
+  lampHaloMatShared.userData.streetLampEmissive = true;
   return lampHaloMatShared;
 }
 
@@ -3032,6 +3037,7 @@ export function addStreetLampSet(g: THREE.Object3D, specs: readonly StreetLampSp
     bulbIm.userData.noShadow = true;
     bulbIm.userData.cannotReceiveAO = true;
     bulbIm.userData.noDissolve = true;
+    bulbIm.userData.isStreetLamp = true;
   }
 
   const poolIm = instancedMeshes(g, getLampPoolGeo(), getLampPoolMat(), poolTransforms, poolColors);

@@ -1,4 +1,5 @@
 import { LANDMARKS } from '../data/landmarks';
+import { resolveTheme } from '../lib/theme';
 import type { ThemeSetting } from '../types/citylit';
 
 const DB_NAME = 'citylit-cache-v1';
@@ -39,11 +40,12 @@ export async function loadCachedThumbnails(
   const db = await openThumbDb();
   if (!db) return null;
   const sig = getLandmarkSignature();
+  const resolvedTheme = resolveTheme(theme);
   return new Promise((resolve) => {
     try {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.get(`thumbs:${theme}`);
+      const req = store.get(`thumbs:${resolvedTheme}`);
       req.onsuccess = () => {
         const val = req.result as StoredThumbBundle | undefined;
         db.close();
@@ -74,11 +76,12 @@ export async function saveCachedThumbnails(
     signature: getLandmarkSignature(),
     items,
   };
+  const resolvedTheme = resolveTheme(theme);
   await new Promise<void>((resolve) => {
     try {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      store.put(bundle, `thumbs:${theme}`);
+      store.put(bundle, `thumbs:${resolvedTheme}`);
       tx.oncomplete = () => {
         db.close();
         resolve();

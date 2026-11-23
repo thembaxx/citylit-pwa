@@ -2085,7 +2085,7 @@ let carPoolGeo: THREE.BufferGeometry | null = null;
 export function getCarPoolMat(): THREE.ShaderMaterial {
   if (carPoolMat) return carPoolMat;
   carPoolMat = new THREE.ShaderMaterial({
-    uniforms: { uLit: WU.lit, uRain: WU.rain, uDY: WU.dy },
+    uniforms: { uLit: WU.vehicleNightLit, uRain: WU.rain, uDY: WU.dy },
     vertexShader: `
       varying vec2 vUv;
       varying vec3 vWorldPos;
@@ -2126,7 +2126,7 @@ export function getCarPoolMat(): THREE.ShaderMaterial {
 export function getCarHeadlightMat(): THREE.ShaderMaterial {
   if (carHeadlightMat) return carHeadlightMat;
   carHeadlightMat = new THREE.ShaderMaterial({
-    uniforms: { uLit: WU.lit, uDY: WU.dy },
+    uniforms: { uLit: WU.vehicleNightLit, uDY: WU.dy },
     vertexShader: `
       varying vec2 vUv;
       varying vec3 vWorldPos;
@@ -2173,7 +2173,7 @@ export function getCarHeadlightMat(): THREE.ShaderMaterial {
 export function getCarTaillightMat(): THREE.ShaderMaterial {
   if (carTaillightMat) return carTaillightMat;
   carTaillightMat = new THREE.ShaderMaterial({
-    uniforms: { uLit: WU.lit, uDY: WU.dy },
+    uniforms: { uLit: WU.vehicleNightLit, uDY: WU.dy },
     vertexShader: `
       varying vec2 vUv;
       varying vec3 vWorldPos;
@@ -2307,6 +2307,8 @@ export function car(col: string, sc = 0.5, withLights = true): THREE.Group {
     pool.userData.noDissolve = true;
   }
 
+  c.userData.isVehicle = true;
+  c.userData.vehicleHasLights = withLights;
   c.scale.setScalar(sc);
   return c;
 }
@@ -2771,8 +2773,8 @@ export function seaRings(
   count = 3,
   col: THREE.ColorRepresentation = '#e8fbff'
 ): (t: number) => void {
-  const rs = Array.from({ length: count }, () =>
-    add(
+  const rs = Array.from({ length: count }, () => {
+    const ring = add(
       g,
       new THREE.RingGeometry(r0, r0 + 0.09, 64).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({
@@ -2785,8 +2787,10 @@ export function seaRings(
       0,
       y,
       0
-    )
-  );
+    );
+    ring.userData.tracksCoastalTide = true;
+    return ring;
+  });
   return (t: number) => {
     rs.forEach((r, i) => {
       const k = (t * 0.2 + i / count) % 1;
@@ -2818,7 +2822,9 @@ export function sea(g: THREE.Object3D, c = '#1c6e91', shallow = '#2da8b8'): THRE
     metalness: 0.25,
   });
   waterize(mat);
-  return add(g, geo, mat, 0, 0.05, 0);
+  const mesh = add(g, geo, mat, 0, 0.05, 0);
+  mesh.userData.isWaterSurface = true;
+  return mesh;
 }
 
 interface ContactShadowSpec {

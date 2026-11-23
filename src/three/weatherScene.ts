@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { liveWeatherVisual, WEATHER_CONDITIONS } from '../data/weatherData';
 import { monthToSeasonWeights, type SeasonWeights } from '../lib/season';
 import { southernSunDirection } from '../lib/solarPosition';
+import { resolveTheme } from '../lib/theme';
 import type {
   LiveWeatherSample,
   SkyEvent,
@@ -750,8 +751,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   };
 
   const setTheme = (theme: ThemeSetting, immediate = false) => {
-    themeTarget.daylight = theme === 'daylight' ? 1 : 0;
-    themeTarget.studio = theme === 'studio' ? 1 : 0;
+    const resolved = resolveTheme(theme);
+    themeTarget.daylight = resolved === 'daylight' ? 1 : 0;
+    themeTarget.studio = resolved === 'studio' ? 1 : 0;
     if (immediate) {
       themeCurrent.daylight = themeTarget.daylight;
       themeCurrent.studio = themeTarget.studio;

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ambientAudio } from '../audio/ambientAudio';
 import { DURATION, EASE_SMOOTH_OUT } from '../lib/motion';
+import { resolveTheme } from '../lib/theme';
 import type { ThemeSetting } from '../types/citylit';
 
 interface AudioVisualizerBarProps {
@@ -69,8 +70,10 @@ export function AudioVisualizerBar({
     let rafId = 0;
     let lastTime = performance.now();
     let lastDrawTime = 0;
-    const palette = theme !== 'dark' ? LIGHT_PALETTE : DARK_PALETTE;
-    const baselineColor = theme !== 'dark' ? 'rgba(28, 35, 48, 0.14)' : 'rgba(243, 239, 230, 0.14)';
+    const resolvedTheme = resolveTheme(theme);
+    const palette = resolvedTheme !== 'dark' ? LIGHT_PALETTE : DARK_PALETTE;
+    const baselineColor =
+      resolvedTheme !== 'dark' ? 'rgba(28, 35, 48, 0.14)' : 'rgba(243, 239, 230, 0.14)';
 
     const draw = (now: number) => {
       if (document.hidden) {

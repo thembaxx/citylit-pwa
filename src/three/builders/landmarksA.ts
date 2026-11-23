@@ -1667,8 +1667,8 @@ export function capePoint(): THREE.Group {
     0.12,
     beachZ
   );
-  const surf = [0, 1, 2].map(() =>
-    add(
+  const surf = [0, 1, 2].map(() => {
+    const ring = add(
       g,
       new THREE.RingGeometry(1.5, 1.6, 48).rotateX(-Math.PI / 2),
       new THREE.MeshBasicMaterial({
@@ -1681,8 +1681,10 @@ export function capePoint(): THREE.Group {
       beachX,
       0.15,
       beachZ
-    )
-  );
+    );
+    ring.userData.tracksCoastalTide = true;
+    return ring;
+  });
   const skiff = boat('#d8543c', 0.7);
   g.add(skiff);
 

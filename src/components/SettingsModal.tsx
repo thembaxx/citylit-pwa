@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { ambientAudio } from '../audio/ambientAudio';
 import { PRESS_SCALE } from '../lib/motion';
+import { resolveTheme } from '../lib/theme';
 import { detectNativeHost } from '../three/cinematic/nativeHost';
 import type {
   AmbientMixerPreset,
@@ -25,6 +26,7 @@ import type {
   MotionSetting,
   QualitySetting,
   RendererSetting,
+  ResolvedTheme,
   ScaleReferenceKind,
   ThemeSetting,
 } from '../types/citylit';
@@ -36,6 +38,7 @@ import { SettleModal } from './ui/SettleModal';
 interface SettingsModalProps {
   open: boolean;
   settings: CitylitSettings;
+  effectiveTheme?: ResolvedTheme;
   reducedMotion?: boolean;
   tourActive?: boolean;
   onToggleTour?: () => void;
@@ -121,8 +124,9 @@ const MOTION_OPTIONS = [
 ];
 
 const THEME_OPTIONS = [
-  { value: 'dark' as const, label: 'Dark' },
+  { value: 'auto' as const, label: 'Auto' },
   { value: 'daylight' as const, label: 'Daylight' },
+  { value: 'dark' as const, label: 'Dark' },
   { value: 'studio' as const, label: 'Studio' },
 ];
 
@@ -148,6 +152,7 @@ const MIXER_CHANNELS: Array<{
 export function SettingsModal({
   open,
   settings,
+  effectiveTheme,
   reducedMotion = false,
   tourActive = false,
   onToggleTour,
@@ -159,6 +164,7 @@ export function SettingsModal({
   const [presetName, setPresetName] = useState('');
   const mixer = settings.mixer ?? DEFAULT_MIXER;
   const nativeHost = detectNativeHost();
+  const resolvedTheme = effectiveTheme ?? resolveTheme(settings.theme);
   const isDefaultMixer =
     mixer.wind === DEFAULT_MIXER.wind &&
     mixer.birds === DEFAULT_MIXER.birds &&
@@ -223,7 +229,15 @@ export function SettingsModal({
 
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Scene backdrop</span>
+          <div className="min-w-0">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Scene backdrop</span>
+            {settings.theme === 'auto' && (
+              <p className="mt-0.5 m-0 text-[11.5px] text-[#a9a69e]/80">
+                Follows local time ·{' '}
+                {resolvedTheme === 'daylight' ? 'Daylight (06:00–19:00)' : 'Dark (19:00–06:00)'}
+              </p>
+            )}
+          </div>
           <PillNavigation<ThemeSetting>
             layoutId="settings-theme"
             reducedMotion={reducedMotion}
