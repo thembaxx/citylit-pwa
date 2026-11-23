@@ -3785,3 +3785,28 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   group.userData.biome = profile.biome;
   return group;
 }
+
+/**
+ * Finalize a raw landmark build with the surrounding context kit disabled.
+ *
+ * Only the render/audio infrastructure the builders rely on is kept: tree LOD
+ * batching, contact-shadow stamping, the animated-shadow flag and the site
+ * metadata the engine reads when swapping landmarks. No rim, scatter, ring,
+ * anchor prop, weather, wildlife, birds or hidden detail is added.
+ */
+export function finalizeLandmarkGroup(key: string, group: THREE.Group): THREE.Group {
+  finalizeTreeBatch(group);
+  stampContactShadowsFromMeshes(group);
+  finalizeContactShadows(group);
+
+  group.userData.hasAnimatedShadowMeshes = Boolean(group.userData.tick) || swayItems.length > 0;
+
+  const profileKey = normalizeProfileKey(key);
+  const profile = getSiteProfile(profileKey);
+  group.userData.audioProfile = {
+    ...profile.audio,
+    sources: buildSpatialSources(profileKey, profile, keyAngle(profileKey) + 0.6),
+  } satisfies AmbientSiteProfile;
+  group.userData.biome = profile.biome;
+  return group;
+}

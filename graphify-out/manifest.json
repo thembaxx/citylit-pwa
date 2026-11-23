@@ -229,9 +229,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795461210.5608988,
-    "seen": 1795461895.9868114,
-    "ast_hash": "6abc508c07b48ca82bd2f20499daf8f1",
+    "mtime": 1795465788.7270048,
+    "seen": 1795465899.558815,
+    "ast_hash": "58e20100eb58ee2642a9bec4ef369aa9",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
@@ -241,9 +241,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795451832.2043068,
-    "seen": 1795452110.0924501,
-    "ast_hash": "96e911a4b409b017d031095333defb47",
+    "mtime": 1795465499.8411713,
+    "seen": 1795465701.4394903,
+    "ast_hash": "183eae018e2bec2c9eebdc5537a7ebaa",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {

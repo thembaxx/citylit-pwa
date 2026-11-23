@@ -82,7 +82,7 @@ import { attachVehicleLights } from './vehicleLightKit';
 import {
   addLighthouseSweep,
   addStreetLampSet,
-  applyDioramaUpgrade,
+  finalizeLandmarkGroup,
   corniceBand,
   doorSurround,
   facadeWindow,
@@ -3195,12 +3195,12 @@ const RAW_BUILDERS: Record<string, () => THREE.Group> = {
 };
 
 /**
- * Every landmark is wrapped with the shared diorama upgrade so the crafted
- * rim, biome cover, micro-weather, batched foliage and audio profile are
- * applied consistently without touching each individual builder.
+ * Landmark groups contain only the raw builder geometry. The surrounding
+ * context kit is no longer applied; only render/audio infrastructure is
+ * finalized so the trees the builders themselves add still batch correctly.
  */
 export const LANDMARK_BUILDERS: Record<string, () => THREE.Group> = {};
 for (const key of Object.keys(RAW_BUILDERS)) {
   const build = RAW_BUILDERS[key];
-  LANDMARK_BUILDERS[key] = () => applyDioramaUpgrade(key, build());
+  LANDMARK_BUILDERS[key] = () => finalizeLandmarkGroup(key, build());
 }
