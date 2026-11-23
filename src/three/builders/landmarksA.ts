@@ -41,7 +41,6 @@ import {
   rondavel,
   scatterRocks,
   sea,
-  seaRings,
   silverTree,
   swayItems,
   surfaceDetail,
@@ -1844,7 +1843,6 @@ export function capePoint(): THREE.Group {
     bmNew.add(c);
   });
   const sweepNew = addLighthouseSweep(g, 1.9, 0.17, 0.7, 6.2, '#ffefb2');
-  const sr = seaRings(g, 0.12, 3.4, 4);
   const spray = drift(
     g,
     60,
@@ -1871,7 +1869,6 @@ export function capePoint(): THREE.Group {
     const ftg = funicularCurve.getTangentAt(fu);
     funicularCar.position.set(fp.x, fp.y + 0.12, fp.z);
     funicularCar.rotation.y = Math.atan2(-ftg.z, ftg.x);
-    sr(t);
     spray(t);
     bd(t);
     roadCars.forEach((c, i) => {
@@ -2491,7 +2488,6 @@ export function holewall(): THREE.Group {
   );
   roller.rotation.z = Math.PI / 2;
 
-  const sr = seaRings(g, 0.12, 1.85, 4);
   const spray = drift(
     g,
     65,
@@ -2507,7 +2503,6 @@ export function holewall(): THREE.Group {
   g.userData.tick = (t: number) => {
     roller.position.z = -0.35 + ((t * 0.55) % 1) * 1.9;
     roller.material.opacity = 0.2 + 0.4 * Math.sin(((t * 0.55) % 1) * Math.PI);
-    sr(t);
     spray(t);
     bd(t);
   };
@@ -3424,10 +3419,8 @@ export function boulders(): THREE.Group {
     )
   );
 
-  const sr = seaRings(g, 0.14, 4, 3);
   const bd = birds(g, 3, 3, 5);
   g.userData.tick = (t: number) => {
-    sr(t);
     bd(t);
     shoreFoam.forEach((ring, i) => {
       ring.material.opacity = 0.18 + 0.14 * (0.5 + 0.5 * Math.sin(t * 1.6 + i));
@@ -3522,7 +3515,6 @@ export function agulhas(): THREE.Group {
     bm.add(c);
   });
   const sweep = addLighthouseSweep(g, -0.4, 0.5, 0, 6.0, '#ffefb2');
-  const sr = seaRings(g, 0.12, 3.6, 3);
   const spray = drift(
     g,
     50,
@@ -3540,7 +3532,6 @@ export function agulhas(): THREE.Group {
   g.userData.tick = (t: number) => {
     bm.rotation.y = t * 1.2;
     sweep.rotation.y = bm.rotation.y;
-    sr(t);
     spray(t);
     bd(t);
   };

@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795443767.1623101,
-    "seen": 1795444696.4427574,
-    "ast_hash": "881041ba69fac2ad50f9d6f59c120adc",
+    "mtime": 1795453080.845383,
+    "seen": 1795453612.7889943,
+    "ast_hash": "65f905b4f21f67f72ef0e115da9d9a66",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -235,21 +235,21 @@
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795446199.2599902,
-    "seen": 1795446774.1849084,
-    "ast_hash": "27fe5ecd3a962b9b9134a1f7d1372c69",
+    "mtime": 1795451832.1963406,
+    "seen": 1795452110.092246,
+    "ast_hash": "fb2f9e63033dfaa7256330d8c029c74e",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795440717.3430655,
-    "seen": 1795441657.6774354,
-    "ast_hash": "ffb4274ae81cb17bf88b36eac289a7ea",
+    "mtime": 1795451832.2043068,
+    "seen": 1795452110.0924501,
+    "ast_hash": "96e911a4b409b017d031095333defb47",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795443301.2323859,
-    "seen": 1795444696.4428062,
-    "ast_hash": "73e92776bc9856fbab4d97a11fbd4621",
+    "mtime": 1795451832.189348,
+    "seen": 1795452110.0924594,
+    "ast_hash": "801631c0a861eec19e61f36a09219069",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
@@ -331,9 +331,9 @@
     "semantic_hash": ""
   },
   "src/three/siteAtmosphere.ts": {
-    "mtime": 1795446295.142589,
-    "seen": 1795446774.1865652,
-    "ast_hash": "986dadaedc8a6db8223671b8d824f65e",
+    "mtime": 1795451832.1753263,
+    "seen": 1795452110.092763,
+    "ast_hash": "ea4b8042ec6b36b73c650019977fbefe",
     "semantic_hash": ""
   },
   "src/three/thumbnailCache.ts": {
@@ -643,9 +643,9 @@
     "semantic_hash": ""
   },
   "plans/README.md": {
-    "mtime": 1795269731.3505404,
-    "seen": 1795270207.9622426,
-    "ast_hash": "fe1fce8fb91cce8438afeefa6381960f",
+    "mtime": 1795453493.7844152,
+    "seen": 1795453612.7897027,
+    "ast_hash": "df58fd6d1fb27234f0663dad5bf3c3e6",
     "semantic_hash": ""
   },
   "probe-flicker.mjs": {
@@ -1129,9 +1129,9 @@
     "semantic_hash": ""
   },
   "src/three/renderer/createRenderer.ts": {
-    "mtime": 1795428650.593764,
-    "seen": 1795429409.990194,
-    "ast_hash": "63a11e9edc213ff56aabd99681a23667",
+    "mtime": 1795451915.7040837,
+    "seen": 1795452110.092606,
+    "ast_hash": "2afde4897a78932291b16ff848e84ba9",
     "semantic_hash": ""
   },
   "src/three/renderer/detectSoftwareGl.ts": {
@@ -1270,6 +1270,84 @@
     "mtime": 1795446581.7811358,
     "seen": 1795446774.1839716,
     "ast_hash": "5cd7a00465ac67c8a493f71823f8ef88",
+    "semantic_hash": ""
+  },
+  "docs/PERFORMANCE-AND-FITS-RESEARCH.md": {
+    "mtime": 1795453516.7742429,
+    "seen": 1795453612.7894583,
+    "ast_hash": "f56357691eb2b678d80fbc53b0ef4dca",
+    "semantic_hash": ""
+  },
+  "plans/012-gate-compass-hover-on-fine-pointer.md": {
+    "mtime": 1795449120.833236,
+    "seen": 1795452110.0936522,
+    "ast_hash": "43feae64dfb619f2f3469971a71f222f",
+    "semantic_hash": ""
+  },
+  "plans/013-anchor-menu-popover-scale-to-trigger.md": {
+    "mtime": 1795449120.833236,
+    "seen": 1795452110.0936594,
+    "ast_hash": "b7df2f17a0f9925bf4c679cebcd97f1d",
+    "semantic_hash": ""
+  },
+  "plans/014-calm-compass-landmark-change-feedback.md": {
+    "mtime": 1795449120.8957508,
+    "seen": 1795452110.0936666,
+    "ast_hash": "eb43fb54561d1884cdbed6e5e4061bcc",
+    "semantic_hash": ""
+  },
+  "plans/015-shorten-theme-crossfade-durations.md": {
+    "mtime": 1795449144.6272473,
+    "seen": 1795452110.0936732,
+    "ast_hash": "503ee9a8b5c4839aae8977870258daaa",
+    "semantic_hash": ""
+  },
+  "plans/016-shorten-weather-details-disclosure.md": {
+    "mtime": 1795449144.6272473,
+    "seen": 1795452110.0936809,
+    "ast_hash": "a2fcc689124e55ac9a7120a0f1e72c12",
+    "semantic_hash": ""
+  },
+  "plans/017-scale-ruler-bar-transform-not-width.md": {
+    "mtime": 1795449144.6942313,
+    "seen": 1795452110.0936878,
+    "ast_hash": "26d1475667f649dcf466f4a6b309c6af",
+    "semantic_hash": ""
+  },
+  "plans/018-consolidate-hand-typed-motion-literals.md": {
+    "mtime": 1795449176.19842,
+    "seen": 1795452110.0936942,
+    "ast_hash": "5bd015f8e5a27e8301fd247185ca3085",
+    "semantic_hash": ""
+  },
+  "plans/019-boot-scan-transform-not-top.md": {
+    "mtime": 1795449176.2498384,
+    "seen": 1795452110.0937006,
+    "ast_hash": "28659fcf1b8a4124e3303c3400de14a1",
+    "semantic_hash": ""
+  },
+  "plans/020-smooth-three-teleporting-state-swaps.md": {
+    "mtime": 1795449176.3742342,
+    "seen": 1795452110.0937076,
+    "ast_hash": "81d816f636b302c2f26a2e7e9bde4268",
+    "semantic_hash": ""
+  },
+  "plans/021-remove-landmark-rings.md": {
+    "mtime": 1795453528.3618934,
+    "seen": 1795453612.7896807,
+    "ast_hash": "5434cc6a4d91e1066592ac7f4c84dd9d",
+    "semantic_hash": ""
+  },
+  "plans/022-fit-all-landmarks-to-plinth.md": {
+    "mtime": 1795453541.655308,
+    "seen": 1795453612.7896883,
+    "ast_hash": "0e64f9044fc851e43ee0c6bfa9eba193",
+    "semantic_hash": ""
+  },
+  "plans/023-cut-idle-and-hidpi-render-cost.md": {
+    "mtime": 1795453551.3878157,
+    "seen": 1795453612.7896955,
+    "ast_hash": "47e50a4a32851042345813e4ec437f63",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

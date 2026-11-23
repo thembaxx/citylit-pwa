@@ -3,6 +3,16 @@ import type { RendererPreference, RendererSelection } from './types';
 
 const PREFERENCE_KEY = 'cl-renderer-pref';
 
+/**
+ * HiDPI displays already resolve edges at device resolution. Stacking 4x MSAA
+ * on top multiplies shaded samples for no visible benefit, so only 1x/low-DPR
+ * displays pay for multisampling.
+ */
+function wantsMsaa(): boolean {
+  const dpr = typeof devicePixelRatio === 'number' ? devicePixelRatio : 1;
+  return dpr <= 1.25;
+}
+
 interface GPUCapableNavigator {
   gpu?: {
     requestAdapter(options?: { powerPreference?: 'high-performance' | 'low-power' }): Promise<unknown>;
@@ -29,7 +39,7 @@ export function readRendererPreference(): RendererPreference {
 
 export function createWebGLRendererSelection(softwareGl: boolean, reason: string): RendererSelection {
   const renderer = new THREE.WebGLRenderer({
-    antialias: !softwareGl,
+    antialias: !softwareGl && wantsMsaa(),
     powerPreference: 'high-performance',
     preserveDrawingBuffer: false,
   });
@@ -63,7 +73,7 @@ export async function selectRenderer(softwareGl: boolean): Promise<RendererSelec
       import('three/addons/tsl/display/DepthOfFieldNode.js'),
     ]);
     candidate = new webgpu.WebGPURenderer({
-      antialias: !softwareGl,
+      antialias: !softwareGl && wantsMsaa(),
       alpha: false,
       powerPreference: 'high-performance',
       trackTimestamp: true,

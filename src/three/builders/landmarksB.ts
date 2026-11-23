@@ -67,7 +67,6 @@ import {
   rondavel,
   scatterRocks,
   sea,
-  seaRings,
   silverTree,
   surfaceDetail,
   tint,
@@ -254,11 +253,9 @@ export function augrabies(): THREE.Group {
     { x: 1.3, y: 0.49, z: 2.78, kind: 'bollard', scale: 0.72, color: '#ffd080', poolRadius: 0.6 },
   ]);
 
-  const sr = seaRings(g, 0.32, 1.1, 4);
   const bd = birds(g, 3, 3.5, 6);
   g.userData.tick = (t: number) => {
     wf(t);
-    sr(t);
     bd(t);
     plume(t);
     foam(t);
@@ -809,7 +806,6 @@ export function robben(): THREE.Group {
   const bt = boat('#3d6fa8', 1.0);
   const bt2 = boat('#c8a24a', 0.7);
   g.add(bt, bt2);
-  const sr = seaRings(g, 0.13, 3.6, 4);
   const surf = drift(
     g,
     90,
@@ -831,7 +827,6 @@ export function robben(): THREE.Group {
     bt.rotation.y = -0.24 + Math.sin(t * 0.6) * 0.06;
     bt2.position.set(4.6, 0.1 + Math.sin(t * 1.0 + 1) * 0.03, 3.2);
     bt2.rotation.y = -0.5 + Math.sin(t * 0.5) * 0.05;
-    sr(t);
     surf(t);
     bd(t);
   };
@@ -976,7 +971,6 @@ export function chapman(): THREE.Group {
     bushT.push({ x: r * Math.cos(a), y: 6.14, z: -1.8 + r * Math.sin(a), sx: 0.52, sy: 0.32, sz: 0.52 });
   }
   instancedMeshes(g, new THREE.IcosahedronGeometry(0.32, 1), Mc('#74805e'), bushT, ['#74805e', '#8a8260']);
-  const sr = seaRings(g, 0.12, 4.8, 3);
   const spray = drift(
     g,
     45,
@@ -1003,7 +997,6 @@ export function chapman(): THREE.Group {
       c.rotation.y = headingYaw(tg.x, tg.z);
     });
     csLights.sync();
-    sr(t);
     spray(t);
     bd(t);
   };
@@ -1454,7 +1447,6 @@ export function storms(): THREE.Group {
       0.12
     );
   }
-  const sr = seaRings(g, 0.12, 2.2, 4);
   const spray = drift(
     g,
     45,
@@ -1468,7 +1460,6 @@ export function storms(): THREE.Group {
   );
   const bd = birds(g, 4, 3.5, 6);
   g.userData.tick = (t: number) => {
-    sr(t);
     spray(t);
     bd(t);
   };
@@ -1871,7 +1862,6 @@ export function hermanus(): THREE.Group {
     },
     0.58
   );
-  const sr = seaRings(g, 0.12, 3.4, 3);
   const bd = birds(g, 4, 3.4, 6);
 
   // The seasonal whale pod is supplied by the shared wildlife layer.
@@ -1903,7 +1893,6 @@ export function hermanus(): THREE.Group {
     rg.material.opacity = w > 0 && w < 1 ? 0.65 * (1 - w) : 0;
     rg.scale.setScalar(1 + Math.max(0, w) * 28);
     blow(t);
-    sr(t);
     bd(t);
   };
   return g;
@@ -1970,7 +1959,6 @@ export function isimangaliso(): THREE.Group {
   // The hippo pod is supplied by the season-gated, LOD'd wildlife layer
   // (src/data/wildlife.ts), which absorbs the five former builder positions.
 
-  const sr = seaRings(g, 0.25, 1.4, 3);
   const bd = birds(g, 4, 3.5, 5);
   const mist = drift(g, 40, '#eaf6ff', 0.12, (i, t) => [
     Math.cos(i * 2.4 + t * 0.05) * 4,
@@ -1978,7 +1966,6 @@ export function isimangaliso(): THREE.Group {
     0.6 + Math.sin(i * 2.4 + t * 0.05) * 4,
   ]);
   g.userData.tick = (t: number) => {
-    sr(t);
     bd(t);
     mist(t);
   };
@@ -2591,7 +2578,6 @@ export function knysna(): THREE.Group {
     bar.scale.y = 0.28;
   }
 
-  const sr = seaRings(g, 0.13, 2.6, 4);
   const foam = drift(g, 80, '#eafaff', 0.1, (i, t) => {
     const a = R(i) * 6.28;
     const k = (t * 0.3 + R(i + 3)) % 1;
@@ -2621,7 +2607,6 @@ export function knysna(): THREE.Group {
       y.rotation.y = -a + (i % 2 ? Math.PI / 2 : -Math.PI / 2) + Math.sin(t * 0.5 + i) * 0.08;
       y.rotation.z = Math.sin(t * 0.9 + i) * 0.04;
     });
-    sr(t);
     foam(t);
     spray(t);
     bd(t);
@@ -2807,7 +2792,6 @@ export function donkin(): THREE.Group {
       0
     );
   }
-  const sr = seaRings(g, 0.12, 5, 3);
   const bd = birds(g, 4, 3.4, 6);
   g.userData.tick = (t: number) => {
     bm.rotation.y = t * 1.2;
@@ -2815,7 +2799,6 @@ export function donkin(): THREE.Group {
     const a = t * 0.09;
     ship.position.set(6.6 * Math.cos(a), 0.1, 6.6 * Math.sin(a));
     ship.rotation.y = -a - Math.PI / 2;
-    sr(t);
     bd(t);
   };
   return g;

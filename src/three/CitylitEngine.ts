@@ -1960,6 +1960,59 @@ export class CitylitEngine {
     }
   }
 
+  /**
+   * Scale and centre a freshly built diorama onto the plinth using the same
+   * pure fit maths the audit uses. Applied at build time so cached, prewarmed
+   * and freshly built groups all share the transform before anchors, markers,
+   * cutaway entries, shadow bounds and camera framing are collected.
+   */
+  private fitGroupToPlinth(group: THREE.Group): void {
+    // Re-runnable: restore the builder's transform first so repeated fits
+    // (build + mount, or a cached group revisited) never compound scale/offset.
+    let authored = group.userData.plinthAuthored as
+      | { sx: number; x: number; z: number }
+      | undefined;
+    if (!authored) {
+      authored = { sx: group.scale.x, x: group.position.x, z: group.position.z };
+      group.userData.plinthAuthored = authored;
+    }
+    let fit: ReturnType<typeof fitBoundsToPlinth> | null = null;
+    let fits = false;
+    // The first bounds query after a transform restore can see stale child
+    // matrices (e.g. a bridge deck revealed by LOD selection). Re-measure from
+    // the authored transform until the verified footprint is actually inside
+    // the rim; three passes is ample for the layouts in this app.
+    for (let pass = 0; pass < 3; pass++) {
+      group.scale.setScalar(authored.sx);
+      // Preserve any authored Y placement; only centre the X/Z footprint.
+      group.position.x = authored.x;
+      group.position.z = authored.z;
+      const box = this.computeDioramaBounds(group, true);
+      if (box.isEmpty()) return;
+      fit = fitBoundsToPlinth({
+        minX: box.min.x,
+        maxX: box.max.x,
+        minZ: box.min.z,
+        maxZ: box.max.z,
+      });
+      group.scale.setScalar(authored.sx * fit.scale);
+      group.position.x = authored.x + fit.offsetX;
+      group.position.z = authored.z + fit.offsetZ;
+      const fittedBox = this.computeDioramaBounds(group, true);
+      fits = boundsFitPlinth({
+        minX: fittedBox.min.x,
+        maxX: fittedBox.max.x,
+        minZ: fittedBox.min.z,
+        maxZ: fittedBox.max.z,
+      });
+      if (fits) break;
+    }
+    if (!fit) return;
+    group.userData.plinthFit = fit;
+    group.userData.needsPlinthScale = fit.scale < 0.999;
+    group.userData.fitsPlinth = fits;
+  }
+
   private buildLandmarkGroup(index: number): THREE.Group {
     const meta = LANDMARKS[index];
     const builder = LANDMARK_BUILDERS[meta.k];
@@ -1981,6 +2034,7 @@ export class CitylitEngine {
         obj.receiveShadow = !this.isSoftwareGl;
       }
     });
+    this.fitGroupToPlinth(group);
     return group;
   }
 
@@ -2290,18 +2344,8 @@ export class CitylitEngine {
     } else {
       this.currentGroup = this.buildLandmarkGroup(index);
     }
-    // Non-visual fit-to-stand audit: future sites that exceed the plinth are
-    // discoverable from userData without silently rescaling the hero. Existing
-    // sites keep their authored scale and offset.
-    const plinthBox = this.computeDioramaBounds(this.currentGroup);
-    const plinthFootprint = {
-      minX: plinthBox.min.x,
-      maxX: plinthBox.max.x,
-      minZ: plinthBox.min.z,
-      maxZ: plinthBox.max.z,
-    };
-    this.currentGroup.userData.plinthFit = fitBoundsToPlinth(plinthFootprint);
-    this.currentGroup.userData.fitsPlinth = boundsFitPlinth(plinthFootprint);
+    // Fit-to-stand is finalised after the group's visibility/contact-shadow
+    // state is settled (see below), just before it is mounted.
     this.currentDynamic = cached
       ? { glow: cached.glow.slice(), sway: cached.sway.slice(), wet: cached.wet.slice() }
       : {
@@ -2413,6 +2457,9 @@ export class CitylitEngine {
     }
     this.applyPostGrade();
 
+    // Some builders reveal large geometry only once contact shadows are armed,
+    // so the build-time fit is confirmed/corrected here with final visibility.
+    this.fitGroupToPlinth(this.currentGroup);
     this.heroRoot.add(this.currentGroup);
     this.heroRoot.rotation.y = 0;
     this.heroRoot.scale.setScalar(1);
@@ -2895,7 +2942,10 @@ export class CitylitEngine {
   /** Apply the current quality tier's pixel ratio scaled by the 60fps target. */
   private applyRenderScale(): void {
     if (this.isSoftwareGl) return;
-    const base = [Math.min(devicePixelRatio || 1, 2), Math.min(devicePixelRatio || 1, 1.4), 1][
+    // HiDPI already resolves fine detail; shading 4x CSS pixels (and higher
+    // tiers above) is pure cost. The auto-quality monitor still fine-tunes
+    // `renderScale` from here down to 0.75 when a device needs less.
+    const base = [Math.min(devicePixelRatio || 1, 1.5), Math.min(devicePixelRatio || 1, 1.25), 1][
       this.qualityIndex
     ];
     const pr = Math.max(0.6, base * this.renderScale);
@@ -3809,16 +3859,20 @@ export class CitylitEngine {
    * Solid geometry only: floating FX clouds, birds, sprites and invisible
    * helpers would otherwise inflate the box and make every site look tiny.
    */
-  private computeDioramaBounds(group: THREE.Group): THREE.Box3 {
+  private computeDioramaBounds(group: THREE.Group, includeHiddenLods = false): THREE.Box3 {
     const box = new THREE.Box3();
     const objBox = new THREE.Box3();
     group.updateWorldMatrix(true, true);
     group.traverse((obj) => {
-      if (!(obj instanceof THREE.Mesh) || !obj.visible) return;
+      if (!(obj instanceof THREE.Mesh)) return;
       if (obj.userData.noShadow || obj.userData.cannotReceiveAO || obj.userData.noDissolve) return;
       let node: THREE.Object3D | null = obj;
+      let insideLod = false;
       while (node) {
-        if (!node.visible) return;
+        if (node instanceof THREE.LOD) insideLod = true;
+        // Fit-to-stand must see the union of every LOD level: a level that is
+        // hidden now can become visible on zoom and overflow the plinth.
+        if (!node.visible && !(includeHiddenLods && insideLod)) return;
         node = node.parent;
       }
       objBox.setFromObject(obj);
@@ -5394,7 +5448,18 @@ export class CitylitEngine {
         camDeltaSq < 1e-6 &&
         this.elapsed - this.lastInteractAt > 2.0;
 
-      const throttleMs = isReducedStaticIdle ? 66 : isBatterySoftIdle ? 50 : 0;
+      // Ordinary hardware GL had no idle cap at all: a visually static scene
+      // rendered at full rAF forever. Match the software-GL cadence (30 fps)
+      // once camera, tweens and input have all been quiet for two seconds.
+      const isQuietIdle =
+        !this.isUserOrbiting &&
+        this.dissolvePhase === 0 &&
+        !this.camGoal &&
+        !this.timeLapsePlaying &&
+        camDeltaSq < 1e-6 &&
+        this.elapsed - this.lastInteractAt > 2.0;
+
+      const throttleMs = isReducedStaticIdle ? 66 : isBatterySoftIdle ? 50 : isQuietIdle ? 33 : 0;
 
       if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
         const shadowStride = this.isUserOrbiting ? 3 : 2;

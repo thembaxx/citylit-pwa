@@ -3015,40 +3015,6 @@ export function boat(col: string, sc = 1): THREE.Group {
   return b;
 }
 
-export function seaRings(
-  g: THREE.Object3D,
-  y: number,
-  r0: number,
-  count = 3,
-  col: THREE.ColorRepresentation = '#e8fbff'
-): (t: number) => void {
-  const rs = Array.from({ length: count }, () => {
-    const ring = add(
-      g,
-      new THREE.RingGeometry(r0, r0 + 0.09, 64).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({
-        color: col,
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-      0,
-      y,
-      0
-    );
-    ring.userData.tracksCoastalTide = true;
-    return ring;
-  });
-  return (t: number) => {
-    rs.forEach((r, i) => {
-      const k = (t * 0.2 + i / count) % 1;
-      r.scale.setScalar(1 + k * 0.9);
-      r.material.opacity = 0.48 * (1 - k);
-    });
-  };
-}
-
 export function sea(g: THREE.Object3D, c = '#1c6e91', shallow = '#2da8b8'): THREE.Mesh {
   // Square water plate — the house style is a cut slab, not a circular stand.
   const geo = B(15.6, 0.1, 15.6);
