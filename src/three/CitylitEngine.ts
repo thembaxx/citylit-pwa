@@ -2489,7 +2489,6 @@ export class CitylitEngine {
     this.windParticles.setBiome(lmMeta.biome, lmMeta.k);
     this.horizon.setBiome(lmMeta.biome);
     this.horizon.setSiteTint(visual.skyHorizonTint);
-    this.horizon.setSiteSignature(lmMeta.k, lmMeta.biome);
     this.weather.setSiteSkyTint(visual.skyTopTint, visual.skyHorizonTint, isInitialSwap);
     this.weather.setSiteLatitude(lmMeta.coords[0], isInitialSwap);
     // Re-tint the soft bounce fill, chromatic N8AO shadow ink, plinth trim & dual night point lights.

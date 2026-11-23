@@ -1,7 +1,5 @@
 import * as THREE from 'three';
 import type { LandmarkBiome } from '../types/citylit';
-import { resolveRegionalPalette } from '../lib/biomePalette';
-import type { RegionalPaletteKey } from '../lib/biomePalette';
 import { getSoftTexture, WU } from './shaders';
 
 export interface HorizonUpdateOptions {
@@ -20,8 +18,6 @@ export interface HorizonSceneryController {
   root: THREE.Group;
   setBiome: (biome: LandmarkBiome) => void;
   setSiteTint: (horizonHex: string) => void;
-  /** Select the far silhouette: a named site signature, else its region fallback. */
-  setSiteSignature: (name: string, biome: LandmarkBiome) => void;
   setHidden: (hidden: boolean) => void;
   update: (dt: number, motionScale: number, opts: HorizonUpdateOptions) => void;
   dispose: () => void;
@@ -50,178 +46,6 @@ function weightsForBiome(biome: LandmarkBiome): BiomeWeights {
     default:
       return { mountain: 0.6, dune: 0.2, coastal: 0, urban: 0 };
   }
-}
-
-/**
- * Phase 1 far-field signatures: a handful of low boxes composed into a recognizable
- * distant form per region, instanced into a single draw call on the outermost ring.
- * `angle` is a small tangential offset in radians, `y` a lift above the ring base,
- * and `tilt` a lean about the local radial axis (for mine-headgear A-frames).
- */
-interface SignaturePart {
-  readonly angle: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-  readonly depth: number;
-  readonly tilt?: number;
-}
-
-const SIGNATURE_RADIUS = 56.8;
-const SIGNATURE_BASE_Y = -1.4;
-const SIGNATURE_SECTORS = 6;
-const SIGNATURE_MAX_PARTS = 4;
-
-const SIGNATURE_PARTS: Readonly<Record<RegionalPaletteKey, readonly SignaturePart[]>> = {
-  // Flat-topped table mountain with a lower shoulder and a small Lion's Head step.
-  fynbos: [
-    { angle: 0, y: 0, width: 8.2, height: 2.0, depth: 1.2 },
-    { angle: -0.09, y: 0, width: 3.6, height: 1.25, depth: 1.0 },
-    { angle: 0.1, y: 0, width: 2.4, height: 0.85, depth: 0.9 },
-  ],
-  // Two distant lighthouse towers, one with a lantern cap (Cape Point / Agulhas).
-  cape: [
-    { angle: -0.035, y: 0, width: 2.4, height: 0.45, depth: 1.4 },
-    { angle: -0.035, y: 0.45, width: 0.85, height: 2.5, depth: 0.85 },
-    { angle: -0.035, y: 2.95, width: 1.35, height: 0.42, depth: 1.05 },
-    { angle: 0.055, y: 0, width: 0.6, height: 1.7, depth: 0.6 },
-  ],
-  // Stepped Highveld skyline with a low stone-dome mass.
-  highveld: [
-    { angle: -0.06, y: 0, width: 2.6, height: 1.5, depth: 1.0 },
-    { angle: -0.01, y: 0, width: 1.5, height: 2.6, depth: 1.0 },
-    { angle: 0.045, y: 0, width: 3.0, height: 1.1, depth: 1.0 },
-    { angle: 0.1, y: 0, width: 1.8, height: 1.9, depth: 1.0 },
-  ],
-  // Kimberley mine headgear: leaning A-frame, pulley beam and a low spoil dump.
-  karoo: [
-    { angle: -0.02, y: 0, width: 0.38, height: 2.7, depth: 0.7, tilt: 0.28 },
-    { angle: 0.02, y: 0, width: 0.38, height: 2.7, depth: 0.7, tilt: -0.28 },
-    { angle: 0, y: 2.6, width: 1.6, height: 0.35, depth: 0.7 },
-    { angle: 0.09, y: 0, width: 2.8, height: 0.85, depth: 1.2 },
-  ],
-  // Drakensberg-style escarpment spine with two stepped shoulders.
-  kzn: [
-    { angle: 0, y: 0, width: 7.0, height: 2.5, depth: 1.1 },
-    { angle: -0.085, y: 0, width: 3.2, height: 1.4, depth: 1.0 },
-    { angle: 0.085, y: 0, width: 2.6, height: 1.1, depth: 1.0 },
-  ],
-  // Knysna-style heads: two headlands framing a low waterline gap.
-  forest: [
-    { angle: -0.06, y: 0, width: 3.4, height: 2.3, depth: 1.1 },
-    { angle: 0.06, y: 0, width: 3.0, height: 1.7, depth: 1.1 },
-    { angle: 0, y: 0, width: 2.0, height: 0.55, depth: 0.9 },
-  ],
-  // Crater dome with a low crown and a pair of rondavel-like steps.
-  limpopo: [
-    { angle: 0, y: 0, width: 5.2, height: 1.6, depth: 1.2 },
-    { angle: -0.05, y: 1.6, width: 2.8, height: 0.7, depth: 1.0 },
-    { angle: 0.07, y: 0, width: 1.8, height: 1.25, depth: 0.9 },
-    { angle: -0.1, y: 0, width: 1.4, height: 2.0, depth: 0.8 },
-  ],
-  // Low bay skyline of stepped waterfront blocks.
-  coastal: [
-    { angle: -0.07, y: 0, width: 3.2, height: 1.3, depth: 1.0 },
-    { angle: -0.01, y: 0, width: 2.0, height: 1.9, depth: 1.0 },
-    { angle: 0.055, y: 0, width: 3.6, height: 1.1, depth: 1.0 },
-  ],
-};
-
-/**
- * Named sites get their own far silhouette instead of sharing a regional one.
- * These are low-contrast recognition cues only — never survey geometry — and
- * stay within SIGNATURE_MAX_PARTS so the instanced batch keeps one draw call.
- */
-const SITE_SIGNATURES: Readonly<Record<string, readonly SignaturePart[]>> = {
-  'table mountain': [
-    { angle: 0, y: 0, width: 8.4, height: 1.9, depth: 1.2 },
-    { angle: -0.1, y: 0, width: 2.1, height: 1.15, depth: 0.9 },
-    { angle: 0.11, y: 0, width: 2.8, height: 1.35, depth: 0.9 },
-  ],
-  'chapman': [
-    { angle: 0, y: 0, width: 7.2, height: 2.6, depth: 1.1 },
-    { angle: -0.09, y: 0, width: 2.4, height: 1.2, depth: 0.9 },
-  ],
-  'cape point': [
-    { angle: -0.04, y: 0, width: 4.2, height: 1.7, depth: 1.1 },
-    { angle: -0.04, y: 1.7, width: 0.7, height: 2.0, depth: 0.7 },
-    { angle: -0.04, y: 3.7, width: 1.1, height: 0.32, depth: 0.8 },
-  ],
-  'cape agulhas': [
-    { angle: -0.03, y: 0, width: 0.9, height: 2.3, depth: 0.8 },
-    { angle: -0.03, y: 2.3, width: 1.25, height: 0.4, depth: 0.85 },
-    { angle: 0.07, y: 0, width: 2.6, height: 0.8, depth: 1.0 },
-  ],
-  'drakensberg': [
-    { angle: 0, y: 0, width: 8.6, height: 2.9, depth: 1.1 },
-    { angle: -0.09, y: 0, width: 3.4, height: 1.6, depth: 1.0 },
-    { angle: 0.09, y: 0, width: 2.8, height: 1.3, depth: 1.0 },
-  ],
-  'sani pass': [
-    { angle: 0, y: 0, width: 6.2, height: 3.1, depth: 1.1 },
-    { angle: -0.08, y: 0, width: 2.6, height: 1.8, depth: 0.9 },
-  ],
-  'three rondavels': [
-    { angle: -0.05, y: 0, width: 2.0, height: 3.0, depth: 1.0 },
-    { angle: 0.01, y: 0, width: 2.2, height: 3.4, depth: 1.0 },
-    { angle: 0.07, y: 0, width: 1.9, height: 2.6, depth: 1.0 },
-  ],
-  'orlando towers': [
-    { angle: -0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
-    { angle: 0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
-    { angle: 0, y: 1.4, width: 3.2, height: 0.22, depth: 0.8 },
-  ],
-  'soweto': [
-    { angle: -0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
-    { angle: 0.035, y: 0, width: 1.5, height: 3.0, depth: 1.1 },
-  ],
-  'ponte city': [
-    { angle: 0, y: 0, width: 1.9, height: 5.2, depth: 1.3 },
-    { angle: 0, y: 5.2, width: 2.2, height: 0.35, depth: 1.0 },
-  ],
-  'moses mabhida': [
-    { angle: 0, y: 0, width: 6.8, height: 0.7, depth: 1.2 },
-    { angle: 0, y: 0.7, width: 1.0, height: 3.3, depth: 0.9, tilt: 0.32 },
-    { angle: 0.06, y: 0.7, width: 1.0, height: 3.3, depth: 0.9, tilt: -0.32 },
-  ],
-  'nelson mandela bridge': [
-    { angle: -0.05, y: 0, width: 0.55, height: 3.4, depth: 0.8 },
-    { angle: 0.05, y: 0, width: 0.55, height: 2.2, depth: 0.8 },
-    { angle: 0, y: 1.5, width: 7.0, height: 0.24, depth: 0.8 },
-  ],
-  'voortrekker': [
-    { angle: 0, y: 0, width: 3.8, height: 3.2, depth: 1.5 },
-    { angle: 0, y: 3.2, width: 2.4, height: 0.8, depth: 1.2 },
-  ],
-  'the big hole': [
-    { angle: 0, y: 0, width: 5.0, height: 0.55, depth: 1.2 },
-    { angle: -0.03, y: 0.55, width: 0.4, height: 2.6, depth: 0.7, tilt: 0.26 },
-    { angle: 0.03, y: 0.55, width: 0.4, height: 2.6, depth: 0.7, tilt: -0.26 },
-  ],
-  'knysna': [
-    { angle: -0.06, y: 0, width: 3.4, height: 2.4, depth: 1.1 },
-    { angle: 0.06, y: 0, width: 3.0, height: 1.8, depth: 1.1 },
-  ],
-  'augrabies': [
-    { angle: 0, y: 0, width: 6.0, height: 2.4, depth: 1.1 },
-    { angle: 0.05, y: 0.6, width: 0.7, height: 1.5, depth: 0.7 },
-  ],
-  'robben island': [
-    { angle: -0.03, y: 0, width: 3.6, height: 0.6, depth: 1.2 },
-    { angle: -0.03, y: 0.6, width: 0.6, height: 1.8, depth: 0.7 },
-  ],
-};
-
-/** Apostrophes/quotes resolve identically; exact keys win over fragments. */
-function resolveSignatureParts(name: string, biome: LandmarkBiome): readonly SignaturePart[] {
-  const key = name.replace(/[’‘`]/g, "'").trim().toLowerCase();
-  const exact = SITE_SIGNATURES[key];
-  if (exact) return exact;
-  for (const [candidate, parts] of Object.entries(SITE_SIGNATURES)) {
-    if (key.includes(candidate)) return parts;
-  }
-  const region = resolveRegionalPalette(name, biome)?.region ?? 'fynbos';
-  return SIGNATURE_PARTS[region];
 }
 
 function createHorizonRing(
@@ -260,8 +84,6 @@ function createHorizonRing(
       varying float vAngle;
       varying vec3 vWorldPos;
 
-      float hash1(float n) { return fract(sin(n) * 43758.5453123); }
-
       void main() {
         vec3 pos = position;
         float ang = atan(pos.z, pos.x);
@@ -279,12 +101,7 @@ function createHorizonRing(
         // Coastal ocean horizon with gentle distant headland
         float coast = pow(max(0.0, sin(ang * 2.0 + uSeed * 1.7)), 6.0) * 0.58 + 0.08;
 
-        // Stepped Highveld urban skyline blocks
-        float sector = floor((ang + 3.14159) / 0.16);
-        float blk = hash1(sector + uSeed * 11.0);
-        float urb = step(0.42, blk) * (0.24 + blk * 0.48);
-
-        float profile = mtn * uWeights.x + dune * uWeights.y + coast * uWeights.z + urb * uWeights.w;
+        float profile = mtn * uWeights.x + dune * uWeights.y + coast * uWeights.z;
         float lift = (0.35 + profile * 4.6) * topMask;
         pos.y = mix(-1.4, -1.4 + lift, topMask);
 
@@ -313,8 +130,6 @@ function createHorizonRing(
       varying float vAngle;
       varying vec3 vWorldPos;
 
-      float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
-
       void main() {
         vec3 base = mix(uBaseCol, uSiteHor * 0.55, 0.22);
         vec3 horC = mix(uHorizonCol, uSiteHor, 0.26);
@@ -324,16 +139,6 @@ function createHorizonRing(
         float crestRim = smoothstep(0.45, 0.92, vElev);
         col += uGlowCol * uHor * (0.24 + 0.32 * crestRim);
         col += vec3(0.42, 0.58, 0.88) * uNight * crestRim * 0.12;
-
-        // Distant urban skyline twinkling window bands at dusk & night
-        if (uWeights.w > 0.15 && uNight > 0.1) {
-          vec2 cell = vec2(floor((vAngle + 3.14159) * 38.0), floor((vWorldPos.y + 1.4) * 14.0));
-          float wLit = step(0.84, hash2(cell + uSeed * 7.0));
-          float bandMask = smoothstep(0.06, 0.24, vElev) * (1.0 - smoothstep(0.55, 0.85, vElev));
-          float twinkle = 0.72 + 0.28 * sin(uTime * 1.4 + hash2(cell) * 18.0);
-          vec3 winCol = mix(vec3(1.0, 0.76, 0.42), vec3(0.75, 0.88, 1.0), step(0.7, hash2(cell + 3.1)));
-          col += winCol * wLit * bandMask * uWeights.w * uNight * twinkle * 0.46;
-        }
 
         // Distant coastal sea horizon shimmer + urban harbour sky-glow catching twilight / moonlight
         if (uWeights.z > 0.2) {
@@ -400,32 +205,6 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
   const midRidge = createHorizonRing(41, 7.4, 1.55, 0.34);
   const farRidge = createHorizonRing(57, 9.6, 2.9, 0.2);
   root.add(nearRidge.mesh, midRidge.mesh, farRidge.mesh);
-
-  // One shared box geometry + one shared material for every far silhouette. The
-  // instance pool is resized (via `count`) when a site signature is selected, so
-  // this adds a single draw call and at most 4*6*12 = 288 triangles.
-  const signatureGeo = new THREE.BoxGeometry(1, 1, 1);
-  const signatureMat = new THREE.MeshBasicMaterial({
-    color: '#3c4656',
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    fog: false,
-    toneMapped: false,
-  });
-  signatureMat.userData.noDissolve = true;
-  const signatureMesh = new THREE.InstancedMesh(
-    signatureGeo,
-    signatureMat,
-    SIGNATURE_MAX_PARTS * SIGNATURE_SECTORS
-  );
-  signatureMesh.count = 0;
-  signatureMesh.visible = false;
-  signatureMesh.frustumCulled = false;
-  signatureMesh.renderOrder = -1.8;
-  signatureMesh.userData.noShadow = true;
-  signatureMesh.userData.cannotReceiveAO = true;
-  root.add(signatureMesh);
 
   // Distant stage sheen & moonlight / sunset specular water path outside the floating island footprint.
   const groundMat = new THREE.ShaderMaterial({
@@ -515,23 +294,6 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
   const tmpHorizon = new THREE.Color();
   const tmpGround = new THREE.Color();
 
-  // Preallocated scratch for the far silhouette batch: no per-frame allocations.
-  const signatureBase = new THREE.Color('#3c4656');
-  const tmpSigColor = new THREE.Color();
-  const tmpPaletteDark = new THREE.Color();
-  const tmpPaletteLight = new THREE.Color();
-  const tmpPaletteRim = new THREE.Color();
-  const sigPos = new THREE.Vector3();
-  const sigScale = new THREE.Vector3();
-  const sigYAxis = new THREE.Vector3(0, 1, 0);
-  const sigZAxis = new THREE.Vector3(0, 0, 1);
-  const sigQuatYaw = new THREE.Quaternion();
-  const sigQuatTilt = new THREE.Quaternion();
-  const sigQuat = new THREE.Quaternion();
-  const sigMatrix = new THREE.Matrix4();
-  let signatureAlpha = 0;
-  let signatureReady = false;
-
   let hidden = false;
   let elapsed = 0;
 
@@ -545,39 +307,6 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
 
   const setSiteTint = (horizonHex: string) => {
     targetSiteHor.set(horizonHex);
-  };
-
-  const setSiteSignature: HorizonSceneryController['setSiteSignature'] = (name, biome) => {
-    // Colour still follows the region; only the silhouette can be site-specific.
-    const palette = resolveRegionalPalette(name, biome);
-    tmpPaletteDark.set(palette?.aoShadowColor ?? '#181a2a');
-    tmpPaletteLight.set(palette?.skyHorizonTint ?? '#a5b3c1');
-    tmpPaletteRim.set(palette?.rimColor ?? '#e3c3c0');
-    signatureBase.copy(tmpPaletteDark).lerp(tmpPaletteLight, 0.62).lerp(tmpPaletteRim, 0.08);
-
-    const parts = resolveSignatureParts(name, biome);
-    for (let s = 0; s < SIGNATURE_SECTORS; s++) {
-      const sectorAngle = (s / SIGNATURE_SECTORS) * Math.PI * 2;
-      for (let p = 0; p < parts.length; p++) {
-        const part = parts[p];
-        const a = sectorAngle + part.angle;
-        sigPos.set(
-          Math.sin(a) * SIGNATURE_RADIUS,
-          SIGNATURE_BASE_Y + part.y + part.height * 0.5,
-          Math.cos(a) * SIGNATURE_RADIUS
-        );
-        sigQuatYaw.setFromAxisAngle(sigYAxis, a);
-        sigQuatTilt.setFromAxisAngle(sigZAxis, part.tilt ?? 0);
-        sigQuat.copy(sigQuatYaw).multiply(sigQuatTilt);
-        sigScale.set(part.width, part.height, part.depth);
-        sigMatrix.compose(sigPos, sigQuat, sigScale);
-        signatureMesh.setMatrixAt(p * SIGNATURE_SECTORS + s, sigMatrix);
-      }
-    }
-    signatureMesh.count = parts.length * SIGNATURE_SECTORS;
-    signatureMesh.instanceMatrix.needsUpdate = true;
-    signatureMesh.visible = true;
-    signatureReady = true;
   };
 
   const setHidden = (nextHidden: boolean) => {
@@ -633,18 +362,6 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
       u.uPolCol.value.lerp(opts.pollutionTint, k);
     }
 
-    // Far silhouettes follow the same haze/studio/night contract as the rings,
-    // but stay deliberately faint so they never compete with the landmark hero.
-    if (signatureReady) {
-      tmpSigColor.copy(signatureBase).lerp(tmpBase, 0.42).lerp(opts.skyColor, 0.1);
-      tmpSigColor.lerp(opts.sunGlow, opts.hor * 0.05);
-      tmpSigColor.lerp(opts.fogColor, opts.night * 0.12);
-      signatureMat.color.copy(tmpSigColor);
-      const targetSigAlpha = (0.19 - opts.night * 0.045) * (1 - opts.rain * 0.28) * studioFade;
-      signatureAlpha += (targetSigAlpha - signatureAlpha) * k;
-      signatureMat.opacity = signatureAlpha;
-    }
-
     // Ground catcher takes subtle rain wetness sheen, ambient sky bounce, & coastal moon track.
     tmpGround.copy(opts.fogColor).multiplyScalar(0.32 + (1 - opts.night) * 0.18);
     const targetOpacity = (0.36 + opts.rain * 0.16) * studioFade;
@@ -668,9 +385,6 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
     midRidge.mat.dispose();
     farRidge.mesh.geometry.dispose();
     farRidge.mat.dispose();
-    signatureMesh.dispose();
-    signatureGeo.dispose();
-    signatureMat.dispose();
     groundCatcher.geometry.dispose();
     groundMat.dispose();
     stageAura.geometry.dispose();
@@ -681,7 +395,6 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
     root,
     setBiome,
     setSiteTint,
-    setSiteSignature,
     setHidden,
     update,
     dispose,

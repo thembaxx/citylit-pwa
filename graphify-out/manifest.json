@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795471409.6097744,
-    "seen": 1795472359.7908208,
-    "ast_hash": "e5443b80c99f075f486a91feeb78e6aa",
+    "mtime": 1795473175.677851,
+    "seen": 1795473396.6526792,
+    "ast_hash": "390ddf202accddc51fbcad32d90daa75",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -559,9 +559,9 @@
     "semantic_hash": ""
   },
   "src/three/horizonScenery.ts": {
-    "mtime": 1795461003.1976488,
-    "seen": 1795461895.986854,
-    "ast_hash": "8aeb80c6ff89fce8a779e668622ab776",
+    "mtime": 1795473829.0858555,
+    "seen": 1795474043.1942365,
+    "ast_hash": "ee618aebbfe4ebb1c4c06987a3a83411",
     "semantic_hash": ""
   },
   "src/three/shaders/season.glsl.ts": {
@@ -5119,9 +5119,9 @@
     "semantic_hash": ""
   },
   "docs/visual-reports/final/REPORT.md": {
-    "mtime": 1795472217.267166,
-    "seen": 1795472359.7914183,
-    "ast_hash": "d4e90a28f15bc691f2fe17d7e90d8255",
+    "mtime": 1795472603.1520317,
+    "seen": 1795473396.6532636,
+    "ast_hash": "d3e28e27359c6e53e15929afe40fcd36",
     "semantic_hash": ""
   },
   "docs/visual-reports/final/contact-sheet-all.html": {
