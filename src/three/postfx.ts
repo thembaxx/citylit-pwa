@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { GRADE_GUARDRAILS } from '../lib/albedoAudit.ts';
 
@@ -16,6 +17,8 @@ fallbackDepth.needsUpdate = true;
 const MiniatureShader = {
   uniforms: {
     tDiffuse: { value: null },
+    /** Half-resolution blurred beauty; .a carries the per-pixel blur amount. */
+    tBlur: { value: null },
     tDepth: { value: fallbackDepth as THREE.Texture },
     uResolution: { value: new THREE.Vector2(1280, 720) },
     uFocusY: { value: 0.49 },
@@ -53,6 +56,7 @@ const MiniatureShader = {
   `,
   fragmentShader: /* glsl */ `
     uniform sampler2D tDiffuse;
+    uniform sampler2D tBlur;
     uniform sampler2D tDepth;
     uniform vec2 uResolution;
     uniform float uFocusY;
@@ -104,30 +108,16 @@ const MiniatureShader = {
     void main() {
       vec4 base = texture2D(tDiffuse, vUv);
 
-      // Screen-space tilt-shift band keeps the miniature tabletop read at any focus.
-      float bandBlur = smoothstep(uFocusRange * 0.45, uFocusRange * 1.95, abs(vUv.y - uFocusY));
-      float depthBlur = 0.0;
-      if (uUseDepth > 0.5) {
-        float z = linearDepth(vUv);
-        depthBlur = smoothstep(uDepthRange * 0.30, uDepthRange * 1.75, abs(z - uFocusDistance));
-      }
+      // The expensive golden-angle blur now runs once at half resolution in a
+      // separate pass. Its alpha carries the per-pixel blur amount so the
+      // focus mask needs no second depth fetch here.
+      vec4 blurSample = texture2D(tBlur, vUv);
+      float blurAmt = blurSample.a;
+      // Ramp across the focus boundary so the half-res upsample never leaves a
+      // visible seam; below 0.02 stay exactly on the full-resolution source.
+      vec4 col = mix(base, blurSample, smoothstep(0.02, 0.08, blurAmt));
 
-      float blurAmt = max(bandBlur * 0.9, depthBlur) * uMaxBlur * uAperture;
-      vec4 col = base;
-
-      if (blurAmt > 0.02) {
-        vec2 px = (1.0 / max(uResolution, vec2(1.0))) * blurAmt;
-        col = base * 0.16;
-        float total = 0.16;
-        for (int i = 0; i < 10; i++) {
-          float a = float(i) * 2.399963 + 0.35;
-          float r = sqrt((float(i) + 0.5) / 10.0);
-          vec2 off = vec2(cos(a), sin(a)) * r * px;
-          col += texture2D(tDiffuse, clamp(vUv + off, 0.001, 0.999)) * 0.084;
-          total += 0.084;
-        }
-        col /= total;
-      } else if (uClarity > 0.005) {
+      if (blurAmt <= 0.02 && uClarity > 0.005) {
         // Fast 4-tap focal micro-clarity inside the sharp plane so fine stonework, leaves,
         // and architectural moldings stay razor-crisp against the soft bokeh fringe.
         vec2 stepUv = 1.0 / max(uResolution, vec2(1.0));
@@ -168,6 +158,80 @@ const MiniatureShader = {
         gl_FragColor = vec4(clamp((t * (a * t + bs)) / (t * (c2 * t + d) + m), 0.0, 1.0), gl_FragColor.a);
       }
       #include <colorspace_fragment>
+    }
+  `,
+};
+
+/**
+ * Half-resolution bokeh stage. The alpha channel carries the tilt-shift /
+ * depth focus mask so the full-resolution composite can pick its sample without
+ * re-deriving the mask (or reading depth) a second time.
+ */
+const MiniatureBlurShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    tDepth: { value: fallbackDepth as THREE.Texture },
+    uResolution: { value: new THREE.Vector2(1280, 720) },
+    uFocusY: { value: 0.49 },
+    uFocusRange: { value: 0.2 },
+    uMaxBlur: { value: 1.7 },
+    uAperture: { value: 1.0 },
+    uUseDepth: { value: 0 },
+    uNear: { value: 0.2 },
+    uFar: { value: 200 },
+    uFocusDistance: { value: 9.0 },
+    uDepthRange: { value: 2.0 },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform sampler2D tDepth;
+    uniform vec2 uResolution;
+    uniform float uFocusY;
+    uniform float uFocusRange;
+    uniform float uMaxBlur;
+    uniform float uAperture;
+    uniform float uUseDepth;
+    uniform float uNear;
+    uniform float uFar;
+    uniform float uFocusDistance;
+    uniform float uDepthRange;
+    varying vec2 vUv;
+
+    float linearDepth(vec2 uv) {
+      float d = texture2D(tDepth, uv).x;
+      float z = d * 2.0 - 1.0;
+      return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
+    }
+
+    void main() {
+      float bandBlur = smoothstep(uFocusRange * 0.45, uFocusRange * 1.95, abs(vUv.y - uFocusY));
+      float depthBlur = 0.0;
+      if (uUseDepth > 0.5) {
+        float z = linearDepth(vUv);
+        depthBlur = smoothstep(uDepthRange * 0.30, uDepthRange * 1.75, abs(z - uFocusDistance));
+      }
+      float blurAmt = max(bandBlur * 0.9, depthBlur) * uMaxBlur * uAperture;
+
+      // uResolution stays at full composer resolution: the texel step is a
+      // screen-space radius, not a half-res one, so the bokeh size is unchanged.
+      vec2 px = (1.0 / max(uResolution, vec2(1.0))) * blurAmt;
+      vec3 col = texture2D(tDiffuse, vUv).rgb * 0.16;
+      float total = 0.16;
+      for (int i = 0; i < 10; i++) {
+        float a = float(i) * 2.399963 + 0.35;
+        float r = sqrt((float(i) + 0.5) / 10.0);
+        vec2 off = vec2(cos(a), sin(a)) * r * px;
+        col += texture2D(tDiffuse, clamp(vUv + off, 0.001, 0.999)).rgb * 0.084;
+        total += 0.084;
+      }
+      gl_FragColor = vec4(col / total, blurAmt);
     }
   `,
 };
@@ -227,6 +291,44 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
   // ShaderPass material — WU and all shared/shader materials are untouched.
   pass.material.customProgramCacheKey = () => GRADE_GUARDRAILS.cacheKey;
 
+  // Half-resolution bokeh stage. The uniform objects are shared, not copied,
+  // so setDepth/setFocus/applyTuning keep driving both materials.
+  const blurPass = new ShaderPass(MiniatureBlurShader);
+  const shared = [
+    'tDepth',
+    'uResolution',
+    'uFocusY',
+    'uFocusRange',
+    'uMaxBlur',
+    'uAperture',
+    'uUseDepth',
+    'uNear',
+    'uFar',
+    'uFocusDistance',
+    'uDepthRange',
+  ] as const;
+  for (const key of shared) blurPass.uniforms[key] = pass.uniforms[key];
+  const blurQuad = new FullScreenQuad(blurPass.material);
+
+  let blurTarget: THREE.WebGLRenderTarget | null = null;
+  const ensureBlurTarget = (width: number, height: number) => {
+    const w = Math.max(1, Math.ceil(width / 2));
+    const h = Math.max(1, Math.ceil(height / 2));
+    if (!blurTarget) {
+      blurTarget = new THREE.WebGLRenderTarget(w, h, {
+        type: THREE.HalfFloatType,
+        format: THREE.RGBAFormat,
+        depthBuffer: false,
+        stencilBuffer: false,
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+      });
+    } else if (blurTarget.width !== w || blurTarget.height !== h) {
+      blurTarget.setSize(w, h);
+    }
+  };
+  ensureBlurTarget(1280, 720);
+
   pass.setResolution = (width: number, height: number) => {
     const res = pass.uniforms.uResolution.value as THREE.Vector2;
     res.set(Math.max(1, width), Math.max(1, height));
@@ -236,6 +338,7 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
   pass.setSize = (width: number, height: number) => {
     baseSetSize(width, height);
     pass.setResolution(width, height);
+    ensureBlurTarget(width, height);
   };
 
   pass.setDepth = (texture, near, far) => {
@@ -287,6 +390,30 @@ export function createMiniaturePass(initialTuning: Partial<MiniatureTuning> = {}
     if (tuning.blur !== undefined) pass.uniforms.uMaxBlur.value = tuning.blur;
     if (tuning.vignette !== undefined) pass.uniforms.uVignette.value = tuning.vignette;
     if (tuning.aperture !== undefined) pass.uniforms.uAperture.value = tuning.aperture;
+  };
+
+  // Render the bokeh into the small target before the full-res composite.
+  // ShaderPass assigns the read-buffer texture to tDiffuse inside baseRender,
+  // so the blur stage takes its source directly from readBuffer.
+  const baseRender = pass.render.bind(pass);
+  pass.render = (renderer, writeBuffer, readBuffer, deltaTime, maskActive) => {
+    if (blurTarget) {
+      blurPass.uniforms.tDiffuse.value = readBuffer.texture;
+      const prevTarget = renderer.getRenderTarget();
+      renderer.setRenderTarget(blurTarget);
+      blurQuad.render(renderer);
+      renderer.setRenderTarget(prevTarget);
+      pass.uniforms.tBlur.value = blurTarget.texture;
+    }
+    baseRender(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
+  };
+
+  const baseDispose = pass.dispose.bind(pass);
+  pass.dispose = () => {
+    blurTarget?.dispose();
+    blurQuad.dispose();
+    blurPass.material.dispose();
+    baseDispose();
   };
 
   pass.applyTuning(initialTuning);

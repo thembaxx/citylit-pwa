@@ -89,6 +89,22 @@ procedural fallback (clearly labelled in the info card). OSM data is ©
 OpenStreetMap contributors (ODbL). See `src/services/osmService.ts` and
 `src/three/osmSlice.ts`.
 
+## Rendering performance
+
+- **Settings → Frame rate** offers Auto (default), 60 and 30. Auto keeps the
+  adaptive idle pacing; the fixed options apply a continuous ceiling while the
+  stricter reduced-motion, software-GL and settled-idle caps still win.
+- **Settings → Graphics quality** still selects the tier. The WebGL bokeh pass
+  renders its 10-tap blur into a half-resolution target and composites it at
+  full resolution, keeping the focus band sharp.
+- Procedural bump/normal/roughness canvases are deterministic and cached in
+  IndexedDB (`citylit-textures-v1`), so repeat visits skip the pixel loops.
+- **Overdraw debug view:** append `?overdraw=1` to the URL (or call
+  `window.citylitEngine.setOverdrawDebug(true)` in the console). Every surface
+  becomes a translucent additive layer with depth testing off; brighter areas
+  are shaded more times. It bypasses post-processing and is a dev tool, not a
+  user setting.
+
 ## Accessibility and high-fidelity lighting
 
 - Centered modals (Settings, Passport, Postcard) use the UI SDK dialog behavior

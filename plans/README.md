@@ -53,6 +53,15 @@ capped; `pnpm lint`, `pnpm test` (104/104) and `pnpm build` all pass.
 Recommended order: **021 → 022 → 023** (021 removes the biggest overdraw;
 022 is independent; 023 is independent but easiest to verify last).
 
+### Fourth pass — 2026-11-23 (verification + remaining wins)
+
+Research and implementation notes:
+[`docs/PERFORMANCE-ROUND-4.md`](../docs/PERFORMANCE-ROUND-4.md). The reported
+per-frame exposure readback was already fixed; the remaining real wins landed:
+FPS-cap setting, half-resolution bokeh, persistent procedural-texture cache and
+an overdraw debug view. The idle point-light hypothesis needs a frame-time test
+before any fidelity trade-off.
+
 ## Recommended execution order (second audit)
 
 11. **012** — pure CSS gate, zero risk; do it first.

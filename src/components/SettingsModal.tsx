@@ -23,6 +23,7 @@ import type {
   AmbientMixerPreset,
   AmbientMixerSettings,
   CitylitSettings,
+  FpsCapSetting,
   MotionSetting,
   QualitySetting,
   RendererSetting,
@@ -110,6 +111,12 @@ const QUALITY_OPTIONS = [
   { value: 'high' as const, label: 'High' },
   { value: 'balanced' as const, label: 'Medium' },
   { value: 'low' as const, label: 'Low' },
+];
+
+const FPS_OPTIONS = [
+  { value: 'auto' as const, label: 'Auto' },
+  { value: '60' as const, label: '60' },
+  { value: '30' as const, label: '30' },
 ];
 
 const RENDERER_OPTIONS = [
@@ -256,6 +263,23 @@ export function SettingsModal({
             value={settings.quality}
             onChange={(quality) => onUpdate({ quality })}
             options={QUALITY_OPTIONS}
+            compact
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
+            <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Frame rate</span>
+            <p className="mt-0.5 m-0 text-[11.5px] text-[#a9a69e]/80">
+              Cap continuous rendering · Auto adapts when idle
+            </p>
+          </div>
+          <PillNavigation<FpsCapSetting>
+            layoutId="settings-fps"
+            reducedMotion={reducedMotion}
+            value={settings.fpsCap ?? 'auto'}
+            onChange={(fpsCap) => onUpdate({ fpsCap })}
+            options={FPS_OPTIONS}
             compact
           />
         </div>

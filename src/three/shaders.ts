@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getCachedCanvas, preloadProceduralCanvases, storeGeneratedCanvas } from './textureCache';
 import { SEASON_MORPH_GLSL, SEASON_UNIFORMS_GLSL } from './shaders/season.glsl';
 
 export const WU = {
@@ -221,30 +222,24 @@ function heightToNormalTexture(
   const w = src.width;
   const h = src.height;
   const srcData = sctx.getImageData(0, 0, w, h).data;
-  const out = document.createElement('canvas');
-  out.width = w;
-  out.height = h;
-  const octx = out.getContext('2d');
-  if (!octx) return null;
-  const img = octx.createImageData(w, h);
-  const dst = img.data;
-  const sample = (x: number, y: number) =>
-    srcData[((((y % h) + h) % h) * w + (((x % w) + w) % w)) * 4] / 255;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const dx = (sample(x + 1, y) - sample(x - 1, y)) * strength;
-      // Image rows increase downward but UV v increases upward: flip dy to
-      // produce an OpenGL-style (+Y green) tangent-space normal.
-      const dy = (sample(x, y - 1) - sample(x, y + 1)) * strength;
-      const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
-      const i = (y * w + x) * 4;
-      dst[i] = Math.round((-dx * inv * 0.5 + 0.5) * 255);
-      dst[i + 1] = Math.round((-dy * inv * 0.5 + 0.5) * 255);
-      dst[i + 2] = Math.round((inv * 0.5 + 0.5) * 255);
-      dst[i + 3] = 255;
+  const out = getOrCreateCanvas(`normal:${key}`, w, h, (dst) => {
+    const sample = (x: number, y: number) =>
+      srcData[((((y % h) + h) % h) * w + (((x % w) + w) % w)) * 4] / 255;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const dx = (sample(x + 1, y) - sample(x - 1, y)) * strength;
+        // Image rows increase downward but UV v increases upward: flip dy to
+        // produce an OpenGL-style (+Y green) tangent-space normal.
+        const dy = (sample(x, y - 1) - sample(x, y + 1)) * strength;
+        const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
+        const i = (y * w + x) * 4;
+        dst[i] = Math.round((-dx * inv * 0.5 + 0.5) * 255);
+        dst[i + 1] = Math.round((-dy * inv * 0.5 + 0.5) * 255);
+        dst[i + 2] = Math.round((inv * 0.5 + 0.5) * 255);
+        dst[i + 3] = 255;
+      }
     }
-  }
-  octx.putImageData(img, 0, 0);
+  });
   const tex = new THREE.CanvasTexture(out);
   tex.wrapS = heightTex.wrapS;
   tex.wrapT = heightTex.wrapT;
@@ -271,26 +266,20 @@ function heightToRoughnessTexture(
   const w = src.width;
   const h = src.height;
   const srcData = sctx.getImageData(0, 0, w, h).data;
-  const out = document.createElement('canvas');
-  out.width = w;
-  out.height = h;
-  const octx = out.getContext('2d');
-  if (!octx) return null;
-  const img = octx.createImageData(w, h);
-  const dst = img.data;
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = (y * w + x) * 4;
-      const height = srcData[i] / 255;
-      const variation = (hash2d(x * 0.37, y * 0.53) - 0.5) * 7;
-      const v = Math.max(204, Math.min(250, Math.round(232 + (height - 0.5) * 36 + variation)));
-      dst[i] = v;
-      dst[i + 1] = v;
-      dst[i + 2] = v;
-      dst[i + 3] = 255;
+  const out = getOrCreateCanvas(`rough:${kind}`, w, h, (dst) => {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const height = srcData[i] / 255;
+        const variation = (hash2d(x * 0.37, y * 0.53) - 0.5) * 7;
+        const v = Math.max(204, Math.min(250, Math.round(232 + (height - 0.5) * 36 + variation)));
+        dst[i] = v;
+        dst[i + 1] = v;
+        dst[i + 2] = v;
+        dst[i + 3] = 255;
+      }
     }
-  }
-  octx.putImageData(img, 0, 0);
+  });
   const tex = new THREE.CanvasTexture(out);
   tex.wrapS = heightTex.wrapS;
   tex.wrapT = heightTex.wrapT;
@@ -333,6 +322,57 @@ let stoneBumpCache: THREE.CanvasTexture | null = null;
 let plasterBumpCache: THREE.CanvasTexture | null = null;
 let woodBumpCache: THREE.CanvasTexture | null = null;
 
+const HEIGHT_KEYS = {
+  stone: 'height:stone',
+  plaster: 'height:plaster',
+  roof: 'height:roof',
+  canvas: 'height:canvas',
+  brushed: 'height:brushed',
+  wood: 'height:wood',
+} as const;
+
+/** Every canvas the deterministic generators can persist across visits. */
+const PROCEDURAL_CANVAS_KEYS: readonly string[] = [
+  ...Object.values(HEIGHT_KEYS),
+  'normal:stone',
+  'normal:plaster',
+  'normal:roof',
+  'normal:canvas',
+  'normal:wood',
+  'normal:brushed',
+  'rough:stone',
+  'rough:plaster',
+  'rough:roof',
+  'rough:canvas',
+  'rough:wood',
+];
+
+/** Call once at boot, before any material builder asks for a surface map. */
+export async function preloadProceduralTextures(): Promise<void> {
+  await preloadProceduralCanvases(PROCEDURAL_CANVAS_KEYS);
+}
+
+function getOrCreateCanvas(
+  key: string,
+  width: number,
+  height: number,
+  fill: (data: Uint8ClampedArray) => void
+): HTMLCanvasElement {
+  const hit = getCachedCanvas(key);
+  if (hit) return hit;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (ctx) {
+    const img = ctx.createImageData(width, height);
+    fill(img.data);
+    ctx.putImageData(img, 0, 0);
+  }
+  storeGeneratedCanvas(key, canvas);
+  return canvas;
+}
+
 function hash2d(x: number, y: number): number {
   const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
   return s - Math.floor(s);
@@ -359,14 +399,7 @@ export function getSoftTexture(): THREE.CanvasTexture {
 export function getStoneBumpTexture(): THREE.CanvasTexture {
   if (stoneBumpCache) return stoneBumpCache;
   const size = 256;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  // Read back later when deriving normal/roughness maps; opt in up front.
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (ctx) {
-    const img = ctx.createImageData(size, size);
-    const data = img.data;
+  const c = getOrCreateCanvas(HEIGHT_KEYS.stone, size, size, (data) => {
     for (let y = 0; y < size; y++) {
       const yn = y / size;
       const strata =
@@ -389,8 +422,7 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
         data[idx + 3] = 255;
       }
     }
-    ctx.putImageData(img, 0, 0);
-  }
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
@@ -403,14 +435,7 @@ export function getStoneBumpTexture(): THREE.CanvasTexture {
 export function getPlasterBumpTexture(): THREE.CanvasTexture {
   if (plasterBumpCache) return plasterBumpCache;
   const size = 256;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  // Read back later when deriving normal/roughness maps; opt in up front.
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (ctx) {
-    const img = ctx.createImageData(size, size);
-    const data = img.data;
+  const c = getOrCreateCanvas(HEIGHT_KEYS.plaster, size, size, (data) => {
     for (let y = 0; y < size; y++) {
       const yn = y / size;
       for (let x = 0; x < size; x++) {
@@ -427,8 +452,7 @@ export function getPlasterBumpTexture(): THREE.CanvasTexture {
         data[idx + 3] = 255;
       }
     }
-    ctx.putImageData(img, 0, 0);
-  }
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
@@ -445,14 +469,7 @@ let brushedRoughCache: THREE.CanvasTexture | null = null;
 export function getRoofBumpTexture(): THREE.CanvasTexture {
   if (roofBumpCache) return roofBumpCache;
   const size = 256;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  // Read back later when deriving normal/roughness maps; opt in up front.
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (ctx) {
-    const img = ctx.createImageData(size, size);
-    const data = img.data;
+  const c = getOrCreateCanvas(HEIGHT_KEYS.roof, size, size, (data) => {
     for (let y = 0; y < size; y++) {
       const row = Math.floor(y / 12);
       const course = Math.sin(((y % 12) / 12) * Math.PI) * 24;
@@ -469,8 +486,7 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
         data[idx + 3] = 255;
       }
     }
-    ctx.putImageData(img, 0, 0);
-  }
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
@@ -483,14 +499,7 @@ export function getRoofBumpTexture(): THREE.CanvasTexture {
 export function getCanvasBumpTexture(): THREE.CanvasTexture {
   if (canvasBumpCache) return canvasBumpCache;
   const size = 256;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  // Read back later when deriving normal/roughness maps; opt in up front.
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (ctx) {
-    const img = ctx.createImageData(size, size);
-    const data = img.data;
+  const c = getOrCreateCanvas(HEIGHT_KEYS.canvas, size, size, (data) => {
     for (let y = 0; y < size; y++) {
       const yn = y / size;
       for (let x = 0; x < size; x++) {
@@ -505,8 +514,7 @@ export function getCanvasBumpTexture(): THREE.CanvasTexture {
         data[idx + 3] = 255;
       }
     }
-    ctx.putImageData(img, 0, 0);
-  }
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
@@ -523,14 +531,7 @@ export function getBrushedNormalTexture(): THREE.CanvasTexture | null {
 export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
   if (brushedRoughCache) return brushedRoughCache;
   const size = 256;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  // Read back later when deriving normal/roughness maps; opt in up front.
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (ctx) {
-    const img = ctx.createImageData(size, size);
-    const data = img.data;
+  const c = getOrCreateCanvas(HEIGHT_KEYS.brushed, size, size, (data) => {
     for (let y = 0; y < size; y++) {
       const broad = Math.sin((y / size) * Math.PI * 8) * 10;
       for (let x = 0; x < size; x++) {
@@ -543,8 +544,7 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
         data[idx + 3] = 255;
       }
     }
-    ctx.putImageData(img, 0, 0);
-  }
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
@@ -557,14 +557,7 @@ export function getBrushedRoughnessTexture(): THREE.CanvasTexture {
 export function getWoodBumpTexture(): THREE.CanvasTexture {
   if (woodBumpCache) return woodBumpCache;
   const size = 256;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  // Read back later when deriving normal/roughness maps; opt in up front.
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (ctx) {
-    const img = ctx.createImageData(size, size);
-    const data = img.data;
+  const c = getOrCreateCanvas(HEIGHT_KEYS.wood, size, size, (data) => {
     for (let y = 0; y < size; y++) {
       const yn = y / size;
       for (let x = 0; x < size; x++) {
@@ -582,8 +575,7 @@ export function getWoodBumpTexture(): THREE.CanvasTexture {
         data[idx + 3] = 255;
       }
     }
-    ctx.putImageData(img, 0, 0);
-  }
+  });
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;

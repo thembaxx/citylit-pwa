@@ -14,6 +14,7 @@ import type {
   AmbientSiteProfile,
   CameraPreset,
   CompassState,
+  FpsCapSetting,
   LandmarkNote,
   LiveWeatherSample,
   MediaItem,
@@ -70,6 +71,7 @@ import {
   getSoftTexture,
   grassWindy,
   installDissolveShader,
+  preloadProceduralTextures,
   windy,
   WU,
 } from './shaders';
@@ -321,6 +323,13 @@ export class CitylitEngine {
   /** Active first-load measurement; null once a tier has been committed. */
   private qualityBenchmark: FrameTimeBenchmark | null = null;
   private qualityTierResolved = false;
+  /** Continuous frame interval from the user cap; 0 keeps adaptive pacing. */
+  private fpsCapMs = 0;
+  /** Dev-only additive overdraw heatmap (toggle with ?overdraw=1 or the console). */
+  private overdrawActive = false;
+  private overdrawMaterial: THREE.MeshBasicMaterial | null = null;
+  private overdrawPrevBackground: THREE.Scene['background'] = null;
+  private overdrawPrevShadows = false;
   private exposureSampleRT: THREE.WebGLRenderTarget | null = null;
   private exposureReadPending = false;
   private exposureReadCounter = 0;
@@ -485,7 +494,13 @@ export class CitylitEngine {
     const softwareGl = detectSoftwareGlBackend();
     const selection = await selectRenderer(softwareGl);
     if (import.meta.env.DEV) console.info('[citylit] renderer:', selection.backend, selection.reason);
-    return new CitylitEngine(container, callbacks, selection);
+    // Restore cached procedural maps before any builder asks for a surface.
+    await preloadProceduralTextures();
+    const instance = new CitylitEngine(container, callbacks, selection);
+    if (new URLSearchParams(window.location.search).get('overdraw') === '1') {
+      instance.setOverdrawDebug(true);
+    }
+    return instance;
   }
 
   constructor(
@@ -2579,6 +2594,11 @@ export class CitylitEngine {
     this.setQualityIndex(tier);
   }
 
+  /** Optional continuous frame-rate ceiling; the stricter idle caps still win. */
+  setFpsCap(cap: FpsCapSetting): void {
+    this.fpsCapMs = cap === '30' ? 1000 / 30 : cap === '60' ? 1000 / 60 : 0;
+  }
+
   applyQuality(setting: QualitySetting): void {
     this.qualitySetting = setting;
     this.renderScale = 1;
@@ -2623,7 +2643,7 @@ export class CitylitEngine {
    * Four full-width rows sample both the bright sky and the darker miniature.
    */
   private updateAutoExposure(dt: number): void {
-    if (this.isSoftwareGl || this.qualityIndex >= 2) return;
+    if (this.isSoftwareGl || this.qualityIndex >= 2 || this.overdrawActive) return;
     if (!this.renderer.supportsReadback) {
       if (!this.renderer.supportsAsyncReadback || this.exposureReadPending) return;
       if (this.exposureReadCounter++ % 30 !== 0) return;
@@ -3113,6 +3133,41 @@ export class CitylitEngine {
       this.tiltOffsetX = 0;
       this.tiltOffsetY = 0;
     }
+  }
+
+  /**
+   * Dev-only overdraw heatmap. Every surface is drawn as a translucent additive
+   * white layer with depth testing off, so bright areas are where fragments are
+   * shaded repeatedly. Post-processing is bypassed to keep the reading honest.
+   */
+  setOverdrawDebug(enabled: boolean): void {
+    if (this.overdrawActive === enabled) return;
+    this.overdrawActive = enabled;
+    if (enabled) {
+      if (!this.overdrawMaterial) {
+        this.overdrawMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          transparent: true,
+          opacity: 0.16,
+          blending: THREE.AdditiveBlending,
+          depthTest: false,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+          fog: false,
+          toneMapped: false,
+        });
+      }
+      this.overdrawPrevBackground = this.scene.background;
+      this.overdrawPrevShadows = this.renderer.shadowMap.enabled;
+      this.scene.background = null;
+      this.renderer.shadowMap.enabled = false;
+      this.scene.overrideMaterial = this.overdrawMaterial;
+    } else {
+      this.scene.background = this.overdrawPrevBackground;
+      this.renderer.shadowMap.enabled = this.overdrawPrevShadows;
+      this.scene.overrideMaterial = null;
+    }
+    this.lastInteractAt = this.elapsed;
   }
 
   async requestTiltPermission(): Promise<boolean> {
@@ -4329,6 +4384,16 @@ export class CitylitEngine {
   }
 
   private renderCurrentPass(): void {
+    if (this.overdrawActive) {
+      const cam = this.globe.isOpen
+        ? this.globe.camera
+        : this.places.isOpen
+          ? this.places.camera
+          : this.camera;
+      this.renderer.setRenderTarget(null);
+      this.renderer.render(this.scene, cam, false);
+      return;
+    }
     // EffectComposer/N8AO/ShaderPass are GLSL-only: the WebGPU path renders
     // the scene directly with node materials until those passes are ported.
     const useComposer =
@@ -5459,7 +5524,12 @@ export class CitylitEngine {
         camDeltaSq < 1e-6 &&
         this.elapsed - this.lastInteractAt > 2.0;
 
-      const throttleMs = isReducedStaticIdle ? 66 : isBatterySoftIdle ? 50 : isQuietIdle ? 33 : 0;
+      // A user cap is a ceiling, not an override: reduced-motion, software-GL
+      // and settled-idle pacing can still render slower than the chosen rate.
+      const throttleMs = Math.max(
+        this.fpsCapMs,
+        isReducedStaticIdle ? 66 : isBatterySoftIdle ? 50 : isQuietIdle ? 33 : 0
+      );
 
       if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
         const shadowStride = this.isUserOrbiting ? 3 : 2;
@@ -5501,6 +5571,8 @@ export class CitylitEngine {
 
   dispose(): void {
     this.disposed = true;
+    if (this.overdrawActive) this.setOverdrawDebug(false);
+    this.overdrawMaterial?.dispose();
     cancelAnimationFrame(this.rafId);
     window.clearTimeout(this.afterDrawTimer);
     this.unbindListeners();

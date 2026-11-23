@@ -37,9 +37,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1795442866.1018968,
-    "seen": 1795444696.4367678,
-    "ast_hash": "8d1623d03a13e38221a991b98a9259b4",
+    "mtime": 1795454924.1108422,
+    "seen": 1795456573.3100584,
+    "ast_hash": "747e648bce035f51b8f8024b6099d8ce",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -109,9 +109,9 @@
     "semantic_hash": ""
   },
   "src/components/SettingsModal.tsx": {
-    "mtime": 1795433778.3044653,
-    "seen": 1795437839.9430006,
-    "ast_hash": "0a5b5ce98ed549de02ba61a1b4d68440",
+    "mtime": 1795454971.4580643,
+    "seen": 1795456573.3101776,
+    "ast_hash": "02a6e90e02ebdf2806e1405893a89906",
     "semantic_hash": ""
   },
   "src/components/TopBar.tsx": {
@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795453080.845383,
-    "seen": 1795453612.7889943,
-    "ast_hash": "65f905b4f21f67f72ef0e115da9d9a66",
+    "mtime": 1795455538.65526,
+    "seen": 1795456573.314202,
+    "ast_hash": "6c26797fa1eb9f8a2ba237c04c3787e1",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -289,15 +289,15 @@
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
-    "mtime": 1795360434.689062,
-    "seen": 1795360602.308225,
-    "ast_hash": "8479d287bcf4c8c28f47bf89b7304bac",
+    "mtime": 1795456421.8812647,
+    "seen": 1795456573.3144598,
+    "ast_hash": "1f639c605d21daf9dea7656438e7dcdc",
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
-    "mtime": 1795433778.4717884,
-    "seen": 1795437839.9437685,
-    "ast_hash": "a3e7de22d145b89245e37378f5c35fc3",
+    "mtime": 1795455522.886605,
+    "seen": 1795456573.314534,
+    "ast_hash": "30ae0d15229ff4fcedd70e11af69eade",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
@@ -349,9 +349,9 @@
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
-    "mtime": 1795433778.503805,
-    "seen": 1795437839.9438853,
-    "ast_hash": "e3eecc3eae6075e862b77faf28e57190",
+    "mtime": 1795454881.6198406,
+    "seen": 1795456573.3147368,
+    "ast_hash": "1ea51d6311d5e557a6390388b4a89302",
     "semantic_hash": ""
   },
   "src/types/n8ao.d.ts": {
@@ -385,9 +385,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795371348.320185,
-    "seen": 1795376091.5911274,
-    "ast_hash": "670725c1b387ef7ef17c629fe9933617",
+    "mtime": 1795456465.7909982,
+    "seen": 1795456573.3150218,
+    "ast_hash": "8a0624f8222fc127c2b9833cb3412512",
     "semantic_hash": ""
   },
   "docs/vite-framework-research.md": {
@@ -643,9 +643,9 @@
     "semantic_hash": ""
   },
   "plans/README.md": {
-    "mtime": 1795453493.7844152,
-    "seen": 1795453612.7897027,
-    "ast_hash": "df58fd6d1fb27234f0663dad5bf3c3e6",
+    "mtime": 1795456497.9983742,
+    "seen": 1795456573.315396,
+    "ast_hash": "392c97f699a2ab07c2d527dad8725818",
     "semantic_hash": ""
   },
   "probe-flicker.mjs": {
@@ -1348,6 +1348,18 @@
     "mtime": 1795453551.3878157,
     "seen": 1795453612.7896955,
     "ast_hash": "47e50a4a32851042345813e4ec437f63",
+    "semantic_hash": ""
+  },
+  "src/three/textureCache.ts": {
+    "mtime": 1795455293.3886418,
+    "seen": 1795456573.314605,
+    "ast_hash": "fbcf118fc46f98f923036bdfed42f780",
+    "semantic_hash": ""
+  },
+  "docs/PERFORMANCE-ROUND-4.md": {
+    "mtime": 1795456484.058855,
+    "seen": 1795456573.3151517,
+    "ast_hash": "76956c1bf4ac0220098e36d6192e0891",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

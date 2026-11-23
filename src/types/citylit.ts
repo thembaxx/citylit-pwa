@@ -1,5 +1,7 @@
 export type QualitySetting = 'auto' | 'high' | 'balanced' | 'low';
 export type RendererSetting = 'auto' | 'webgpu' | 'webgl';
+/** Frame-rate ceiling. 'auto' keeps the existing adaptive/idle pacing. */
+export type FpsCapSetting = 'auto' | '60' | '30';
 export type QualityIndex = 0 | 1 | 2;
 export type MotionSetting = 'auto' | 'reduce';
 export type ResolvedTheme = 'dark' | 'daylight' | 'studio';
@@ -20,6 +22,8 @@ export interface AmbientMixerPreset {
 
 export interface CitylitSettings {
   quality: QualitySetting;
+  /** Optional continuous frame-rate ceiling; 'auto' keeps adaptive pacing. */
+  fpsCap?: FpsCapSetting;
   /** Renderer backend preference; applied on next engine creation. */
   renderer: RendererSetting;
   volume: number;

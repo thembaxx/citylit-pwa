@@ -179,6 +179,10 @@ function readSettings(): CitylitSettings {
       const parsed = JSON.parse(raw) as Partial<CitylitSettings>;
       return {
         quality: parsed.quality ?? 'auto',
+        fpsCap:
+          parsed.fpsCap === 'auto' || parsed.fpsCap === '60' || parsed.fpsCap === '30'
+            ? parsed.fpsCap
+            : 'auto',
         renderer:
           parsed.renderer === 'webgpu' || parsed.renderer === 'webgl' ? parsed.renderer : 'auto',
         volume: typeof parsed.volume === 'number' ? parsed.volume : 80,
@@ -218,6 +222,7 @@ function readSettings(): CitylitSettings {
   }
   return {
     quality: 'auto',
+    fpsCap: 'auto',
     renderer: 'auto',
     volume: 80,
     mixer: defaultMixer,
@@ -664,6 +669,8 @@ export function App() {
         instance.setSeasonMonth(new Date().getMonth() + 1, true);
         instance.setFoundEggs(foundEggsRef.current);
         const initialSettings = settingsRef.current;
+        instance.applyQuality(initialSettings.quality);
+        instance.setFpsCap(initialSettings.fpsCap ?? 'auto');
         instance.setWildlifeEnabled(initialSettings.wildlife ?? true);
         instance.setHiddenDetailsEnabled(initialSettings.hiddenDetails ?? true);
         instance.setScaleReference(
@@ -783,6 +790,7 @@ export function App() {
     });
     document.documentElement.dataset.theme = effectiveTheme;
     engineRef.current?.applyQuality(settings.quality);
+    engineRef.current?.setFpsCap(settings.fpsCap ?? 'auto');
     engineRef.current?.setTheme(effectiveTheme);
     engineRef.current?.setMotionPreferences(reducedMotion);
     engineRef.current?.setTiltEnabled(settings.tilt);
