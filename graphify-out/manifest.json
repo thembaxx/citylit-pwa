@@ -19,9 +19,9 @@
     "ast_empty": true
   },
   "package.json": {
-    "mtime": 1795457527.7014253,
-    "seen": 1795458208.5326567,
-    "ast_hash": "04995e513784be2dc8fa527a83595252",
+    "mtime": 1795467606.968882,
+    "seen": 1795469085.852557,
+    "ast_hash": "6325a4201c24ead057090ad54be8a6db",
     "semantic_hash": ""
   },
   "pnpm-workspace.yaml": {
@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795463023.866948,
-    "seen": 1795463393.8449974,
-    "ast_hash": "86a2f20d68ca2ce616896986ef70faee",
+    "mtime": 1795468073.7159207,
+    "seen": 1795469085.853679,
+    "ast_hash": "ba94d75045f9b528a313a3f4f315aa0b",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -259,9 +259,9 @@
     "semantic_hash": ""
   },
   "src/three/lightingRig.ts": {
-    "mtime": 1795345403.8782759,
-    "seen": 1795346236.9769912,
-    "ast_hash": "058b6d1cc323204dee2e58fb38fe5fcc",
+    "mtime": 1795468085.9304223,
+    "seen": 1795469085.8538687,
+    "ast_hash": "82b985cecad78407e8ef9a44f5c5c688",
     "semantic_hash": ""
   },
   "src/three/placesClouds.ts": {
@@ -343,9 +343,9 @@
     "semantic_hash": ""
   },
   "src/three/weatherScene.ts": {
-    "mtime": 1795446283.040944,
-    "seen": 1795446774.186607,
-    "ast_hash": "ab08e37000232f90be377b0f90863c2a",
+    "mtime": 1795467594.6485856,
+    "seen": 1795469085.854142,
+    "ast_hash": "1a4b1ea5283f16a4f51045e28f1c4e78",
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
@@ -1003,9 +1003,9 @@
     "semantic_hash": ""
   },
   "scripts/README.md": {
-    "mtime": 1795362628.987671,
-    "seen": 1795364213.1747694,
-    "ast_hash": "c375916df5c77c93d4f72436bbd06447",
+    "mtime": 1795468266.9609249,
+    "seen": 1795469085.8546374,
+    "ast_hash": "27b6ed4008211833e8f611a4ea60f606",
     "semantic_hash": ""
   },
   "docs/phase2/contact-sheet-dusk.png": {
@@ -1444,6 +1444,2454 @@
     "mtime": 1795464553.3950386,
     "seen": 1795464896.283147,
     "ast_hash": "4498c19ecf045a622ce032c1a386404a",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/stats.json": {
+    "mtime": 1795467490.3338614,
+    "seen": 1795469085.8525198,
+    "ast_hash": "7f452ca1ebf005b6d10674cdf7024cad",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/stats.json": {
+    "mtime": 1795468439.760217,
+    "seen": 1795469085.8525314,
+    "ast_hash": "693759aba904ff2b64f8807d18245028",
+    "semantic_hash": ""
+  },
+  "scripts/capture-visual-matrix.mjs": {
+    "mtime": 1795468587.7556803,
+    "seen": 1795469085.8526056,
+    "ast_hash": "1817ca3d22bd5a4a1d4cb51c9aee3c83",
+    "semantic_hash": ""
+  },
+  "scripts/check-exposure.mjs": {
+    "mtime": 1795468446.3035395,
+    "seen": 1795469085.8526149,
+    "ast_hash": "ac4770aeb6bd099958241d20ee5e0bba",
+    "semantic_hash": ""
+  },
+  "scripts/compare-metrics.mjs": {
+    "mtime": 1795468215.4998744,
+    "seen": 1795469085.8526227,
+    "ast_hash": "b6929f5b207e13a13002671f3b0bf97c",
+    "semantic_hash": ""
+  },
+  "scripts/make-contact-sheet.mjs": {
+    "mtime": 1795468626.0817273,
+    "seen": 1795469085.85264,
+    "ast_hash": "30dbcbb6a991daef17d49321c0f0e6d8",
+    "semantic_hash": ""
+  },
+  "src/three/lightingRig.test.ts": {
+    "mtime": 1795467454.3758316,
+    "seen": 1795469085.8538592,
+    "ast_hash": "d93ead43d161be248efb13beade690e3",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/REPORT.md": {
+    "mtime": 1795468906.23459,
+    "seen": 1795469085.8543525,
+    "ast_hash": "c7645384024abacc620b511a3aabbae3",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/contact-sheet-all.html": {
+    "mtime": 1795468652.064618,
+    "seen": 1795469085.854361,
+    "ast_hash": "7d4230c0718cfee372a065adb6bd2f9a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/contact-sheet.html": {
+    "mtime": 1795468649.9529688,
+    "seen": 1795469085.8543687,
+    "ast_hash": "0540ba548afebb48cfec731b45c865b5",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-00-12-sun-high-desktop.jpg": {
+    "mtime": 1795467315.4982557,
+    "seen": 1795469085.8547423,
+    "ast_hash": "3cea8d9c905c6c11b3c06e593d6f171c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-00-18-sun-high-desktop.jpg": {
+    "mtime": 1795467387.2511475,
+    "seen": 1795469085.8547509,
+    "ast_hash": "afd1674244d4a8de72bbe472744ab215",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-00-22-sun-high-desktop.jpg": {
+    "mtime": 1795467442.0136898,
+    "seen": 1795469085.8547592,
+    "ast_hash": "6878fadb2d71acb607d252025bd19b5b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-01-12-sun-high-desktop.jpg": {
+    "mtime": 1795467317.2686367,
+    "seen": 1795469085.8547678,
+    "ast_hash": "5174f917532b5521b36ac759a362bc6d",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-01-18-sun-high-desktop.jpg": {
+    "mtime": 1795467389.246665,
+    "seen": 1795469085.8547761,
+    "ast_hash": "5faf22a9eff9830ce3a03ebaae00c0f9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-01-22-sun-high-desktop.jpg": {
+    "mtime": 1795467443.925639,
+    "seen": 1795469085.854784,
+    "ast_hash": "38a6fdf0eef2fcb42a4980dcc6df4c54",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-02-12-sun-high-desktop.jpg": {
+    "mtime": 1795467320.3404124,
+    "seen": 1795469085.8547914,
+    "ast_hash": "f4c8613d4929a1f068a6a5ee03c14a48",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-02-18-sun-high-desktop.jpg": {
+    "mtime": 1795467390.4067335,
+    "seen": 1795469085.8547995,
+    "ast_hash": "7db47f994401bd160ed0cef2da271a9b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-02-22-sun-high-desktop.jpg": {
+    "mtime": 1795467444.9633758,
+    "seen": 1795469085.8548079,
+    "ast_hash": "3ebf968eae03d50616d44cf4b414973b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-03-12-sun-high-desktop.jpg": {
+    "mtime": 1795467321.35105,
+    "seen": 1795469085.8548148,
+    "ast_hash": "25594e96b79e093364e2f063a66033f0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-03-18-sun-high-desktop.jpg": {
+    "mtime": 1795467391.9831738,
+    "seen": 1795469085.8548234,
+    "ast_hash": "dfae10cb6d2a1ac419c59745d41113e0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-03-22-sun-high-desktop.jpg": {
+    "mtime": 1795467446.094694,
+    "seen": 1795469085.8548322,
+    "ast_hash": "3abb760173733111f126db2441bbc83e",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-04-12-sun-high-desktop.jpg": {
+    "mtime": 1795467322.5320146,
+    "seen": 1795469085.8548403,
+    "ast_hash": "153d811709c400f7fea0e284b20c0c64",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-04-18-sun-high-desktop.jpg": {
+    "mtime": 1795467393.158686,
+    "seen": 1795469085.8548477,
+    "ast_hash": "c6867816498d5b5507a2b851d43e065c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-04-22-sun-high-desktop.jpg": {
+    "mtime": 1795467447.1154222,
+    "seen": 1795469085.8548555,
+    "ast_hash": "c9c084ae7735cc9233ace29b9fd02cc3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-05-12-sun-high-desktop.jpg": {
+    "mtime": 1795467323.8218875,
+    "seen": 1795469085.8548634,
+    "ast_hash": "bd4dc93b6054956fec4e8e791b082306",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-05-18-sun-high-desktop.jpg": {
+    "mtime": 1795467394.2520423,
+    "seen": 1795469085.8548756,
+    "ast_hash": "eb19882bb31bda39bb0713758f0c72b7",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-05-22-sun-high-desktop.jpg": {
+    "mtime": 1795467448.208657,
+    "seen": 1795469085.8548844,
+    "ast_hash": "f6032a9102c8928b6f09e223e67d10d5",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-06-12-sun-high-desktop.jpg": {
+    "mtime": 1795467326.6760912,
+    "seen": 1795469085.8548925,
+    "ast_hash": "9336051cff363c5a5e0216e6362d7cdc",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-06-18-sun-high-desktop.jpg": {
+    "mtime": 1795467395.6119142,
+    "seen": 1795469085.8549008,
+    "ast_hash": "810b212e2d52db4bf10f99c4668b7116",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-06-22-sun-high-desktop.jpg": {
+    "mtime": 1795467449.632736,
+    "seen": 1795469085.8549123,
+    "ast_hash": "0a74b688d4f2131d6865e966d997471a",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-07-12-sun-high-desktop.jpg": {
+    "mtime": 1795467329.252759,
+    "seen": 1795469085.8549197,
+    "ast_hash": "33c0c8169e76ff5eb0e6c6a4cc1ff6c5",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-07-18-sun-high-desktop.jpg": {
+    "mtime": 1795467398.3245094,
+    "seen": 1795469085.8549275,
+    "ast_hash": "b09a2a4578a54138d84aa6301339147e",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-07-22-sun-high-desktop.jpg": {
+    "mtime": 1795467452.400737,
+    "seen": 1795469085.854939,
+    "ast_hash": "d226d289bf107885f47ac4c080361eec",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-08-12-sun-high-desktop.jpg": {
+    "mtime": 1795467330.4635954,
+    "seen": 1795469085.854948,
+    "ast_hash": "d5fdd4bafe3378109cf6ba3059e403f9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-08-18-sun-high-desktop.jpg": {
+    "mtime": 1795467399.6040525,
+    "seen": 1795469085.8549562,
+    "ast_hash": "b3be353880f61e044a8c30ae64e2208b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-08-22-sun-high-desktop.jpg": {
+    "mtime": 1795467453.3544958,
+    "seen": 1795469085.8549643,
+    "ast_hash": "595fd60eabf82ff4be97c6121afe0843",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-09-12-sun-high-desktop.jpg": {
+    "mtime": 1795467331.7229953,
+    "seen": 1795469085.8549728,
+    "ast_hash": "5269c7cd9ebdb60477b0475bcf16dd1b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-09-18-sun-high-desktop.jpg": {
+    "mtime": 1795467400.8611205,
+    "seen": 1795469085.8549807,
+    "ast_hash": "c23de0ab0e0e049171b467c711d503e8",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-09-22-sun-high-desktop.jpg": {
+    "mtime": 1795467454.2180884,
+    "seen": 1795469085.8549886,
+    "ast_hash": "dbf66481fb8fb10fb12999e07b371b5d",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-10-12-sun-high-desktop.jpg": {
+    "mtime": 1795467335.615783,
+    "seen": 1795469085.8549964,
+    "ast_hash": "fb321ec181cab912913c96657d735893",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-10-18-sun-high-desktop.jpg": {
+    "mtime": 1795467401.9409938,
+    "seen": 1795469085.855009,
+    "ast_hash": "93c5528db4acafd0ca8a4228448fb9d8",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-10-22-sun-high-desktop.jpg": {
+    "mtime": 1795467455.2463589,
+    "seen": 1795469085.8550172,
+    "ast_hash": "49a5d9dece0991511adf1d885ed4bf8c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-11-12-sun-high-desktop.jpg": {
+    "mtime": 1795467336.5406544,
+    "seen": 1795469085.8550253,
+    "ast_hash": "e55bd2919ec9a30b9612352af4aaef93",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-11-18-sun-high-desktop.jpg": {
+    "mtime": 1795467403.1217642,
+    "seen": 1795469085.8550336,
+    "ast_hash": "6cefbca5a89a1234ef44a9a08f7f4ed1",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-11-22-sun-high-desktop.jpg": {
+    "mtime": 1795467456.489877,
+    "seen": 1795469085.8550413,
+    "ast_hash": "3155c0620eda0bfca8dec0e1a58682b0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-12-12-sun-high-desktop.jpg": {
+    "mtime": 1795467338.06812,
+    "seen": 1795469085.8550491,
+    "ast_hash": "cae9f75527e4dc884d542c1434a00a89",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-12-18-sun-high-desktop.jpg": {
+    "mtime": 1795467404.5146134,
+    "seen": 1795469085.8550572,
+    "ast_hash": "3bdaff7ce4e98dffd640225ffa3aa039",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-12-22-sun-high-desktop.jpg": {
+    "mtime": 1795467457.8150444,
+    "seen": 1795469085.8550653,
+    "ast_hash": "c67f8c5abccfc5ef2ca67428f48f063c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-13-12-sun-high-desktop.jpg": {
+    "mtime": 1795467339.6131876,
+    "seen": 1795469085.8550732,
+    "ast_hash": "310bd8a5eeccd1474c322332a1801ca3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-13-18-sun-high-desktop.jpg": {
+    "mtime": 1795467405.4999535,
+    "seen": 1795469085.8550808,
+    "ast_hash": "1549229daeae8d0565530d6d4b60d1c9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-13-22-sun-high-desktop.jpg": {
+    "mtime": 1795467459.097063,
+    "seen": 1795469085.8550892,
+    "ast_hash": "de065178b4ca162ab418c8af9b44d291",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-14-12-sun-high-desktop.jpg": {
+    "mtime": 1795467340.4184625,
+    "seen": 1795469085.855097,
+    "ast_hash": "3228f91129b4429c2a828efe289125a2",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-14-18-sun-high-desktop.jpg": {
+    "mtime": 1795467406.3290918,
+    "seen": 1795469085.8551052,
+    "ast_hash": "e747a45f3b7ebccd74c1629282afc275",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-14-22-sun-high-desktop.jpg": {
+    "mtime": 1795467460.1404643,
+    "seen": 1795469085.855113,
+    "ast_hash": "2d63343c5a6a47984247fad58a8ad83f",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-15-12-sun-high-desktop.jpg": {
+    "mtime": 1795467341.2760963,
+    "seen": 1795469085.855121,
+    "ast_hash": "fb2e7ee00d37416b463b07453556cc18",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-15-18-sun-high-desktop.jpg": {
+    "mtime": 1795467407.236194,
+    "seen": 1795469085.8551288,
+    "ast_hash": "830ca599ff1ca0113d5770e8071cc4b0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-15-22-sun-high-desktop.jpg": {
+    "mtime": 1795467461.0613773,
+    "seen": 1795469085.8551412,
+    "ast_hash": "20c2a6e3bcf365de47bc55b6360987c0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-16-12-sun-high-desktop.jpg": {
+    "mtime": 1795467342.3585136,
+    "seen": 1795469085.8551517,
+    "ast_hash": "517790982ed41a0cfb94fa8821302ecb",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-16-18-sun-high-desktop.jpg": {
+    "mtime": 1795467408.09255,
+    "seen": 1795469085.8551593,
+    "ast_hash": "ad36e3b963ae5e889e927b3e41eb8c73",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-16-22-sun-high-desktop.jpg": {
+    "mtime": 1795467461.8659818,
+    "seen": 1795469085.8551655,
+    "ast_hash": "c0fb0cc08bc7b395c471c9fcff134eb2",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-17-12-sun-high-desktop.jpg": {
+    "mtime": 1795467346.55879,
+    "seen": 1795469085.8551724,
+    "ast_hash": "7666cb5159473fc9d914249c77679b9f",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-17-18-sun-high-desktop.jpg": {
+    "mtime": 1795467409.138306,
+    "seen": 1795469085.8551795,
+    "ast_hash": "f1a3778b2b7b35138f3a58d86bf4c4ec",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-17-22-sun-high-desktop.jpg": {
+    "mtime": 1795467462.8924513,
+    "seen": 1795469085.855187,
+    "ast_hash": "25eb70b66597909192e2c83d115c7e2c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-18-12-sun-high-desktop.jpg": {
+    "mtime": 1795467347.565736,
+    "seen": 1795469085.8551943,
+    "ast_hash": "a0bbf8ca6202153a22e7bb5b9b740a0c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-18-18-sun-high-desktop.jpg": {
+    "mtime": 1795467410.3225913,
+    "seen": 1795469085.855202,
+    "ast_hash": "a1089a2aece7deca54a29152137bc21d",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-18-22-sun-high-desktop.jpg": {
+    "mtime": 1795467464.1638396,
+    "seen": 1795469085.8552096,
+    "ast_hash": "1fc167c00a2250322d8be417421fb637",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-19-12-sun-high-desktop.jpg": {
+    "mtime": 1795467348.794576,
+    "seen": 1795469085.8552175,
+    "ast_hash": "881a5ac57853c4fa37c9a76d339d5053",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-19-18-sun-high-desktop.jpg": {
+    "mtime": 1795467411.7158127,
+    "seen": 1795469085.8552284,
+    "ast_hash": "19b298d6e5c576846d744a825cc496b9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-19-22-sun-high-desktop.jpg": {
+    "mtime": 1795467465.3294497,
+    "seen": 1795469085.855237,
+    "ast_hash": "b354c654129de9f775ef35dc85b29c17",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-20-12-sun-high-desktop.jpg": {
+    "mtime": 1795467351.8107002,
+    "seen": 1795469085.8552487,
+    "ast_hash": "d6362af8a97cbefcea3ae804478a09cf",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-20-18-sun-high-desktop.jpg": {
+    "mtime": 1795467413.061907,
+    "seen": 1795469085.8552566,
+    "ast_hash": "82368917c7b04f8f1db9eb395b6a5297",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-20-22-sun-high-desktop.jpg": {
+    "mtime": 1795467466.349747,
+    "seen": 1795469085.8552642,
+    "ast_hash": "3fa4cb67bdb28d615157317f3beef05b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-21-12-sun-high-desktop.jpg": {
+    "mtime": 1795467352.8023722,
+    "seen": 1795469085.855272,
+    "ast_hash": "3898e1a7290272c2fbecb4fb51b6ee90",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-21-18-sun-high-desktop.jpg": {
+    "mtime": 1795467414.2982643,
+    "seen": 1795469085.8552797,
+    "ast_hash": "2f05d4ac187ddbcc21ef282847a94fd8",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-21-22-sun-high-desktop.jpg": {
+    "mtime": 1795467467.2788193,
+    "seen": 1795469085.8552873,
+    "ast_hash": "95bb479a5a229fac474c15f5956c895b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-22-12-sun-high-desktop.jpg": {
+    "mtime": 1795467358.2406447,
+    "seen": 1795469085.855295,
+    "ast_hash": "7fff9bf7375b894090317ef6588b2051",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-22-18-sun-high-desktop.jpg": {
+    "mtime": 1795467415.654606,
+    "seen": 1795469085.8553023,
+    "ast_hash": "aa10173ccc269203df639927a41c1b10",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-22-22-sun-high-desktop.jpg": {
+    "mtime": 1795467468.485423,
+    "seen": 1795469085.8553097,
+    "ast_hash": "1911c55413d21c8d27f8b221ead22172",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-23-12-sun-high-desktop.jpg": {
+    "mtime": 1795467361.4146574,
+    "seen": 1795469085.855322,
+    "ast_hash": "f036ed06433dfac6458495c2fb05a52b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-23-18-sun-high-desktop.jpg": {
+    "mtime": 1795467416.9768293,
+    "seen": 1795469085.8553295,
+    "ast_hash": "082274680e9d2afae47a7b0ceb4cee1f",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-23-22-sun-high-desktop.jpg": {
+    "mtime": 1795467469.5095246,
+    "seen": 1795469085.8553371,
+    "ast_hash": "4af5f61917916cb4d30b59757be06b49",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-24-12-sun-high-desktop.jpg": {
+    "mtime": 1795467362.268029,
+    "seen": 1795469085.855345,
+    "ast_hash": "aa06f589334c5b2fbf7736e6ad335ab9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-24-18-sun-high-desktop.jpg": {
+    "mtime": 1795467418.1139898,
+    "seen": 1795469085.8553526,
+    "ast_hash": "b05cebe198809bbb5c976acbda47d8a5",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-24-22-sun-high-desktop.jpg": {
+    "mtime": 1795467470.658734,
+    "seen": 1795469085.8553605,
+    "ast_hash": "d7e4182784d41675bc6594ed627ee297",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-25-12-sun-high-desktop.jpg": {
+    "mtime": 1795467363.253688,
+    "seen": 1795469085.8553681,
+    "ast_hash": "2576bc379089aaa5bb8e0ebdc4721555",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-25-18-sun-high-desktop.jpg": {
+    "mtime": 1795467419.2373457,
+    "seen": 1795469085.8553758,
+    "ast_hash": "b318d2970f7c01169f18f6cc4608b92b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-25-22-sun-high-desktop.jpg": {
+    "mtime": 1795467471.57311,
+    "seen": 1795469085.855384,
+    "ast_hash": "43d279549915e2a45c8c5fe2755ed404",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-26-12-sun-high-desktop.jpg": {
+    "mtime": 1795467364.7681406,
+    "seen": 1795469085.8553913,
+    "ast_hash": "043518171d7d0898b6c5f9bc5d85c027",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-26-18-sun-high-desktop.jpg": {
+    "mtime": 1795467420.6478455,
+    "seen": 1795469085.855399,
+    "ast_hash": "5cb4193d404abf047dde7b0349d2d8ee",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-26-22-sun-high-desktop.jpg": {
+    "mtime": 1795467472.7627566,
+    "seen": 1795469085.8554068,
+    "ast_hash": "59f1d2b0605cdf4cb3a50d164711dec2",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-27-12-sun-high-desktop.jpg": {
+    "mtime": 1795467365.8203168,
+    "seen": 1795469085.8554146,
+    "ast_hash": "608fd17e1043b5f6abe10abcaebe07d5",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-27-18-sun-high-desktop.jpg": {
+    "mtime": 1795467421.5092962,
+    "seen": 1795469085.855423,
+    "ast_hash": "785b702931efba1ecfb76b55ca9bc1ce",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-27-22-sun-high-desktop.jpg": {
+    "mtime": 1795467473.656237,
+    "seen": 1795469085.85543,
+    "ast_hash": "e582f0c13abca3a8b096eaa75237b74e",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-28-12-sun-high-desktop.jpg": {
+    "mtime": 1795467366.8936274,
+    "seen": 1795469085.8554375,
+    "ast_hash": "7ff4f561338ea95d11f402a66ca91d70",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-28-18-sun-high-desktop.jpg": {
+    "mtime": 1795467422.2746506,
+    "seen": 1795469085.8554451,
+    "ast_hash": "b7a279a2abe3450ee27a088ba39aa13c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-28-22-sun-high-desktop.jpg": {
+    "mtime": 1795467474.5642638,
+    "seen": 1795469085.8554533,
+    "ast_hash": "e6029d90170b922b64ef8fcf378e5b37",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-29-12-sun-high-desktop.jpg": {
+    "mtime": 1795467368.0389953,
+    "seen": 1795469085.855461,
+    "ast_hash": "f77b075289ee6809411b36619c0eb567",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-29-18-sun-high-desktop.jpg": {
+    "mtime": 1795467423.339509,
+    "seen": 1795469085.8554688,
+    "ast_hash": "ddf34852d95c90ae3c61b12cfbaf7044",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-29-22-sun-high-desktop.jpg": {
+    "mtime": 1795467475.5005503,
+    "seen": 1795469085.855477,
+    "ast_hash": "3bd20e2279f20a236f64bd3b206084f9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-30-12-sun-high-desktop.jpg": {
+    "mtime": 1795467369.1759832,
+    "seen": 1795469085.855485,
+    "ast_hash": "9b105c9de793e75cb407a267fd8fd7de",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-30-18-sun-high-desktop.jpg": {
+    "mtime": 1795467424.2699738,
+    "seen": 1795469085.8555632,
+    "ast_hash": "d2a33cafc8945701ed0a8feb6aa18243",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-30-22-sun-high-desktop.jpg": {
+    "mtime": 1795467476.4220269,
+    "seen": 1795469085.8555715,
+    "ast_hash": "5e8f269cd741c2842d33b0632da85d38",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-31-12-sun-high-desktop.jpg": {
+    "mtime": 1795467370.3677828,
+    "seen": 1795469085.8555837,
+    "ast_hash": "49f4228707ac1202f13f604e2be82d76",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-31-18-sun-high-desktop.jpg": {
+    "mtime": 1795467425.148339,
+    "seen": 1795469085.8555915,
+    "ast_hash": "dd4be4e734cdacd8d6a455b250651314",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-31-22-sun-high-desktop.jpg": {
+    "mtime": 1795467477.2677124,
+    "seen": 1795469085.8555992,
+    "ast_hash": "71e6a6c7f8bc6d45452a1b2d057cea7a",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-32-12-sun-high-desktop.jpg": {
+    "mtime": 1795467371.426175,
+    "seen": 1795469085.8556094,
+    "ast_hash": "f03b872f9cc7ceeefc103130e15bcf24",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-32-18-sun-high-desktop.jpg": {
+    "mtime": 1795467426.1018546,
+    "seen": 1795469085.8556204,
+    "ast_hash": "ae09f4da2a1a2cdc0868ad4498ddbff3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-32-22-sun-high-desktop.jpg": {
+    "mtime": 1795467478.1187963,
+    "seen": 1795469085.8556335,
+    "ast_hash": "f4c5c92ee6c7086d290ab235d201a568",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-33-12-sun-high-desktop.jpg": {
+    "mtime": 1795467372.5689793,
+    "seen": 1795469085.8556435,
+    "ast_hash": "24a82687e347393c26a7a742119f7f81",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-33-18-sun-high-desktop.jpg": {
+    "mtime": 1795467427.2197008,
+    "seen": 1795469085.8556561,
+    "ast_hash": "f5d109bf2ebfeb1f3ec405324ccab047",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-33-22-sun-high-desktop.jpg": {
+    "mtime": 1795467479.109827,
+    "seen": 1795469085.8556638,
+    "ast_hash": "75c9012c845cb8a0022278938ad2991b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-34-12-sun-high-desktop.jpg": {
+    "mtime": 1795467374.0288837,
+    "seen": 1795469085.85567,
+    "ast_hash": "eb77c783a485c07c4c286ee44cbd6286",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-34-18-sun-high-desktop.jpg": {
+    "mtime": 1795467429.0210369,
+    "seen": 1795469085.8556762,
+    "ast_hash": "736de6cf21f3d535cdb66fd499659278",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-34-22-sun-high-desktop.jpg": {
+    "mtime": 1795467480.4790115,
+    "seen": 1795469085.8556824,
+    "ast_hash": "37a005166645469a8f3d8a4956943fa7",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-35-12-sun-high-desktop.jpg": {
+    "mtime": 1795467374.9556558,
+    "seen": 1795469085.855689,
+    "ast_hash": "c9387983d326a753d39dfb7efef4599c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-35-18-sun-high-desktop.jpg": {
+    "mtime": 1795467430.4486089,
+    "seen": 1795469085.8556952,
+    "ast_hash": "2c6117716335f1c5ac54bb50004260fc",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-35-22-sun-high-desktop.jpg": {
+    "mtime": 1795467481.582927,
+    "seen": 1795469085.8557057,
+    "ast_hash": "33afd956552f06f9a1bd828e69eb1cb3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-36-12-sun-high-desktop.jpg": {
+    "mtime": 1795467375.889297,
+    "seen": 1795469085.8557127,
+    "ast_hash": "854455fb23ed341243bde4f27c7d59ed",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-36-18-sun-high-desktop.jpg": {
+    "mtime": 1795467431.647339,
+    "seen": 1795469085.8557203,
+    "ast_hash": "1a764d523b8c55c0cf415c632bd3ff17",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-36-22-sun-high-desktop.jpg": {
+    "mtime": 1795467482.6913195,
+    "seen": 1795469085.8557324,
+    "ast_hash": "7d60ce30ce7bb3bf0ae24b5bec6c8642",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-37-12-sun-high-desktop.jpg": {
+    "mtime": 1795467378.9900622,
+    "seen": 1795469085.85574,
+    "ast_hash": "350de233ece0a121ca1b383828687aa3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-37-18-sun-high-desktop.jpg": {
+    "mtime": 1795467433.015758,
+    "seen": 1795469085.8557484,
+    "ast_hash": "db1096cb374fae444248162a3a574395",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-37-22-sun-high-desktop.jpg": {
+    "mtime": 1795467483.8738632,
+    "seen": 1795469085.8557563,
+    "ast_hash": "40fdfd151bfdfae0268963d8672a7c55",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-38-12-sun-high-desktop.jpg": {
+    "mtime": 1795467381.5393934,
+    "seen": 1795469085.8557637,
+    "ast_hash": "5e57389c8dd37c23031fc0cafb17efb0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-38-18-sun-high-desktop.jpg": {
+    "mtime": 1795467434.3787522,
+    "seen": 1795469085.8557758,
+    "ast_hash": "4aca319aa79a7919790edf463211c97c",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-38-22-sun-high-desktop.jpg": {
+    "mtime": 1795467485.0676918,
+    "seen": 1795469085.8557835,
+    "ast_hash": "e903864c5e28b161d82de42768cbcfa1",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-39-12-sun-high-desktop.jpg": {
+    "mtime": 1795467382.282444,
+    "seen": 1795469085.8557909,
+    "ast_hash": "986831e4d314cc449e27c050dd812875",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-39-18-sun-high-desktop.jpg": {
+    "mtime": 1795467435.4461613,
+    "seen": 1795469085.855798,
+    "ast_hash": "42f6236d2093d2bfc312ed5d73faf868",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-39-22-sun-high-desktop.jpg": {
+    "mtime": 1795467486.271123,
+    "seen": 1795469085.855805,
+    "ast_hash": "ac0d898e0fb614039ad4b525fc90ad14",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-40-12-sun-high-desktop.jpg": {
+    "mtime": 1795467383.1581252,
+    "seen": 1795469085.8558118,
+    "ast_hash": "851144fa9292a78a1567ce9d352372e9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-40-18-sun-high-desktop.jpg": {
+    "mtime": 1795467436.7311275,
+    "seen": 1795469085.8558185,
+    "ast_hash": "a6b37bf19f3ee73238555b3b39d62407",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-40-22-sun-high-desktop.jpg": {
+    "mtime": 1795467487.5403159,
+    "seen": 1795469085.8558266,
+    "ast_hash": "3fe6321afa676ab0be0e020c651d5191",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-41-12-sun-high-desktop.jpg": {
+    "mtime": 1795467384.5924807,
+    "seen": 1795469085.8558571,
+    "ast_hash": "3d8be9d1b042767d0cc391d967ae1206",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-41-18-sun-high-desktop.jpg": {
+    "mtime": 1795467438.4733925,
+    "seen": 1795469085.855865,
+    "ast_hash": "5d85c9ff66980b6c0caaed7570864602",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-41-22-sun-high-desktop.jpg": {
+    "mtime": 1795467489.187477,
+    "seen": 1795469085.8558726,
+    "ast_hash": "59f3a6efb8ddaddab2818fd038dd0fa3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-42-12-sun-high-desktop.jpg": {
+    "mtime": 1795467385.7544847,
+    "seen": 1795469085.85588,
+    "ast_hash": "d978b37b856ed090ccd9eaa44d525e90",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-42-18-sun-high-desktop.jpg": {
+    "mtime": 1795467440.013102,
+    "seen": 1795469085.855888,
+    "ast_hash": "10984766773bb8710bd152446703468f",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/all-42-22-sun-high-desktop.jpg": {
+    "mtime": 1795467490.3223472,
+    "seen": 1795469085.855896,
+    "ast_hash": "01407436afed6b41508a9d5a605f1ef6",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-12-fog-high-desktop.jpg": {
+    "mtime": 1795467273.8485096,
+    "seen": 1795469085.8559031,
+    "ast_hash": "2fe143d467b9e33b6f6f14f194f434ca",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-12-rain-high-desktop.jpg": {
+    "mtime": 1795467271.7239094,
+    "seen": 1795469085.8559115,
+    "ast_hash": "6ce62970d46705c511bbdeef57073f68",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795467209.7708228,
+    "seen": 1795469085.8559196,
+    "ast_hash": "dc5e30077893a5e93b06d637792e4dfc",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-12-sun-high-desktop.jpg": {
+    "mtime": 1795467208.8842218,
+    "seen": 1795469085.8559284,
+    "ast_hash": "8cc2394642831af9ead7af6a81686a2d",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795467297.776079,
+    "seen": 1795469085.855936,
+    "ast_hash": "f14017283d13d32399f61150da81a268",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795467212.0538833,
+    "seen": 1795469085.8559437,
+    "ast_hash": "4909eceffc20baa48c70672cb66f6088",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-18-sun-high-desktop.jpg": {
+    "mtime": 1795467211.0982907,
+    "seen": 1795469085.8559508,
+    "ast_hash": "bd844bcb19241272867bd50fbc6c6cba",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-22-fog-high-desktop.jpg": {
+    "mtime": 1795467275.0769134,
+    "seen": 1795469085.8559585,
+    "ast_hash": "2834db9173332ee357735ad4bae06063",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-22-rain-high-desktop.jpg": {
+    "mtime": 1795467272.7774625,
+    "seen": 1795469085.8559656,
+    "ast_hash": "4e0310d711f36339cbf4599b29e6089b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795467214.3816545,
+    "seen": 1795469085.855973,
+    "ast_hash": "d22dba409fd64063c88c728518c0a3e2",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-22-sun-high-desktop.jpg": {
+    "mtime": 1795467213.403421,
+    "seen": 1795469085.85598,
+    "ast_hash": "df7864100d66f2e2cbfb4cdde23722a9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795467298.7895408,
+    "seen": 1795469085.855988,
+    "ast_hash": "d8f0574785bae7aa868185cdd380d3e3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795467207.9455154,
+    "seen": 1795469085.8560002,
+    "ast_hash": "4fb883727905ca7e3cbe46e1d3402542",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-00-6-sun-high-desktop.jpg": {
+    "mtime": 1795467207.2146497,
+    "seen": 1795469085.8560088,
+    "ast_hash": "a834ecf325786ccc35ce7e62847a2ef0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-12-fog-high-desktop.jpg": {
+    "mtime": 1795467279.8940477,
+    "seen": 1795469085.8560307,
+    "ast_hash": "31f920c0e916c76b0bf26dad563f5a95",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-12-rain-high-desktop.jpg": {
+    "mtime": 1795467277.318648,
+    "seen": 1795469085.8560386,
+    "ast_hash": "9f892d19b67c532ac3766214570b3fd0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795467230.1244369,
+    "seen": 1795469085.856046,
+    "ast_hash": "b64a95b40c14a6a26f55116b91dd14ba",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-12-sun-high-desktop.jpg": {
+    "mtime": 1795467228.8417518,
+    "seen": 1795469085.8560543,
+    "ast_hash": "823c079179199e7b27232bca7e354ad2",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795467300.8035612,
+    "seen": 1795469085.8560622,
+    "ast_hash": "7ab3170753083298f51775800f725ace",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795467233.6773653,
+    "seen": 1795469085.8560715,
+    "ast_hash": "5104d257965acaa8baa4975b5fd52ef3",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-18-sun-high-desktop.jpg": {
+    "mtime": 1795467232.169002,
+    "seen": 1795469085.8560796,
+    "ast_hash": "70035416021d0e6f0d2e3c90353ddbbd",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-22-fog-high-desktop.jpg": {
+    "mtime": 1795467280.9513376,
+    "seen": 1795469085.8560863,
+    "ast_hash": "ac59d001ab77fae46a37cc336f5ca7df",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-22-rain-high-desktop.jpg": {
+    "mtime": 1795467278.8266816,
+    "seen": 1795469085.8560967,
+    "ast_hash": "661f85df252904b8567fd77b1a99013e",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795467236.54247,
+    "seen": 1795469085.8561075,
+    "ast_hash": "3c0a007d67b3d68614c9f0d3910a23ea",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-22-sun-high-desktop.jpg": {
+    "mtime": 1795467235.3945365,
+    "seen": 1795469085.8561146,
+    "ast_hash": "8d05a4c7560a4f82e139734309aa2680",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795467302.3823433,
+    "seen": 1795469085.8561227,
+    "ast_hash": "88c14d1adae8707070cf7e95fec2f3e2",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795467227.2379048,
+    "seen": 1795469085.85613,
+    "ast_hash": "09f03b16789e858ca5cc731ea48ec5c1",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-01-6-sun-high-desktop.jpg": {
+    "mtime": 1795467226.199078,
+    "seen": 1795469085.8561385,
+    "ast_hash": "918bfeeab88c64299e230b33bda6d426",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-12-fog-high-desktop.jpg": {
+    "mtime": 1795467284.2694073,
+    "seen": 1795469085.8561459,
+    "ast_hash": "9f96a9bbc328016836da09481333f309",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-12-rain-high-desktop.jpg": {
+    "mtime": 1795467282.0785716,
+    "seen": 1795469085.8561535,
+    "ast_hash": "4ef5c6af8724362a90528ca13ec25ed5",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795467243.3994741,
+    "seen": 1795469085.8562977,
+    "ast_hash": "1225f040147572a886894913a4404636",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-12-sun-high-desktop.jpg": {
+    "mtime": 1795467242.3421342,
+    "seen": 1795469085.8563151,
+    "ast_hash": "427ead21416319679d4176bfce35e3f0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795467304.214555,
+    "seen": 1795469085.8563242,
+    "ast_hash": "1854133002146e1e326cc8dbe66cd1b0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795467245.4253092,
+    "seen": 1795469085.8563323,
+    "ast_hash": "7a1c364895e501cb4ecefd815e7e541f",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-18-sun-high-desktop.jpg": {
+    "mtime": 1795467244.6120353,
+    "seen": 1795469085.8563406,
+    "ast_hash": "94cc2ebe245e4faaf86ef607224da35d",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-22-fog-high-desktop.jpg": {
+    "mtime": 1795467285.2486837,
+    "seen": 1795469085.8563488,
+    "ast_hash": "61fb74b62ca72c96d890e2ca4fb15997",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-22-rain-high-desktop.jpg": {
+    "mtime": 1795467283.3475196,
+    "seen": 1795469085.8563561,
+    "ast_hash": "7e6324334089e50a37844e777bdfc42f",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795467247.3847284,
+    "seen": 1795469085.8563638,
+    "ast_hash": "0045a1c3a9ff0e85a3721149c0d044bb",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-22-sun-high-desktop.jpg": {
+    "mtime": 1795467246.5025854,
+    "seen": 1795469085.8563714,
+    "ast_hash": "289e5ece91dffe899d64d5e0d7c5057e",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795467305.8462996,
+    "seen": 1795469085.8563826,
+    "ast_hash": "4315484a31c95d9653ae707d1a6cb224",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795467241.1549165,
+    "seen": 1795469085.8563902,
+    "ast_hash": "949b0ae07cb88671253d5d30018797f0",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-03-6-sun-high-desktop.jpg": {
+    "mtime": 1795467240.2221851,
+    "seen": 1795469085.8563976,
+    "ast_hash": "d6eca90e3a26f704bb051e70a8280c91",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-12-fog-high-desktop.jpg": {
+    "mtime": 1795467289.893441,
+    "seen": 1795469085.8564057,
+    "ast_hash": "30066814be0f4f713f4ba82ad3eec797",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-12-rain-high-desktop.jpg": {
+    "mtime": 1795467287.8681746,
+    "seen": 1795469085.8564184,
+    "ast_hash": "f8decc4fc4850e3c65a05d422e022736",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795467254.2985198,
+    "seen": 1795469085.8564262,
+    "ast_hash": "e365aabff7aeefc1a37f49eb1ccd45d9",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-12-sun-high-desktop.jpg": {
+    "mtime": 1795467253.3181627,
+    "seen": 1795469085.856434,
+    "ast_hash": "bab2c723467c31f662648e3fc7f061da",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795467308.7984815,
+    "seen": 1795469085.8564415,
+    "ast_hash": "f37e515f7147cca7c25a663b09d5e9c6",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795467256.5192938,
+    "seen": 1795469085.8564498,
+    "ast_hash": "6a881fc01961ffa0f03085c1a7fd93cb",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-18-sun-high-desktop.jpg": {
+    "mtime": 1795467255.4701874,
+    "seen": 1795469085.8564572,
+    "ast_hash": "6889543f9a4225225bd702feea76f510",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-22-fog-high-desktop.jpg": {
+    "mtime": 1795467291.07656,
+    "seen": 1795469085.8564646,
+    "ast_hash": "0a3d86f49600dc8c6dddda5a0414ed8e",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-22-rain-high-desktop.jpg": {
+    "mtime": 1795467288.8161738,
+    "seen": 1795469085.8564723,
+    "ast_hash": "d8e1842cda36dc4107b466bfe336a3fd",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795467259.2263446,
+    "seen": 1795469085.8564804,
+    "ast_hash": "e1e2fa551a36d4a2dbd36e5f5e00d684",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-22-sun-high-desktop.jpg": {
+    "mtime": 1795467257.8019457,
+    "seen": 1795469085.8564878,
+    "ast_hash": "385f338a7aa6cb07b2c3f6772d804970",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795467310.1209662,
+    "seen": 1795469085.8564942,
+    "ast_hash": "0e09c062f364aa540add90ade6d42382",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795467252.0261233,
+    "seen": 1795469085.8565016,
+    "ast_hash": "1d77a7c6b6361ca1eabc3bd85871370b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-07-6-sun-high-desktop.jpg": {
+    "mtime": 1795467251.284392,
+    "seen": 1795469085.8565102,
+    "ast_hash": "4fbde2f6cfb341bbde788e7114e9067a",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-12-fog-high-desktop.jpg": {
+    "mtime": 1795467294.4995427,
+    "seen": 1795469085.856519,
+    "ast_hash": "79ff1ae6d8ed6ee0e051dd60b5fff675",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-12-rain-high-desktop.jpg": {
+    "mtime": 1795467292.130719,
+    "seen": 1795469085.8565269,
+    "ast_hash": "ecbd75ad7d6401a4c66a6d8397236775",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795467265.591503,
+    "seen": 1795469085.8565347,
+    "ast_hash": "53df701c9a0a1ac111d90a67d0b2ddd1",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-12-sun-high-desktop.jpg": {
+    "mtime": 1795467264.7700455,
+    "seen": 1795469085.8565428,
+    "ast_hash": "101ecf07ff91f8435a45ad740b785932",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795467311.3146818,
+    "seen": 1795469085.8565507,
+    "ast_hash": "a4d1c8afe8e5f50f4890d84b2ee8ddbc",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795467267.6495512,
+    "seen": 1795469085.8565588,
+    "ast_hash": "46c86beafdb63bd837d2d502d3b0a6ec",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-18-sun-high-desktop.jpg": {
+    "mtime": 1795467266.7027082,
+    "seen": 1795469085.8565667,
+    "ast_hash": "a551b10f125bd7440c13798cc9d40bed",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-22-fog-high-desktop.jpg": {
+    "mtime": 1795467295.497763,
+    "seen": 1795469085.8565748,
+    "ast_hash": "b46e5122df1aa7d7c9a72253d3f1c76d",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-22-rain-high-desktop.jpg": {
+    "mtime": 1795467293.441605,
+    "seen": 1795469085.856582,
+    "ast_hash": "cf42e73b02c72ce48cc2233fd3923f39",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795467269.6956837,
+    "seen": 1795469085.85659,
+    "ast_hash": "1d55a225cb84f313ef84f5ee8b52e909",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-22-sun-high-desktop.jpg": {
+    "mtime": 1795467268.7485003,
+    "seen": 1795469085.8565972,
+    "ast_hash": "8c4b0dd09016a289f11e4587b0fe857a",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795467312.7172,
+    "seen": 1795469085.8566036,
+    "ast_hash": "861f87ddf68ddcbc73c9f1ddc5a0ef42",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795467263.8916276,
+    "seen": 1795469085.8566115,
+    "ast_hash": "6e666b867d1245be6fe7947acd726c0b",
+    "semantic_hash": ""
+  },
+  "docs/visual-baseline/hero-14-6-sun-high-desktop.jpg": {
+    "mtime": 1795467263.1537893,
+    "seen": 1795469085.856618,
+    "ast_hash": "2e793ef794ab4d1103e317a34e2aa50e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-00-12-sun-high-desktop.jpg": {
+    "mtime": 1795468278.7327743,
+    "seen": 1795469085.8566263,
+    "ast_hash": "c091b580725049a8962fc329e0f4fd29",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-00-18-sun-high-desktop.jpg": {
+    "mtime": 1795468333.1468115,
+    "seen": 1795469085.8566349,
+    "ast_hash": "076dff2bc74d69b9e0e02914c542ec4e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-00-22-sun-high-desktop.jpg": {
+    "mtime": 1795468387.0696201,
+    "seen": 1795469085.8566425,
+    "ast_hash": "dfb5d4d2749bccadf762c44f50a96d5a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-01-12-sun-high-desktop.jpg": {
+    "mtime": 1795468280.1494002,
+    "seen": 1795469085.8566494,
+    "ast_hash": "13dcbece7ad6e4d4c719c08bc63f26d0",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-01-18-sun-high-desktop.jpg": {
+    "mtime": 1795468334.8536563,
+    "seen": 1795469085.8566601,
+    "ast_hash": "783fda43f747adfc1ade822c000e62ec",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-01-22-sun-high-desktop.jpg": {
+    "mtime": 1795468388.5310383,
+    "seen": 1795469085.8566666,
+    "ast_hash": "ac23591ea27250b51474461ad15bee43",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-02-12-sun-high-desktop.jpg": {
+    "mtime": 1795468281.5520277,
+    "seen": 1795469085.8566732,
+    "ast_hash": "101794cfeb7496679d3c8019ed0e62fe",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-02-18-sun-high-desktop.jpg": {
+    "mtime": 1795468335.7421198,
+    "seen": 1795469085.8566802,
+    "ast_hash": "e38509635ec3eef7cca13d8fc3e017cd",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-02-22-sun-high-desktop.jpg": {
+    "mtime": 1795468389.4182968,
+    "seen": 1795469085.8566916,
+    "ast_hash": "fc99ce3aca3848102bc1d978d97b2f7c",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-03-12-sun-high-desktop.jpg": {
+    "mtime": 1795468282.973521,
+    "seen": 1795469085.8566978,
+    "ast_hash": "3e80177523b4b380ce0d628f27afba9b",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-03-18-sun-high-desktop.jpg": {
+    "mtime": 1795468337.1449957,
+    "seen": 1795469085.856704,
+    "ast_hash": "b8e551bce3ce161a2e5bfb1ac0d964f5",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-03-22-sun-high-desktop.jpg": {
+    "mtime": 1795468390.7430668,
+    "seen": 1795469085.8567097,
+    "ast_hash": "e08eea37b3f237bd04a51e5426389bae",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-04-12-sun-high-desktop.jpg": {
+    "mtime": 1795468284.435564,
+    "seen": 1795469085.8567157,
+    "ast_hash": "35a1beac33d23b1a6efb7f949d8ffed9",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-04-18-sun-high-desktop.jpg": {
+    "mtime": 1795468338.6207511,
+    "seen": 1795469085.8567235,
+    "ast_hash": "f821f1e4038201276c88cf96b81cc205",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-04-22-sun-high-desktop.jpg": {
+    "mtime": 1795468392.09263,
+    "seen": 1795469085.8567297,
+    "ast_hash": "3e61ccbe083d02aeb1086c4d9ba0c0ff",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-05-12-sun-high-desktop.jpg": {
+    "mtime": 1795468285.917173,
+    "seen": 1795469085.8567512,
+    "ast_hash": "3e236242300b09b6a7c97707560e8fa5",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-05-18-sun-high-desktop.jpg": {
+    "mtime": 1795468339.9248283,
+    "seen": 1795469085.8567662,
+    "ast_hash": "4eaa5ecb2dd0352225186e1af85b7e5b",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-05-22-sun-high-desktop.jpg": {
+    "mtime": 1795468393.4141426,
+    "seen": 1795469085.85678,
+    "ast_hash": "5b2ce77e723a86d40573e6735a8f90f7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-06-12-sun-high-desktop.jpg": {
+    "mtime": 1795468287.6352732,
+    "seen": 1795469085.8568065,
+    "ast_hash": "50ec00ce2940d192fc0df926c8f73df5",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-06-18-sun-high-desktop.jpg": {
+    "mtime": 1795468341.4946418,
+    "seen": 1795469085.8568258,
+    "ast_hash": "c21148859c4529203ea515ef9bc92968",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-06-22-sun-high-desktop.jpg": {
+    "mtime": 1795468394.927396,
+    "seen": 1795469085.8568327,
+    "ast_hash": "b02704a533461e76b49dfe17f03baf2d",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-07-12-sun-high-desktop.jpg": {
+    "mtime": 1795468290.7518528,
+    "seen": 1795469085.8568425,
+    "ast_hash": "05263b3f7b0c0c72d4e86ffb3d855a63",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-07-18-sun-high-desktop.jpg": {
+    "mtime": 1795468344.964617,
+    "seen": 1795469085.8568506,
+    "ast_hash": "0a2cf3b60025bf43f96a4e39a4ac77d3",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-07-22-sun-high-desktop.jpg": {
+    "mtime": 1795468398.7834997,
+    "seen": 1795469085.8568566,
+    "ast_hash": "25e13f86fb54faa58425783119b10bf2",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-08-12-sun-high-desktop.jpg": {
+    "mtime": 1795468291.8038428,
+    "seen": 1795469085.8568714,
+    "ast_hash": "2ab5997058a63f8af94918b94ccec93b",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-08-18-sun-high-desktop.jpg": {
+    "mtime": 1795468345.9706497,
+    "seen": 1795469085.8568904,
+    "ast_hash": "2408675d765a38f8237e668f6f5436fd",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-08-22-sun-high-desktop.jpg": {
+    "mtime": 1795468399.8018365,
+    "seen": 1795469085.8569043,
+    "ast_hash": "41722a5c22c045acb5d9ae073ac1a408",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-09-12-sun-high-desktop.jpg": {
+    "mtime": 1795468292.7589874,
+    "seen": 1795469085.8569193,
+    "ast_hash": "653e4eb00002356950b0f72c342e6f34",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-09-18-sun-high-desktop.jpg": {
+    "mtime": 1795468347.0129151,
+    "seen": 1795469085.8569312,
+    "ast_hash": "f1aed82fc2f9cb664d19d01472d0668e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-09-22-sun-high-desktop.jpg": {
+    "mtime": 1795468400.7794547,
+    "seen": 1795469085.8569372,
+    "ast_hash": "628fe9b7fa34be3dc60de106822400a0",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-10-12-sun-high-desktop.jpg": {
+    "mtime": 1795468293.698434,
+    "seen": 1795469085.8569436,
+    "ast_hash": "003e9e5f658f8f46b90e7fe38e1854bf",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-10-18-sun-high-desktop.jpg": {
+    "mtime": 1795468347.9073977,
+    "seen": 1795469085.856951,
+    "ast_hash": "7ce3adc29356f0b5aa195e9a8c9eb9ab",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-10-22-sun-high-desktop.jpg": {
+    "mtime": 1795468401.6054835,
+    "seen": 1795469085.8569584,
+    "ast_hash": "71c52c6b3c94caec29a57cfd8d75d975",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-11-12-sun-high-desktop.jpg": {
+    "mtime": 1795468294.7816098,
+    "seen": 1795469085.8569655,
+    "ast_hash": "1e473066310bdfa6dfc6410b9a74234a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-11-18-sun-high-desktop.jpg": {
+    "mtime": 1795468348.945398,
+    "seen": 1795469085.8569717,
+    "ast_hash": "b933678b60cd4fc75d29c400b04680b1",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-11-22-sun-high-desktop.jpg": {
+    "mtime": 1795468402.5903766,
+    "seen": 1795469085.856988,
+    "ast_hash": "6478d9bf6fe613b22d5e84653b1e5b85",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-12-12-sun-high-desktop.jpg": {
+    "mtime": 1795468296.1855893,
+    "seen": 1795469085.8569944,
+    "ast_hash": "53d5d1806f1d7eab4eb7f13d50ee4b6a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-12-18-sun-high-desktop.jpg": {
+    "mtime": 1795468350.2500393,
+    "seen": 1795469085.857,
+    "ast_hash": "c7a5e8e6cffcfb661519bd459f953822",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-12-22-sun-high-desktop.jpg": {
+    "mtime": 1795468403.6677537,
+    "seen": 1795469085.8570063,
+    "ast_hash": "147879c5375880d2e51027ed8550235f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-13-12-sun-high-desktop.jpg": {
+    "mtime": 1795468297.9090903,
+    "seen": 1795469085.8570135,
+    "ast_hash": "79ae6ae0066b0c7476549a7cfddf3c6a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-13-18-sun-high-desktop.jpg": {
+    "mtime": 1795468351.37142,
+    "seen": 1795469085.8570209,
+    "ast_hash": "b96dff9ef2cccc1c7cffd745707e8744",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-13-22-sun-high-desktop.jpg": {
+    "mtime": 1795468404.707705,
+    "seen": 1795469085.857028,
+    "ast_hash": "1f1828a77aa45b31e4250739155b29ef",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-14-12-sun-high-desktop.jpg": {
+    "mtime": 1795468299.7327497,
+    "seen": 1795469085.8570359,
+    "ast_hash": "7da53c6f7347247d3604ada3d0c84b64",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-14-18-sun-high-desktop.jpg": {
+    "mtime": 1795468352.307096,
+    "seen": 1795469085.8570428,
+    "ast_hash": "2bd615a5dea39bf4f0e42376a3799859",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-14-22-sun-high-desktop.jpg": {
+    "mtime": 1795468405.7307122,
+    "seen": 1795469085.8570492,
+    "ast_hash": "62ae57a3069c75a0b3cf279dd81b7be3",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-15-12-sun-high-desktop.jpg": {
+    "mtime": 1795468300.7618248,
+    "seen": 1795469085.857056,
+    "ast_hash": "a991d9eb6b8ebf0fde3748c5e24f758a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-15-18-sun-high-desktop.jpg": {
+    "mtime": 1795468353.1571088,
+    "seen": 1795469085.8570628,
+    "ast_hash": "9ca1e312d89f65760fa5dc2fbc97b637",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-15-22-sun-high-desktop.jpg": {
+    "mtime": 1795468406.7480612,
+    "seen": 1795469085.8570697,
+    "ast_hash": "58274b277764b6c96c1653cdd4232e57",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-16-12-sun-high-desktop.jpg": {
+    "mtime": 1795468301.8905523,
+    "seen": 1795469085.8570774,
+    "ast_hash": "4fe012e2ce29a9d5abb62a3a37fbef7d",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-16-18-sun-high-desktop.jpg": {
+    "mtime": 1795468354.0139093,
+    "seen": 1795469085.8570845,
+    "ast_hash": "38ff4be14bbcd120210fdab2040e6132",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-16-22-sun-high-desktop.jpg": {
+    "mtime": 1795468407.6925633,
+    "seen": 1795469085.8570907,
+    "ast_hash": "96ed36466567e6941b55f3b1ad5984ab",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-17-12-sun-high-desktop.jpg": {
+    "mtime": 1795468303.6101203,
+    "seen": 1795469085.8570976,
+    "ast_hash": "c4154a69459b2d86a1267fb95a20266e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-17-18-sun-high-desktop.jpg": {
+    "mtime": 1795468355.1336768,
+    "seen": 1795469085.8571048,
+    "ast_hash": "04c028cbd1195d5bbb555ec3065f1583",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-17-22-sun-high-desktop.jpg": {
+    "mtime": 1795468408.8440557,
+    "seen": 1795469085.857113,
+    "ast_hash": "0e7c28d9c08062b4b0ce40f106774117",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-18-12-sun-high-desktop.jpg": {
+    "mtime": 1795468304.851933,
+    "seen": 1795469085.8571212,
+    "ast_hash": "b6a7513cf90715113837339a9f7e3e6b",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-18-18-sun-high-desktop.jpg": {
+    "mtime": 1795468356.487804,
+    "seen": 1795469085.857128,
+    "ast_hash": "3c35fa38906b9f7d27f1d932b66997fa",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-18-22-sun-high-desktop.jpg": {
+    "mtime": 1795468410.0261593,
+    "seen": 1795469085.8571353,
+    "ast_hash": "8c317e8e0e2eba933cc58a27fcd0f543",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-19-12-sun-high-desktop.jpg": {
+    "mtime": 1795468306.2399156,
+    "seen": 1795469085.857142,
+    "ast_hash": "7241941e4fcecba6e032cbd8afc2d56a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-19-18-sun-high-desktop.jpg": {
+    "mtime": 1795468357.5329828,
+    "seen": 1795469085.8571482,
+    "ast_hash": "4b73b5c855080dbc9e358a1d61b2e710",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-19-22-sun-high-desktop.jpg": {
+    "mtime": 1795468411.2198663,
+    "seen": 1795469085.857155,
+    "ast_hash": "b7b0ed8b4e24415570d000276c73d317",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-20-12-sun-high-desktop.jpg": {
+    "mtime": 1795468307.3592358,
+    "seen": 1795469085.8571632,
+    "ast_hash": "b726893447eaf635b34b5c328a2e89b3",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-20-18-sun-high-desktop.jpg": {
+    "mtime": 1795468359.9286685,
+    "seen": 1795469085.8571706,
+    "ast_hash": "6fd70b77f77fdcef179badca173839b0",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-20-22-sun-high-desktop.jpg": {
+    "mtime": 1795468412.5469396,
+    "seen": 1795469085.8571782,
+    "ast_hash": "8ec33eba0ea05bfdebcb26f75a50cfaa",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-21-12-sun-high-desktop.jpg": {
+    "mtime": 1795468308.5466795,
+    "seen": 1795469085.8571856,
+    "ast_hash": "23665097260479c0e3ac800f474570ba",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-21-18-sun-high-desktop.jpg": {
+    "mtime": 1795468361.053571,
+    "seen": 1795469085.8571925,
+    "ast_hash": "8823b8593be1dd0197b4f54e7c620e86",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-21-22-sun-high-desktop.jpg": {
+    "mtime": 1795468413.6792042,
+    "seen": 1795469085.857199,
+    "ast_hash": "e3076de034f7707a019ef6f5bce44522",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-22-12-sun-high-desktop.jpg": {
+    "mtime": 1795468309.8767374,
+    "seen": 1795469085.857205,
+    "ast_hash": "f7cead47978d8ece5e8ba07be487afca",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-22-18-sun-high-desktop.jpg": {
+    "mtime": 1795468362.2997937,
+    "seen": 1795469085.8572116,
+    "ast_hash": "b8aea0a2f3ba75d36d952dba460e9581",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-22-22-sun-high-desktop.jpg": {
+    "mtime": 1795468414.913652,
+    "seen": 1795469085.8572185,
+    "ast_hash": "f891ddd5fae257d67004c7b2ba9dfc63",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-23-12-sun-high-desktop.jpg": {
+    "mtime": 1795468310.8794894,
+    "seen": 1795469085.8572257,
+    "ast_hash": "e2ab0b5e3153004afe08fcfa1cf3a3f7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-23-18-sun-high-desktop.jpg": {
+    "mtime": 1795468363.6141796,
+    "seen": 1795469085.8572335,
+    "ast_hash": "32b4390a73e262bfd982242d08a60cd2",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-23-22-sun-high-desktop.jpg": {
+    "mtime": 1795468416.1050646,
+    "seen": 1795469085.8572395,
+    "ast_hash": "29de735f1159a6ff3382151864743169",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-24-12-sun-high-desktop.jpg": {
+    "mtime": 1795468311.9212718,
+    "seen": 1795469085.8572598,
+    "ast_hash": "fd08c1bc9da9ccfa70acea7d44b45c76",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-24-18-sun-high-desktop.jpg": {
+    "mtime": 1795468364.8412538,
+    "seen": 1795469085.8572676,
+    "ast_hash": "6c6a2ef93e103e335a8475b8f7ebaeea",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-24-22-sun-high-desktop.jpg": {
+    "mtime": 1795468417.6371703,
+    "seen": 1795469085.8572752,
+    "ast_hash": "b0a88d9006b0802871237baf84e425c0",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-25-12-sun-high-desktop.jpg": {
+    "mtime": 1795468312.8167858,
+    "seen": 1795469085.8572829,
+    "ast_hash": "86f1bc4e57abb1c096576f6a2d00c115",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-25-18-sun-high-desktop.jpg": {
+    "mtime": 1795468365.855219,
+    "seen": 1795469085.8572898,
+    "ast_hash": "a75dd7992e2220e1f5e5fc3611150db7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-25-22-sun-high-desktop.jpg": {
+    "mtime": 1795468419.0769544,
+    "seen": 1795469085.8572965,
+    "ast_hash": "1318dd49b5e2c7b1d2efd3c62dc04adc",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-26-12-sun-high-desktop.jpg": {
+    "mtime": 1795468314.1074178,
+    "seen": 1795469085.8573036,
+    "ast_hash": "15ac357c2ab6328072b09b04df305aaf",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-26-18-sun-high-desktop.jpg": {
+    "mtime": 1795468367.1535952,
+    "seen": 1795469085.8573105,
+    "ast_hash": "26752e0bc839191c513bbfe6d4bf6b8a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-26-22-sun-high-desktop.jpg": {
+    "mtime": 1795468420.2862747,
+    "seen": 1795469085.8573198,
+    "ast_hash": "0b8b281baf5435429097df0527260e8a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-27-12-sun-high-desktop.jpg": {
+    "mtime": 1795468315.0043728,
+    "seen": 1795469085.8573277,
+    "ast_hash": "d6e2bb07b5c7b0618aea3e40e4091717",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-27-18-sun-high-desktop.jpg": {
+    "mtime": 1795468368.121273,
+    "seen": 1795469085.8573353,
+    "ast_hash": "5d8db3a1ad311ca2cea6d3787e583a5a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-27-22-sun-high-desktop.jpg": {
+    "mtime": 1795468421.2358499,
+    "seen": 1795469085.8573413,
+    "ast_hash": "aa12ee07dade8fabcc62a6c495bcae35",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-28-12-sun-high-desktop.jpg": {
+    "mtime": 1795468315.8462667,
+    "seen": 1795469085.857347,
+    "ast_hash": "02fa816cf303f73393af7b3978787530",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-28-18-sun-high-desktop.jpg": {
+    "mtime": 1795468369.0145605,
+    "seen": 1795469085.8573532,
+    "ast_hash": "4b4a1c56c7ceda59d8effd37635ccc81",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-28-22-sun-high-desktop.jpg": {
+    "mtime": 1795468421.9934113,
+    "seen": 1795469085.8573608,
+    "ast_hash": "16013d66b477c4957dda79d677971d6d",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-29-12-sun-high-desktop.jpg": {
+    "mtime": 1795468316.8966057,
+    "seen": 1795469085.8573697,
+    "ast_hash": "7519946962f215be8267e379d5494668",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-29-18-sun-high-desktop.jpg": {
+    "mtime": 1795468370.0638976,
+    "seen": 1795469085.857377,
+    "ast_hash": "306982d28739e47933ef2570d7828175",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-29-22-sun-high-desktop.jpg": {
+    "mtime": 1795468422.8819551,
+    "seen": 1795469085.8573837,
+    "ast_hash": "ce7b51bb7a74a85105389ad5f275cf63",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-30-12-sun-high-desktop.jpg": {
+    "mtime": 1795468317.753506,
+    "seen": 1795469085.8573914,
+    "ast_hash": "c6f088d52f535814bf914d63e1d05c69",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-30-18-sun-high-desktop.jpg": {
+    "mtime": 1795468371.2765868,
+    "seen": 1795469085.857398,
+    "ast_hash": "d6912e03503b04de15922dea443369c4",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-30-22-sun-high-desktop.jpg": {
+    "mtime": 1795468423.980464,
+    "seen": 1795469085.857404,
+    "ast_hash": "65412789302717d442f8880f96daa114",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-31-12-sun-high-desktop.jpg": {
+    "mtime": 1795468318.624967,
+    "seen": 1795469085.857411,
+    "ast_hash": "5b8c118343dea322a3085ceae0eb5496",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-31-18-sun-high-desktop.jpg": {
+    "mtime": 1795468372.5283222,
+    "seen": 1795469085.8574176,
+    "ast_hash": "0368bfa366684cfaf634fdd51a027e96",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-31-22-sun-high-desktop.jpg": {
+    "mtime": 1795468425.1131244,
+    "seen": 1795469085.8574255,
+    "ast_hash": "7a0d9faa1ff3b3e2fe3141fc7765c2c8",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-32-12-sun-high-desktop.jpg": {
+    "mtime": 1795468319.4874456,
+    "seen": 1795469085.8574326,
+    "ast_hash": "aafac5ed66d650ae9ecfc778883bc546",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-32-18-sun-high-desktop.jpg": {
+    "mtime": 1795468373.7367165,
+    "seen": 1795469085.85744,
+    "ast_hash": "a6e56a9c5c55fb2af2693dffeafa9bff",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-32-22-sun-high-desktop.jpg": {
+    "mtime": 1795468426.2288647,
+    "seen": 1795469085.857448,
+    "ast_hash": "6920d24b8ec532b4ba4a294dd7d095d7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-33-12-sun-high-desktop.jpg": {
+    "mtime": 1795468320.4970856,
+    "seen": 1795469085.857465,
+    "ast_hash": "81d2e40b8d0f058ee6af61b73e3f474f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-33-18-sun-high-desktop.jpg": {
+    "mtime": 1795468374.9286363,
+    "seen": 1795469085.8574739,
+    "ast_hash": "6834a0fc3420f3d63dc71ae5886e1830",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-33-22-sun-high-desktop.jpg": {
+    "mtime": 1795468427.4347243,
+    "seen": 1795469085.8574817,
+    "ast_hash": "819dbd5a29a24f00722d54133c64d4c6",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-34-12-sun-high-desktop.jpg": {
+    "mtime": 1795468322.3757386,
+    "seen": 1795469085.8574889,
+    "ast_hash": "e47afec381003394d70e4278920add09",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-34-18-sun-high-desktop.jpg": {
+    "mtime": 1795468377.0273814,
+    "seen": 1795469085.8574965,
+    "ast_hash": "127e8988bbf5545b3d9d870b22c3bdff",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-34-22-sun-high-desktop.jpg": {
+    "mtime": 1795468429.6130717,
+    "seen": 1795469085.8575065,
+    "ast_hash": "463d1bf98b9de236b6ecd5f149424344",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-35-12-sun-high-desktop.jpg": {
+    "mtime": 1795468323.6367671,
+    "seen": 1795469085.8575137,
+    "ast_hash": "f33e3b90e98e8e9381ccd8b91f001bed",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-35-18-sun-high-desktop.jpg": {
+    "mtime": 1795468378.1438549,
+    "seen": 1795469085.8575203,
+    "ast_hash": "6fcc283dfe2b03f6d2092458fb635ea1",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-35-22-sun-high-desktop.jpg": {
+    "mtime": 1795468430.9500332,
+    "seen": 1795469085.8575263,
+    "ast_hash": "4217ea1cffaede2a35d12482674909d6",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-36-12-sun-high-desktop.jpg": {
+    "mtime": 1795468324.9225006,
+    "seen": 1795469085.8575337,
+    "ast_hash": "9cf501056d4e533fb941155589f37cf9",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-36-18-sun-high-desktop.jpg": {
+    "mtime": 1795468379.2668414,
+    "seen": 1795469085.857541,
+    "ast_hash": "6de0d8bc5168f73e9d56920a4174999c",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-36-22-sun-high-desktop.jpg": {
+    "mtime": 1795468432.1983738,
+    "seen": 1795469085.8575478,
+    "ast_hash": "9ac3899bd5a0ff5dd8252da6b04fb32a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-37-12-sun-high-desktop.jpg": {
+    "mtime": 1795468326.1586647,
+    "seen": 1795469085.8575547,
+    "ast_hash": "4f022380849e158b43d757b1574f0cb3",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-37-18-sun-high-desktop.jpg": {
+    "mtime": 1795468380.2786205,
+    "seen": 1795469085.857562,
+    "ast_hash": "d46da09356da02687fdbdbec3f80c0f4",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-37-22-sun-high-desktop.jpg": {
+    "mtime": 1795468433.3672423,
+    "seen": 1795469085.85757,
+    "ast_hash": "b1c5e061156dc156f8dd40b9f2a1263a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-38-12-sun-high-desktop.jpg": {
+    "mtime": 1795468327.1967163,
+    "seen": 1795469085.857578,
+    "ast_hash": "38a8d7639782d0f34a7b0430851443a2",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-38-18-sun-high-desktop.jpg": {
+    "mtime": 1795468381.061504,
+    "seen": 1795469085.857586,
+    "ast_hash": "19aa0f9d970578dc08b4bd0860c75fe8",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-38-22-sun-high-desktop.jpg": {
+    "mtime": 1795468434.503261,
+    "seen": 1795469085.857593,
+    "ast_hash": "1cdfec97f4af3abde2621c1da79a87a8",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-39-12-sun-high-desktop.jpg": {
+    "mtime": 1795468328.2830794,
+    "seen": 1795469085.8576,
+    "ast_hash": "eea33309ebe9731b1ce109bf462c6f95",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-39-18-sun-high-desktop.jpg": {
+    "mtime": 1795468381.9445884,
+    "seen": 1795469085.8576093,
+    "ast_hash": "45ce4475973da0f252a74975896747b3",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-39-22-sun-high-desktop.jpg": {
+    "mtime": 1795468435.7128527,
+    "seen": 1795469085.8576171,
+    "ast_hash": "7eb5e43d946db6c9463d05f4c86b746a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-40-12-sun-high-desktop.jpg": {
+    "mtime": 1795468329.4806361,
+    "seen": 1795469085.857626,
+    "ast_hash": "550835a51486cb4299f2938ad2098df2",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-40-18-sun-high-desktop.jpg": {
+    "mtime": 1795468383.0004647,
+    "seen": 1795469085.8576343,
+    "ast_hash": "96984cfeb1247ef9e8b2afc718e39eed",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-40-22-sun-high-desktop.jpg": {
+    "mtime": 1795468436.8963103,
+    "seen": 1795469085.857642,
+    "ast_hash": "a5efd3b3138dc7a6fe2eb4f206dc2901",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-41-12-sun-high-desktop.jpg": {
+    "mtime": 1795468330.7681544,
+    "seen": 1795469085.8576493,
+    "ast_hash": "7575d1009e787d4f876c2ea01de4dd44",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-41-18-sun-high-desktop.jpg": {
+    "mtime": 1795468384.2718968,
+    "seen": 1795469085.8576577,
+    "ast_hash": "516024703c6ba959888fe34abbd72116",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-41-22-sun-high-desktop.jpg": {
+    "mtime": 1795468438.5345888,
+    "seen": 1795469085.857671,
+    "ast_hash": "de0f60c2fd631ffff57d17c2b7aae411",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-42-12-sun-high-desktop.jpg": {
+    "mtime": 1795468331.8035939,
+    "seen": 1795469085.8576796,
+    "ast_hash": "48a2d7bcbd7686f5745927e721ca05e9",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-42-18-sun-high-desktop.jpg": {
+    "mtime": 1795468385.4628656,
+    "seen": 1795469085.8576925,
+    "ast_hash": "69a0705432cecafa3e1a36d93b5f9b8f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/all-42-22-sun-high-desktop.jpg": {
+    "mtime": 1795468439.7470987,
+    "seen": 1795469085.8577003,
+    "ast_hash": "1f4a7fd207a5a6c9c8af85ce1c46a455",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-12-fog-high-desktop.jpg": {
+    "mtime": 1795468235.0187438,
+    "seen": 1795469085.8577085,
+    "ast_hash": "a9d75de2552f38ddfd3bb1fabc9eb88e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-12-rain-high-desktop.jpg": {
+    "mtime": 1795468232.732177,
+    "seen": 1795469085.8577168,
+    "ast_hash": "702b45cec2f1da8ba156fc98fda2a78c",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795468188.4935231,
+    "seen": 1795469085.8577251,
+    "ast_hash": "f03fdfd49ccf86f08b2ded97acf6b4af",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-12-sun-high-desktop.jpg": {
+    "mtime": 1795468187.6382782,
+    "seen": 1795469085.857733,
+    "ast_hash": "723515e20a5ec43cc0253febd4d834b4",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795468260.8059483,
+    "seen": 1795469085.8577414,
+    "ast_hash": "e0bb5aa4c112c92ee60aa33b5cd548c7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795468190.3155684,
+    "seen": 1795469085.8577492,
+    "ast_hash": "448e80ccf7379e9733b49079ad8cfd21",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-18-sun-high-desktop.jpg": {
+    "mtime": 1795468189.5738564,
+    "seen": 1795469085.8577573,
+    "ast_hash": "146ba5cf264e5f16d57cba302a3d326e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-22-fog-high-desktop.jpg": {
+    "mtime": 1795468236.2202504,
+    "seen": 1795469085.8577654,
+    "ast_hash": "37f7ed9680b25da93011fd827a21e15f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-22-rain-high-desktop.jpg": {
+    "mtime": 1795468233.8419847,
+    "seen": 1795469085.8577778,
+    "ast_hash": "cd6d650bea42ab75a4dc64e6257df16b",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795468192.1020517,
+    "seen": 1795469085.857785,
+    "ast_hash": "c2d4588ca8314c85609c16809636a0bc",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-22-sun-high-desktop.jpg": {
+    "mtime": 1795468191.2992878,
+    "seen": 1795469085.8577917,
+    "ast_hash": "7a519e8f8c9f6e2ff851ecd158e3a17e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795468261.9671764,
+    "seen": 1795469085.8577995,
+    "ast_hash": "5086905fd5e45c3c7c58b63c5da28395",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795468186.6382575,
+    "seen": 1795469085.8578067,
+    "ast_hash": "d27f83fa09632ea9d310ec024be3fc3e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-00-6-sun-high-desktop.jpg": {
+    "mtime": 1795468185.9345024,
+    "seen": 1795469085.8578136,
+    "ast_hash": "26857111a039918352c6dcae9508a282",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-12-fog-high-desktop.jpg": {
+    "mtime": 1795468242.1845832,
+    "seen": 1795469085.8578205,
+    "ast_hash": "56a07faebbede621c6141741c4f7e202",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-12-rain-high-desktop.jpg": {
+    "mtime": 1795468239.2493458,
+    "seen": 1795469085.857828,
+    "ast_hash": "b33bab22efbe063a9d886b3ab4419cb4",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795468199.1496384,
+    "seen": 1795469085.857834,
+    "ast_hash": "6a8b6f8c5a8db761c36ba1d64fa5f0d8",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-12-sun-high-desktop.jpg": {
+    "mtime": 1795468197.9862473,
+    "seen": 1795469085.85784,
+    "ast_hash": "e962e1118be389db0cfb04d6e6e39ee7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795468263.8770018,
+    "seen": 1795469085.8578463,
+    "ast_hash": "a27941ce19cb67ecbd96f725e14862d8",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795468201.7605293,
+    "seen": 1795469085.8578522,
+    "ast_hash": "4ec72d9a2d705627bbed067e47c52be6",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-18-sun-high-desktop.jpg": {
+    "mtime": 1795468200.7055235,
+    "seen": 1795469085.8578584,
+    "ast_hash": "48fd7281636ea74e40c244b819fee967",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-22-fog-high-desktop.jpg": {
+    "mtime": 1795468243.3442526,
+    "seen": 1795469085.8578658,
+    "ast_hash": "a8a5fe939002ba23fb8f0396b5a5ad6f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-22-rain-high-desktop.jpg": {
+    "mtime": 1795468240.7811427,
+    "seen": 1795469085.8578734,
+    "ast_hash": "318145b6834c19c3abb83bf2f85da9af",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795468203.9835944,
+    "seen": 1795469085.8578806,
+    "ast_hash": "60412ac41d08dfbbb3bc65be1794ad42",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-22-sun-high-desktop.jpg": {
+    "mtime": 1795468202.9909744,
+    "seen": 1795469085.8578875,
+    "ast_hash": "4593f55e4684e0116ee1d9f0d69342fa",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795468265.514124,
+    "seen": 1795469085.8578975,
+    "ast_hash": "f512cb06907200a176e6af23b58ad59c",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795468196.5857983,
+    "seen": 1795469085.8579054,
+    "ast_hash": "5127da454d2b09346604e59624b6cd4a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-01-6-sun-high-desktop.jpg": {
+    "mtime": 1795468195.5221498,
+    "seen": 1795469085.8579123,
+    "ast_hash": "41aa564d367292ee28b3ba68793003c8",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-12-fog-high-desktop.jpg": {
+    "mtime": 1795468246.6578038,
+    "seen": 1795469085.8579195,
+    "ast_hash": "83957eb356dde110a0cafd6b50b96c0a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-12-rain-high-desktop.jpg": {
+    "mtime": 1795468244.4074113,
+    "seen": 1795469085.8579266,
+    "ast_hash": "3509f2aa26e761912eb3d2965a459672",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795468208.906243,
+    "seen": 1795469085.8579338,
+    "ast_hash": "fe3153200a004d58ddae5b9b2c348c55",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-12-sun-high-desktop.jpg": {
+    "mtime": 1795468207.6597774,
+    "seen": 1795469085.857941,
+    "ast_hash": "3030d466cd6f2e703ac3e08f2ec8e495",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795468267.5051124,
+    "seen": 1795469085.8579473,
+    "ast_hash": "8f160c399d2e9dd700d3be493c36de0a",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795468211.0806413,
+    "seen": 1795469085.857955,
+    "ast_hash": "7f21afc70de95edca91222124621e773",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-18-sun-high-desktop.jpg": {
+    "mtime": 1795468210.224115,
+    "seen": 1795469085.8579626,
+    "ast_hash": "8a77dc0cbaf3b92c18e04edd95c79e56",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-22-fog-high-desktop.jpg": {
+    "mtime": 1795468247.67907,
+    "seen": 1795469085.85797,
+    "ast_hash": "5023ee276f5f9363e7ca575931124f62",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-22-rain-high-desktop.jpg": {
+    "mtime": 1795468245.5626092,
+    "seen": 1795469085.8579774,
+    "ast_hash": "4c67d84b4473da00c985a525b5544a26",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795468213.0385933,
+    "seen": 1795469085.8579836,
+    "ast_hash": "2409664794c608576b21f2857b302cae",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-22-sun-high-desktop.jpg": {
+    "mtime": 1795468212.1264012,
+    "seen": 1795469085.857989,
+    "ast_hash": "41706a05b9dee6ecf379387ed8231cdc",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795468269.4063573,
+    "seen": 1795469085.8579957,
+    "ast_hash": "8eb75d9231e4be7ededff0570aec2450",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795468206.561042,
+    "seen": 1795469085.8580058,
+    "ast_hash": "2495171b01cd2947011b34d1cb37df4e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-03-6-sun-high-desktop.jpg": {
+    "mtime": 1795468205.782043,
+    "seen": 1795469085.8580143,
+    "ast_hash": "8cfc2bf61c5fd5c1be10f1b3309cb620",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-12-fog-high-desktop.jpg": {
+    "mtime": 1795468253.4118316,
+    "seen": 1795469085.8580217,
+    "ast_hash": "72226e896de0ca5b26921f689a73d981",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-12-rain-high-desktop.jpg": {
+    "mtime": 1795468250.8625796,
+    "seen": 1795469085.8580291,
+    "ast_hash": "a2ece09a6060826aed20e395943d92d4",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795468219.8290076,
+    "seen": 1795469085.8580363,
+    "ast_hash": "c011a8a5002a017e7426de0e2d0c4b41",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-12-sun-high-desktop.jpg": {
+    "mtime": 1795468218.640293,
+    "seen": 1795469085.858044,
+    "ast_hash": "70fe077f1407717f494c5f72b87251af",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795468273.1786141,
+    "seen": 1795469085.858051,
+    "ast_hash": "48825fc97c35607c5a500f76cb7159b7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795468222.3140826,
+    "seen": 1795469085.8580575,
+    "ast_hash": "52258d79c103aecbead6337364f9345e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-18-sun-high-desktop.jpg": {
+    "mtime": 1795468221.2097485,
+    "seen": 1795469085.8580632,
+    "ast_hash": "62d295749f9b13850c58b309406a485e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-22-fog-high-desktop.jpg": {
+    "mtime": 1795468254.6974475,
+    "seen": 1795469085.8580706,
+    "ast_hash": "9158547a55b141096ca65b0e61a08e3f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-22-rain-high-desktop.jpg": {
+    "mtime": 1795468252.1531703,
+    "seen": 1795469085.8580801,
+    "ast_hash": "19012cbfdda672e827c6d373d11275a7",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795468224.3831825,
+    "seen": 1795469085.8580883,
+    "ast_hash": "9a3987b9ce24d5485c1e35c9535988b6",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-22-sun-high-desktop.jpg": {
+    "mtime": 1795468223.4248705,
+    "seen": 1795469085.8580952,
+    "ast_hash": "87b9762a7237af2e1827f2e5ca337c34",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795468274.4173455,
+    "seen": 1795469085.8581011,
+    "ast_hash": "826b7c3a1b2013bb6426d1b7e605dee1",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795468217.2623289,
+    "seen": 1795469085.8581085,
+    "ast_hash": "b683f336cbc7911056a2230be7343a34",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-07-6-sun-high-desktop.jpg": {
+    "mtime": 1795468216.277578,
+    "seen": 1795469085.8581157,
+    "ast_hash": "ab8bbaf74833fef9404c6764a7dbc894",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-12-fog-high-desktop.jpg": {
+    "mtime": 1795468257.7011137,
+    "seen": 1795469085.8581238,
+    "ast_hash": "df3d30cf5b1dd1827e107e59715e86a2",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-12-rain-high-desktop.jpg": {
+    "mtime": 1795468255.7971535,
+    "seen": 1795469085.8581314,
+    "ast_hash": "6b5a4daef1d66835e924c9a82f873967",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-12-sun-balanced-desktop.jpg": {
+    "mtime": 1795468227.5204709,
+    "seen": 1795469085.8581388,
+    "ast_hash": "c8590e08a4924fef6cd427b0cfb9089b",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-12-sun-high-desktop.jpg": {
+    "mtime": 1795468226.9243717,
+    "seen": 1795469085.8581455,
+    "ast_hash": "1d8d9ce8f4af08cad39e7a1a52f9038f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-12-sun-high-mobile3x.jpg": {
+    "mtime": 1795468275.590587,
+    "seen": 1795469085.8581736,
+    "ast_hash": "6d4e5184178cf32ec4f17029a0b4fa37",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-18-sun-balanced-desktop.jpg": {
+    "mtime": 1795468229.1804345,
+    "seen": 1795469085.8581798,
+    "ast_hash": "9142a0760288c9eaf301330fd838322f",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-18-sun-high-desktop.jpg": {
+    "mtime": 1795468228.3799734,
+    "seen": 1795469085.8581867,
+    "ast_hash": "d6c24e161dd52cc8ea9ae334b6b5ed0e",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-22-fog-high-desktop.jpg": {
+    "mtime": 1795468258.5157423,
+    "seen": 1795469085.858194,
+    "ast_hash": "3356084ee431fc4a9acbf6ebfe66c89c",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-22-rain-high-desktop.jpg": {
+    "mtime": 1795468256.8850257,
+    "seen": 1795469085.8582022,
+    "ast_hash": "1855f444c64cd39e8645b8198160bf07",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-22-sun-balanced-desktop.jpg": {
+    "mtime": 1795468231.0307958,
+    "seen": 1795469085.8582087,
+    "ast_hash": "9e517c1a982971b997ebdb84a7655c9d",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-22-sun-high-desktop.jpg": {
+    "mtime": 1795468230.2107825,
+    "seen": 1795469085.8582165,
+    "ast_hash": "10d1bf2e7439557a2fd6a38bbad0c0f1",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-22-sun-high-mobile3x.jpg": {
+    "mtime": 1795468276.7229338,
+    "seen": 1795469085.8582234,
+    "ast_hash": "23a421893b63d9f3d5d106ee7059d2bd",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-6-sun-balanced-desktop.jpg": {
+    "mtime": 1795468226.1895769,
+    "seen": 1795469085.8582299,
+    "ast_hash": "10d6ba4b39ec2190d5127e96505f7026",
+    "semantic_hash": ""
+  },
+  "docs/visual-reports/phase1/hero-14-6-sun-high-desktop.jpg": {
+    "mtime": 1795468225.5229323,
+    "seen": 1795469085.8582358,
+    "ast_hash": "ebe37245f21e1785208c1b7083b971b6",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {
