@@ -180,6 +180,16 @@ export function isPhysicalWhite(rgb: Rgb): boolean {
 }
 
 /**
+ * Authoring-time colour conditioning shared by the surface material presets.
+ * Pulls out-of-contract colours back into the surface band (<=0.75) or the
+ * deliberate-white band (0.80-0.88), preserving hue and saturation ratios.
+ * Colours already inside either band are returned unchanged.
+ */
+export function conditionSurfaceHex(hex: string): string {
+  return toHex(normalizeAlbedo(parseHexColour(hex)));
+}
+
+/**
  * Scale sRGB channels uniformly so the perceptual value lands back inside the
  * contract, preserving hue and saturation ratios. Gap values fall back to the
  * 0.75 surface ceiling; over-bright whites clamp to the 0.88 ceiling. This is

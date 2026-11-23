@@ -6,6 +6,7 @@ import {
   GRADE_GUARDRAILS,
   auditAlbedo,
   auditHeroLuminance,
+  conditionSurfaceHex,
   isPhysicalWhite,
   isSurfaceAlbedo,
   linearToSrgb,
@@ -139,6 +140,26 @@ test('grade guardrails stay small, bounded, and carry a stable cache key', () =>
   assert.ok(GRADE_GUARDRAILS.whiteShoulderKnee > 1);
   assert.ok(GRADE_GUARDRAILS.whiteShoulderRange > 0 && GRADE_GUARDRAILS.whiteShoulderRange < 1);
   assert.match(GRADE_GUARDRAILS.cacheKey, /^miniature_albedo_guard_v\d+$/);
+});
+
+test('conditionSurfaceHex keeps in-band colours and pulls out-of-band ones inside', () => {
+  assert.equal(conditionSurfaceHex('#b9a484'), '#b9a484'); // Union Buildings sandstone
+  assert.equal(conditionSurfaceHex('#66704a'), '#66704a'); // deep foliage
+  const gap = conditionSurfaceHex('#cdc5b2');
+  assert.ok(srgbLuma(parseHexColour(gap)) <= ALBEDO_CONTRACT.surfaceCeiling + 0.005);
+  assert.equal(auditAlbedo(parseHexColour(gap)).band, 'surface');
+  const bright = conditionSurfaceHex('#f2f0e6');
+  assert.equal(auditAlbedo(parseHexColour(bright)).band, 'white');
+  const pureWhite = conditionSurfaceHex('#ffffff');
+  assert.notEqual(pureWhite, '#ffffff');
+  assert.equal(auditAlbedo(parseHexColour(pureWhite)).band, 'white');
+});
+
+test('conditionSurfaceHex preserves hue ordering while scaling brightness', () => {
+  const rgb = parseHexColour('#cdc5b2');
+  const out = parseHexColour(conditionSurfaceHex('#cdc5b2'));
+  assert.ok(out.r > out.g && out.g > out.b);
+  assert.ok(out.r < rgb.r && out.g < rgb.g && out.b < rgb.b);
 });
 
 function linearChroma(rgb: { r: number; g: number; b: number }): number {

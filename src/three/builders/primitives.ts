@@ -29,6 +29,7 @@ import {
   WU,
 } from '../shaders';
 import { createWindowFacade } from '../windowLights';
+import { conditionSurfaceHex } from '../../lib/albedoAudit';
 import { getSeasonMonth, isSpeciesBlooming } from '../../lib/season';
 
 export interface SwayItem {
@@ -135,6 +136,32 @@ const tmpEuler = new THREE.Euler();
 const tmpPos = new THREE.Vector3();
 const tmpScale = new THREE.Vector3();
 const tmpColor = new THREE.Color();
+const contractScratch = new THREE.Color();
+
+/**
+ * Master switch for the shared albedo-contract pass. Set to false to restore
+ * authored surface colours verbatim. Only colours outside the contract change:
+ * ordinary surfaces are pulled down to the 0.75 sRGB ceiling, deliberate
+ * physical whites stay in the 0.80-0.88 window, and everything else is intact.
+ */
+export const ENFORCE_ALBEDO_CONTRACT = true;
+
+/**
+ * IBL response for rough diffuse surfaces. The brief asks for a low value on
+ * stone/plaster and a high one on glass/metal so reflections read as a sky
+ * rather than a flat wash. This is a uniform only — it adds no shader program.
+ */
+export const ROUGH_SURFACE_ENV_INTENSITY = 0.35;
+
+/**
+ * Shared colour conditioning for the surface presets below. Returns a stable
+ * `#rrggbb` string so the existing material cache keys stay correct.
+ */
+export function conditionSurfaceColour(c: THREE.ColorRepresentation): THREE.ColorRepresentation {
+  if (!ENFORCE_ALBEDO_CONTRACT) return c;
+  contractScratch.set(c);
+  return conditionSurfaceHex(`#${contractScratch.getHexString()}`);
+}
 
 let lastWetRain = -1;
 
@@ -216,14 +243,16 @@ export function MRoof(
   bumpScale = 0.032,
   opts?: { dirty?: boolean }
 ): THREE.MeshStandardMaterial {
-  const colHex = tmpColor.set(c).getHexString();
+  const surface = conditionSurfaceColour(c);
+  const colHex = tmpColor.set(surface).getHexString();
   const key = `roof_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}${opts?.dirty ? '_d' : ''}`;
   if (matCache[key]) return matCache[key];
   // Thin gloss on the roof ridge so it separates from the dark thatch below.
   const mat = new THREE.MeshPhysicalMaterial({
-    color: c,
+    color: surface,
     roughness: r,
     metalness: 0.03,
+    envMapIntensity: ROUGH_SURFACE_ENV_INTENSITY,
     clearcoat: 0.1,
     clearcoatRoughness: 0.35,
     ...surfaceDetail('roof', bumpScale),
@@ -259,13 +288,15 @@ export function MCanvas(
   r = 0.88,
   bumpScale = 0.022
 ): THREE.MeshStandardMaterial {
-  const colHex = tmpColor.set(c).getHexString();
+  const surface = conditionSurfaceColour(c);
+  const colHex = tmpColor.set(surface).getHexString();
   const key = `canvas_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
   if (matCache[key]) return matCache[key];
   const mat = new THREE.MeshStandardMaterial({
-    color: c,
+    color: surface,
     roughness: r,
     metalness: 0,
+    envMapIntensity: ROUGH_SURFACE_ENV_INTENSITY,
     ...surfaceDetail('canvas', bumpScale),
   });
   return cacheMat(key, mat);
@@ -497,13 +528,15 @@ export function MStone(
   bumpScale = 0.045,
   m = 0.02
 ): THREE.MeshStandardMaterial {
-  const colHex = tmpColor.set(c).getHexString();
+  const surface = conditionSurfaceColour(c);
+  const colHex = tmpColor.set(surface).getHexString();
   const key = `stone_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}_${m.toFixed(2)}`;
   if (matCache[key]) return matCache[key];
   const mat = new THREE.MeshStandardMaterial({
-    color: c,
+    color: surface,
     roughness: r,
     metalness: m,
+    envMapIntensity: ROUGH_SURFACE_ENV_INTENSITY,
     ...surfaceDetail('stone', bumpScale),
   });
   mat.userData.naturalSurface = true;
@@ -516,13 +549,15 @@ export function MPlaster(
   bumpScale = 0.02,
   m = 0.02
 ): THREE.MeshStandardMaterial {
-  const colHex = tmpColor.set(c).getHexString();
+  const surface = conditionSurfaceColour(c);
+  const colHex = tmpColor.set(surface).getHexString();
   const key = `plaster_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}_${m.toFixed(2)}`;
   if (matCache[key]) return matCache[key];
   const mat = new THREE.MeshStandardMaterial({
-    color: c,
+    color: surface,
     roughness: r,
     metalness: m,
+    envMapIntensity: ROUGH_SURFACE_ENV_INTENSITY,
     ...surfaceDetail('plaster', bumpScale),
   });
   return cacheMat(key, mat);
@@ -533,13 +568,15 @@ export function MWood(
   r = 0.84,
   bumpScale = 0.03
 ): THREE.MeshStandardMaterial {
-  const colHex = tmpColor.set(c).getHexString();
+  const surface = conditionSurfaceColour(c);
+  const colHex = tmpColor.set(surface).getHexString();
   const key = `wood_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
   if (matCache[key]) return matCache[key];
   const mat = new THREE.MeshStandardMaterial({
-    color: c,
+    color: surface,
     roughness: r,
     metalness: 0.0,
+    envMapIntensity: ROUGH_SURFACE_ENV_INTENSITY,
     ...surfaceDetail('wood', bumpScale),
   });
   return cacheMat(key, mat);
@@ -554,13 +591,15 @@ export function MBark(
   r = 0.9,
   bumpScale = 0.036
 ): THREE.MeshStandardMaterial {
-  const colHex = tmpColor.set(c).getHexString();
+  const surface = conditionSurfaceColour(c);
+  const colHex = tmpColor.set(surface).getHexString();
   const key = `bark_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
   if (matCache[key]) return matCache[key];
   const mat = new THREE.MeshStandardMaterial({
-    color: c,
+    color: surface,
     roughness: r,
     metalness: 0.0,
+    envMapIntensity: ROUGH_SURFACE_ENV_INTENSITY,
     ...surfaceDetail('wood', bumpScale),
   });
   mat.userData.naturalSurface = true;
