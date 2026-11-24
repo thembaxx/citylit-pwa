@@ -91,9 +91,12 @@ export function patchPlacesVolumetricFog<T extends THREE.Material>(
     matWithFog.fog = false;
   }
   const prevKey = mat.customProgramCacheKey?.() ?? 'std';
-  mat.customProgramCacheKey = () => `${prevKey}_places_vfog_v1`;
+  mat.customProgramCacheKey = () => `${prevKey}_places_vfog_v2_dissolve`;
   mat.onBeforeCompile = (shader) => {
     bindVolumetricFogUniforms(shader.uniforms, env);
+    // Places materials bypass the prototype dissolve hook, so bind the shared
+    // cut plane here to get the same model-switch wipe as the landmark stage.
+    shader.uniforms.uDY = WU.dy;
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -117,7 +120,13 @@ vVolFogWPos = plFogWp.xyz;`
         '#include <common>',
         `#include <common>
 varying vec3 vVolFogWPos;
+uniform float uDY;
 ${PLACES_VOLUMETRIC_FOG_GLSL}`
+      )
+      .replace(
+        '#include <alphatest_fragment>',
+        `#include <alphatest_fragment>
+if (uDY < 90.0 && vVolFogWPos.y > uDY && dot(vVolFogWPos.xz, vVolFogWPos.xz) < 110.0 && vVolFogWPos.y < 14.0) discard;`
       )
       .replace(
         '#include <tonemapping_fragment>',
@@ -148,6 +157,7 @@ export function createStrataTerrainMaterial(
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uRN = WU.rain;
     shader.uniforms.uWT = WU.t;
+    shader.uniforms.uDY = WU.dy;
     shader.uniforms.uSeasonF = WU.season;
     shader.uniforms.uSeasonAutumn = WU.seasonAutumn;
     shader.uniforms.uSeasonSpring = WU.seasonSpring;
@@ -163,6 +173,8 @@ export function createStrataTerrainMaterial(
         '#include <common>',
         `#include <common>\n${STRATA_FRAG_COMMON}\n${PLACES_VOLUMETRIC_FOG_GLSL}`
       )
+      .replace('#include <alphatest_fragment>', `#include <alphatest_fragment>
+if (uDY < 90.0 && vPlacePos.y > uDY && dot(vPlacePos.xz, vPlacePos.xz) < 110.0 && vPlacePos.y < 14.0) discard;`)
       .replace('#include <color_fragment>', STRATA_COLOR_FRAGMENT)
       .replace('#include <roughnessmap_fragment>', STRATA_ROUGHNESS_FRAGMENT)
       .replace(
@@ -172,7 +184,7 @@ export function createStrataTerrainMaterial(
       );
   };
 
-  mat.customProgramCacheKey = () => 'places_strata_world_v4';
+  mat.customProgramCacheKey = () => 'places_strata_world_v5_dissolve';
   return mat;
 }
 
@@ -233,6 +245,7 @@ export function createCutawayWaterTopMaterial(
     polygonOffsetUnits: -1,
     uniforms: {
       uTime: WU.t,
+      uDY: WU.dy,
       uSun: WU.sun,
       uSky: WU.sky,
       uRain: WU.rain,
@@ -299,6 +312,7 @@ export function createCutawayWaterWallMaterial(
     polygonOffsetUnits: -1,
     uniforms: {
       uTime: WU.t,
+      uDY: WU.dy,
       uSun: WU.sun,
       uSky: WU.sky,
       uShallow: { value: new THREE.Color(opts.shallowColor) },
@@ -349,6 +363,7 @@ export function createSliceMistMaterial(
     side: THREE.DoubleSide,
     uniforms: {
       uTime: WU.t,
+      uDY: WU.dy,
       uWind: WU.wind,
       uSun: WU.sun,
       uLit: WU.lit,
@@ -376,6 +391,7 @@ void main() {
 }`,
     fragmentShader: `
 uniform float uTime;
+uniform float uDY;
 uniform float uWind;
 uniform float uSun;
 uniform float uLit;
@@ -410,6 +426,7 @@ float mFbm(vec2 p) {
 ${PLACES_VOLUMETRIC_FOG_GLSL}
 
 void main() {
+  if (uDY < 90.0 && vWorldPos.y > uDY && dot(vWorldPos.xz, vWorldPos.xz) < 110.0 && vWorldPos.y < 14.0) discard;
   vec2 c = vUv - 0.5;
   float r = length(c) * 2.0;
   float radial = 1.0 - smoothstep(0.22, 1.0, r);
@@ -520,6 +537,7 @@ export function createSliceCloudMaterial(env: PlacesShaderEnvironment): THREE.Sh
     side: THREE.FrontSide,
     uniforms: {
       uTime: WU.t,
+      uDY: WU.dy,
       uSun: WU.sun,
       uLit: WU.lit,
       uSky: WU.sky,

@@ -35,6 +35,7 @@ void main() {
 
 export const CLOUD_FRAGMENT = /* glsl */ `
 uniform float uTime;
+uniform float uDY;
 uniform float uSun;
 uniform float uLit;
 uniform vec3 uSky;
@@ -51,6 +52,7 @@ ${NOISE_GLSL}
 ${PLACES_VOLUMETRIC_FOG_GLSL}
 
 void main() {
+  if (uDY < 90.0 && vWorldPos.y > uDY && dot(vWorldPos.xz, vWorldPos.xz) < 110.0 && vWorldPos.y < 14.0) discard;
   vec3 N = normalize(vWorldNormal);
   vec3 V = normalize(vViewDir);
   vec3 L = normalize(uSunDir);

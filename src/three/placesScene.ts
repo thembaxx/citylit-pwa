@@ -61,6 +61,8 @@ export interface PlacesController {
   getSelectedInfo: () => PlacesSelectionInfo;
   /** Spring the camera onto one of the editorial highlight markers. */
   focusHighlight: (index: number) => void;
+  /** True while a slice's dust-dissolve switch is still running. */
+  isTransitioning: () => boolean;
   /** Low, front-on camera that reads the geological cut face of the slice. */
   setSectionView: (active: boolean) => void;
   isSectionView: () => boolean;
@@ -216,6 +218,90 @@ export function createPlacesScene(
   const fogSnowTintTmp = new THREE.Color('#4f647e');
   const fogRainTintTmp = new THREE.Color('#2c3a4c');
   const fogNightTintTmp = new THREE.Color('#0c1322');
+  const dustSkyTmp = new THREE.Color('#dce9f2');
+
+  // Shared model-switch dissolve for the Places stage. It drives the same
+  // WU.dy cut plane as the landmark stage, so swapping slices reads as the
+  // same dust wipe instead of a hard visibility pop.
+  const DUST_N = 140;
+  const dustData = new Float32Array(DUST_N * 3);
+  for (let i = 0; i < DUST_N; i++) {
+    dustData[i * 3] = i;
+    dustData[i * 3 + 1] = 1 + (i % 7) * 0.7;
+    dustData[i * 3 + 2] = ((i % 9) - 4) * 0.16;
+  }
+  const dustGeo = new THREE.BufferGeometry()
+    .setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_N * 3), 3))
+    .setAttribute('aDust', new THREE.BufferAttribute(dustData, 3));
+  const dustMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    uniforms: {
+      uMap: { value: getSoftTexture() },
+      uColor: { value: new THREE.Color('#243044') },
+      uOpacity: { value: 0 },
+      uElapsed: { value: 0 },
+      uCutY: { value: 100 },
+      uPointScale: { value: 180 },
+    },
+    vertexShader: /* glsl */ `
+      attribute vec3 aDust;
+      uniform float uElapsed;
+      uniform float uCutY;
+      uniform float uPointScale;
+      void main() {
+        float i = aDust.x;
+        float r = aDust.y;
+        vec3 wp = vec3(
+          cos(i * 2.1 + uElapsed * 3.0) * r,
+          uCutY + aDust.z,
+          sin(i * 1.7 + uElapsed * 2.0) * r
+        );
+        vec4 mvPosition = modelViewMatrix * vec4(wp, 1.0);
+        gl_PointSize = clamp((0.28 * uPointScale) / max(1.0, -mvPosition.z), 3.0, 20.0);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      void main() {
+        vec4 tex = texture2D(uMap, gl_PointCoord);
+        if (tex.a < 0.02) discard;
+        gl_FragColor = vec4(uColor, tex.a * uOpacity);
+      }
+    `,
+  });
+  dustMat.userData.noDissolve = true;
+  const dustPoints = new THREE.Points(dustGeo, dustMat);
+  dustPoints.frustumCulled = false;
+  dustPoints.visible = false;
+  dustPoints.userData.noShadow = true;
+  dustPoints.userData.cannotReceiveAO = true;
+  group.add(dustPoints);
+
+  // Place slices are much shorter than the hero diorama, so the cut plane has
+  // to sweep a smaller height band to stay visible for the whole transition.
+  const SWITCH_TOP_Y = 3.1;
+  const SWITCH_BOTTOM_Y = -1.9;
+
+  let visibleSliceIndex = 0;
+  let switchPhase = 0; // 0 idle, 1 wipe out, 2 wipe in
+  let switchT = 0;
+  let pendingSliceIndex: number | null = null;
+  let pendingSliceAnimate = false;
+  let lastMotionScale = 1;
+
+  const cancelSliceDissolve = () => {
+    if (switchPhase === 0 && pendingSliceIndex === null) return;
+    switchPhase = 0;
+    switchT = 0;
+    pendingSliceIndex = null;
+    WU.dy.value = 100;
+    dustPoints.visible = false;
+  };
 
   const onControlsStart = () => {
     flyGoalCam = null;
@@ -226,11 +312,9 @@ export function createPlacesScene(
   const sliceMatchesProvince = (spec: PlaceSliceSpec, prov: string) =>
     prov === 'All' || spec.province === prov;
 
-  const showActiveSlice = (nextIndex: number, animateEntrance: boolean) => {
+  const applyActiveSlice = (nextIndex: number, animateEntrance: boolean) => {
     if (nextIndex < 0 || nextIndex >= slices.length) return;
-    selectedSliceIndex = nextIndex;
-    env.activeSliceIndex.value = nextIndex;
-    hoveredSliceIndex = null;
+    visibleSliceIndex = nextIndex;
     for (let i = 0; i < slices.length; i++) {
       const s = slices[i];
       const active = i === nextIndex;
@@ -238,6 +322,72 @@ export function createPlacesScene(
       if (active) {
         s.root.position.set(0, 0, 0);
         s.root.scale.setScalar(animateEntrance ? 0.95 : 1.0);
+      }
+    }
+  };
+
+  const showActiveSlice = (nextIndex: number, animateEntrance = true) => {
+    if (nextIndex < 0 || nextIndex >= slices.length) return;
+    const changed = nextIndex !== selectedSliceIndex || nextIndex !== visibleSliceIndex;
+    if (!changed) return;
+    selectedSliceIndex = nextIndex;
+    env.activeSliceIndex.value = nextIndex;
+    hoveredSliceIndex = null;
+    // Reduced motion gets the instant swap; otherwise arm the shared dust wipe
+    // and commit the visible slice when the cut plane reaches its midpoint.
+    if (lastMotionScale === 0) {
+      cancelSliceDissolve();
+      applyActiveSlice(nextIndex, animateEntrance);
+      return;
+    }
+    pendingSliceIndex = nextIndex;
+    pendingSliceAnimate = animateEntrance;
+    switchPhase = 1;
+    switchT = 0;
+  };
+
+  const stepSliceDissolve = (dt: number, elapsed: number) => {
+    if (switchPhase === 0) return;
+    if (lastMotionScale === 0) {
+      if (pendingSliceIndex !== null) applyActiveSlice(pendingSliceIndex, pendingSliceAnimate);
+      cancelSliceDissolve();
+      return;
+    }
+    const showDust = (cutY: number, opacity: number) => {
+      dustPoints.visible = true;
+      // Match the pale sky the dust is drawn against, darkening it at night.
+      dustMat.uniforms.uColor.value
+        .copy(dustSkyTmp)
+        .lerp(cloudNightTmp, Math.max(0, WU.lit.value - 0.15) * 0.7);
+      dustMat.uniforms.uOpacity.value = opacity;
+      dustMat.uniforms.uElapsed.value = elapsed;
+      dustMat.uniforms.uCutY.value = cutY;
+      dustMat.uniforms.uPointScale.value = Math.min(
+        260,
+        Math.max(100, window.innerHeight * 0.22)
+      );
+    };
+    if (switchPhase === 1) {
+      switchT += dt * 2.2;
+      const cutY = SWITCH_TOP_Y + (SWITCH_BOTTOM_Y - SWITCH_TOP_Y) * Math.min(1, switchT);
+      WU.dy.value = cutY;
+      showDust(cutY, Math.sin(Math.min(1, switchT) * Math.PI) * 0.9);
+      if (switchT >= 1) {
+        if (pendingSliceIndex !== null) applyActiveSlice(pendingSliceIndex, pendingSliceAnimate);
+        pendingSliceIndex = null;
+        switchPhase = 2;
+        switchT = 0;
+      }
+    } else {
+      switchT += dt * 2.1;
+      const progress = Math.min(1, switchT);
+      const cutY = SWITCH_BOTTOM_Y + (SWITCH_TOP_Y - SWITCH_BOTTOM_Y) * progress;
+      WU.dy.value = cutY;
+      showDust(cutY, Math.sin(progress * Math.PI) * 0.85);
+      if (switchT >= 1) {
+        switchPhase = 0;
+        WU.dy.value = 100;
+        dustPoints.visible = false;
       }
     }
   };
@@ -278,6 +428,10 @@ export function createPlacesScene(
     });
     removed.dispose();
     if (selectedSliceIndex >= slices.length) selectedSliceIndex = slices.length - 1;
+    if (visibleSliceIndex >= slices.length) visibleSliceIndex = slices.length - 1;
+    if (pendingSliceIndex !== null && pendingSliceIndex >= slices.length) {
+      pendingSliceIndex = slices.length - 1;
+    }
     osmSliceIndex = null;
   };
 
@@ -364,7 +518,9 @@ export function createPlacesScene(
       if (firstMatch >= 0) selectedSliceIndex = firstMatch;
     }
 
-    showActiveSlice(selectedSliceIndex, false);
+    // Opening the stage is a hard cut from the hero, not a slice change.
+    cancelSliceDissolve();
+    applyActiveSlice(selectedSliceIndex, false);
     camera.position.copy(HERO_CAM);
     controls.target.copy(HERO_TARGET);
     flyGoalCam = null;
@@ -373,6 +529,9 @@ export function createPlacesScene(
   };
 
   const close = () => {
+    // Finish any in-flight slice wipe before the hero stage takes over.
+    if (pendingSliceIndex !== null) applyActiveSlice(pendingSliceIndex, pendingSliceAnimate);
+    cancelSliceDissolve();
     isOpen = false;
     controller.isOpen = false;
     group.visible = false;
@@ -494,6 +653,8 @@ export function createPlacesScene(
     pixelRatio = 1
   ) => {
     if (!isOpen) return;
+    lastMotionScale = motionScale;
+    stepSliceDissolve(dt, elapsed);
 
     // Smooth camera reset / focus fly interpolation
     if (flyGoalCam && flyGoalTarget) {
@@ -597,8 +758,9 @@ export function createPlacesScene(
       .lerp(cloudWarmTmp, (1 - WU.sun.value) * 0.45)
       .lerp(cloudNightTmp, Math.max(0, litStrength - 0.15) * 0.72);
 
-    // Update only the single active visible slice
-    const s = slices[selectedSliceIndex];
+    // Update only the single active visible slice (the logical selection can
+    // lead the visible one for a few frames while the wipe runs).
+    const s = slices[visibleSliceIndex];
     if (!s) return;
 
     const animTime = elapsed * motionScale;
@@ -642,6 +804,8 @@ export function createPlacesScene(
     cloudMat.dispose();
     shadowDiscGeo.dispose();
     shadowDiscMat.dispose();
+    dustGeo.dispose();
+    dustMat.dispose();
     markerGeo.dispose();
     markerMats.forEach((mat) => mat.dispose());
   };
@@ -660,6 +824,7 @@ export function createPlacesScene(
     selectSlice,
     stepSlice,
     refreshVisited,
+    isTransitioning: () => switchPhase !== 0,
     hoverAt,
     updatePointerWake,
     pickAt,

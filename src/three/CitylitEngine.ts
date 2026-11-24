@@ -2295,12 +2295,7 @@ export class CitylitEngine {
     });
   }
 
-  /**
-   * Drop an armed hero dissolve. A dissolve only advances in the hero branch
-   * of the frame loop, so arming one while the globe or Places stage is open
-   * used to leave the cut plane and phase behind: closing the stage then ran
-   * a stale dissolve and the diorama vanished for its whole duration.
-   */
+  /** Drop an armed hero dissolve and restore the stage to a fully solid state. */
   private cancelHeroDissolve(): void {
     if (this.dissolvePhase === 0 && this.pendingIndex === null) return;
     this.dissolvePhase = 0;
@@ -2309,6 +2304,82 @@ export class CitylitEngine {
     WU.dy.value = 100;
     this.dustPoints.visible = false;
     if (this.currentGroup) setContactShadowFade(this.currentGroup, 1);
+  }
+
+  /**
+   * Advance the shared model-switch dissolve. This runs once per frame in every
+   * camera mode, so a dissolve armed behind a full-screen stage can never be
+   * left stranded (which used to blank the diorama when the stage closed).
+   */
+  private stepSwitchDissolve(dt: number): void {
+    if (this.dissolvePhase === 0) return;
+    // The hero is hidden behind the Places/Globe stage. Still perform the
+    // pending swap, but skip the visual cut so we don't wipe the active stage.
+    if (this.places.isOpen || this.globe.isOpen) {
+      const cut = WU.dy.value;
+      const pending = this.pendingIndex;
+      this.dissolvePhase = 0;
+      this.dissolveT = 0;
+      this.pendingIndex = null;
+      this.dustPoints.visible = false;
+      if (pending !== null) this.showLandmarkImmediate(pending);
+      WU.dy.value = cut;
+      if (this.currentGroup) setContactShadowFade(this.currentGroup, 1);
+      return;
+    }
+    // Dust-dissolve landmark switch + choreographed orbital settle (GPU uniforms)
+    if (this.dissolvePhase === 1) {
+      this.dissolveT += dt * 2.2;
+      const cutY = Math.max(-0.5, 9 * (1 - this.dissolveT));
+      WU.dy.value = cutY;
+      setContactShadowFade(this.currentGroup, Math.max(0, 1 - Math.min(1, this.dissolveT)));
+      this.dustPoints.visible = true;
+      this.dustMat.uniforms.uColor.value.copy(this.scene.background as THREE.Color);
+      this.dustMat.uniforms.uOpacity.value =
+        Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
+      this.dustMat.uniforms.uElapsed.value = this.elapsed;
+      this.dustMat.uniforms.uCutY.value = cutY;
+      this.dustMat.uniforms.uPointScale.value = Math.min(
+        260,
+        Math.max(100, window.innerHeight * 0.22)
+      );
+      if (this.dissolveT >= 1) {
+        if (this.pendingIndex !== null) {
+          this.showLandmarkImmediate(this.pendingIndex);
+          this.pendingIndex = null;
+          this.dissolvePhase = 2;
+          this.dissolveT = 0;
+          this.switchSettle = 1;
+          WU.dy.value = -0.5;
+          setContactShadowFade(this.currentGroup, 0);
+        } else {
+          this.dissolvePhase = 0;
+          WU.dy.value = 100;
+          this.dustPoints.visible = false;
+        }
+      }
+    } else if (this.dissolvePhase === 2) {
+      this.dissolveT += dt * 2.1;
+      const progress = Math.min(1, this.dissolveT);
+      const cutY = -0.5 + 9.5 * progress;
+      WU.dy.value = cutY;
+      setContactShadowFade(this.currentGroup, progress);
+      this.dustPoints.visible = true;
+      this.dustMat.uniforms.uColor.value.copy(this.scene.background as THREE.Color);
+      this.dustMat.uniforms.uOpacity.value = Math.sin(progress * Math.PI) * 0.85;
+      this.dustMat.uniforms.uElapsed.value = this.elapsed;
+      this.dustMat.uniforms.uCutY.value = cutY;
+      this.dustMat.uniforms.uPointScale.value = Math.min(
+        260,
+        Math.max(100, window.innerHeight * 0.22)
+      );
+      if (this.dissolveT >= 1) {
+        this.dissolvePhase = 0;
+        WU.dy.value = 100;
+        setContactShadowFade(this.currentGroup, 1);
+        this.dustPoints.visible = false;
+      }
+    }
   }
 
   private resetCutawayOffsets(): void {
@@ -2577,13 +2648,6 @@ export class CitylitEngine {
 
   transitionToLandmark(index: number): void {
     if (!this.currentGroup) {
-      this.showLandmarkImmediate(index);
-      return;
-    }
-    // The hero is hidden behind a full-screen stage; a dust dissolve would
-    // never be stepped there, so swap straight away instead.
-    if (this.places.isOpen || this.globe.isOpen) {
-      this.cancelHeroDissolve();
       this.showLandmarkImmediate(index);
       return;
     }
@@ -5004,6 +5068,10 @@ export class CitylitEngine {
     WU.wakeStrength.value +=
       (this.wakeStrengthTarget - WU.wakeStrength.value) * Math.min(1, dt * 8);
 
+    // One dissolve driver for every camera mode: a landmark switch armed while
+    // another stage is open still completes instead of stranding the cut plane.
+    this.stepSwitchDissolve(dt);
+
     // Window schedule advances in every camera mode: Places and Globe share the
     // same facade materials, so a frozen schedule would show the hero's hour.
     updateWindowLights(
@@ -5148,12 +5216,16 @@ export class CitylitEngine {
         this.places.controls.target.distanceToSquared(this.prevPlacesTarget) > 1e-6;
       this.prevPlacesCamPos.copy(this.places.camera.position);
       this.prevPlacesTarget.copy(this.places.controls.target);
-      const throttleMs = this.stageThrottle(placesCamMoving || sliceChanged);
+      const throttleMs = this.stageThrottle(
+        placesCamMoving || sliceChanged || this.places.isTransitioning()
+      );
       if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
         if (
           !this.isSoftwareGl &&
           this.qualityIndex < 2 &&
-          (sliceChanged || (this.shadowFrameCounter++ & 1) === 0)
+          (sliceChanged ||
+            this.places.isTransitioning() ||
+            (this.shadowFrameCounter++ & 1) === 0)
         ) {
           this.renderer.shadowMap.needsUpdate = true;
         }
@@ -5205,55 +5277,7 @@ export class CitylitEngine {
         }
       }
 
-      // Dust-dissolve landmark switch + choreographed orbital settle (GPU uniforms)
-      if (this.dissolvePhase === 1) {
-        this.dissolveT += dt * 2.2;
-        const cutY = Math.max(-0.5, 9 * (1 - this.dissolveT));
-        WU.dy.value = cutY;
-        setContactShadowFade(this.currentGroup, Math.max(0, 1 - Math.min(1, this.dissolveT)));
-        this.dustPoints.visible = true;
-        this.dustMat.uniforms.uColor.value.copy(this.scene.background as THREE.Color);
-        this.dustMat.uniforms.uOpacity.value =
-          Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
-        this.dustMat.uniforms.uElapsed.value = this.elapsed;
-        this.dustMat.uniforms.uCutY.value = cutY;
-        this.dustMat.uniforms.uPointScale.value = Math.min(
-          260,
-          Math.max(100, window.innerHeight * 0.22)
-        );
-        if (this.dissolveT >= 1) {
-          if (this.pendingIndex !== null) {
-            this.showLandmarkImmediate(this.pendingIndex);
-            this.pendingIndex = null;
-            this.dissolvePhase = 2;
-            this.dissolveT = 0;
-            this.switchSettle = 1;
-            WU.dy.value = -0.5;
-            setContactShadowFade(this.currentGroup, 0);
-          }
-        }
-      } else if (this.dissolvePhase === 2) {
-        this.dissolveT += dt * 2.1;
-        const progress = Math.min(1, this.dissolveT);
-        const cutY = -0.5 + 9.5 * progress;
-        WU.dy.value = cutY;
-        setContactShadowFade(this.currentGroup, progress);
-        this.dustPoints.visible = true;
-        this.dustMat.uniforms.uColor.value.copy(this.scene.background as THREE.Color);
-        this.dustMat.uniforms.uOpacity.value = Math.sin(progress * Math.PI) * 0.85;
-        this.dustMat.uniforms.uElapsed.value = this.elapsed;
-        this.dustMat.uniforms.uCutY.value = cutY;
-        this.dustMat.uniforms.uPointScale.value = Math.min(
-          260,
-          Math.max(100, window.innerHeight * 0.22)
-        );
-        if (this.dissolveT >= 1) {
-          this.dissolvePhase = 0;
-          WU.dy.value = 100;
-          setContactShadowFade(this.currentGroup, 1);
-          this.dustPoints.visible = false;
-        }
-      }
+      // Advanced once per frame above, in every camera mode.
 
       // Smooth choreographed switch settle + card drag swipe parallax
       const paraLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 10);

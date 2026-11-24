@@ -35,6 +35,7 @@ void main() {
 
 export const WATER_TOP_FRAGMENT = /* glsl */ `
 uniform float uTime;
+uniform float uDY;
 uniform float uSun;
 uniform float uRain;
 uniform float uFoamStrength;
@@ -101,6 +102,8 @@ float wtHeight(vec2 p, float t) {
 ${PLACES_VOLUMETRIC_FOG_GLSL}
 
 void main() {
+  // Shared model-switch dissolve: the descending cut plane wipes the old slice away.
+  if (uDY < 90.0 && vWorldPos.y > uDY && dot(vWorldPos.xz, vWorldPos.xz) < 110.0 && vWorldPos.y < 14.0) discard;
   if (vDepth < -0.004) discard;
   float depth = max(0.0, vDepth);
   vec2 q = vWorldPos.xz;
@@ -254,6 +257,7 @@ void main() {
 
 export const WATER_WALL_FRAGMENT = /* glsl */ `
 uniform float uTime;
+uniform float uDY;
 uniform float uSun;
 uniform vec3 uSky;
 uniform vec3 uShallow;
@@ -284,6 +288,7 @@ float wwNoise(vec2 p) {
 }
 
 void main() {
+  if (uDY < 90.0 && vWorldPos.y > uDY && dot(vWorldPos.xz, vWorldPos.xz) < 110.0 && vWorldPos.y < 14.0) discard;
   float depthMix = 1.0 - vUv.y;
 
   // Turquoise at the surface fading into cobalt depth, exactly like the

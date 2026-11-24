@@ -30,6 +30,7 @@ varying vec3 vPlacePos;
 varying vec3 vPlaceNorm;
 varying float vTopY;
 varying vec3 vVolFogWPos;
+uniform float uDY;
 uniform float uRN;
 uniform float uWT;
 ${SEASON_UNIFORMS_GLSL}
