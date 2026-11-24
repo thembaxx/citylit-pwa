@@ -162,6 +162,29 @@ export const swapTransition: Transition = {
   ease: EASE_IN_OUT,
 };
 
+/**
+ * 16-tabs — a quiet crossfade when swapping panel content (e.g. the
+ * InfoDrawer's Info/History tabs). No travel, no blur: the pill's sliding
+ * indicator already carries the motion, so the panel just fades in place.
+ */
+export const tabFadeVariants: Variants = {
+  initial: { opacity: 0 },
+  animate: {
+    opacity: 1,
+    transition: {
+      duration: DURATION.fast,
+      ease: EASE_SMOOTH_OUT,
+      staggerChildren: DURATION.stagger,
+      delayChildren: DURATION.micro,
+    },
+  },
+  exit: { opacity: 0, transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT } },
+};
+export const tabFadeTransition: Transition = {
+  duration: DURATION.fast,
+  ease: EASE_SMOOTH_OUT,
+};
+
 /* ── fluid-interactions helpers ────────────────────────────────────────── */
 
 export const clamp = (value: number, min: number, max: number) =>
