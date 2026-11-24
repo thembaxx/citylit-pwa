@@ -778,8 +778,8 @@ export class CitylitEngine {
     this.scene.add(this.plinthGroup);
 
     // No display slab: every landmark already grows its own carved strata
-    // block and hanging rock underside, exactly like the Places dioramas. A
-    // wide plinth under it only hid that block behind a pale apron.
+    // block, exactly like the Places dioramas. A wide plinth under it only hid
+    // that block behind a pale apron.
 
     this.ringMat = new THREE.MeshStandardMaterial({
       color: '#e8b04a',

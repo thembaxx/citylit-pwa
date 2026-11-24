@@ -269,7 +269,7 @@ export function createHorizonScenery(scene: THREE.Scene): HorizonSceneryControll
   groundCatcher.userData.cannotReceiveAO = true;
   root.add(groundCatcher);
 
-  // Soft stage aura beneath the floating strata rock mass for crisp depth separation.
+  // Soft stage aura beneath the diorama slab for crisp depth separation.
   const stageAuraMat = new THREE.MeshBasicMaterial({
     map: getSoftTexture(),
     color: '#070a12',
