@@ -11,6 +11,8 @@ import {
   Clock,
   Crosshair,
   Drone,
+  Drop,
+  Gauge,
   GlobeHemisphereEast,
   Heart,
   Images,
@@ -34,17 +36,20 @@ import { LANDMARKS } from '../data/landmarks';
 import { resolvePlaceEditorial } from '../lib/placeEditorial';
 import { animate, DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
-import type { CameraPreset, HeritageRoute, LandmarkNote, NoteCategory } from '../types/citylit';
+import type { CameraPreset, HeritageRoute, LandmarkNote, NoteCategory, WeatherConditionKey, WeatherDisplayState } from '../types/citylit';
 import { Menu, type MenuItem } from './ui/Menu';
+import { AnimatedNumber } from './ui/AnimatedNumber';
 
 interface SlideCustom {
   dir: number;
   reduced: boolean;
 }
 
-const headerSlideVariants: Variants = {
+const cardItemVariants: Variants = {
   initial: ({ dir, reduced }: SlideCustom) =>
-    reduced ? { opacity: 1, x: 0, y: 0 } : { opacity: 0, x: dir * 20, y: 4 },
+    reduced
+      ? { opacity: 1 }
+      : { opacity: 0, x: dir * 12, y: 6 },
   animate: ({ reduced }: SlideCustom) => ({
     opacity: 1,
     x: 0,
@@ -62,36 +67,26 @@ const headerSlideVariants: Variants = {
       ? { opacity: 0, transition: { duration: 0 } }
       : {
           opacity: 0,
-          x: -dir * 14,
-          y: -2,
+          x: -dir * 10,
+          y: -4,
           transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT },
         },
 };
 
-const bodySlideVariants: Variants = {
-  initial: ({ dir, reduced }: SlideCustom) =>
-    reduced ? { opacity: 1, x: 0, y: 0 } : { opacity: 0, x: dir * 18, y: 4 },
+const cardContentVariants: Variants = {
+  initial: { opacity: 0 },
   animate: ({ reduced }: SlideCustom) => ({
     opacity: 1,
-    x: 0,
-    y: 0,
-    transition: reduced
-      ? { duration: 0 }
-      : {
-          x: { ...SPRING.surface, delay: 0.03 },
-          y: { ...SPRING.surface, delay: 0.03 },
-          opacity: { duration: DURATION.medium, ease: EASE_SMOOTH_OUT, delay: 0.03 },
-        },
+    transition: {
+      duration: reduced ? 0 : DURATION.medium,
+      ease: EASE_SMOOTH_OUT,
+      staggerChildren: reduced ? 0 : 0.05,
+    },
   }),
-  exit: ({ dir, reduced }: SlideCustom) =>
-    reduced
-      ? { opacity: 0, transition: { duration: 0 } }
-      : {
-          opacity: 0,
-          x: -dir * 12,
-          y: -2,
-          transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT },
-        },
+  exit: ({ reduced }: SlideCustom) => ({
+    opacity: 0,
+    transition: { duration: reduced ? 0 : DURATION.quick, ease: EASE_SMOOTH_OUT },
+  }),
 };
 
 const NOTE_CATEGORIES: ReadonlyArray<{
@@ -203,6 +198,8 @@ interface LandmarkCardProps {
   onShare: () => void;
   onVibrate: () => void;
   onDragParallax?: (dx: number) => void;
+  /** Current weather for the landmark, used by the Weather Insight panel. */
+  weather?: WeatherDisplayState;
 }
 
 const CARDINALS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
@@ -229,6 +226,66 @@ function nextBearingSummary(
 
 function getCategoryMeta(category: NoteCategory = 'memory') {
   return NOTE_CATEGORIES.find((c) => c.id === category) ?? NOTE_CATEGORIES[0];
+}
+
+/** Typical relative humidity by display condition, used when no live observation is available. */
+function typicalHumidity(condition: WeatherConditionKey): number {
+  return condition === 'rain'
+    ? 88
+    : condition === 'storm'
+      ? 92
+      : condition === 'fog'
+        ? 95
+        : condition === 'cloud'
+          ? 78
+          : condition === 'partly'
+            ? 62
+            : condition === 'wind'
+              ? 58
+              : 48;
+}
+
+/**
+ * Air quality is estimated from the condition, wind, humidity and landmark
+ * biome (no live AQI source is available offline). Lower is better.
+ */
+function airQualityInsight(
+  weather: WeatherDisplayState,
+  biome: string
+): { score: number; band: string; color: string } {
+  let score = 30;
+  if (biome === 'urban') score += 12;
+  else if (biome === 'coastal') score -= 6;
+  switch (weather.condition) {
+    case 'rain':
+      score -= 14;
+      break;
+    case 'storm':
+      score -= 16;
+      break;
+    case 'fog':
+      score += 12;
+      break;
+    case 'cloud':
+      score += 6;
+      break;
+    case 'wind':
+      score -= 6;
+      break;
+  }
+  const live = weather.live;
+  if (live) {
+    if (live.windSpeed >= 25) score -= 10;
+    else if (live.windSpeed >= 15) score -= 4;
+    if (live.humidity >= 90) score += 6;
+  }
+  const hr = typeof window !== 'undefined' ? new Date().getHours() : 12;
+  if ((hr >= 7 && hr <= 9) || (hr >= 16 && hr <= 18)) score += 8;
+  if (hr >= 21 || hr <= 5) score -= 4;
+  score = Math.max(0, Math.min(100, score));
+  if (score > 60) return { score, band: 'Poor', color: '#ff7a8a' };
+  if (score > 30) return { score, band: 'Fair', color: '#e8b04a' };
+  return { score, band: 'Good', color: '#38c793' };
 }
 
 export function LandmarkCard({
@@ -268,6 +325,7 @@ export function LandmarkCard({
   onShare,
   onVibrate,
   onDragParallax,
+  weather,
 }: LandmarkCardProps) {
   const editorial = resolvePlaceEditorial(index);
   const [radialPos, setRadialPos] = useState<{ x: number; y: number } | null>(null);
@@ -277,6 +335,7 @@ export function LandmarkCard({
   const [noteCategory, setNoteCategory] = useState<NoteCategory>('memory');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
+  const [weatherInsightOpen, setWeatherInsightOpen] = useState(false);
   const [{ current: trackedIndex, dir: direction }, setNavState] = useState({
     current: index,
     dir: 1,
@@ -362,6 +421,8 @@ export function LandmarkCard({
   if (!visible) return null;
 
   const lm = LANDMARKS[index];
+  const insight = weather ? airQualityInsight(weather, lm.biome) : null;
+  const humidityText = weather ? (weather.live != null ? `${Math.round(weather.live.humidity)}%` : `${typicalHumidity(weather.condition)}%`) : null;
   const nextLm = LANDMARKS[(index + 1) % LANDMARKS.length];
   const { cardinal, km } = nextBearingSummary(lm.coords, nextLm.coords);
   const progressPct = ((index + 1) / LANDMARKS.length) * 100;
@@ -558,26 +619,33 @@ export function LandmarkCard({
           )}
 
           <div className="flex items-start justify-between gap-3">
-            <motion.div
-              {...headerDrag}
-              style={{ x: dragX }}
-              className="min-w-0 flex-1 overflow-hidden cursor-grab touch-none active:cursor-grabbing"
-              onTouchStart={(e) => {
-                clearHold();
-                const t = e.touches[0];
-                holdTimer.current = window.setTimeout(() => openRadial(t.clientX, t.clientY), 450);
-              }}
-              onTouchEnd={clearHold}
-              onTouchMove={() => clearHold()}
-            >
-              <AnimatePresence mode="wait" initial={false} custom={slideCustom}>
+            {/* Card contents re-animate with a staggered fade when the
+                landmark switches (see cardContentVariants / cardItemVariants). */}
+            <AnimatePresence mode="wait" initial={false} custom={slideCustom}>
+              <motion.div
+                key={index}
+                custom={slideCustom}
+                variants={cardContentVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+              >
                 <motion.div
-                  key={index}
-                  custom={slideCustom}
-                  variants={headerSlideVariants}
+                  {...headerDrag}
+                  style={{ x: dragX }}
+                  variants={cardItemVariants}
                   initial="initial"
                   animate="animate"
                   exit="exit"
+                  custom={slideCustom}
+                  className="min-w-0 flex-1 overflow-hidden cursor-grab touch-none active:cursor-grabbing"
+                  onTouchStart={(e) => {
+                    clearHold();
+                    const t = e.touches[0];
+                    holdTimer.current = window.setTimeout(() => openRadial(t.clientX, t.clientY), 450);
+                  }}
+                  onTouchEnd={clearHold}
+                  onTouchMove={() => clearHold()}
                 >
                   <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[11px] [@media(max-width:374px)]:text-[10px] [@media(max-width:374px)]:tracking-[0.08em]">
                     {lm.c}
@@ -590,8 +658,111 @@ export function LandmarkCard({
                     {lm.k}
                   </motion.h1>
                 </motion.div>
-              </AnimatePresence>
-            </motion.div>
+
+                <div className="overflow-hidden">
+                  <motion.p
+                    custom={slideCustom}
+                    variants={cardItemVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    className="text-[13.5px] landscape:text-[12.5px] leading-relaxed text-[#a9a69e] m-0 landscape:line-clamp-2 [@media(max-height:700px)]:line-clamp-2"
+                  >
+                    {lm.f}
+                  </motion.p>
+                </div>
+
+                <motion.div
+                  custom={slideCustom}
+                  variants={cardItemVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="mt-2.5 flex flex-wrap items-center gap-2"
+                >
+                  <motion.button
+                    type="button"
+                    whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                    onClick={onToggleDirection}
+                    aria-pressed={directionActive}
+                    aria-label={`Show direction toward ${nextLm.k}`}
+                    title={`Point toward ${nextLm.k} (${cardinal}, ${km.toLocaleString()} km)`}
+                    className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                      directionActive
+                        ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
+                        : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
+                    }`}
+                  >
+                    <NavigationArrow size={13} weight={directionActive ? 'fill' : 'regular'} />
+                    {directionActive ? 'Hide Direction' : 'Show Direction'}
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                    onClick={() => setNotesOpen((v) => !v)}
+                    aria-expanded={notesOpen}
+                    aria-label={
+                      notes.length > 0
+                        ? `Private notes for ${lm.k} (${notes.length})`
+                        : `Add private note to ${lm.k}`
+                    }
+                    title="Save a private note pinned in 3D when you revisit"
+                    className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 tabular-nums ${
+                      notesOpen
+                        ? 'bg-[#38c793]/18 border-[#5cd6a9]/75 text-[#5cd6a9]'
+                        : notes.length > 0
+                          ? 'bg-[#38c793]/10 border-[#5cd6a9]/40 text-[#9cebd0] hover:border-[#5cd6a9]/75 hover:text-[#5cd6a9]'
+                          : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#5cd6a9]/65 hover:text-[#5cd6a9]'
+                    }`}
+                  >
+                    <NotePencil size={13} weight={notesOpen || notes.length > 0 ? 'fill' : 'regular'} />
+                    {notes.length > 0 ? `Add Note (${notes.length})` : 'Add Note'}
+                  </motion.button>
+                  {onToggleCutaway && cutawaySupported && (
+                    <motion.button
+                      type="button"
+                      whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                      onClick={onToggleCutaway}
+                      aria-pressed={cutawayActive}
+                      aria-label="Inspect architectural cutaway layers"
+                      title="Smoothly separate upper roofs & spires to inspect structure"
+                      className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        cutawayActive
+                          ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
+                          : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
+                      }`}
+                    >
+                      <Stack size={13} weight={cutawayActive ? 'fill' : 'regular'} />
+                      Inspect
+                    </motion.button>
+                  )}
+                  {weather && (
+                    <motion.button
+                      type="button"
+                      whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                      onClick={() => {
+                        setWeatherInsightOpen((v) => !v);
+                      }}
+                      aria-expanded={weatherInsightOpen}
+                      aria-label="Local weather insight: temperature, humidity and air quality"
+                      className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                        weatherInsightOpen
+                          ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
+                          : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
+                      }`}
+                    >
+                      <Gauge size={13} />
+                      Weather Insight
+                    </motion.button>
+                  )}
+                  <span className="text-[11px] text-[#a9a69e] truncate">
+                    {directionActive
+                      ? `${cardinal} · ${km.toLocaleString()} km → ${nextLm.k}`
+                      : `Next: ${nextLm.k}`}
+                  </span>
+                </motion.div>
+              </motion.div>
+            </AnimatePresence>
             <div className="flex items-center gap-1.5 shrink-0">
               {[
                 {
@@ -629,92 +800,21 @@ export function LandmarkCard({
             </div>
           </div>
 
-          <div className="overflow-hidden">
+          {(onApplyCameraPreset || onStepPin) && (
             <AnimatePresence mode="wait" initial={false} custom={slideCustom}>
-              <motion.p
+              <motion.div
                 key={index}
                 custom={slideCustom}
-                variants={bodySlideVariants}
+                variants={cardContentVariants}
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                className="text-[13.5px] landscape:text-[12.5px] leading-relaxed text-[#a9a69e] m-0 landscape:line-clamp-2 [@media(max-height:700px)]:line-clamp-2"
+                className="mt-2 flex flex-wrap items-center justify-between gap-1.5"
               >
-                {lm.f}
-              </motion.p>
-            </AnimatePresence>
-          </div>
-
-          <div className="mt-2.5 flex flex-wrap items-center gap-2">
-            <motion.button
-              type="button"
-              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-              onClick={onToggleDirection}
-              aria-pressed={directionActive}
-              aria-label={`Show direction toward ${nextLm.k}`}
-              title={`Point toward ${nextLm.k} (${cardinal}, ${km.toLocaleString()} km)`}
-              className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                directionActive
-                  ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
-                  : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
-              }`}
-            >
-              <NavigationArrow size={13} weight={directionActive ? 'fill' : 'regular'} />
-              {directionActive ? 'Hide Direction' : 'Show Direction'}
-            </motion.button>
-            <motion.button
-              type="button"
-              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-              onClick={() => setNotesOpen((v) => !v)}
-              aria-expanded={notesOpen}
-              aria-label={
-                notes.length > 0
-                  ? `Private notes for ${lm.k} (${notes.length})`
-                  : `Add private note to ${lm.k}`
-              }
-              title="Save a private note pinned in 3D when you revisit"
-              className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 tabular-nums ${
-                notesOpen
-                  ? 'bg-[#38c793]/18 border-[#5cd6a9]/75 text-[#5cd6a9]'
-                  : notes.length > 0
-                    ? 'bg-[#38c793]/10 border-[#5cd6a9]/40 text-[#9cebd0] hover:border-[#5cd6a9]/75 hover:text-[#5cd6a9]'
-                    : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#5cd6a9]/65 hover:text-[#5cd6a9]'
-              }`}
-            >
-              <NotePencil size={13} weight={notesOpen || notes.length > 0 ? 'fill' : 'regular'} />
-              {notes.length > 0 ? `Add Note (${notes.length})` : 'Add Note'}
-            </motion.button>
-            {onToggleCutaway && cutawaySupported && (
-              <motion.button
-                type="button"
-                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-                onClick={onToggleCutaway}
-                aria-pressed={cutawayActive}
-                aria-label="Inspect architectural cutaway layers"
-                title="Smoothly separate upper roofs & spires to inspect structure"
-                className={`h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 border text-[11.5px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
-                  cutawayActive
-                    ? 'bg-[#e8b04a]/16 border-[#e8b04a]/70 text-[#e8b04a]'
-                    : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#e8b04a]/60 hover:text-[#e8b04a]'
-                }`}
-              >
-                <Stack size={13} weight={cutawayActive ? 'fill' : 'regular'} />
-                Inspect
-              </motion.button>
-            )}
-            <span className="text-[11px] text-[#a9a69e] truncate">
-              {directionActive
-                ? `${cardinal} · ${km.toLocaleString()} km → ${nextLm.k}`
-                : `Next: ${nextLm.k}`}
-            </span>
-          </div>
-
-          {(onApplyCameraPreset || onStepPin) && (
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-1.5">
-              {onApplyCameraPreset && (
-                <Menu
-                  ariaLabel="3D camera views"
-                  reducedMotion={reducedMotion}
+                {onApplyCameraPreset && (
+                  <Menu
+                    ariaLabel="3D camera views"
+                    reducedMotion={reducedMotion}
                   items={cameraMenuItems}
                   trigger={
                     <button
@@ -744,7 +844,8 @@ export function LandmarkCard({
                   <span>Pins ({totalInteractivePins})</span>
                 </button>
               )}
-            </div>
+              </motion.div>
+            </AnimatePresence>
           )}
 
           <AnimatePresence initial={false}>
@@ -1027,78 +1128,156 @@ export function LandmarkCard({
             )}
           </AnimatePresence>
 
-          {editorial && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-2 text-[10px] text-[#a9a69e]">
-              <span className="inline-flex items-center gap-1 min-w-0">
-                <Tag size={10} className="shrink-0" />
-                <span className="truncate">Marker positions are illustrative, not survey-accurate</span>
-              </span>
-              {editorial.sources.map((source) => (
-                <a
-                  key={source.label}
-                  href={source.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-[#e8b04a] hover:underline"
+          <AnimatePresence mode="wait" initial={false} custom={slideCustom}>
+            <motion.div
+              key={index}
+              custom={slideCustom}
+              variants={cardContentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+            >
+              {editorial && (
+                <motion.div
+                  custom={slideCustom}
+                  variants={cardItemVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-2 text-[10px] text-[#a9a69e]"
                 >
-                  {source.label}
-                  <ArrowSquareOut size={10} />
-                </a>
-              ))}
-            </div>
-          )}
+                  <span className="inline-flex items-center gap-1 min-w-0">
+                    <Tag size={10} className="shrink-0" />
+                    <span className="truncate">Marker positions are illustrative, not survey-accurate</span>
+                  </span>
+                  {editorial.sources.map((source) => (
+                    <a
+                      key={source.label}
+                      href={source.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-[#e8b04a] hover:underline"
+                    >
+                      {source.label}
+                      <ArrowSquareOut size={10} />
+                    </a>
+                  ))}
+                </motion.div>
+              )}
 
-          <div className="flex items-center gap-2.5 mt-3 landscape:mt-2 [@media(max-height:700px)]:mt-2">
-            <motion.button
-              type="button"
-              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-              onClick={onOpenInfo}
-              aria-label="Landmark historical and architectural details"
-              className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 bg-white/[0.06] border border-white/15 text-[12px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Info size={15} />
-              Details
-            </motion.button>
-            <motion.button
-              type="button"
-              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-              onClick={onPrev}
-              aria-label="Previous landmark"
-              className={smallBtn}
-            >
-              <CaretLeft size={16} />
-            </motion.button>
-            <div className="flex-1 h-[3px] rounded-full bg-white/15 overflow-hidden">
               <motion.div
-                className="h-full w-full origin-left bg-[#e8b04a]"
-                initial={false}
-                animate={{ scaleX: progressPct / 100 }}
-                transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_SMOOTH_OUT }}
-              />
-            </div>
-            <span className="text-[11px] font-mono tabular-nums text-[#a9a69e]">
-              {index + 1}/{LANDMARKS.length}
-            </span>
-            <motion.button
-              type="button"
-              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-              onClick={onNext}
-              aria-label="Next landmark"
-              className={smallBtn}
-            >
-              <CaretRight size={16} />
-            </motion.button>
-            <motion.button
-              type="button"
-              whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-              onClick={onToggleCompact}
-              aria-label="Compact controls"
-              title="Compact controls"
-              className={`${smallBtn} border-[#e8b04a]/55 text-[#e8b04a]`}
-            >
-              <CaretDown size={15} weight="bold" />
-            </motion.button>
-          </div>
+                custom={slideCustom}
+                variants={cardItemVariants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                className="flex items-center gap-2.5 mt-3 landscape:mt-2 [@media(max-height:700px)]:mt-2"
+              >
+                <motion.button
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                  onClick={onOpenInfo}
+                  aria-label="Landmark historical and architectural details"
+                  className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 bg-white/[0.06] border border-white/15 text-[12px] font-medium text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Info size={15} />
+                  Details
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                  onClick={onPrev}
+                  aria-label="Previous landmark"
+                  className={smallBtn}
+                >
+                  <CaretLeft size={16} />
+                </motion.button>
+                <div className="flex-1 h-[3px] rounded-full bg-white/15 overflow-hidden">
+                  <motion.div
+                    className="h-full w-full origin-left bg-[#e8b04a]"
+                    initial={false}
+                    animate={{ scaleX: progressPct / 100 }}
+                    transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_SMOOTH_OUT }}
+                  />
+                </div>
+                <span className="text-[11px] font-mono tabular-nums text-[#a9a69e]">
+                  {index + 1}/{LANDMARKS.length}
+                </span>
+                <motion.button
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                  onClick={onNext}
+                  aria-label="Next landmark"
+                  className={smallBtn}
+                >
+                  <CaretRight size={16} />
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                  onClick={onToggleCompact}
+                  aria-label="Compact controls"
+                  title="Compact controls"
+                  className={`${smallBtn} border-[#e8b04a]/55 text-[#e8b04a]`}
+                >
+                  <CaretDown size={15} weight="bold" />
+                </motion.button>
+              </motion.div>
+
+              {weather && (
+                <AnimatePresence initial={false}>
+                  {weatherInsightOpen && (
+                    <motion.div
+                      key="weather-insight"
+                      initial={reducedMotion ? false : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -4 }}
+                      animate={reducedMotion ? { opacity: 1 } : { opacity: 1, clipPath: 'inset(0 0 0% 0)', y: 0, filter: 'blur(0px)' }}
+                      exit={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -4, filter: 'blur(2px)' }}
+                      transition={{ duration: reducedMotion ? 0 : 0.35, ease: EASE_SMOOTH_OUT }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <AnimatedNumber
+                            value={weather.temp}
+                            suffix="°C"
+                            className="text-[15px] font-semibold text-[#f3efe6]"
+                            reducedMotion={reducedMotion}
+                          />
+                          <span className="text-[11px] text-[#e8b04a] truncate">{weather.label}</span>
+                          <span className="ml-auto text-[10px] font-mono tabular-nums text-[#a9a69e]">
+                            {weather.timeText} · {weather.city}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/[0.03]">
+                            <div className="inline-flex items-center gap-1.5">
+                              <Drop size={12} className="text-[#a9a69e] shrink-0" />
+                              <span className="text-[10px] text-[#a9a69e]">Humidity</span>
+                            </div>
+                            <span className="text-[11px] font-medium text-[#f3efe6]">{humidityText!}</span>
+                          </div>
+                          <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/[0.03]">
+                            <div className="inline-flex items-center gap-1.5">
+                              <Gauge size={12} className="text-[#a9a69e] shrink-0" />
+                              <span className="text-[10px] text-[#a9a69e]">Air quality</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-[11px] font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: insight!.color }} />
+                              <span className="text-[#f3efe6]">{insight!.band}</span>
+                              <span className="ml-1 text-[10px] text-[#a9a69e]">· {insight!.score}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-[#7f7d77]">
+                          {weather.live ? 'Live observation · Open-Meteo' : 'Typical · climate model'} · Air quality estimated
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </motion.div>
       </div>
 

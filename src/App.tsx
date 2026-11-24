@@ -1885,6 +1885,7 @@ export function App() {
             ambientAudio.vibrate(18);
           }}
           onDragParallax={(dx) => engineRef.current?.setCardDragParallax(dx)}
+          weather={weatherState}
         />
 
         {/* Desktop Orbit Hint */}
