@@ -37,9 +37,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1795461640.8814938,
-    "seen": 1795461895.9862633,
-    "ast_hash": "af7afb5900818e071508c7f22a73b2ad",
+    "mtime": 1795513522.602367,
+    "seen": 1795516846.1609318,
+    "ast_hash": "b9dafd8412334e1583193e8158e38ca6",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -79,9 +79,9 @@
     "semantic_hash": ""
   },
   "src/components/LandmarkCard.tsx": {
-    "mtime": 1795461548.5412495,
-    "seen": 1795461895.986306,
-    "ast_hash": "13ff75de71372c0797026288244eb150",
+    "mtime": 1795513740.5229301,
+    "seen": 1795516846.1610022,
+    "ast_hash": "af1d0abcd5202c297e6fd5e5d15dff0a",
     "semantic_hash": ""
   },
   "src/components/PassportModal.tsx": {
@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795512412.728109,
-    "seen": 1795512503.976952,
-    "ast_hash": "1760f7010daaf82051a2331511676c23",
+    "mtime": 1795516608.2572775,
+    "seen": 1795516846.161781,
+    "ast_hash": "99dffa556c344abab301a5fda31b15f5",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -877,9 +877,9 @@
     "semantic_hash": ""
   },
   "src/lib/fitMath.ts": {
-    "mtime": 1795355660.1097069,
-    "seen": 1795355738.7260876,
-    "ast_hash": "6b13e65337e91b633d827b354efbb6d9",
+    "mtime": 1795516362.0496879,
+    "seen": 1795516846.161397,
+    "ast_hash": "1ba8c76b39ef0054a7e5885a534109d6",
     "semantic_hash": ""
   },
   "src/lib/solarPosition.test.ts": {
@@ -1273,9 +1273,9 @@
     "semantic_hash": ""
   },
   "docs/PERFORMANCE-AND-FITS-RESEARCH.md": {
-    "mtime": 1795453516.7742429,
-    "seen": 1795453612.7894583,
-    "ast_hash": "f56357691eb2b678d80fbc53b0ef4dca",
+    "mtime": 1795512568.021358,
+    "seen": 1795516846.162368,
+    "ast_hash": "3d50f922b6ab1ff3c34b4b9649dcbb4e",
     "semantic_hash": ""
   },
   "plans/012-gate-compass-hover-on-fine-pointer.md": {
@@ -1333,9 +1333,9 @@
     "semantic_hash": ""
   },
   "plans/021-remove-landmark-rings.md": {
-    "mtime": 1795453528.3618934,
-    "seen": 1795453612.7896807,
-    "ast_hash": "5434cc6a4d91e1066592ac7f4c84dd9d",
+    "mtime": 1795512559.8812213,
+    "seen": 1795516846.1626713,
+    "ast_hash": "6c839c80c3a1e3d178b7f35731616dca",
     "semantic_hash": ""
   },
   "plans/022-fit-all-landmarks-to-plinth.md": {
@@ -6535,9 +6535,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/plinthKit.ts": {
-    "mtime": 1795511510.3276076,
-    "seen": 1795512503.9769845,
-    "ast_hash": "a55629e08502e59339ebe37bd00f5a78",
+    "mtime": 1795516329.1827343,
+    "seen": 1795516846.1618333,
+    "ast_hash": "33ad501698716ab1abd3583b2d842bf6",
     "semantic_hash": ""
   },
   "src/three/creatures/effects.ts": {

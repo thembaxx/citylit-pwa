@@ -32,8 +32,10 @@ export interface BuiltPilotPlinth {
 const rimGeoCache = new Map<string, THREE.BufferGeometry>();
 
 /**
- * Generates (and caches) a thin flat glowing collar ring geometry matching the
- * plinth's silhouette so CitylitEngine's `plinthRing` adapts to every shape.
+ * Generates (and caches) a solid flat stand geometry matching the plinth's
+ * silhouette so CitylitEngine's stand adapts to every shape. The footprint is
+ * filled — no cut-out outline — so the base reads as opaque rather than as a
+ * translucent frame around the model.
  */
 export function getPlinthRingOutlineGeometry(
   silhouette: PlinthSilhouette,
@@ -45,9 +47,7 @@ export function getPlinthRingOutlineGeometry(
 
   const pts = getPlinthOutlinePoints(silhouette, halfExtent, 16);
   const outer = new THREE.Shape();
-  const inner = new THREE.Path();
   const outerScale = (halfExtent + 0.1) / halfExtent;
-  const innerScale = (halfExtent + 0.015) / halfExtent;
 
   for (let i = 0; i < pts.length; i++) {
     const [x, z] = pts[i];
@@ -55,14 +55,6 @@ export function getPlinthRingOutlineGeometry(
     else outer.lineTo(x * outerScale, -z * outerScale);
   }
   outer.closePath();
-
-  for (let i = pts.length - 1; i >= 0; i--) {
-    const [x, z] = pts[i];
-    if (i === pts.length - 1) inner.moveTo(x * innerScale, -z * innerScale);
-    else inner.lineTo(x * innerScale, -z * innerScale);
-  }
-  inner.closePath();
-  outer.holes.push(inner);
 
   const geo = new THREE.ShapeGeometry(outer).rotateX(-Math.PI / 2);
   geo.computeBoundingSphere();

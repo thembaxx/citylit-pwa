@@ -1,9 +1,9 @@
 /**
  * Pure fit/clamp maths shared by diorama framing and the square plinth.
  *
- * The plinth rim in CitylitEngine is authored as a square with a half-extent
- * of 8.52 and a 0.06 wide frame, leaving 8.46 of usable half-extent. Keeping
- * those numbers here makes the rim, bounds audit, and any future fit clamp
+ * The stand in CitylitEngine is a filled square with a half-extent of 8.52;
+ * 8.46 keeps a small inset so fitted dioramas never touch its edge. Keeping
+ * those numbers here makes the stand, bounds audit, and any future fit clamp
  * agree instead of drifting apart.
  */
 export const PLINTH_HALF_EXTENT = 8.52;

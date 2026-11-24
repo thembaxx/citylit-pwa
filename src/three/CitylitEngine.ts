@@ -33,7 +33,6 @@ import {
   boundsFitPlinth,
   fitBoundsToPlinth,
   PLINTH_HALF_EXTENT,
-  PLINTH_INNER_HALF_EXTENT,
 } from '../lib/fitMath';
 import {
   computeFoliageSwayAngle,
@@ -775,24 +774,22 @@ export class CitylitEngine {
     this.ringMat = new THREE.MeshStandardMaterial({
       color: '#e8b04a',
       emissive: '#e8b04a',
-      emissiveIntensity: 0.35,
-      roughness: 0.4,
+      emissiveIntensity: 0.04,
+      roughness: 0.78,
+      // A solid stand, never a see-through outline.
+      transparent: false,
+      opacity: 1,
+      side: THREE.DoubleSide,
     });
     this.ringMat.userData.i = 0.6;
-    // Square emissive rim: a thin flat frame instead of the old torus ring.
+    // Solid square stand: the whole footprint is filled, so the diorama sits
+    // on an opaque square base instead of inside a thin translucent frame.
     const rimShape = new THREE.Shape();
     rimShape.moveTo(-PLINTH_HALF_EXTENT, -PLINTH_HALF_EXTENT);
     rimShape.lineTo(PLINTH_HALF_EXTENT, -PLINTH_HALF_EXTENT);
     rimShape.lineTo(PLINTH_HALF_EXTENT, PLINTH_HALF_EXTENT);
     rimShape.lineTo(-PLINTH_HALF_EXTENT, PLINTH_HALF_EXTENT);
     rimShape.closePath();
-    const rimHole = new THREE.Path();
-    rimHole.moveTo(-PLINTH_INNER_HALF_EXTENT, -PLINTH_INNER_HALF_EXTENT);
-    rimHole.lineTo(-PLINTH_INNER_HALF_EXTENT, PLINTH_INNER_HALF_EXTENT);
-    rimHole.lineTo(PLINTH_INNER_HALF_EXTENT, PLINTH_INNER_HALF_EXTENT);
-    rimHole.lineTo(PLINTH_INNER_HALF_EXTENT, -PLINTH_INNER_HALF_EXTENT);
-    rimHole.closePath();
-    rimShape.holes.push(rimHole);
     this.defaultPlinthRingGeo = new THREE.ShapeGeometry(rimShape).rotateX(-Math.PI / 2);
     this.defaultPlinthRingGeo.userData.sharedResource = true;
     this.plinthRing = new THREE.Mesh(this.defaultPlinthRingGeo, this.ringMat);
@@ -3153,12 +3150,12 @@ export class CitylitEngine {
 
     if (resolvedTheme === 'daylight') {
       this.targetRingCol.set(this.activeSiteVisual.plinthRingDay);
-      this.targetRingEmissive = 0.16;
+      this.targetRingEmissive = 0.04;
       this.targetBloomThreshold = 0.98;
       this.targetBloomStrength = 0.16;
     } else {
       this.targetRingCol.set(this.activeSiteVisual.plinthRingNight);
-      this.targetRingEmissive = 0.42;
+      this.targetRingEmissive = 0.16;
       this.targetBloomThreshold = 0.78;
       this.targetBloomStrength = 0.25;
     }
