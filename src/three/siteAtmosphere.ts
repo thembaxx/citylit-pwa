@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import type { LandmarkBiome } from '../types/citylit';
-import { SKY_NOISE_GLSL } from './shaders';
 
 /**
  * Engine-level atmosphere that wraps the hero diorama in a local weather shell.
@@ -13,8 +12,7 @@ export type AtmosphereEffect =
   | 'seaMist'
   | 'sprayMist'
   | 'dustHaze'
-  | 'urbanSmog'
-  | 'valleyMist';
+  | 'urbanSmog';
 
 export interface AtmosphereSite {
   key: string;
@@ -75,22 +73,12 @@ interface AtmosphereProfile {
   weights: EffectWeights;
 }
 
-const EFFECT_TINTS: Record<AtmosphereEffect, string> = {
-  ridgeFog: '#dbe7f0',
-  heatHaze: '#ffcf96',
-  seaMist: '#dfeff7',
-  sprayMist: '#eaf8ff',
-  dustHaze: '#e9c48a',
-  urbanSmog: '#c8c4c9',
-  valleyMist: '#e4eef6',
-};
-
 const BIOME_EFFECTS: Record<LandmarkBiome, Partial<EffectWeights>> = {
-  mountain: { ridgeFog: 0.82, valleyMist: 0.32 },
+  mountain: { ridgeFog: 0.82 },
   desert: { heatHaze: 0.95, dustHaze: 0.34 },
-  waterfall: { sprayMist: 0.86, ridgeFog: 0.18, valleyMist: 0.56 },
+  waterfall: { sprayMist: 0.86, ridgeFog: 0.18 },
   coastal: { seaMist: 0.8 },
-  wetland: { seaMist: 0.55, ridgeFog: 0.28, valleyMist: 0.36 },
+  wetland: { seaMist: 0.55, ridgeFog: 0.28 },
   savannah: { dustHaze: 0.5, heatHaze: 0.22 },
   urban: { urbanSmog: 0.36 },
 };
@@ -101,22 +89,22 @@ const BIOME_EFFECTS: Record<LandmarkBiome, Partial<EffectWeights>> = {
  */
 const SITE_OVERRIDES: Record<string, Partial<EffectWeights>> = {
   'Table Mountain': { ridgeFog: 0.6 },
-  'Sani Pass': { ridgeFog: 1, valleyMist: 0.72 },
-  'Drakensberg Amphitheatre': { ridgeFog: 0.7, sprayMist: 0.55, valleyMist: 0.78 },
-  'Three Rondavels': { ridgeFog: 0.9, valleyMist: 0.82 },
-  'Golden Gate Highlands': { ridgeFog: 0.55, dustHaze: 0.18, valleyMist: 0.58 },
+  'Sani Pass': { ridgeFog: 1 },
+  'Drakensberg Amphitheatre': { ridgeFog: 0.7, sprayMist: 0.55 },
+  'Three Rondavels': { ridgeFog: 0.9 },
+  'Golden Gate Highlands': { ridgeFog: 0.55, dustHaze: 0.18 },
   'Kgalagadi Red Dunes': { heatHaze: 1.2, dustHaze: 0.34 },
   Richtersveld: { heatHaze: 1.05, dustHaze: 0.26 },
   'The Big Hole': { heatHaze: 0.55, dustHaze: 0.46 },
-  'Augrabies Falls': { sprayMist: 0.72, heatHaze: 0.2, valleyMist: 0.64 },
-  'Bourke’s Luck Potholes': { sprayMist: 0.65, valleyMist: 0.68 },
-  'Gariep Dam': { seaMist: 0.38, valleyMist: 0.58 },
-  'Hartbeespoort Dam': { ridgeFog: 0.35, valleyMist: 0.62 },
-  'Storms River Mouth': { seaMist: 0.85, valleyMist: 0.65 },
-  'Knysna Heads': { seaMist: 0.78, valleyMist: 0.48 },
+  'Augrabies Falls': { sprayMist: 0.72, heatHaze: 0.2 },
+  'Bourke’s Luck Potholes': { sprayMist: 0.65 },
+  'Gariep Dam': { seaMist: 0.38 },
+  'Hartbeespoort Dam': { ridgeFog: 0.35 },
+  'Storms River Mouth': { seaMist: 0.85 },
+  'Knysna Heads': { seaMist: 0.78 },
   'Cape Point Lighthouse': { seaMist: 1, ridgeFog: 0.3 },
   'Hermanus Whale Watching': { seaMist: 0.95 },
-  'iSimangaliso Wetland Park': { seaMist: 0.7, ridgeFog: 0.34, valleyMist: 0.52 },
+  'iSimangaliso Wetland Park': { seaMist: 0.7, ridgeFog: 0.34 },
   'Kruger National Park': { dustHaze: 0.6, heatHaze: 0.28 },
 };
 
@@ -128,7 +116,6 @@ function emptyWeights(): EffectWeights {
     sprayMist: 0,
     dustHaze: 0,
     urbanSmog: 0,
-    valleyMist: 0,
   };
 }
 
@@ -171,8 +158,6 @@ function effectOpacity(effect: AtmosphereEffect, options: AtmosphereUpdateOption
       return 0.7 + cover * 0.3;
     case 'urbanSmog':
       return (0.58 + cover * 0.5) * (0.62 + 0.38 * day);
-    case 'valleyMist':
-      return (0.28 + fog * 0.85 + wet * 0.38 + cover * 0.22) * (0.45 + 0.55 * (1 - day * 0.5));
   }
 }
 
@@ -182,93 +167,6 @@ export function createAtmosphereScene(scene: THREE.Scene): AtmosphereSceneContro
   scene.add(root);
 
   const layers: AtmosphereLayer[] = [];
-
-  // Two stratified canyon/valley height-mist banks hugging gorges, dams, and escarpment bases.
-  for (const [idx, my, radScale, baseOp, spin, seed] of [
-    [0, 0.78, 14.4, 0.26, 0.008, 2.4],
-    [1, 1.48, 13.6, 0.18, -0.006, 5.1],
-  ] as const) {
-    const vGeo = new THREE.PlaneGeometry(radScale, radScale, 1, 1).rotateX(-Math.PI / 2);
-    const vMat = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0 },
-        uOpacity: { value: 0 },
-        uDensity: { value: 0.75 },
-        uWind: { value: 1 },
-        uSeed: { value: seed },
-        uColor: { value: new THREE.Color(EFFECT_TINTS.valleyMist) },
-      },
-      vertexShader: /* glsl */ `
-        varying vec2 vUv;
-        varying vec3 vWorldPos;
-        varying vec3 vViewDir;
-        void main() {
-          vUv = uv;
-          vec4 wp = modelMatrix * vec4(position, 1.0);
-          vWorldPos = wp.xyz;
-          vec4 mv = viewMatrix * wp;
-          vViewDir = normalize(-mv.xyz);
-          gl_Position = projectionMatrix * mv;
-        }
-      `,
-      fragmentShader: /* glsl */ `
-        varying vec2 vUv;
-        varying vec3 vWorldPos;
-        varying vec3 vViewDir;
-        uniform float uTime, uOpacity, uDensity, uWind, uSeed;
-        uniform vec3 uColor;
-        ${SKY_NOISE_GLSL}
-        void main() {
-          vec2 c = vUv - 0.5;
-          float r = length(c) * 2.0;
-          if (r >= 0.98) discard;
-          // Soft outer rim + gentle clearing right near focal hero center
-          float outerFade = 1.0 - smoothstep(0.45, 0.98, r);
-          float innerPocket = smoothstep(0.14, 0.42, r) * 0.65 + 0.35;
-          vec2 q = vUv * 5.2 + vec2(uSeed + uTime * (0.015 + uWind * 0.004), -uTime * 0.012);
-          float broad = fbm(q);
-          float fine = fbm(q * 2.3 + vec2(-uTime * 0.02, uSeed));
-          float wisps = smoothstep(0.32, 0.78, broad * 0.65 + fine * 0.35);
-          // Fade out cleanly at low grazing view angles so the plane never slices harshly
-          float viewUp = abs(vViewDir.y);
-          float angleFade = smoothstep(0.06, 0.28, viewUp);
-          float alpha = wisps * outerFade * innerPocket * angleFade * uOpacity * uDensity;
-          if (alpha < 0.003) discard;
-          gl_FragColor = vec4(uColor, alpha);
-        }
-      `,
-    });
-    vMat.userData.noDissolve = true;
-    const vMesh = new THREE.Mesh(vGeo, vMat);
-    vMesh.position.y = my;
-    vMesh.renderOrder = 1 + idx;
-    vMesh.frustumCulled = false;
-    vMesh.userData.noShadow = true;
-    vMesh.userData.cannotReceiveAO = true;
-    vMesh.userData.noDissolve = true;
-    root.add(vMesh);
-    layers.push({
-      effect: 'valleyMist',
-      mesh: vMesh,
-      mat: vMat,
-      spec: {
-        effect: 'valleyMist',
-        radius: 9.5,
-        height: 0.1,
-        y: my,
-        base: baseOp,
-        density: 0.78,
-        spin,
-        seed,
-        mode: 0,
-        additive: false,
-      },
-      tint: new THREE.Color(EFFECT_TINTS.valleyMist),
-    });
-  }
 
   const wildlifeCount = 36;
   const wildlifeSeeds = new Float32Array(wildlifeCount * 4);

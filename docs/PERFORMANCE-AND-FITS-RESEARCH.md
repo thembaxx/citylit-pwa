@@ -90,9 +90,11 @@ sites. The live scene now has 4 atmosphere objects (tablecloth plane, two
 valley-mist planes, wildlife points) instead of 19. Screenshot inspection of
 the hero confirms no translucent bands or water ripples remain, while the
 tablecloth, valley mist, horizon skyline and plinth trim are intact. The
-tablecloth sheet was removed on 2026-11-24 because it read as a translucent
-square above the hero landmark; the mist clumps authored in `landmarksA.ts`
-still provide the cloud reading.
+tablecloth sheet and both valley-mist planes were removed on 2026-11-24
+because they read as translucent squares above landmark dioramas (the valley
+planes were active on 17 sites). The atmosphere root now holds only the
+wildlife points; mist clumps authored in the landmark builders still provide
+the cloud/gorge reading.
 
 **Plinth fit (022).** The naive build-time fit missed sites whose large
 geometry only becomes visible when `LOD.update()` runs (e.g. Nelson Mandela

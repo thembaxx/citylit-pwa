@@ -331,9 +331,9 @@
     "semantic_hash": ""
   },
   "src/three/siteAtmosphere.ts": {
-    "mtime": 1795512400.8122904,
-    "seen": 1795512503.9772246,
-    "ast_hash": "f3d3a54c15b4dfce3e97959d29da3ccc",
+    "mtime": 1795528193.6879654,
+    "seen": 1795528559.8344588,
+    "ast_hash": "e113341d08746523cb0d3ce969165529",
     "semantic_hash": ""
   },
   "src/three/thumbnailCache.ts": {
@@ -1273,9 +1273,9 @@
     "semantic_hash": ""
   },
   "docs/PERFORMANCE-AND-FITS-RESEARCH.md": {
-    "mtime": 1795512568.021358,
-    "seen": 1795516846.162368,
-    "ast_hash": "3d50f922b6ab1ff3c34b4b9649dcbb4e",
+    "mtime": 1795528311.9396844,
+    "seen": 1795528559.834621,
+    "ast_hash": "d6a30a571d2f9666b0b706ebd11ef49e",
     "semantic_hash": ""
   },
   "plans/012-gate-compass-hover-on-fine-pointer.md": {
@@ -1333,9 +1333,9 @@
     "semantic_hash": ""
   },
   "plans/021-remove-landmark-rings.md": {
-    "mtime": 1795512559.8812213,
-    "seen": 1795516846.1626713,
-    "ast_hash": "6c839c80c3a1e3d178b7f35731616dca",
+    "mtime": 1795528288.1147656,
+    "seen": 1795528559.8349478,
+    "ast_hash": "b6c88e69277927eeea6526fc7bd0737b",
     "semantic_hash": ""
   },
   "plans/022-fit-all-landmarks-to-plinth.md": {
