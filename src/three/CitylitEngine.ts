@@ -2462,6 +2462,11 @@ export class CitylitEngine {
   }
 
   showLandmarkImmediate(index: number): void {
+    // Restart the render loop if it was stopped by an earlier unhandled error.
+    if (!this.paused && !this.disposed && !this.contextLost && this.rafId === 0) {
+      this.lastTick = performance.now();
+      this.scheduleNextFrame();
+    }
     // The departing diorama returns to the LRU pool instead of being disposed,
     // so revisiting a landmark is a cache hit rather than a rebuild: no new
     // materials, no shader recompiles, no multi-hundred-millisecond swap frame.
@@ -2491,7 +2496,12 @@ export class CitylitEngine {
       for (const s of cached.sway) swayItems.push(s);
       for (const w of cached.wet) wetMaterials.push(w);
     } else {
-      this.currentGroup = this.buildLandmarkGroup(index);
+      try {
+        this.currentGroup = this.buildLandmarkGroup(index);
+      } catch (err) {
+        console.error('[citylit] builder error for index', index, err);
+        this.currentGroup = new THREE.Group();
+      }
     }
     // Fit-to-stand is finalised after the group's visibility/contact-shadow
     // state is settled (see below), just before it is mounted.
@@ -2647,6 +2657,11 @@ export class CitylitEngine {
   }
 
   transitionToLandmark(index: number): void {
+    // Restart the render loop if it was stopped by an earlier unhandled error.
+    if (!this.paused && !this.disposed && !this.contextLost && this.rafId === 0) {
+      this.lastTick = performance.now();
+      this.scheduleNextFrame();
+    }
     if (!this.currentGroup) {
       this.showLandmarkImmediate(index);
       return;
@@ -5052,6 +5067,7 @@ export class CitylitEngine {
 
   private readonly frame = (now: number): void => {
     if (this.disposed || this.contextLost || this.paused) return;
+    try {
 
     const rawFrameMs = now - this.lastTick;
     const dt = Math.max(0, Math.min(0.05, rawFrameMs / 1000));
@@ -5736,6 +5752,23 @@ export class CitylitEngine {
     }
 
     this.afterDraw(() => this.scheduleNextFrame());
+    } catch (err) {
+      // An unhandled exception inside a rAF callback silently kills the loop.
+      // Log the error and always reschedule the next frame so the render loop
+      // is self-healing — a single bad frame does not freeze the scene forever.
+      // Also reset the dissolve state so a failed builder swap doesn't leave the
+      // scene invisible (WU.dy stuck below 0).
+      console.error('[citylit] frame error', err);
+      if (this.dissolvePhase !== 0) {
+        this.dissolvePhase = 0;
+        this.dissolveT = 0;
+        this.pendingIndex = null;
+        WU.dy.value = 100;
+        this.dustPoints.visible = false;
+        if (this.currentGroup) setContactShadowFade(this.currentGroup, 1);
+      }
+      this.afterDraw(() => this.scheduleNextFrame());
+    }
   };
 
   dispose(): void {

@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795526882.9577136,
-    "seen": 1795527073.7301793,
-    "ast_hash": "49e8cb3874d39d17bfd78af7b541cb6c",
+    "mtime": 1795531512.6539261,
+    "seen": 1795531640.0204136,
+    "ast_hash": "2a4e6b5f2bef7ca52ab37110d67cbd89",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
