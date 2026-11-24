@@ -657,8 +657,11 @@ float wRainRing(vec2 q,float t){
   float h=wHash(cell);
   float phase=fract(t*1.35+h);
   float d=length(f-(vec2(h,fract(h*13.7))-0.5)*0.4);
+  // Primary outer ring expands to 0.42; secondary inner ring at 1/3 the radius
+  // gives each impact a double-ripple that matches real raindrop physics.
   float ring=smoothstep(0.055,0.0,abs(d-phase*0.42))*(1.0-phase);
-  return ring*step(0.28,h);
+  float ring2=smoothstep(0.035,0.0,abs(d-phase*0.14))*(1.0-phase)*0.55;
+  return (ring+ring2)*step(0.28,h);
 }
 const vec2 RIVER_DIR=vec2(${flowXG},${flowZG});
 const float RIVER_SPEED=${flowSpeedG};
@@ -699,7 +702,9 @@ outgoingLight=mix(outgoingLight,skyWash,fr*.62);
 float rEdge=max(abs(vW.x),abs(vW.z));
 float shallowMask=smoothstep(0.14,0.48,diffuseColor.g)*smoothstep(7.4,2.4,rEdge);
 float cA=wCaustic(q*0.85,t);
-float cB=wCaustic(q*1.32+vec2(2.3,-1.6),t*0.78);
+// Counter-scroll: second layer moves in the negative-time direction so the
+// two layers interfere destructively, producing the characteristic caustic flicker.
+float cB=wCaustic(q*1.32+vec2(2.3,-1.6),-t*0.78);
 float caustic=(cA*0.65+cB*0.55)*(0.38+0.62*shallowMask)*(smoothstep(0.15,0.95,uSI)+0.10*uHorW);
 outgoingLight+=mix(vec3(0.42,0.88,0.95),vec3(1.0,0.84,0.52),uHorW*0.6)*caustic*0.26;
 // Crest foam + shoreline rim foam near the cut wall
@@ -917,15 +922,40 @@ export function grassWindy(
   mat: THREE.MeshStandardMaterial,
   cacheKey = 'wind_grass'
 ): THREE.MeshStandardMaterial {
-  return windy(mat, cacheKey, {
+  windy(mat, cacheKey, {
     heightScale: 0.34,
     swayScale: 1.35,
     flutterScale: 0.8,
     rainDroop: 1.3,
-    trunkBase: 0.04,
+    // Raise root lock to 15% so the bottom of each blade stays anchored to ground.
+    trunkBase: 0.15,
     wakeScale: 0.28,
     foliageSss: true,
   });
+  // Chain a second compile hook that adds a stronger winter-to-straw colour
+  // shift for grasses specifically. The base windy() SSS tint already does a
+  // subtle morph; this one drives a visible yellowing without touching other
+  // foliage types.
+  const baseCompile = mat.onBeforeCompile;
+  mat.onBeforeCompile = (shader, renderer) => {
+    baseCompile(shader, renderer);
+    // uSeasonF is already bound by windy(); extend color_fragment to also
+    // lerp toward a dry straw tone in winter (uSeasonF near 0).
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '// grass_dry_season_hook',
+      ''
+    );
+    // Replace the existing season morph line with a stronger grass-specific one.
+    shader.fragmentShader = shader.fragmentShader.replace(
+      ' diffuseColor.rgb = clSeasonMorph(diffuseColor.rgb, 1.0);',
+      `// Grass dry-season: winter blends toward a straw-gold tone.
+ vec3 strawCol = vec3(0.74, 0.65, 0.28) * length(diffuseColor.rgb);
+ diffuseColor.rgb = mix(strawCol, diffuseColor.rgb, 0.3 + uSeasonF * 0.7);
+ diffuseColor.rgb = clSeasonMorph(diffuseColor.rgb, 0.5);`
+    );
+  };
+  mat.customProgramCacheKey = () => `${cacheKey}_v2_grass_seasonal`;
+  return mat;
 }
 
 export function lights(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {

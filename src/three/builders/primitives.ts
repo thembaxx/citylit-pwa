@@ -725,7 +725,9 @@ export function G(c: THREE.ColorRepresentation, intensity = 1): THREE.MeshStanda
 
 export function Mc(c: string): THREE.MeshStandardMaterial {
   if (foliageCache[c]) return foliageCache[c];
-  const mat = windy(new THREE.MeshStandardMaterial({ color: c, roughness: 0.88, metalness: 0.02 }));
+  const mat = windy(new THREE.MeshStandardMaterial({ color: c, roughness: 0.88, metalness: 0.02 }), 'wind_mc', {
+    foliageSss: true,
+  });
   mat.userData.sharedResource = true;
   mat.userData.naturalSurface = true;
   foliageCache[c] = mat;
@@ -1206,13 +1208,19 @@ export function rock(
     c.lerp(aoDark, (1 - ao) * 0.5);
   });
   weatherVertexColors(gm, { ao: 0.3, exposure: 0.16, grain: 0.07 });
-  const mat = new THREE.MeshStandardMaterial({
+  // MeshPhysicalMaterial so rain-driven clearcoat works via updateWetSurfaces.
+  const dryColor = new THREE.Color(c1).lerp(new THREE.Color(c2), 0.5);
+  const wetColor = dryColor.clone().multiplyScalar(0.68);
+  const mat = new THREE.MeshPhysicalMaterial({
     vertexColors: true,
     roughness: 0.92,
     metalness: 0.02,
+    clearcoat: 0.02,
+    clearcoatRoughness: 0.24,
     ...surfaceDetail('stone', 0.032),
   });
   mat.userData.naturalSurface = true;
+  wetMaterials.push({ mat, dryColor, wetColor, rDry: 0.92, rWet: 0.22 });
   return add(g, gm, mat, x, y0 + h / 2, z);
 }
 
@@ -1241,12 +1249,18 @@ export function scatterRocks(
   const colA = new THREE.Color(c1);
   const colB = new THREE.Color(c2);
   const colors = items.map((_, i) => colA.clone().lerp(colB, R(i * 11 + 3)));
-  const mat = new THREE.MeshStandardMaterial({
+  // MeshPhysicalMaterial so rain darkens and clears scattered boulders too.
+  const dryColor = colA.clone().lerp(colB, 0.5);
+  const wetColor = dryColor.clone().multiplyScalar(0.68);
+  const mat = new THREE.MeshPhysicalMaterial({
     roughness: 0.93,
     metalness: 0.02,
+    clearcoat: 0.02,
+    clearcoatRoughness: 0.26,
     ...surfaceDetail('stone', 0.025),
   });
   mat.userData.naturalSurface = true;
+  wetMaterials.push({ mat, dryColor, wetColor, rDry: 0.93, rWet: 0.24 });
   instancedMeshes(g, organicBoulderGeo, mat, items, colors);
 }
 
@@ -1391,9 +1405,10 @@ function mergeTreeParts(parts: readonly TreePart[]): THREE.BufferGeometry {
     const vertCount = posAttr.count;
     const arr = new Float32Array(vertCount * 3);
     for (let i = 0; i < vertCount; i++) {
-      // Soft vertical AO & crown-top sun highlight baked per vertex.
+      // Deeper vertical AO: bottoms of canopy clusters self-shadow strongly.
+      // Range 0.52–1.0 gives visible crown depth without washing out tip highlights.
       const vy = posAttr.getY(i);
-      const ao = 0.78 + Math.min(1, Math.max(0, (vy - 0.08) / 1.35)) * 0.28;
+      const ao = 0.52 + Math.min(1, Math.max(0, (vy - 0.08) / 1.35)) * 0.48;
       const lr = lobeColors ? lobeColors.getX(i) : 1;
       const lg = lobeColors ? lobeColors.getY(i) : 1;
       const lb = lobeColors ? lobeColors.getZ(i) : 1;
@@ -3243,7 +3258,7 @@ export function stampContactShadowsFromMeshes(g: THREE.Object3D): void {
     const span = Math.max(csTmpSize.x, csTmpSize.z);
     // Cover tall towers and broad mountain masses too; the rim/sea plate are
     // far wider than 7.5 so they still cannot stamp themselves.
-    if (span < 0.16 || span > 7.5 || csTmpSize.y < 0.08) return;
+    if (span < 0.08 || span > 7.5 || csTmpSize.y < 0.06) return;
     if (csTmpBox.min.y < -0.35 || csTmpBox.min.y > 0.48) return;
 
     const r = Math.min(2.4, Math.max(0.18, span * 0.62));
@@ -3420,7 +3435,7 @@ export function fynbos(
 ): THREE.Group {
   const h = kitHolder(g, x, y, z, sc, ry);
   const bark = MBark('#6d5438', 0.94, 0.02);
-  const green = M('#506b34', 0.94);
+  const green = Mc('#506b34');
   const bloom = M('#c0894b', 0.9);
   add(h, C(0.035, 0.055, 0.26, 6), bark, 0, 0.13, 0);
   for (let i = 0; i < 4; i++) {
@@ -3456,8 +3471,9 @@ export function silverTree(
 ): THREE.Group {
   const h = kitHolder(g, x, y, z, sc, ry);
   const bark = MBark('#4c3b2c', 0.94, 0.03);
-  const silver = M('#9da98a', 0.84);
-  const shaded = M('#647850', 0.92);
+  // Mc() gives these silver-leaf cones the same SSS backlit warmth as tree canopies.
+  const silver = Mc('#9da98a');
+  const shaded = Mc('#647850');
   add(h, C(0.05, 0.08, 0.6, 7), bark, 0, 0.3, 0);
   for (let i = 0; i < 3; i++) {
     const a = (i / 3) * Math.PI * 2 + ry;
@@ -3490,7 +3506,7 @@ export function protea(
 ): THREE.Group {
   const h = kitHolder(g, x, y, z, sc, ry);
   const stem = MBark('#5e4a32', 0.94, 0.02);
-  const leaf = M('#4e6b39', 0.93);
+  const leaf = Mc('#4e6b39');
   const petal = M('#c98c86', 0.86);
   add(h, C(0.024, 0.034, 0.46, 6), stem, 0, 0.23, 0);
   for (let i = 0; i < 4; i++) {

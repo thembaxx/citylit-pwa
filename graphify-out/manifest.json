@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795519737.0778406,
-    "seen": 1795520015.9134998,
-    "ast_hash": "071a8c130c0b744aa53e6235f6587e46",
+    "mtime": 1795521296.2324462,
+    "seen": 1795521566.5245407,
+    "ast_hash": "a5b48704bf55742cac810ea6f4dc7847",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -247,9 +247,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795519297.5630963,
-    "seen": 1795520015.9135444,
-    "ast_hash": "55228740e2fa4f06b113a8cdf9f1fe01",
+    "mtime": 1795520874.7608707,
+    "seen": 1795521566.5245934,
+    "ast_hash": "bb95e6cb6047fce33e58a177fbc9d61d",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
@@ -295,9 +295,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
-    "mtime": 1795519353.0744784,
-    "seen": 1795520015.9137623,
-    "ast_hash": "216de2dd427c6fe204b32bef3267fcf8",
+    "mtime": 1795521311.1889665,
+    "seen": 1795521566.5248458,
+    "ast_hash": "5b46c942fc4c67f9eb83d0dcec2f5791",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {

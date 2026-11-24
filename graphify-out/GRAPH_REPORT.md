@@ -1,17 +1,17 @@
 # Graph Report - citylit-pwa  (2026-11-24)
 
 ## Corpus Check
-- 197 files · ~436,820 words
+- 197 files · ~437,260 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 11 file(s) not represented in the graph (top: .woff2 4, (none) 3, .css 2)
 
 ## Summary
-- 2206 nodes · 6367 edges · 96 communities (87 shown, 9 thin omitted)
+- 2206 nodes · 6369 edges · 96 communities (87 shown, 9 thin omitted)
 - Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 233 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b452a3ea`
+- Built from commit: `d4a216a6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -113,7 +113,7 @@
 ## God Nodes (most connected - your core abstractions)
 1. `CitylitEngine` - 151 edges
 2. `add()` - 104 edges
-3. `M()` - 84 edges
+3. `M()` - 83 edges
 4. `C()` - 82 edges
 5. `CB()` - 71 edges
 6. `R()` - 61 edges
@@ -131,8 +131,8 @@
   src/three/siteAtmosphere.ts → src/types/citylit.ts
 - `main()` --indirect_call--> `setupEval()`  [INFERRED]
   scripts/capture-visual-matrix.mjs → scripts/capture-contact-sheets.mjs
-- `LandmarkCardProps` --references--> `LandmarkNote`  [EXTRACTED]
-  src/components/LandmarkCard.tsx → src/types/citylit.ts
+- `EngineCallbacks` --references--> `PlacesSelectionInfo`  [EXTRACTED]
+  src/three/CitylitEngine.ts → src/three/placesScene.ts
 
 ## Import Cycles
 - None detected.
@@ -494,15 +494,15 @@ Nodes (4): devDependencies, playwright@^1.65.1, puppeteer@^25.18.1, puppeteer
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `three` connect `globeScene.ts` to `landmarksB.ts`, `plinthKit.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `vehicleLightKit.ts`, `dioramaKit.ts`, `animalKit.ts`, `WeatherWidget.tsx`, `weatherScene.ts`, `osmSlice.ts`, `shaders.ts`, `package.json`, `layer.ts`, `CitylitEngine.ts`, `albedoAudit.ts`, `ref_node_test`, `getSoftTexture`, `species.ts`, `placesInteriors.ts`, `compare-metrics.mjs`, `.constructor`, `windowLights.ts`, `siteAtmosphere.ts`, `DaylightBirdsController`, `field.ts`, `placesScene.ts`, `SceneRenderer.ts`, `webgpuPostFX.ts`, `webgpuCompat.ts`, `creaturesLab.ts`, `field.ts`, `n8ao.d.ts`?**
-  _High betweenness centrality (0.258) - this node is a cross-community bridge._
+  _High betweenness centrality (0.251) - this node is a cross-community bridge._
 - **Should `landmarksB.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.0568830696490271 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05695581014729951 - nodes in this community are weakly interconnected._
 - **Why does `CitylitEngine` connect `CitylitEngine` to `citylit.ts`, `App.tsx`, `animalKit.ts`, `WeatherWidget.tsx`, `LandmarkCard.tsx`, `ScaleRulerModal.tsx`, `CitylitEngine.ts`, `albedoAudit.ts`, `.showLandmarkImmediate`, `ref_node_test`, `motion.ts`, `.frame`, `qualityBenchmark.ts`, `.constructor`, `.setQualityIndex`, `siteAtmosphere.ts`, `contact-sheet.ts`, `DaylightBirdsController`, `placesScene.ts`, `siteVisuals.ts`?**
   _High betweenness centrality (0.087) - this node is a cross-community bridge._
 - **Should `plinthKit.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.1282051282051282 - nodes in this community are weakly interconnected._
 - **Why does `playwright` connect `playwright` to `devDependencies`, `package.json`?**
-  _High betweenness centrality (0.072) - this node is a cross-community bridge._
+  _High betweenness centrality (0.063) - this node is a cross-community bridge._
 - **Should `citylit.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.1010752688172043 - nodes in this community are weakly interconnected._
 - **Should `PassportModal.tsx` be split into smaller, more focused modules?**

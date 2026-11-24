@@ -259,6 +259,8 @@ export class CitylitEngine {
   /** Soft, shadowless biome-tinted bounce fill. Deliberately not driven by weather. */
   private readonly bounceLight: THREE.DirectionalLight;
   private readonly hemiLight: THREE.HemisphereLight;
+  /** Faint overhead blue sky bounce visible on horizontal surface undersides at midday. */
+  private readonly skyFillLight: THREE.HemisphereLight;
   /** Subtle warm ground/apron spill lighting architectural facades at dusk & night. */
   private readonly nightApronLight: THREE.PointLight;
   /** Pooled secondary non-shadowing accent light anchored to each site's focal landmark light. */
@@ -675,6 +677,12 @@ export class CitylitEngine {
 
     this.hemiLight = new THREE.HemisphereLight('#d9e7ff', '#3a2d20', 0.7);
     this.scene.add(this.hemiLight);
+
+    // Faint pure blue-sky overhead bounce. Near-zero ground colour so it only
+    // affects upward-facing surfaces (eaves, table tops, rock overhangs), adding
+    // the characteristic sky-blue reflection visible on South African midday surfaces.
+    this.skyFillLight = new THREE.HemisphereLight('#c8d8f8', '#000000', 0.0);
+    this.scene.add(this.skyFillLight);
 
     this.keyLight = new THREE.DirectionalLight('#fff5dd', 3.1);
     this.keyLight.position.set(12, 18, 10);
@@ -5423,6 +5431,19 @@ export class CitylitEngine {
         dt,
         this.motionScale
       );
+
+      // Sky-blue fill: peaks at solar noon (low horizon ramp), fades with cloud
+      // cover and vanishes at night. Only affects upward-facing surfaces.
+      {
+        const skyFillGoal = Math.max(0,
+          (1 - WU.sunHor.value * 1.4) *         // dims at golden hour
+          (1 - this.weather.current.cover * 0.7) * // dims under cloud
+          (1 - nightVal) *                        // off at night
+          (1 - this.studioWeight) * 0.18          // off in studio
+        );
+        const sfLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 2.0);
+        this.skyFillLight.intensity += (skyFillGoal - this.skyFillLight.intensity) * sfLerp;
+      }
 
       // Pooled dual non-shadowing night point lights anchored to each landmark's focal architecture
       const nightGlowMix =
