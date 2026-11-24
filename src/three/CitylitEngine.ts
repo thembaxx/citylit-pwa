@@ -40,11 +40,12 @@ import {
   computeFoliageWindStrength,
   isDaylightForBirds,
 } from '../lib/foliageWind';
-import { setSeasonMonth as setFoliageSeasonMonth } from '../lib/season';
+import { getSeasonMonth, setSeasonMonth as setFoliageSeasonMonth } from '../lib/season';
 import { computeCoastalTideOffset } from '../lib/tide';
 import { resolveTheme } from '../lib/theme';
 import { setAnimalSeasonMonth } from './builders/animalKit';
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
+import { publishCreatureEnvironment } from './creatures/env';
 import {
   glowMaterials,
   G,
@@ -5243,6 +5244,21 @@ export class CitylitEngine {
       if (this.dissolvePhase === 0 && this.elapsed - this.lastSwitchAt > 2.5) {
         this.prewarmNextLandmark();
       }
+
+      // Publish the shared creature environment once per frame: fields read it
+      // for season/time/weather gating and coarse distance LOD.
+      publishCreatureEnvironment(
+        this.weather.current.timeOfDay,
+        this.weather.current.night,
+        this.weather.current.rain,
+        this.weather.current.wind,
+        this.weather.current.storm,
+        getSeasonMonth() ?? 1,
+        this.motionScale,
+        this.qualityIndex,
+        this.isSoftwareGl,
+        this.camera.position.distanceTo(this.heroRoot.position)
+      );
 
       // Landmark tick + sway + glowing windows
       const tickFn = this.currentGroup?.userData.tick as

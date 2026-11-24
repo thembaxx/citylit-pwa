@@ -21,6 +21,7 @@ import {
 import { MAX_REFERENCE_UNITS, MIN_REFERENCE_UNITS } from '../../lib/scale';
 import { getSeasonMonth, isSpeciesBlooming } from '../../lib/season';
 import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
+import { createCreatureLayer, isCreaturePilotSite } from '../creatures/layer';
 import {
   add,
   B,
@@ -3660,6 +3661,33 @@ function addWildlifeLayer(group: THREE.Group, key: string): Update[] {
   return updates;
 }
 
+/**
+ * Phase-1 procedural creature layer (Brief 2) on the three pilot sites.
+ * One instanced field per species, GPU-animated, capped by the tier budget.
+ * Blob shadows are part of each field, so nothing here may stamp contact AO.
+ */
+function addCreatureLife(group: THREE.Group, key: string, biome: LandmarkBiome): Update[] {
+  if (!isCreaturePilotSite(key)) return [];
+  // Dev-only capture override: `?creatures=on` also works on a software-GL
+  // machine so contact sheets can be captured anywhere.
+  const force =
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('creatures') === 'on';
+  const layer = createCreatureLayer({ key, biome, force });
+  if (!layer) return [];
+  layer.group.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh)) return;
+    obj.userData.noShadow = true;
+    obj.userData.cannotReceiveAO = true;
+    obj.castShadow = false;
+    obj.receiveShadow = false;
+  });
+  group.add(layer.group);
+  group.userData.creatureLayer = layer;
+  return [(t: number, dt: number) => layer.update(dt, t)];
+}
+
 /** A single tiny, unmarked prop per diorama — exact-hit only. */
 function addHiddenDetail(group: THREE.Group, key: string): void {
   const egg = EASTER_EGGS[key];
@@ -3744,6 +3772,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
   for (let i = 0; i < treeUpdates.length; i++) updates.push(treeUpdates[i]);
   const wildlife = addWildlifeLayer(group, sourceKey);
   for (let i = 0; i < wildlife.length; i++) updates.push(wildlife[i]);
+  const creatures = addCreatureLife(group, sourceKey, profile.biome);
+  for (let i = 0; i < creatures.length; i++) updates.push(creatures[i]);
   finalizeTreeBatch(group);
   stampContactShadowsFromMeshes(group);
   finalizeContactShadows(group);
@@ -3799,10 +3829,20 @@ export function finalizeLandmarkGroup(key: string, group: THREE.Group): THREE.Gr
   stampContactShadowsFromMeshes(group);
   finalizeContactShadows(group);
 
-  group.userData.hasAnimatedShadowMeshes = Boolean(group.userData.tick) || swayItems.length > 0;
-
   const profileKey = normalizeProfileKey(key);
   const profile = getSiteProfile(profileKey);
+
+  // Creature life is part of the live build path (the context kit is not).
+  const creatures = addCreatureLife(group, key, profile.biome);
+  if (creatures.length > 0) {
+    const prevTick = group.userData.tick as Tick | undefined;
+    group.userData.tick = (t: number, dt: number) => {
+      if (prevTick) prevTick(t, dt);
+      for (let i = 0; i < creatures.length; i++) creatures[i](t, dt);
+    };
+  }
+
+  group.userData.hasAnimatedShadowMeshes = Boolean(group.userData.tick) || swayItems.length > 0;
   group.userData.audioProfile = {
     ...profile.audio,
     sources: buildSpatialSources(profileKey, profile, keyAngle(profileKey) + 0.6),
