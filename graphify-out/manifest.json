@@ -37,9 +37,9 @@
     "semantic_hash": ""
   },
   "src/App.tsx": {
-    "mtime": 1795513522.602367,
-    "seen": 1795516846.1609318,
-    "ast_hash": "b9dafd8412334e1583193e8158e38ca6",
+    "mtime": 1795532025.6088085,
+    "seen": 1795532751.322082,
+    "ast_hash": "25d9e72b41c76bf9e98659a32023ea4d",
     "semantic_hash": ""
   },
   "src/audio/ambientAudio.ts": {
@@ -67,9 +67,9 @@
     "semantic_hash": ""
   },
   "src/components/GlobeOverlay.tsx": {
-    "mtime": 1795434633.618467,
-    "seen": 1795437839.9429352,
-    "ast_hash": "7bd7d67bf880206c6ce863c78eb3f7ab",
+    "mtime": 1795532711.025378,
+    "seen": 1795532751.3220994,
+    "ast_hash": "faa2adcf6d11e1441a75a005d86473ce",
     "semantic_hash": ""
   },
   "src/components/InfoDrawer.tsx": {
@@ -79,9 +79,9 @@
     "semantic_hash": ""
   },
   "src/components/LandmarkCard.tsx": {
-    "mtime": 1795519987.0165622,
-    "seen": 1795520015.9129953,
-    "ast_hash": "83daab3e9c0ff967c96feea4dc33d72d",
+    "mtime": 1795532005.6273618,
+    "seen": 1795532751.3221073,
+    "ast_hash": "3f1afe15b0a5d2c6b7e633efc145f6fd",
     "semantic_hash": ""
   },
   "src/components/PassportModal.tsx": {

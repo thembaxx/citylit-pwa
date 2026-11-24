@@ -49,17 +49,19 @@ const cardItemVariants: Variants = {
   initial: ({ dir, reduced }: SlideCustom) =>
     reduced
       ? { opacity: 1 }
-      : { opacity: 0, x: dir * 12, y: 6 },
+      : { opacity: 0, x: dir * 12, y: 6, filter: 'blur(3px)' },
   animate: ({ reduced }: SlideCustom) => ({
     opacity: 1,
     x: 0,
     y: 0,
+    filter: 'blur(0px)',
     transition: reduced
       ? { duration: 0 }
       : {
           x: { ...SPRING.surface },
           y: { ...SPRING.surface },
           opacity: { duration: DURATION.medium, ease: EASE_SMOOTH_OUT },
+          filter: { duration: DURATION.medium, ease: EASE_SMOOTH_OUT },
         },
   }),
   exit: ({ dir, reduced }: SlideCustom) =>
@@ -69,6 +71,7 @@ const cardItemVariants: Variants = {
           opacity: 0,
           x: -dir * 10,
           y: -4,
+          filter: 'blur(2px)',
           transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT },
         },
 };

@@ -115,19 +115,31 @@ export function GlobeOverlay({
         {['All', ...PROVINCES].map((pv) => {
           const active = activeProvince === pv;
           return (
-            <button
+            <motion.button
               key={pv}
               type="button"
+              whileTap={reducedMotion ? undefined : { scale: 0.97 }}
+              transition={SPRING.snappy}
               aria-pressed={active}
               onClick={() => onSelectProvince(pv)}
-              className={`province-pill shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] bg-[#121319]/92 border transition cursor-pointer ${
+              className={`province-pill relative shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] bg-[#121319]/92 border cursor-pointer ${
                 active
                   ? 'border-[#e8b04a] text-[#e8b04a]'
                   : 'border-white/15 text-[#f3efe6] hover:border-[#e8b04a]'
               }`}
             >
-              {pv}
-            </button>
+              {active &&
+                (reducedMotion ? (
+                  <span className="absolute inset-0 rounded-full bg-[#e8b04a]/15" />
+                ) : (
+                  <motion.span
+                    layoutId="globe-province-pill"
+                    className="absolute inset-0 rounded-full border border-[#e8b04a] bg-[#e8b04a]/15"
+                    transition={SPRING.snappy}
+                  />
+                ))}
+              <span className="relative z-10">{pv}</span>
+            </motion.button>
           );
         })}
       </div>

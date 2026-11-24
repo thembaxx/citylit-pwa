@@ -1,7 +1,7 @@
 # Graph Report - citylit-pwa  (2026-11-24)
 
 ## Corpus Check
-- 197 files · ~438,120 words
+- 197 files · ~438,209 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 11 file(s) not represented in the graph (top: .woff2 4, (none) 3, .css 2)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `30091739`
+- Built from commit: `56ba20a5`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -496,16 +496,16 @@ Nodes (4): devDependencies, playwright@^1.65.1, puppeteer@^25.18.1, puppeteer
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `three` connect `ref_node_test` to `landmarksB.ts`, `placesSliceBuilders.ts`, `placesShaders.ts`, `dioramaKit.ts`, `animalKit.ts`, `weatherScene.ts`, `osmSlice.ts`, `prepareCanvasTexture`, `package.json`, `layer.ts`, `CitylitEngine.ts`, `field.ts`, `getSoftTexture`, `globeScene.ts`, `species.ts`, `placesInteriors.ts`, `compare-metrics.mjs`, `placesScene.ts`, `daylightBirds.ts`, `WebGPUSceneRenderer`, `plinthKit.ts`, `vehicleLightKit.ts`, `windowLights.ts`, `siteAtmosphere.ts`, `webgpuPostFX.ts`, `field.ts`, `globalIllumination.ts`, `windParticles.ts`, `creaturesLab.ts`, `webgpuCompat.ts`, `n8ao.d.ts`, `streetLights.ts`?**
-  _High betweenness centrality (0.251) - this node is a cross-community bridge._
+  _High betweenness centrality (0.259) - this node is a cross-community bridge._
 - **Should `landmarksB.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.05595149452185938 - nodes in this community are weakly interconnected._
 - **Why does `CitylitEngine` connect `CitylitEngine` to `landmarksB.ts`, `ScaleRulerModal.tsx`, `citylit.ts`, `App.tsx`, `motion.ts`, `animalKit.ts`, `WeatherWidget.tsx`, `.isStudio`, `.setQualityIndex`, `.resetToDefaultOrientation`, `CitylitEngine.ts`, `ref_node_test`, `citylit.ts`, `.frame`, `qualityBenchmark.ts`, `DaylightBirdsController`, `placesScene.ts`, `.constructor`, `siteAtmosphere.ts`, `webgpuPostFX.ts`, `contact-sheet.ts`, `framePacing.ts`, `windParticles.ts`, `siteVisuals.ts`, `streetLights.ts`?**
-  _High betweenness centrality (0.095) - this node is a cross-community bridge._
+  _High betweenness centrality (0.090) - this node is a cross-community bridge._
 - **Should `ScaleRulerModal.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.10416666666666667 - nodes in this community are weakly interconnected._
+- **Why does `puppeteer` connect `devDependencies` to `ref_node_fs`, `package.json`?**
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._
 - **Should `citylit.ts` be split into smaller, more focused modules?**
   _Cohesion score 0.06463414634146342 - nodes in this community are weakly interconnected._
 - **Should `ref_node_test` be split into smaller, more focused modules?**
   _Cohesion score 0.1437908496732026 - nodes in this community are weakly interconnected._
-- **Should `InfoDrawer.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.09475806451612903 - nodes in this community are weakly interconnected._

@@ -2126,48 +2126,53 @@ export function App() {
         </AnimatePresence>
 
         {/* Cinematic Tour Letterbox & Title */}
-        {cineKey && (
-          <>
-            <motion.div
-              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
-              animate={{ opacity: 1, scaleY: 1 }}
-              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
-              transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
-              style={{ transformOrigin: 'top' }}
-              className="fixed inset-x-0 top-0 h-[6vh] bg-black z-30 pointer-events-none"
-            />
-            <motion.div
-              initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
-              animate={{ opacity: 1, scaleY: 1 }}
-              exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
-              transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
-              style={{ transformOrigin: 'bottom' }}
-              className="fixed inset-x-0 bottom-0 h-[6vh] bg-black z-30 pointer-events-none"
-            />
-            <motion.div
-              key={cineKey}
-              initial={{ opacity: 0, y: 14, letterSpacing: '0.3em' }}
-              animate={{
-                opacity: [0, 1, 1, 0],
-                y: [14, 0, 0, -8],
-                letterSpacing: ['0.3em', '0.04em', '0.04em', '0.04em'],
-              }}
-              transition={{
-                duration: reducedMotion ? 0 : 2.2,
-                times: [0, 0.25, 0.7, 1],
-                ease: 'easeOut',
-              }}
-              className="fixed inset-x-0 top-[40%] text-center z-30 pointer-events-none"
-            >
-              <small className="block text-[#e8b04a] tracking-[0.2em] text-[12px] uppercase">
-                {LANDMARKS[index].c}
-              </small>
-              <b className="block font-serif-display italic font-normal text-[clamp(30px,8vw,54px)] leading-tight text-[#f3efe6] drop-shadow-[0_2px_24px_#000]">
-                {LANDMARKS[index].k}
-              </b>
-            </motion.div>
-          </>
-        )}
+        <AnimatePresence>
+          {cineKey && (
+            <>
+              <motion.div
+                key="cine-top"
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+                animate={{ opacity: 1, scaleY: 1 }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+                transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
+                style={{ transformOrigin: 'top' }}
+                className="fixed inset-x-0 top-0 h-[6vh] bg-black z-30 pointer-events-none"
+              />
+              <motion.div
+                key="cine-bottom"
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+                animate={{ opacity: 1, scaleY: 1 }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scaleY: 0 }}
+                transition={{ duration: reducedMotion ? 0 : DURATION.fast, ease: EASE_SMOOTH_OUT }}
+                style={{ transformOrigin: 'bottom' }}
+                className="fixed inset-x-0 bottom-0 h-[6vh] bg-black z-30 pointer-events-none"
+              />
+              <motion.div
+                key={cineKey}
+                initial={{ opacity: 0, y: 14, letterSpacing: '0.3em', filter: 'blur(4px)' }}
+                animate={{
+                  opacity: [0, 1, 1, 0],
+                  y: [14, 0, 0, -8],
+                  letterSpacing: ['0.3em', '0.04em', '0.04em', '0.04em'],
+                  filter: ['blur(4px)', 'blur(0px)', 'blur(0px)', 'blur(2px)'],
+                }}
+                transition={{
+                  duration: reducedMotion ? 0 : 2.2,
+                  times: [0, 0.25, 0.7, 1],
+                  ease: 'easeOut',
+                }}
+                className="fixed inset-x-0 top-[40%] text-center z-30 pointer-events-none"
+              >
+                <small className="block text-[#e8b04a] tracking-[0.2em] text-[12px] uppercase">
+                  {LANDMARKS[index].c}
+                </small>
+                <b className="block font-serif-display italic font-normal text-[clamp(30px,8vw,54px)] leading-tight text-[#f3efe6] drop-shadow-[0_2px_24px_#000]">
+                  {LANDMARKS[index].k}
+                </b>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
 
         {/* Passport Stamp Notification */}
         <AnimatePresence>
@@ -2176,14 +2181,14 @@ export function App() {
               key="stamp"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ opacity: 0, transition: { duration: 0.3, ease: EASE_SMOOTH_OUT } }}
               className="fixed inset-0 z-50 grid place-items-center pointer-events-none"
             >
               <motion.div
-                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 2.4, rotate: -14 }}
-                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: -14 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={SPRING.pop}
+                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 2.6, rotate: -14, filter: 'blur(8px)' }}
+                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: -14, filter: 'blur(0px)' }}
+                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.9, filter: 'blur(4px)' }}
+                transition={reducedMotion ? { duration: 0 } : { ...SPRING.pop }}
                 className="px-6 py-4 rounded-2xl border-2 border-[#e8b04a] bg-[#121319]/95 text-center shadow-2xl"
               >
                 <div className="text-[11px] tracking-[0.22em] uppercase text-[#e8b04a]">
