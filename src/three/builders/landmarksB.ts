@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { orlandoGroundHeight } from '../../lib/plinthProfiles';
 import { headingYaw, leftLaneOffset } from '../../lib/trafficMath';
 import { registerBeacons } from '../beacons';
 import {
@@ -2996,20 +2997,23 @@ export function orlando(): THREE.Group {
     darkSteel
   );
 
-  // Dense instanced Soweto township homes
+  // Dense instanced Soweto township homes seated flush on outer Highveld relief
   const houseT: InstanceTransform[] = [];
   const roofT: InstanceTransform[] = [];
+  const housePts: Array<[number, number]> = [];
   for (let ix = -4; ix <= 4; ix++) {
     for (let iz = -4; iz <= 4; iz++) {
       const x = ix * 1.45 + (R(ix * 9 + iz + 40) - 0.5) * 0.22;
       const z = iz * 1.45 + (R(ix * 3 + iz * 7 + 40) - 0.5) * 0.22;
       const rad = Math.hypot(x, z);
       if (rad > 6.9 || (rad > 4.35 && rad < 5.35)) continue;
-      if (Math.hypot(x + 2.4, z) < 2.25 || Math.hypot(x - 2.4, z) < 2.25) continue;
-      if (Math.abs(x) < 2.0 && z > 2.6) continue;
+      if (Math.hypot(x + 2.4, z) < 2.45 || Math.hypot(x - 2.4, z) < 2.45) continue;
+      if (Math.abs(x) < 2.1 && z > 2.2) continue;
+      const gy = orlandoGroundHeight(x, z);
       const ry = (R(ix * 5 + iz * 11 + 40) - 0.5) * 0.5;
-      houseT.push({ x, y: 0.44, z, ry });
-      roofT.push({ x, y: 0.66, z, ry });
+      housePts.push([x, z]);
+      houseT.push({ x, y: gy + 0.21, z, ry });
+      roofT.push({ x, y: gy + 0.42, z, ry });
     }
   }
   instancedMeshes(g, CB(0.66, 0.42, 0.5, 0.02), MPlaster('#ddd9cb', 0.8), houseT, pal);
@@ -3098,10 +3102,11 @@ export function orlando(): THREE.Group {
     [-5.4, -4.6, 2.5],
   ];
   for (const [x, z, h] of pylons) {
-    [-0.28, 0.28].forEach((s) => pylonSegs.push([[x + s, 0.2, z], [x + s * 0.2, h, z]]));
+    const pylonY0 = orlandoGroundHeight(x, z) - 0.02;
+    [-0.28, 0.28].forEach((s) => pylonSegs.push([[x + s, pylonY0, z], [x + s * 0.2, h, z]]));
     for (let i = 0; i < 5; i++) {
-      const ya = 0.2 + (h - 0.2) * (i / 5);
-      const yb = 0.2 + (h - 0.2) * ((i + 1) / 5);
+      const ya = pylonY0 + (h - pylonY0) * (i / 5);
+      const yb = pylonY0 + (h - pylonY0) * ((i + 1) / 5);
       const wa = 0.28 * (1 - i / 5) + 0.05;
       const wb = 0.28 * (1 - (i + 1) / 5) + 0.05;
       pylonSegs.push([[x - wa, ya, z], [x + wb, yb, z]]);
@@ -3116,24 +3121,57 @@ export function orlando(): THREE.Group {
   catenaryTube(g, [-6.2, 2.35, 2.6], [5.8, 2.15, 3.4], 0.45, 0.012, darkSteel, 18, 6);
 
   const parkedCars = [
-    [-3.6, 0.23, -3.4, 0.5],
-    [3.7, 0.23, -2.6, -0.7],
-    [0.2, 0.23, -4.4, 1.2],
-  ].map(([x, y, z, ry]) => {
+    [-3.6, -3.4, 0.5],
+    [3.7, -2.6, -0.7],
+    [0.2, -4.4, 1.2],
+  ].map(([x, z, ry]) => {
     const c = car('#e2ded2', 0.42, false);
-    c.position.set(x, y, z);
+    c.position.set(x, orlandoGroundHeight(x, z) + 0.02, z);
     c.rotation.y = ry;
     g.add(c);
     return c;
   });
   attachVehicleLights(g, parkedCars);
   const stones: InstanceTransform[] = [];
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 28; i++) {
     const a = R(i + 11) * 6.28;
-    const r = 1.2 + R(i + 21) * 5.6;
-    stones.push({ x: r * Math.cos(a), y: 0.22, z: r * Math.sin(a), sx: 0.5, sy: 0.4, sz: 0.6 });
+    const r = 2.6 + R(i + 21) * 4.2;
+    const sx = r * Math.cos(a);
+    const sz = r * Math.sin(a);
+    if (Math.hypot(sx + 2.4, sz) < 2.6 || Math.hypot(sx - 2.4, sz) < 2.6) continue;
+    if (Math.abs(r - 4.9) < 0.5) continue;
+    if (Math.abs(sx) < 2.05 && sz > 2.2 && sz < 4.8) continue;
+    stones.push({
+      x: sx,
+      y: orlandoGroundHeight(sx, sz) + 0.03,
+      z: sz,
+      sx: 0.46,
+      sy: 0.36,
+      sz: 0.54,
+    });
   }
   scatterRocks(g, stones, '#8a8272', '#b0a68e');
+
+  // Soweto Highveld grass tufts grounded on open veld verges & berms
+  const grassT: InstanceTransform[] = [];
+  for (let i = 0; i < 110; i++) {
+    const a = R(i * 13 + 77) * 6.28;
+    const r = 1.4 + R(i * 19 + 89) * 5.6;
+    const gx = r * Math.cos(a);
+    const gz = r * Math.sin(a);
+    if (Math.hypot(gx + 2.4, gz) < 2.65 || Math.hypot(gx - 2.4, gz) < 2.65) continue;
+    if (Math.abs(r - 4.9) < 0.52) continue;
+    if (Math.abs(gx) < 2.05 && gz > 2.15 && gz < 4.85) continue;
+    if (housePts.some(([hx, hz]) => Math.hypot(gx - hx, gz - hz) < 0.62)) continue;
+    grassT.push({
+      x: gx,
+      y: orlandoGroundHeight(gx, gz) - 0.01,
+      z: gz,
+      ry: R(i * 7 + 5) * 6.28,
+      sy: 0.78 + R(i * 11 + 3) * 0.42,
+    });
+  }
+  grassTufts(g, grassT, ['#7d9152', '#97a05d', '#687943']);
 
   const baseTick = g.userData.tick as (t: number) => void;
   const dust = drift(g, 45, '#b09a58', 0.07, (i, t) => [

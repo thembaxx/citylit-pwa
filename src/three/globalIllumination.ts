@@ -1,20 +1,21 @@
 import * as THREE from 'three';
+import { WU } from './shaders';
 
 /**
  * Global illumination (GI) for the diorama/places scenes: an irradiance probe
  * volume (a `Data3DTexture`) built once from the sky HDRI, sampled per
- * fragment in physical-material shaders as an additional ambient bounce light.
+ * fragment in physical-material shaders as a subtle albedo-weighted indirect bounce.
  *
  * The probes are irradiance estimates: for each world-space probe point we
  * sample the equirectangular sky environment along +Y and the horizontal
  * directions, weighting the up-hemisphere heavily so clouds and horizon
- * light bounce onto surfaces.
+ * light bounce onto surfaces proportionally to surface albedo and solar state.
  */
 
-const probeOrigin = new THREE.Vector3(-3.2, -0.6, -3.2);
-const probeSize = new THREE.Vector3(6.4, 4.0, 6.4);
+const probeOrigin = new THREE.Vector3(0, 0.8, 0);
+const probeSize = new THREE.Vector3(14.0, 6.0, 14.0);
 const probeGrid = new THREE.Vector3(7, 7, 5);
-const giIntensity = 0.58;
+const giIntensity = 0.22;
 
 interface Equirect {
   data: Float32Array;
@@ -52,6 +53,7 @@ function buildProbeData(eq: Equirect): Uint8Array {
   // texSubImage3D type mismatch (and the float-linear filter requirement).
   const data = new Uint8Array(gx * gy * gz * 4);
   const tmp = new THREE.Vector3();
+  const upVec = new THREE.Vector3(0, 1, 0);
   for (let z = 0; z < gz; z++) {
     for (let y = 0; y < gy; y++) {
       for (let x = 0; x < gx; x++) {
@@ -59,7 +61,7 @@ function buildProbeData(eq: Equirect): Uint8Array {
         let ig = 0;
         let ib = 0;
         // Up hemisphere: the dominant contributor for bounce light.
-        const up = sampleEquirect(eq, new THREE.Vector3(0, 1, 0));
+        const up = sampleEquirect(eq, upVec);
         ir += up.r * 0.5;
         ig += up.g * 0.5;
         ib += up.b * 0.5;
@@ -82,11 +84,18 @@ function buildProbeData(eq: Equirect): Uint8Array {
 
 export function installGI(): void {
   if (giTexture) return;
-  giTexture = new THREE.Data3DTexture(null, probeGrid.x, probeGrid.y, probeGrid.z);
+  giTexture = new THREE.Data3DTexture(
+    new Uint8Array(probeGrid.x * probeGrid.y * probeGrid.z * 4),
+    probeGrid.x,
+    probeGrid.y,
+    probeGrid.z
+  );
   giTexture.format = THREE.RGBAFormat;
   giTexture.type = THREE.UnsignedByteType;
   giTexture.minFilter = THREE.LinearFilter;
   giTexture.magFilter = THREE.LinearFilter;
+  giTexture.needsUpdate = true;
+
   // Register the global material patch the same way installDissolveShader
   // does: append to the shared onBeforeCompile wrapper chain.
   const orig = THREE.Material.prototype.onBeforeCompile;
@@ -97,39 +106,68 @@ export function installGI(): void {
   ) {
     if (orig) orig.call(this, shader, renderer);
     if (!giTexture) return;
-    if (!(this as THREE.Material & { isMeshPhysicalMaterial?: boolean; isMeshStandardMaterial?: boolean }).isMeshPhysicalMaterial) {
-      if (!(this as THREE.Material & { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial) return;
+    if (
+      !(
+        this as THREE.Material & {
+          isMeshPhysicalMaterial?: boolean;
+          isMeshStandardMaterial?: boolean;
+        }
+      ).isMeshPhysicalMaterial &&
+      !(this as THREE.Material & { isMeshStandardMaterial?: boolean }).isMeshStandardMaterial
+    ) {
+      return;
     }
     const frag = shader.fragmentShader as string;
-    if (!frag.includes('#include <opaque_fragment>')) return;
-    if (frag.includes('probeGI')) return;
-    const defs = `
-      uniform sampler3D tGI;
-      uniform vec3 uGIOrigin;
-      uniform vec3 uGISize;
-      uniform float uGIIntensity;
-      varying vec3 vGIWorldPos;
-      vec3 probeGI(vec3 wp) {
-        vec3 uv = (wp - uGIOrigin) / uGISize + 0.5;
-        return texture(tGI, clamp(uv, 0.0, 1.0)).rgb;
-      }
-    `;
-    shader.fragmentShader = defs + frag
-      .replace('#include <opaque_fragment>', (m: string) => m + `\ngl_FragColor.rgb += probeGI(vGIWorldPos.xyz) * uGIIntensity;`);
     const vert = shader.vertexShader as string;
-    if (vert.includes('varying vec3 vViewPosition;')) {
-      shader.vertexShader = vert
-        .replace('varying vec3 vViewPosition;', 'varying vec3 vViewPosition;\nvarying vec3 vGIWorldPos;')
-        .replace(
-          '#include <project_vertex>',
-          '#include <project_vertex>\n\tvGIWorldPos = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;'
-        );
+    if (
+      !frag.includes('#include <aomap_fragment>') ||
+      !frag.includes('#include <common>') ||
+      !vert.includes('#include <begin_vertex>') ||
+      !vert.includes('#include <common>')
+    ) {
+      return;
     }
+    if (frag.includes('probeGI')) return;
+
+    shader.vertexShader = vert
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGIWorldPos;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+#ifdef USE_INSTANCING
+vGIWorldPos = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;
+#else
+vGIWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+#endif`
+      );
+
+    shader.fragmentShader = frag
+      .replace(
+        '#include <common>',
+        `#include <common>
+uniform sampler3D tGI;
+uniform vec3 uGIOrigin;
+uniform vec3 uGISize;
+uniform float uGIIntensity;
+uniform float uGISun;
+varying vec3 vGIWorldPos;
+vec3 probeGI(vec3 wp) {
+  vec3 uv = (wp - uGIOrigin) / uGISize + 0.5;
+  return texture(tGI, clamp(uv, 0.0, 1.0)).rgb;
+}`
+      )
+      .replace(
+        '#include <aomap_fragment>',
+        `reflectedLight.indirectDiffuse += probeGI(vGIWorldPos) * diffuseColor.rgb * (uGIIntensity * (0.08 + 0.92 * clamp(uGISun, 0.0, 1.0)));
+#include <aomap_fragment>`
+      );
+
     const u = shader.uniforms as Record<string, any>;
     u.tGI = { value: giTexture };
     u.uGIOrigin = { value: probeOrigin };
     u.uGISize = { value: probeSize };
     u.uGIIntensity = { value: giIntensity };
+    u.uGISun = WU.sun;
   };
 }
 

@@ -55,7 +55,11 @@ export interface AssembledGeometry {
   triangles: number;
   height: number;
   length: number;
+  zMax: number;
+  zSpan: number;
 }
+
+export type SpeciesLod = 0 | 1 | 2;
 
 const scratchMatrix = new THREE.Matrix4();
 const scratchQuat = new THREE.Quaternion();
@@ -75,7 +79,10 @@ function axisId(axis: readonly [number, number, number]): number {
 }
 
 /** Merge parts into one geometry and synthesise the animation attributes. */
-export function assembleParts(parts: readonly PartInput[]): AssembledGeometry {
+export function assembleParts(
+  parts: readonly PartInput[],
+  spineBounds?: { readonly zMax: number; readonly zSpan: number }
+): AssembledGeometry {
   if (parts.length === 0) throw new Error('[creatures] assembleParts needs at least one part');
   const prepared: THREE.BufferGeometry[] = [];
   const counts: number[] = [];
@@ -133,9 +140,9 @@ export function assembleParts(parts: readonly PartInput[]): AssembledGeometry {
   }
 
   merged.computeBoundingBox();
-  const box = merged.boundingBox ?? new THREE.Box3();
-  const zMax = box.max.z;
-  const zSpan = Math.max(0.0001, zMax - box.min.z);
+  const bbox = merged.boundingBox ?? new THREE.Box3();
+  const zMax = spineBounds ? spineBounds.zMax : bbox.max.z;
+  const zSpan = spineBounds ? spineBounds.zSpan : Math.max(0.0001, zMax - bbox.min.z);
   const position = merged.attributes.position;
   for (let i = 0; i < total; i++) {
     const z = position.getZ(i);
@@ -152,8 +159,10 @@ export function assembleParts(parts: readonly PartInput[]): AssembledGeometry {
   return {
     geometry: merged,
     triangles: total / 3,
-    height: Math.max(0.02, box.max.y - box.min.y),
-    length: Math.max(0.02, box.max.z - box.min.z),
+    height: Math.max(0.02, bbox.max.y - bbox.min.y),
+    length: Math.max(0.02, bbox.max.z - bbox.min.z),
+    zMax,
+    zSpan,
   };
 }
 
@@ -174,28 +183,41 @@ export interface SpeciesDefinition {
   id: SpeciesId;
   label: string;
   animation: CreatureAnimation;
-  build: () => SpeciesBuild;
+  build: (lod: SpeciesLod) => SpeciesBuild;
 }
 
 /* ------------------------------------------------------------------ */
 /* Geometry helpers                                                    */
 /* ------------------------------------------------------------------ */
 
-function lathe(points: readonly (readonly [number, number])[], segments = 9): THREE.BufferGeometry {
-  const vectors = points.map(([r, y]) => new THREE.Vector2(Math.max(0.0005, r), y));
-  return new THREE.LatheGeometry(vectors, segments).rotateX(Math.PI / 2);
+function segFor(base: number, lod: SpeciesLod, min = 4): number {
+  if (lod === 0) return base;
+  if (lod === 1) return Math.max(min, Math.round(base * 0.72));
+  return Math.max(min, Math.round(base * 0.48));
 }
 
-function ball(radius: number, segments = 8): THREE.BufferGeometry {
-  return new THREE.SphereGeometry(radius, segments, Math.max(5, Math.round(segments * 0.7)));
+function lathe(
+  points: readonly (readonly [number, number])[],
+  segments = 9,
+  lod: SpeciesLod = 0,
+  upright = false
+): THREE.BufferGeometry {
+  const vectors = points.map(([r, y]) => new THREE.Vector2(Math.max(0.0005, r), y));
+  const geo = new THREE.LatheGeometry(vectors, segFor(segments, lod, 5));
+  return upright ? geo : geo.rotateX(Math.PI / 2);
+}
+
+function ball(radius: number, segments = 8, lod: SpeciesLod = 0): THREE.BufferGeometry {
+  const s = segFor(segments, lod, 4);
+  return new THREE.SphereGeometry(radius, s, Math.max(4, Math.round(s * 0.7)));
 }
 
 function box(w: number, h: number, d: number): THREE.BufferGeometry {
   return new THREE.BoxGeometry(w, h, d);
 }
 
-function cone(radius: number, height: number, segments = 6): THREE.BufferGeometry {
-  return new THREE.ConeGeometry(radius, height, segments);
+function cone(radius: number, height: number, segments = 6, lod: SpeciesLod = 0): THREE.BufferGeometry {
+  return new THREE.ConeGeometry(radius, height, segFor(segments, lod, 4));
 }
 
 const INK = '#221f1c';
@@ -212,14 +234,16 @@ interface EyeOptions {
   freq?: number;
   /** Fish and whales do not blink. */
   blinkPivot?: readonly [number, number, number];
+  lod?: SpeciesLod;
 }
 
 function eyePair(opts: EyeOptions): PartInput[] {
-  const pivot = opts.pivot ?? opts.blinkPivot ?? [opts.x, opts.y, opts.z];
+  const lod = opts.lod ?? 0;
   const parts: PartInput[] = [];
   for (const side of [-1, 1]) {
+    const pivot = opts.pivot ?? opts.blinkPivot ?? [side * opts.x, opts.y, opts.z];
     parts.push({
-      geo: ball(opts.radius, 8),
+      geo: ball(opts.radius, 8, lod),
       color: INK,
       x: side * opts.x,
       y: opts.y,
@@ -229,17 +253,19 @@ function eyePair(opts: EyeOptions): PartInput[] {
       weight: opts.weight ?? 0,
       freq: opts.freq ?? 1,
     });
-    parts.push({
-      geo: ball(opts.radius * 0.34, 6),
-      color: GLINT,
-      x: side * opts.x + side * opts.radius * 0.3,
-      y: opts.y + opts.radius * 0.42,
-      z: opts.z + opts.radius * 0.72,
-      part: PART.eye,
-      pivot,
-      weight: opts.weight ?? 0,
-      freq: opts.freq ?? 1,
-    });
+    if (lod < 2) {
+      parts.push({
+        geo: ball(opts.radius * 0.34, 6, lod),
+        color: GLINT,
+        x: side * opts.x + side * opts.radius * 0.3,
+        y: opts.y + opts.radius * 0.42,
+        z: opts.z + opts.radius * 0.72,
+        part: PART.eye,
+        pivot,
+        weight: opts.weight ?? 0,
+        freq: opts.freq ?? 1,
+      });
+    }
   }
   return parts;
 }
@@ -248,12 +274,12 @@ function eyePair(opts: EyeOptions): PartInput[] {
 /* Species                                                             */
 /* ------------------------------------------------------------------ */
 
-function buildGull(): SpeciesBuild {
+function buildGull(lod: SpeciesLod): SpeciesBuild {
   const body = '#e9e6dd';
   const wing = '#b9bcc0';
   const headPivot: [number, number, number] = [0, 0.055, 0.06];
   const parts: PartInput[] = [
-    { geo: ball(0.08, 10), color: body, sx: 1, sy: 0.92, sz: 2.4 },
+    { geo: ball(0.08, 10, lod), color: body, sx: 1, sy: 0.92, sz: 2.4 },
     // Tail wedge with follow-through.
     {
       geo: box(0.09, 0.012, 0.12),
@@ -269,7 +295,7 @@ function buildGull(): SpeciesBuild {
     },
     // Head + beak.
     {
-      geo: ball(0.045, 8),
+      geo: ball(0.045, 8, lod),
       color: '#f6f3ea',
       y: 0.055,
       z: 0.185,
@@ -280,7 +306,7 @@ function buildGull(): SpeciesBuild {
       freq: 1.4,
     },
     {
-      geo: cone(0.018, 0.075, 6),
+      geo: cone(0.018, 0.075, 6, lod),
       color: '#e0b64a',
       y: 0.048,
       z: 0.235,
@@ -291,42 +317,76 @@ function buildGull(): SpeciesBuild {
       weight: 0.08,
       freq: 1.4,
     },
-    // Wings: one thin tapered card per side, pivoted at the shoulder.
+    // Wings: inner airfoil + swept dark-tipped outer primary with subtle lag.
     {
-      geo: box(0.34, 0.008, 0.13),
+      geo: box(0.22, 0.009, 0.12),
       color: wing,
-      x: 0.2,
+      x: 0.145,
       y: 0.035,
-      z: 0.01,
+      z: 0.015,
       part: PART.wingL,
       pivot: [0.045, 0.035, 0.03],
       axis: [0, 0, 1],
-      weight: 1.05,
+      weight: 0.95,
       freq: 9.5,
     },
     {
-      geo: box(0.34, 0.008, 0.13),
-      color: wing,
-      x: -0.2,
+      geo: box(0.14, 0.007, 0.075),
+      color: '#34383e',
+      x: 0.31,
       y: 0.035,
-      z: 0.01,
+      z: -0.025,
+      ry: -0.22,
+      part: PART.wingL,
+      pivot: [0.045, 0.035, 0.03],
+      axis: [0, 0, 1],
+      weight: 0.95,
+      freq: 9.5,
+      phase: -0.32,
+    },
+    {
+      geo: box(0.22, 0.009, 0.12),
+      color: wing,
+      x: -0.145,
+      y: 0.035,
+      z: 0.015,
       part: PART.wingR,
       pivot: [-0.045, 0.035, 0.03],
       axis: [0, 0, 1],
-      weight: -1.05,
+      weight: -0.95,
       freq: 9.5,
+    },
+    {
+      geo: box(0.14, 0.007, 0.075),
+      color: '#34383e',
+      x: -0.31,
+      y: 0.035,
+      z: -0.025,
+      ry: 0.22,
+      part: PART.wingR,
+      pivot: [-0.045, 0.035, 0.03],
+      axis: [0, 0, 1],
+      weight: -0.95,
+      freq: 9.5,
+      phase: -0.32,
     },
     // Folded feet tucked under the body.
     { geo: box(0.014, 0.02, 0.05), color: '#c98f4a', x: 0.026, y: -0.055, z: -0.04 },
     { geo: box(0.014, 0.02, 0.05), color: '#c98f4a', x: -0.026, y: -0.055, z: -0.04 },
   ];
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.032, y: 0.058, z: 0.2, radius: 0.011, pivot: headPivot }));
+  const eyes =
+    lod < 2
+      ? assembleParts(
+          eyePair({ x: 0.032, y: 0.058, z: 0.2, radius: 0.011, pivot: headPivot, lod }),
+          assembled
+        )
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.72,
@@ -334,32 +394,42 @@ function buildGull(): SpeciesBuild {
   };
 }
 
-function buildPenguin(): SpeciesBuild {
-  const body = '#262b33';
-  const belly = '#efe9dd';
+function buildPenguin(lod: SpeciesLod): SpeciesBuild {
+  const body = '#20252d';
+  const belly = '#e3ded2';
+  const pinkPatch = '#cc767a';
   const headPivot: [number, number, number] = [0, 0.335, 0];
   const parts: PartInput[] = [
     // Upright chunky body.
-    { geo: lathe([[0.02, 0], [0.11, 0.08], [0.125, 0.2], [0.09, 0.3], [0.03, 0.335]], 10), color: body },
-    // Warm-white belly panel.
-    { geo: ball(0.1, 8), color: belly, y: 0.19, z: 0.045, sx: 0.86, sy: 1.45, sz: 0.62 },
-    // Head + orange-ringed eye patch + beak.
-    { geo: ball(0.062, 8), color: body, y: 0.35, z: 0.01, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.06, freq: 1.2 },
-    { geo: cone(0.016, 0.075, 6), color: '#2b2b2b', y: 0.34, z: 0.085, rx: Math.PI / 2, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.06, freq: 1.2 },
-    // Flippers.
-    { geo: box(0.018, 0.16, 0.055), color: body, x: 0.115, y: 0.21, z: 0, part: PART.wingL, pivot: [0.09, 0.27, 0], axis: [0, 0, 1], weight: 0.55, freq: 4.6 },
-    { geo: box(0.018, 0.16, 0.055), color: body, x: -0.115, y: 0.21, z: 0, part: PART.wingR, pivot: [-0.09, 0.27, 0], axis: [0, 0, 1], weight: -0.55, freq: 4.6 },
-    // Feet.
-    { geo: box(0.05, 0.02, 0.09), color: '#cf8b52', x: 0.045, y: 0.012, z: 0.02, part: PART.legL, pivot: [0.045, 0.03, 0], axis: [1, 0, 0], weight: 0.3, freq: 5.4 },
-    { geo: box(0.05, 0.02, 0.09), color: '#cf8b52', x: -0.045, y: 0.012, z: 0.02, part: PART.legR, pivot: [-0.045, 0.03, 0], axis: [1, 0, 0], weight: 0.3, freq: 5.4, phase: Math.PI },
+    { geo: lathe([[0.02, 0], [0.11, 0.08], [0.125, 0.2], [0.09, 0.3], [0.03, 0.335]], 10, lod, true), color: body },
+    // Warm-white belly panel + flush African penguin chest band.
+    { geo: ball(0.102, 8, lod), color: belly, y: 0.18, z: 0.066, sx: 0.88, sy: 1.32, sz: 0.64 },
+    { geo: ball(0.095, 8, lod), color: body, y: 0.252, z: 0.055, sx: 0.96, sy: 0.22, sz: 0.72 },
+    // Head + pink supraloral eye patches + beak.
+    { geo: ball(0.062, 8, lod), color: body, y: 0.35, z: 0.01, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.06, freq: 1.2 },
+    { geo: ball(0.017, 5, lod), color: pinkPatch, x: 0.027, y: 0.357, z: 0.05, sx: 0.9, sy: 0.75, sz: 0.6, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.06, freq: 1.2 },
+    { geo: ball(0.017, 5, lod), color: pinkPatch, x: -0.027, y: 0.357, z: 0.05, sx: 0.9, sy: 0.75, sz: 0.6, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.06, freq: 1.2 },
+    { geo: cone(0.016, 0.075, 6, lod), color: '#2b2b2b', y: 0.34, z: 0.085, rx: Math.PI / 2, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.06, freq: 1.2 },
+    // Flippers tucked closer to shoulders.
+    { geo: box(0.018, 0.16, 0.052), color: body, x: 0.112, y: 0.195, z: 0.005, rz: 0.18, part: PART.wingL, pivot: [0.09, 0.265, 0.005], axis: [0, 0, 1], weight: 0.42, freq: 4.6 },
+    { geo: box(0.018, 0.16, 0.052), color: body, x: -0.112, y: 0.195, z: 0.005, rz: -0.18, part: PART.wingR, pivot: [-0.09, 0.265, 0.005], axis: [0, 0, 1], weight: -0.42, freq: 4.6 },
+    // Black African penguin feet.
+    { geo: box(0.048, 0.02, 0.088), color: '#2b2d32', x: 0.045, y: 0.012, z: 0.025, part: PART.legL, pivot: [0.045, 0.03, 0], axis: [1, 0, 0], weight: 0.3, freq: 5.4 },
+    { geo: box(0.048, 0.02, 0.088), color: '#2b2d32', x: -0.045, y: 0.012, z: 0.025, part: PART.legR, pivot: [-0.045, 0.03, 0], axis: [1, 0, 0], weight: 0.3, freq: 5.4, phase: Math.PI },
   ];
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.028, y: 0.355, z: 0.052, radius: 0.009, pivot: headPivot, weight: 0.06, freq: 1.2 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(
+          eyePair({ x: 0.028, y: 0.355, z: 0.052, radius: 0.009, pivot: headPivot, weight: 0.06, freq: 1.2, lod }),
+          assembled
+        )
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.62,
@@ -367,11 +437,11 @@ function buildPenguin(): SpeciesBuild {
   };
 }
 
-function buildFish(): SpeciesBuild {
+function buildFish(lod: SpeciesLod): SpeciesBuild {
   const body = '#7d8f96';
   const parts: PartInput[] = [
     {
-      geo: lathe([[0.005, -0.19], [0.05, -0.1], [0.075, 0.02], [0.06, 0.12], [0.02, 0.19]], 10),
+      geo: lathe([[0.005, -0.19], [0.05, -0.1], [0.075, 0.02], [0.06, 0.12], [0.02, 0.19]], 10, lod),
       color: body,
       sx: 0.55,
     },
@@ -393,12 +463,15 @@ function buildFish(): SpeciesBuild {
     { geo: box(0.06, 0.006, 0.035), color: '#6d7f85', x: -0.045, y: -0.005, z: 0.06, rz: 0.3 },
   ];
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.038, y: 0.02, z: 0.14, radius: 0.012 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(eyePair({ x: 0.038, y: 0.02, z: 0.14, radius: 0.012, lod }), assembled)
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.34,
@@ -407,11 +480,11 @@ function buildFish(): SpeciesBuild {
   };
 }
 
-function buildDolphin(): SpeciesBuild {
+function buildDolphin(lod: SpeciesLod): SpeciesBuild {
   const body = '#5a6670';
   const parts: PartInput[] = [
     {
-      geo: lathe([[0.004, -0.46], [0.04, -0.38], [0.085, -0.22], [0.1, 0], [0.075, 0.22], [0.03, 0.36], [0.012, 0.42]], 12),
+      geo: lathe([[0.004, -0.46], [0.04, -0.38], [0.085, -0.22], [0.1, 0], [0.075, 0.22], [0.03, 0.36], [0.012, 0.42]], 12, lod),
       color: body,
       sy: 1.05,
     },
@@ -419,18 +492,21 @@ function buildDolphin(): SpeciesBuild {
     // Horizontal flukes.
     { geo: box(0.34, 0.014, 0.12), color: '#4c5760', z: -0.47, part: PART.tail, pivot: [0, 0, -0.38], axis: [0, 1, 0], weight: 0.4, freq: 4.4 },
     // Beak.
-    { geo: cone(0.03, 0.12, 7), color: '#66727c', y: -0.012, z: 0.47, rx: Math.PI / 2, part: PART.head, pivot: [0, 0, 0.4], axis: [0, 1, 0], weight: 0.2, freq: 2.4 },
+    { geo: cone(0.03, 0.12, 7, lod), color: '#66727c', y: -0.012, z: 0.47, rx: Math.PI / 2, part: PART.head, pivot: [0, 0, 0.4], axis: [0, 1, 0], weight: 0.2, freq: 2.4 },
     // Pectoral fins.
     { geo: box(0.13, 0.012, 0.05), color: '#515d66', x: 0.09, y: -0.055, z: 0.14, rz: -0.25 },
     { geo: box(0.13, 0.012, 0.05), color: '#515d66', x: -0.09, y: -0.055, z: 0.14, rz: 0.25 },
   ];
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.055, y: 0.01, z: 0.34, radius: 0.011 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(eyePair({ x: 0.055, y: 0.01, z: 0.34, radius: 0.011, lod }), assembled)
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.24,
@@ -439,18 +515,18 @@ function buildDolphin(): SpeciesBuild {
   };
 }
 
-function buildWhale(): SpeciesBuild {
+function buildWhale(lod: SpeciesLod): SpeciesBuild {
   const body = '#3c4550';
   const pale = '#7d837f';
   const parts: PartInput[] = [
     {
-      geo: lathe([[0.006, -0.95], [0.08, -0.8], [0.2, -0.5], [0.26, -0.1], [0.22, 0.34], [0.14, 0.66], [0.06, 0.82]], 14),
+      geo: lathe([[0.006, -0.95], [0.08, -0.8], [0.2, -0.5], [0.26, -0.1], [0.22, 0.34], [0.14, 0.66], [0.06, 0.82]], 14, lod),
       color: body,
       sy: 0.92,
     },
     // Right-whale callosities read as pale lumps on the head.
-    { geo: ball(0.03, 5), color: pale, y: 0.055, z: 0.63, sx: 1.4, sy: 0.5, sz: 1 },
-    { geo: ball(0.022, 5), color: pale, y: 0.07, z: 0.55, x: 0.05, sx: 1.2, sy: 0.4, sz: 1 },
+    { geo: ball(0.03, 5, lod), color: pale, y: 0.055, z: 0.63, sx: 1.4, sy: 0.5, sz: 1 },
+    { geo: ball(0.022, 5, lod), color: pale, y: 0.07, z: 0.55, x: 0.05, sx: 1.2, sy: 0.4, sz: 1 },
     // Wide flukes.
     { geo: box(0.6, 0.02, 0.16), color: '#333c45', z: -0.97, part: PART.tail, pivot: [0, 0, -0.82], axis: [0, 1, 0], weight: 0.36, freq: 2.6 },
     // Pectoral fins.
@@ -458,12 +534,15 @@ function buildWhale(): SpeciesBuild {
     { geo: box(0.24, 0.018, 0.09), color: '#343d47', x: -0.2, y: -0.08, z: 0.2, rz: 0.35, ry: 0.2 },
   ];
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.19, y: -0.02, z: 0.55, radius: 0.016 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(eyePair({ x: 0.19, y: -0.02, z: 0.55, radius: 0.016, lod }), assembled)
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.28,
@@ -472,22 +551,22 @@ function buildWhale(): SpeciesBuild {
   };
 }
 
-function buildGemsbok(): SpeciesBuild {
+function buildGemsbok(lod: SpeciesLod): SpeciesBuild {
   const tan = '#b7a184';
   const white = '#ece7da';
   const dark = '#3d332a';
   const headPivot: [number, number, number] = [0, 0.36, 0.32];
   const parts: PartInput[] = [
-    { geo: ball(0.11, 9), color: tan, y: 0.3, z: 0, sx: 0.86, sy: 0.9, sz: 1.9 },
+    { geo: ball(0.11, 9, lod), color: tan, y: 0.3, z: 0, sx: 0.86, sy: 0.9, sz: 1.9 },
     // Pale flank band.
-    { geo: ball(0.08, 7), color: white, y: 0.27, z: -0.02, sx: 0.9, sy: 0.9, sz: 1.7 },
+    { geo: ball(0.08, 7, lod), color: white, y: 0.27, z: -0.02, sx: 0.9, sy: 0.9, sz: 1.7 },
     // Neck and head.
-    { geo: cone(0.055, 0.24, 7), color: tan, y: 0.39, z: 0.24, rx: -0.5, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
+    { geo: cone(0.055, 0.24, 7, lod), color: tan, y: 0.39, z: 0.24, rx: 0.52, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
     { geo: box(0.09, 0.09, 0.17), color: white, y: 0.44, z: 0.34, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
-    { geo: box(0.07, 0.03, 0.1), color: dark, y: 0.415, z: 0.39, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
+    { geo: box(0.072, 0.028, 0.12), color: dark, y: 0.42, z: 0.365, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
     // The long straight horns: the defining silhouette cue.
-    { geo: cone(0.016, 0.42, 6), color: '#2f2a25', x: 0.035, y: 0.63, z: 0.33, rx: -0.34, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
-    { geo: cone(0.016, 0.42, 6), color: '#2f2a25', x: -0.035, y: 0.63, z: 0.33, rx: -0.34, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
+    { geo: cone(0.016, 0.42, 6, lod), color: '#2f2a25', x: 0.032, y: 0.63, z: 0.32, rx: -0.34, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
+    { geo: cone(0.016, 0.42, 6, lod), color: '#2f2a25', x: -0.032, y: 0.63, z: 0.32, rx: -0.34, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.24, freq: 1.1 },
     // Tail.
     { geo: box(0.02, 0.12, 0.02), color: dark, y: 0.3, z: -0.22, part: PART.tail, pivot: [0, 0.36, -0.2], axis: [0, 0, 1], weight: 0.5, freq: 2.2 },
   ];
@@ -514,12 +593,18 @@ function buildGemsbok(): SpeciesBuild {
     });
   }
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.048, y: 0.455, z: 0.4, radius: 0.012, pivot: headPivot, weight: 0.24, freq: 1.1 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(
+          eyePair({ x: 0.043, y: 0.455, z: 0.39, radius: 0.011, pivot: headPivot, weight: 0.24, freq: 1.1, lod }),
+          assembled
+        )
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.7,
@@ -527,18 +612,18 @@ function buildGemsbok(): SpeciesBuild {
   };
 }
 
-function buildMeerkat(): SpeciesBuild {
+function buildMeerkat(lod: SpeciesLod): SpeciesBuild {
   const fur = '#bca483';
   const dark = '#6d5a45';
   const headPivot: [number, number, number] = [0, 0.29, 0.02];
   const parts: PartInput[] = [
-    { geo: lathe([[0.02, 0], [0.06, 0.08], [0.065, 0.2], [0.035, 0.27]], 9), color: fur },
-    { geo: ball(0.055, 8), color: fur, y: 0.3, z: 0.02, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
+    { geo: lathe([[0.02, 0], [0.06, 0.08], [0.065, 0.2], [0.035, 0.27]], 9, lod, true), color: fur },
+    { geo: ball(0.055, 8, lod), color: fur, y: 0.3, z: 0.02, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
     // Muzzle and dark eye mask.
     { geo: box(0.04, 0.03, 0.05), color: '#e7dcc9', y: 0.29, z: 0.07, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
     { geo: box(0.062, 0.022, 0.02), color: dark, y: 0.315, z: 0.055, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
-    { geo: ball(0.016, 5), color: fur, x: 0.045, y: 0.325, z: 0, sx: 0.5, sy: 1, sz: 1, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
-    { geo: ball(0.016, 5), color: fur, x: -0.045, y: 0.325, z: 0, sx: 0.5, sy: 1, sz: 1, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
+    { geo: ball(0.016, 5, lod), color: fur, x: 0.045, y: 0.325, z: 0, sx: 0.5, sy: 1, sz: 1, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
+    { geo: ball(0.016, 5, lod), color: fur, x: -0.045, y: 0.325, z: 0, sx: 0.5, sy: 1, sz: 1, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.22, freq: 1.3 },
     // Tail held up like a sentry.
     { geo: box(0.018, 0.16, 0.018), color: dark, y: 0.1, z: -0.075, rx: 0.5, part: PART.tail, pivot: [0, 0.02, -0.05], axis: [1, 0, 0], weight: 0.3, freq: 1.6 },
     // Front legs tucked.
@@ -546,12 +631,18 @@ function buildMeerkat(): SpeciesBuild {
     { geo: box(0.022, 0.12, 0.026), color: fur, x: -0.035, y: 0.12, z: 0.03 },
   ];
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.033, y: 0.31, z: 0.058, radius: 0.009, pivot: headPivot, weight: 0.22, freq: 1.3 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(
+          eyePair({ x: 0.033, y: 0.31, z: 0.058, radius: 0.009, pivot: headPivot, weight: 0.22, freq: 1.3, lod }),
+          assembled
+        )
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.82,
@@ -559,14 +650,14 @@ function buildMeerkat(): SpeciesBuild {
   };
 }
 
-function buildVulture(): SpeciesBuild {
+function buildVulture(lod: SpeciesLod): SpeciesBuild {
   const body = '#4a4038';
   const wing = '#3b332d';
   const headPivot: [number, number, number] = [0, 0.03, 0.12];
   const parts: PartInput[] = [
-    { geo: ball(0.1, 9), color: body, sx: 1, sy: 0.95, sz: 1.9 },
-    { geo: ball(0.04, 7), color: '#b9a08a', y: 0.03, z: 0.2, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.08, freq: 1 },
-    { geo: cone(0.018, 0.07, 6), color: '#2c2622', y: 0.02, z: 0.255, rx: Math.PI / 2, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.08, freq: 1 },
+    { geo: ball(0.1, 9, lod), color: body, sx: 1, sy: 0.95, sz: 1.9 },
+    { geo: ball(0.04, 7, lod), color: '#b9a08a', y: 0.03, z: 0.2, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.08, freq: 1 },
+    { geo: cone(0.018, 0.07, 6, lod), color: '#2c2622', y: 0.02, z: 0.255, rx: Math.PI / 2, part: PART.head, pivot: headPivot, axis: [1, 0, 0], weight: 0.08, freq: 1 },
     // Long broad wings with separated wingtip cards.
     { geo: box(0.62, 0.008, 0.2), color: wing, x: 0.36, y: 0.03, z: 0.02, part: PART.wingL, pivot: [0.06, 0.03, 0.02], axis: [0, 0, 1], weight: 0.85, freq: 4.4 },
     { geo: box(0.18, 0.008, 0.12), color: '#332c26', x: 0.72, y: 0.03, z: -0.01, rz: 0.06, part: PART.wingL, pivot: [0.06, 0.03, 0.02], axis: [0, 0, 1], weight: 0.85, freq: 4.4 },
@@ -576,12 +667,18 @@ function buildVulture(): SpeciesBuild {
     { geo: box(0.17, 0.008, 0.17), color: '#3b332d', z: -0.26, part: PART.tail, pivot: [0, 0, -0.17], axis: [0, 0, 1], weight: 0.16, freq: 2.6 },
   ];
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.028, y: 0.045, z: 0.21, radius: 0.009, pivot: headPivot, weight: 0.08 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(
+          eyePair({ x: 0.028, y: 0.045, z: 0.21, radius: 0.009, pivot: headPivot, weight: 0.08, lod }),
+          assembled
+        )
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.68,
@@ -634,14 +731,14 @@ function buildButterfly(): SpeciesBuild {
   };
 }
 
-function buildBat(): SpeciesBuild {
+function buildBat(lod: SpeciesLod): SpeciesBuild {
   const fur = '#3a332c';
   const membrane = '#4a3f36';
   const parts: PartInput[] = [
-    { geo: ball(0.045, 7), color: fur, sy: 0.9, sz: 1.5 },
-    { geo: ball(0.026, 6), color: fur, y: 0.01, z: 0.06 },
-    { geo: cone(0.008, 0.03, 4), color: fur, x: 0.015, y: 0.04, z: 0.06, rz: -0.2 },
-    { geo: cone(0.008, 0.03, 4), color: fur, x: -0.015, y: 0.04, z: 0.06, rz: 0.2 },
+    { geo: ball(0.045, 7, lod), color: fur, sy: 0.9, sz: 1.5 },
+    { geo: ball(0.026, 6, lod), color: fur, y: 0.01, z: 0.06 },
+    { geo: cone(0.008, 0.03, 4, lod), color: fur, x: 0.015, y: 0.04, z: 0.06, rz: -0.2 },
+    { geo: cone(0.008, 0.03, 4, lod), color: fur, x: -0.015, y: 0.04, z: 0.06, rz: 0.2 },
   ];
   for (const side of [-1, 1]) {
     parts.push({
@@ -668,12 +765,15 @@ function buildBat(): SpeciesBuild {
     });
   }
   const assembled = assembleParts(parts);
-  const eyes = assembleParts(eyePair({ x: 0.018, y: 0.012, z: 0.082, radius: 0.007 }));
+  const eyes =
+    lod < 2
+      ? assembleParts(eyePair({ x: 0.018, y: 0.012, z: 0.082, radius: 0.007, lod }), assembled)
+      : null;
   return {
     body: assembled.geometry,
-    eyes: eyes.geometry,
-    triangles: assembled.triangles + eyes.triangles,
-    eyeTriangles: eyes.triangles,
+    eyes: eyes?.geometry ?? null,
+    triangles: assembled.triangles + (eyes?.triangles ?? 0),
+    eyeTriangles: eyes?.triangles ?? 0,
     height: assembled.height,
     length: assembled.length,
     roughness: 0.7,
@@ -696,14 +796,15 @@ export const SPECIES: Readonly<Record<SpeciesId, SpeciesDefinition>> = {
 
 export const SPECIES_IDS = Object.keys(SPECIES) as SpeciesId[];
 
-const buildCache = new Map<SpeciesId, SpeciesBuild>();
+const buildCache = new Map<string, SpeciesBuild>();
 
-/** Build (once) and share the geometry for a species. */
-export function getSpeciesBuild(id: SpeciesId): SpeciesBuild {
-  let build = buildCache.get(id);
+/** Build (once) and share the geometry for a species at the requested LOD. */
+export function getSpeciesBuild(id: SpeciesId, lod: SpeciesLod = 0): SpeciesBuild {
+  const key = `${id}:${lod}`;
+  let build = buildCache.get(key);
   if (!build) {
-    build = SPECIES[id].build();
-    buildCache.set(id, build);
+    build = SPECIES[id].build(lod);
+    buildCache.set(key, build);
   }
   return build;
 }

@@ -8,7 +8,46 @@
  * only writes agent transforms at a low tick rate.
  */
 import * as THREE from 'three';
+import { applyDissolveToShader } from '../shaders';
 import type { CreatureAnimation } from './habitat';
+
+export type CreatureAnimState = 'idle' | 'walk' | 'run' | 'fly' | 'swim' | 'eat' | 'react';
+
+/**
+ * Scalar state codes packed into `aInstance.w`:
+ * - `< -0.2` (`-1.0`): react (alert startle/hop/perk)
+ * - `0.0`: walk / fly / swim (standard locomotion)
+ * - `0.55`: eat / graze / glide (low locomotion + head/wing posture)
+ * - `1.0`: idle / rest (gentle breath + head look)
+ * - `>= 1.5` (`2.0`): run (fast stride/flap + high energy)
+ */
+export const CREATURE_STATE_VALUE: Readonly<Record<CreatureAnimState, number>> = {
+  idle: 1.0,
+  walk: 0.0,
+  fly: 0.0,
+  swim: 0.0,
+  eat: 0.55,
+  run: 2.0,
+  react: -1.0,
+};
+
+export const CREATURE_ANIM_STATES: readonly CreatureAnimState[] = [
+  'idle',
+  'walk',
+  'run',
+  'fly',
+  'swim',
+  'eat',
+  'react',
+];
+
+export function encodeCreatureState(state: CreatureAnimState | number): number {
+  if (typeof state === 'number') {
+    if (!Number.isFinite(state)) return 1.0;
+    return Math.max(-1.0, Math.min(2.0, state));
+  }
+  return CREATURE_STATE_VALUE[state] ?? 0.0;
+}
 
 export interface CreatureUniforms {
   uTime: { value: number };
@@ -45,7 +84,7 @@ export interface CreatureMaterialOptions {
  * locations (position, normal, colour, instanceMatrix x4, instanceColor).
  * The creature data is packed into four more so the program links on every
  * driver:
- *   aBend     spine weight
+ *   aBend     spine weight (0 head -> 1 tail)
  *   aPivot    part pivot
  *   aMotion   (weight, freq, phaseOffset, axisId 0=x 1=y 2=z)
  *   aInstance (phase, speed, seed, state)
@@ -74,38 +113,62 @@ vec3 creatureAxis() {
 
 function deformation(): string {
   return /* glsl */ `
-  // 0 at rest, 1 fully active. Ground animals graze at ~0.55, perched birds 0.
-  float creatureActive = 1.0 - clamp(aInstance.w, 0.0, 1.0);
-  float creatureSpeed = max(0.15, aInstance.y);
+  float creatureState = aInstance.w;
+  float isRun = step(1.5, creatureState);
+  float isReact = step(creatureState, -0.2);
+  float isEat = step(0.35, creatureState) * step(creatureState, 0.85);
+  float baseRest = isReact > 0.5 ? 0.0 : clamp(creatureState, 0.0, 1.0);
+  // 0 at idle, 0.45 eat/glide, 1.0 walk/fly/swim, boosted on run/react.
+  float creatureActive = 1.0 - baseRest;
+  float creatureSpeed = max(0.15, aInstance.y) * mix(1.0, 1.52, isRun) * mix(1.0, 1.35, isReact);
   float creaturePhase = aInstance.x * 6.2831853;
   float creatureMotion = uMotion;
   float creatureWeight = aMotion.x;
   float creatureFreq = aMotion.y;
   float creaturePhaseOff = aMotion.z;
+  float isLocomotion = step(2.0, creatureFreq);
+  float isHeadOrLook = 1.0 - isLocomotion;
   vec3 creatureAxisDir = creatureAxis();
 
-  transformed *= 1.0 + sin(uTime * 1.05 + creaturePhase) * 0.006 * creatureMotion;
+  // Gentle idle breathing pulse across the torso + alert hop on react.
+  transformed *= 1.0 + sin(uTime * 1.15 + creaturePhase) * 0.007 * creatureMotion;
+  float reactBounce = isReact * abs(sin(uTime * 11.0 + creaturePhase)) * 0.042 * creatureMotion;
+  transformed.y += reactBounce;
+
+  float locoAmp = mix(0.07, 1.0, creatureActive) * mix(1.0, 1.26, isRun) * mix(1.0, 1.18, isReact);
+  float lookAmp = mix(0.55, 1.0, creatureActive) * mix(1.0, 1.4, isReact);
+  float stateAmp = mix(lookAmp, locoAmp, isLocomotion);
+  float eatNod = isEat * isHeadOrLook * (-0.18 + 0.10 * sin(uTime * 3.1 + creaturePhase));
 
   #if defined(ANIM_SPINE)
+    float spineAmp = (0.15 + 0.85 * creatureActive) * mix(1.0, 1.32, isRun) * mix(1.0, 1.22, isReact);
     float spineWave = sin(uTime * 5.4 * creatureSpeed + creaturePhase - aBend * 5.2);
-    transformed.x += spineWave * aBend * aBend * 0.11 * creatureMotion * (0.4 + 0.6 * creatureActive);
+    transformed.x += spineWave * aBend * aBend * 0.11 * creatureMotion * spineAmp;
     // Tail fin / fluke steering adds a small lagged rotation on top.
     float tailLag = max(0.0, length(transformed - aPivot));
     float tailAngle = sin(uTime * 5.4 * creatureSpeed + creaturePhase - aBend * 5.2 - tailLag * 3.0)
-      * creatureWeight * creatureMotion;
+      * creatureWeight * creatureMotion * spineAmp;
     if (abs(creatureWeight) > 0.0001) {
       transformed = creatureRotate(transformed - aPivot, creatureAxisDir, tailAngle) + aPivot;
     }
   #elif defined(ANIM_PARTS)
     float partLag = max(0.0, length(transformed - aPivot) - 0.02);
-    float partAngle = sin(uTime * creatureFreq * creatureSpeed + creaturePhaseOff + creaturePhase - partLag * 4.0)
-      * creatureWeight * creatureMotion * (0.35 + 0.65 * creatureActive);
-    transformed = creatureRotate(transformed - aPivot, creatureAxisDir, partAngle) + aPivot;
+    float partAngle = (sin(uTime * creatureFreq * creatureSpeed + creaturePhaseOff + creaturePhase - partLag * 4.0)
+      * creatureWeight * stateAmp + eatNod) * creatureMotion;
+    if (abs(partAngle) > 0.0001) {
+      transformed = creatureRotate(transformed - aPivot, creatureAxisDir, partAngle) + aPivot;
+    }
   #else
     float wingLag = length(transformed - aPivot);
-    float wingAngle = sin(uTime * creatureFreq * creatureSpeed + creaturePhaseOff + creaturePhase - wingLag * 9.0)
-      * creatureWeight * creatureMotion * (0.35 + 0.65 * creatureActive) * (1.0 + uWind * 0.05);
-    transformed = creatureRotate(transformed - aPivot, creatureAxisDir, wingAngle) + aPivot;
+    float glideMix = isEat * isLocomotion;
+    float flapScale = mix(stateAmp, 0.14, glideMix);
+    float wingAngle = (sin(uTime * creatureFreq * creatureSpeed + creaturePhaseOff + creaturePhase - wingLag * 9.0)
+      * creatureWeight * flapScale * (1.0 + uWind * 0.05) + eatNod) * creatureMotion;
+    // Slight static dihedral while gliding or perched.
+    wingAngle += glideMix * sign(creatureWeight) * 0.12 * creatureMotion;
+    if (abs(wingAngle) > 0.0001) {
+      transformed = creatureRotate(transformed - aPivot, creatureAxisDir, wingAngle) + aPivot;
+    }
   #endif
 
   #if defined(CREATURE_EYES)
@@ -119,11 +182,14 @@ function deformation(): string {
 }
 
 const FRAGMENT_RIM = /* glsl */ `
+{
   float rimTerm = pow(
     1.0 - clamp(dot(normalize(vNormal), normalize(vViewPosition)), 0.0, 1.0),
     3.0
   );
-  gl_FragColor.rgb += rimTerm * uRim * vec3(0.30, 0.36, 0.40);
+  outgoingLight += rimTerm * uRim * vec3(0.28, 0.34, 0.38);
+}
+#include <opaque_fragment>
 `;
 
 export function createCreatureMaterial(
@@ -131,26 +197,36 @@ export function createCreatureMaterial(
   options: CreatureMaterialOptions = {}
 ): THREE.MeshStandardMaterial {
   const eyes = Boolean(options.eyes);
+  const animDefine =
+    animation === 'spine' ? 'ANIM_SPINE' : animation === 'parts' ? 'ANIM_PARTS' : 'ANIM_FLAP';
+  const rim = options.rim ?? 0.55;
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: options.roughness ?? (eyes ? 0.08 : 0.66),
     metalness: options.metalness ?? (eyes ? 0 : 0.05),
     envMapIntensity: options.tint ?? 1,
   });
+  material.defines = {
+    [animDefine]: 1,
+    ...(eyes ? { CREATURE_EYES: 1 } : {}),
+  };
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = CREATURE_UNIFORMS.uTime;
     shader.uniforms.uMotion = CREATURE_UNIFORMS.uMotion;
     shader.uniforms.uWind = CREATURE_UNIFORMS.uWind;
-    shader.uniforms.uRim = { value: options.rim ?? 0.55 };
+    shader.uniforms.uRim = { value: rim };
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERTEX_HEADER}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>\n${deformation()}`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform float uRim;')
-      .replace('#include <dithering_fragment>', `${FRAGMENT_RIM}\n#include <dithering_fragment>`);
+      .replace('#include <opaque_fragment>', FRAGMENT_RIM);
+    // Keep landmark-switch dissolve, gouache sunlight bounce and mist without
+    // passing `material` so animals do not pick up seasonal ground colour shift.
+    applyDissolveToShader(shader);
   };
   material.customProgramCacheKey = () =>
-    `creature_${animation}_${eyes ? 'eyes' : 'body'}_${options.rim ?? 0.55}`;
+    `creature_v2_${animation}_${eyes ? 'eyes' : 'body'}_${rim}`;
   material.userData.creatureUniforms = CREATURE_UNIFORMS;
   return material;
 }

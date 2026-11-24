@@ -39,6 +39,8 @@ export const WU = {
    */
   pollution: { value: 0 },
   dy: { value: 100 },
+  /** Shared semidiurnal coastal tide offset driven by CitylitEngine. */
+  coastalTide: { value: 0 },
 };
 
 export function applyDissolveToShader(

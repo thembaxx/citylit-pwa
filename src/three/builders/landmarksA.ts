@@ -72,6 +72,22 @@ import {
   washingLine,
 } from './propKit';
 import { attachVehicleLights } from './vehicleLightKit';
+import { LANDMARKS } from '../../data/landmarks';
+import {
+  bouldersGroundHeight,
+  krugerGroundHeight,
+  orlandoGroundHeight,
+  PILOT_PLINTH_SPECS,
+  smoothstep,
+} from '../../lib/plinthProfiles';
+import { grassWindy } from '../shaders';
+import {
+  attachPilotPlinthToGroup,
+  buildPilotPlinth,
+  terrainSurfaceNoise,
+} from './plinthKit';
+
+const landmarkMetaByKey = new Map(LANDMARKS.map((lm) => [lm.k, lm]));
 
 /** One deep Platteklip notch on the north-facing cliff, shared by cap and cliffs. */
 const platteklip = (x: number, z: number): number => {
@@ -141,7 +157,7 @@ const lump = (
   const cb = new THREE.Color(c2);
   tint(s, (k, _X, Y) => k.copy(ca).lerp(cb, Math.min(1, Math.max(0, (Y + r) / (r * 2)))));
   weatherVertexColors(s, { ao: 0.24, exposure: 0.12, grain: 0.05, aoSpan: r * 2 });
-  add(
+  return add(
     g,
     s,
     new THREE.MeshStandardMaterial({
@@ -3063,48 +3079,170 @@ export function golden(): THREE.Group {
 
 export function kruger(): THREE.Group {
   const g = new THREE.Group();
-  add(g, B(15.2, 0.2, 15.2), MStone('#b89f5c', 0.96), 0, 0.1, 0);
+  const meta = landmarkMetaByKey.get('Kruger National Park') ?? LANDMARKS[16];
+  const spec = PILOT_PLINTH_SPECS['Kruger National Park'];
+  const cLoam = new THREE.Color('#b49959');
+  const cRedEarth = new THREE.Color('#985e40');
+  const cTrailDust = new THREE.Color('#c5ab76');
+  const cMudRim = new THREE.Color('#6b5842');
+  const cWetMud = new THREE.Color('#473b2d');
+  const cLeafLit = new THREE.Color('#8e7b49');
 
-  // The elephant herd is supplied by the season-gated, LOD'd wildlife layer
-  // (src/data/wildlife.ts); this builder keeps only the waterhole scenery.
+  const plinth = buildPilotPlinth(spec, meta, krugerGroundHeight, (x, z, y, _slope, out) => {
+    const nVal = terrainSurfaceNoise(x, z);
+    out.copy(cLoam).lerp(cRedEarth, smoothstep(0.45, 0.85, nVal) * 0.65);
 
-  // Organic Lowveld muddy-edged waterhole
-  add(g, C(2.15, 2.35, 0.04, 48), MStone('#7c6b53', 0.96), 3.35, 0.205, 2.65);
-  add(g, C(1.78, 1.78, 0.05, 48), MWater('#5e7d75', 0.1, 0.24), 3.35, 0.22, 2.65);
-  // Red-earth Macrotermes termite mound
-  add(g, C(0.24, 0.62, 1.35, 14), MBark('#9a5b3e', 0.95, 0.03), 4.65, 0.85, -1.85);
-  scatterRocks(
-    g,
-    [
-      { x: 4.9, y: 0.22, z: 3.1, sx: 0.45, sy: 0.25, sz: 0.4 },
-      { x: 2.1, y: 0.22, z: 3.9, sx: 0.38, sy: 0.22, sz: 0.35 },
-      { x: 4.1, y: 0.22, z: 1.2, sx: 0.42, sy: 0.24, sz: 0.36 },
-    ],
-    '#7c6c56',
-    '#a38f70'
-  );
-  for (let i = 0; i < 6; i++) tree(g, -5.2 + i * 2.1, -3.9 + R(i) * 1.4, 1.15, 2, 0.2);
-  // Small ranger camp: reusable props keep human scale without new light sources.
+    // Subtle dusty worn elephant game trails converging toward waterhole
+    const trailA = Math.exp(-Math.pow(z - (0.45 * x + 1.14), 2) / 0.34);
+    const trailB = Math.exp(-Math.pow(x - (0.35 * z + 2.42), 2) / 0.32);
+    const trailMask =
+      Math.max(trailA, trailB) * smoothstep(-5.8, 1.5, x) * smoothstep(4.2, 2.0, x);
+    out.lerp(cTrailDust, trailMask * 0.52);
+
+    // Leaf litter pools under northern umbrella acacias
+    if (z < -2.4) {
+      out.lerp(cLeafLit, smoothstep(-2.4, -4.4, z) * 0.42);
+    }
+
+    // Cracked dark mudflat shore gradient around the irregular waterhole pan
+    const dPond = Math.hypot(x - 3.35, z - 2.65);
+    if (dPond < 2.65) {
+      const mudT = smoothstep(0.22, 0.08, y);
+      out.lerp(cMudRim, smoothstep(2.65, 2.05, dPond) * 0.65);
+      out.lerp(cWetMud, mudT * 0.82);
+    }
+  });
+  attachPilotPlinthToGroup(g, plinth);
+
+  // Sculpted irregular Lowveld muddy-edged waterhole nestled in recessed pan
+  const pondShape = new THREE.Shape();
+  const pondSegs = 44;
+  for (let i = 0; i <= pondSegs; i++) {
+    const a = (i / pondSegs) * Math.PI * 2;
+    const rad =
+      1.78 + Math.sin(a * 3 + 0.7) * 0.2 + Math.cos(a * 5 - 1.1) * 0.12;
+    const px = rad * Math.cos(a);
+    const py = rad * Math.sin(a);
+    if (i === 0) pondShape.moveTo(px, py);
+    else pondShape.lineTo(px, py);
+  }
+  const pondGeo = new THREE.ShapeGeometry(pondShape).rotateX(-Math.PI / 2);
+  const pondMesh = add(g, pondGeo, MWater('#648883', 0.12, 0.24), 3.35, 0.148, 2.65);
+  pondMesh.userData.noShadow = true;
+
+  // Multi-chimney red-earth Macrotermes termite mound (replaces bare single cone)
+  const tmX = 4.65;
+  const tmZ = -1.85;
+  const tmY = krugerGroundHeight(tmX, tmZ);
+  const tmGrp = new THREE.Group();
+  tmGrp.position.set(tmX, tmY, tmZ);
+  const tmClay = MBark('#9a5b3e', 0.94, 0.04);
+  const tmRim = MBark('#874e34', 0.96, 0.05);
+  const tmVent = M('#2d1b12', 0.95);
+  add(tmGrp, C(0.46, 0.72, 0.42, 16), tmRim, 0, 0.18, 0);
+  add(tmGrp, C(0.14, 0.36, 1.38, 12), tmClay, 0, 0.74, 0);
+  add(tmGrp, C(0.08, 0.22, 0.92, 10), tmClay, -0.26, 0.5, 0.14);
+  add(tmGrp, C(0.07, 0.19, 0.76, 10), tmClay, 0.24, 0.42, -0.18);
+  for (let b = 0; b < 5; b++) {
+    const ba = (b / 5) * Math.PI * 2 + 0.3;
+    const rib = add(
+      tmGrp,
+      C(0.05, 0.15, 0.84, 7),
+      tmRim,
+      Math.cos(ba) * 0.25,
+      0.44,
+      Math.sin(ba) * 0.25
+    );
+    rib.rotation.z = -Math.cos(ba) * 0.22;
+    rib.rotation.x = Math.sin(ba) * 0.22;
+  }
+  add(tmGrp, C(0.06, 0.07, 0.08, 10), tmVent, 0, 1.44, 0);
+  add(tmGrp, C(0.04, 0.05, 0.06, 8), tmVent, -0.26, 0.96, 0.14);
+  mergeByMaterial(tmGrp);
+  g.add(tmGrp);
+
+  // Bleached fallen acacia driftwood log along west shore + waterhole pebbles + reeds
+  const log = add(g, C(0.065, 0.085, 1.15, 8), MBark('#9a896e', 0.92, 0.04), 1.72, 0.2, 3.05);
+  log.rotation.set(Math.PI / 2 - 0.08, 0.55, 0.12);
+  log.position.y = krugerGroundHeight(1.72, 3.05) + 0.05;
+
+  const waterholeRocks = [
+    [4.9, 3.1, 0.45, 0.25, 0.4],
+    [2.1, 3.9, 0.38, 0.22, 0.35],
+    [4.1, 1.2, 0.42, 0.24, 0.36],
+    [1.65, 2.1, 0.24, 0.14, 0.22],
+    [5.05, 2.25, 0.28, 0.15, 0.26],
+    [-2.4, -2.6, 0.58, 0.32, 0.48],
+    [-2.95, -2.25, 0.36, 0.21, 0.34],
+  ].map(([rx, rz, sx, sy, sz]) => ({
+    x: rx,
+    y: krugerGroundHeight(rx, rz) + sy * 0.15,
+    z: rz,
+    sx,
+    sy,
+    sz,
+  }));
+  scatterRocks(g, waterholeRocks, '#7c6c56', '#a38f70');
+
+  // Reeds along waterhole back-east shelf
+  const reedT: InstanceTransform[] = [];
+  for (let i = 0; i < 24; i++) {
+    const a = -0.7 + (i / 24) * 2.1 + (R(i + 71) - 0.5) * 0.12;
+    const rad = 1.68 + R(i + 83) * 0.34;
+    const rx = 3.35 + Math.cos(a) * rad;
+    const rz = 2.65 + Math.sin(a) * rad;
+    reedT.push({
+      x: rx,
+      y: Math.max(0.14, krugerGroundHeight(rx, rz)),
+      z: rz,
+      ry: R(i * 5) * 6.28,
+      rx: (R(i + 3) - 0.5) * 0.14,
+      rz: (R(i + 9) - 0.5) * 0.14,
+      sx: 0.9,
+      sy: 0.75 + R(i + 13) * 0.55,
+      sz: 0.9,
+    });
+  }
+  const reedGeo = new THREE.CylinderGeometry(0.014, 0.024, 0.52, 5).translate(0, 0.26, 0);
+  instancedMeshes(g, reedGeo, grassWindy(new THREE.MeshStandardMaterial({ color: '#788446', roughness: 0.85 })), reedT);
+
+  for (let i = 0; i < 6; i++) {
+    const tx = -5.2 + i * 2.1;
+    const tz = -3.9 + R(i) * 1.4;
+    tree(g, tx, tz, 1.15, 2, krugerGroundHeight(tx, tz) - 0.04);
+  }
+
+  // Small ranger camp grounded cleanly on terrain pad
   const campFence = kraalFence(3.6, 6);
-  campFence.position.set(-5.3, 0.2, 3.9);
+  campFence.position.set(-5.3, krugerGroundHeight(-5.3, 3.9), 3.9);
   campFence.rotation.y = -0.24;
   g.add(campFence);
   const supplies = crateStack(3);
-  supplies.position.set(-4.35, 0.2, 4.55);
+  supplies.position.set(-4.35, krugerGroundHeight(-4.35, 4.55), 4.55);
   supplies.rotation.y = 0.3;
   g.add(supplies);
 
   const grassT: InstanceTransform[] = [];
-  for (let i = 0; i < 75; i++) {
+  for (let i = 0; i < 115; i++) {
     const a = R(i) * 6.28;
-    const r = 2 + R(i + 9) * 5;
-    grassT.push({ x: r * Math.cos(a), y: 0.2, z: r * Math.sin(a), ry: R(i * 3) * 6.28, sy: 1.3 });
+    const r = 1.6 + R(i + 9) * 5.6;
+    const gx = r * Math.cos(a);
+    const gz = r * Math.sin(a);
+    const gy = krugerGroundHeight(gx, gz);
+    if (gy < 0.17) continue; // Keep submerged pond bed grass-free
+    grassT.push({
+      x: gx,
+      y: gy - 0.015,
+      z: gz,
+      ry: R(i * 3) * 6.28,
+      sy: 1.15 + R(i + 21) * 0.45,
+    });
   }
   grassTufts(g, grassT, ['#bea861', '#a89a58', '#8f9154']);
 
   const dd = drift(g, 45, '#e2c88e', 0.07, (i, t) => [
     Math.cos(i * 2.4 + t * 0.15) * (1 + R(i) * 5.5),
-    0.4 + ((R(i + 3) * 3 + t * 0.25) % 2.5),
+    0.45 + ((R(i + 3) * 3 + t * 0.25) % 2.5),
     Math.sin(i * 2.4 + t * 0.15) * (1 + R(i) * 5.5),
   ]);
   g.userData.tick = (t: number) => {
@@ -3287,71 +3425,197 @@ export function ponte(): THREE.Group {
 
 export function boulders(): THREE.Group {
   const g = new THREE.Group();
-  // Cool False Bay slate-turquoise water + sloping pale shell-sand beach submerged beneath tide
-  sea(g, '#236e79', '#478c8b');
-  const shoreMat = MStone('#dfcfa8', 0.95);
-  add(g, C(4.25, 4.95, 0.22, 64), shoreMat, 0, 0.08, -0.75);
-  add(g, C(3.2, 3.8, 0.14, 48), MStone('#cfc098', 0.95), -0.4, 0.16, -0.95);
+  const meta = landmarkMetaByKey.get('Boulders Beach') ?? LANDMARKS[18];
+  const spec = PILOT_PLINTH_SPECS['Boulders Beach'];
+  const cSandDry = new THREE.Color('#dfd0aa');
+  const cSandWet = new THREE.Color('#c4b188');
+  const cSeabed = new THREE.Color('#cab890');
+  const cReef = new THREE.Color('#6f745c');
+  const cBluff = new THREE.Color('#747f56');
 
-  // Three tight 540Ma Cape granite boulder clusters + dark wet intertidal bases (ZERO floating TubeGeometry water!)
+  const plinth = buildPilotPlinth(spec, meta, bouldersGroundHeight, (x, z, y, slope, out) => {
+    const nVal = terrainSurfaceNoise(x, z);
+    if (y < 0.08) {
+      out.copy(cSeabed).lerp(cReef, smoothstep(0.55, 0.85, nVal) * 0.55);
+    } else if (y < 0.22) {
+      out.copy(cSandWet).lerp(cSandDry, smoothstep(0.12, 0.22, y));
+    } else if (y > 0.34 || (z < -2.6 && x < 2.8)) {
+      const grassMix = smoothstep(0.28, 0.44, y) * (1 - slope * 0.45);
+      out.copy(cSandDry).lerp(cBluff, grassMix * 0.85);
+    } else {
+      out.copy(cSandDry).lerp(cSandWet, (1 - nVal) * 0.18);
+    }
+  });
+  attachPilotPlinthToGroup(g, plinth);
+
+  // Tightly clustered interlocking 540 Ma Cape granite boulders enclosing False Bay cove
   const clusterA: [number, number] = [-2.85, -1.85];
-  const clusterB: [number, number] = [2.8, -1.65];
+  const clusterB: [number, number] = [2.75, -1.55];
   const clusterC: [number, number] = [-1.15, 2.55];
-  const clusters = [clusterA, clusterB, clusterC];
+  const headlands: ReadonlyArray<readonly [number, number, number]> = [
+    [clusterA[0], clusterA[1], 1.0],
+    [clusterB[0], clusterB[1], 0.95],
+    [clusterC[0], clusterC[1], 0.9],
+    [-2.05, 0.45, 0.78], // Granite bridge shelf linking A and C along west shore
+    [-0.2, -2.55, 0.8], // Sheltered north granite ridge linking A and B
+    [4.2, -0.35, 0.72], // Submerged/emergent outer granite breakwater reef
+  ];
 
   const boulderT: InstanceTransform[] = [];
   const wetRingT: InstanceTransform[] = [];
-  clusters.forEach(([cx, cz], ci) => {
-    wetRingT.push({ x: cx, y: 0.14, z: cz, sx: 1.55, sy: 0.22, sz: 1.35 });
-    for (let i = 0; i < 11; i++) {
-      const a = R(ci * 30 + i) * 6.28;
-      const r = 0.18 + R(ci * 40 + i) * 1.2;
-      const s = 0.78 + R(ci * 50 + i) * 1.15;
+  headlands.forEach(([cx, cz, scaleMult], ci) => {
+    const gy = bouldersGroundHeight(cx, cz);
+    wetRingT.push({
+      x: cx,
+      y: Math.min(0.16, gy + 0.04),
+      z: cz,
+      sx: 1.55 * scaleMult,
+      sy: 0.24,
+      sz: 1.38 * scaleMult,
+    });
+    const count = ci < 3 ? 12 : 6;
+    for (let i = 0; i < count; i++) {
+      const a = R(ci * 31 + i) * 6.28;
+      const r = 0.16 + R(ci * 43 + i) * (1.28 * scaleMult);
+      const bx = cx + r * Math.cos(a);
+      const bz = cz + r * Math.sin(a);
+      // Keep the boardwalk corridor (x ≈ 1.2, z ∈ [-3.6, 1.4]) unobstructed
+      if (Math.abs(bx - 1.2) < 0.72 && bz > -3.7 && bz < 1.55) continue;
+      const by = bouldersGroundHeight(bx, bz);
+      const s = (0.72 + R(ci * 53 + i) * 1.12) * scaleMult;
       boulderT.push({
-        x: cx + r * Math.cos(a),
-        y: s * 0.18,
-        z: cz + r * Math.sin(a),
-        ry: R(ci * 60 + i) * 6.28,
-        sx: s * (1.05 + R(ci * 70 + i) * 0.3),
-        sy: s * (0.72 + R(ci * 80 + i) * 0.22),
+        x: bx,
+        y: by + s * 0.14,
+        z: bz,
+        ry: R(ci * 61 + i) * 6.28,
+        sx: s * (1.06 + R(ci * 71 + i) * 0.28),
+        sy: s * (0.7 + R(ci * 83 + i) * 0.24),
         sz: s,
       });
     }
   });
-  scatterRocks(g, wetRingT, '#4a4742', '#52504b'); // Wet dark intertidal granite bases
+  scatterRocks(g, wetRingT, '#474540', '#53514b');
   scatterRocks(g, boulderT, '#858379', '#aba193');
-  lump(g, 1.2, clusterA[0], clusterA[1], 1.35, 0.78, '#7e7b73', '#a39a8c');
-  lump(g, 1.05, clusterB[0], clusterB[1], 1.3, 0.72, '#7e7b73', '#a39a8c');
-  lump(g, 0.9, clusterC[0], clusterC[1], 1.25, 0.7, '#7e7b73', '#a39a8c');
 
+  const lumpA = lump(g, 1.18, clusterA[0], clusterA[1], 1.35, 0.76, '#7e7b73', '#a39a8c');
+  lumpA.position.y = bouldersGroundHeight(clusterA[0], clusterA[1]) + 0.22;
+  const lumpB = lump(g, 1.04, clusterB[0], clusterB[1], 1.3, 0.72, '#7e7b73', '#a39a8c');
+  lumpB.position.y = bouldersGroundHeight(clusterB[0], clusterB[1]) + 0.22;
+  const lumpC = lump(g, 0.9, clusterC[0], clusterC[1], 1.24, 0.68, '#7e7b73', '#a39a8c');
+  lumpC.position.y = bouldersGroundHeight(clusterC[0], clusterC[1]) + 0.22;
+
+  // Granitic pebbles & submerged seabed cobbles visible through the glass bay cutaway
   const pebbleT: InstanceTransform[] = [];
-  clusters.forEach(([cx, cz], ci) => {
-    for (let i = 0; i < 9; i++) {
+  const seabedCobbleT: InstanceTransform[] = [];
+  headlands.slice(0, 4).forEach(([cx, cz], ci) => {
+    for (let i = 0; i < 8; i++) {
       const a = R(ci * 90 + i + 110) * 6.28;
-      const r = 0.6 + R(ci * 100 + i + 130) * 1.1;
+      const r = 0.55 + R(ci * 100 + i + 130) * 1.15;
+      const px = cx + r * Math.cos(a);
+      const pz = cz + r * Math.sin(a);
+      const py = bouldersGroundHeight(px, pz);
       pebbleT.push({
-        x: cx + r * Math.cos(a),
-        y: 0.21,
-        z: cz + r * Math.sin(a),
-        sx: 0.28 + R(i + 2) * 0.24,
-        sy: 0.16 + R(i + 5) * 0.12,
-        sz: 0.28 + R(i + 7) * 0.24,
+        x: px,
+        y: py + 0.04,
+        z: pz,
+        sx: 0.26 + R(i + 2) * 0.24,
+        sy: 0.15 + R(i + 5) * 0.1,
+        sz: 0.26 + R(i + 7) * 0.24,
       });
     }
   });
+  for (let i = 0; i < 24; i++) {
+    const sx = 2.0 + R(i * 11 + 300) * 5.0;
+    const sz = -0.6 + R(i * 17 + 320) * 7.6;
+    const sy = bouldersGroundHeight(sx, sz);
+    if (sy > 0.06) continue;
+    seabedCobbleT.push({
+      x: sx,
+      y: sy + 0.03,
+      z: sz,
+      ry: R(i * 19) * 6.28,
+      sx: 0.28 + R(i * 3 + 5) * 0.34,
+      sy: 0.14 + R(i * 5 + 7) * 0.12,
+      sz: 0.26 + R(i * 7 + 9) * 0.28,
+    });
+  }
   scatterRocks(g, pebbleT, '#7e7b73', '#a39a8c');
+  scatterRocks(g, seabedCobbleT, '#525049', '#6e6a60');
 
-  // The waddling foreground penguins are supplied by the season-gated, LOD'd
-  // wildlife layer at the three boulder clusters (src/data/wildlife.ts).
-  // Only the cheap static far tier is built here.
+  // Submerged swaying Cape kelp fronds anchored on the rocky False Bay seabed
+  const kelpT: InstanceTransform[] = [];
+  for (let i = 0; i < 16; i++) {
+    const kx = 2.8 + R(i * 13 + 410) * 4.2;
+    const kz = -0.2 + R(i * 19 + 430) * 6.8;
+    const ky = bouldersGroundHeight(kx, kz);
+    if (ky > -0.18) continue;
+    const heightMax = Math.max(0.18, Math.min(0.62, 0.08 - ky));
+    kelpT.push({
+      x: kx,
+      y: ky,
+      z: kz,
+      ry: R(i * 7) * 6.28,
+      sx: 0.9,
+      sy: heightMax / 0.34,
+      sz: 0.9,
+    });
+  }
+  if (kelpT.length > 0) {
+    const kelpBlade = new THREE.ConeGeometry(0.06, 0.34, 4)
+      .scale(1.2, 1, 0.22)
+      .translate(0, 0.17, 0);
+    const kelpMat = grassWindy(
+      new THREE.MeshStandardMaterial({ color: '#4d6033', roughness: 0.72 }),
+      'kelp_sway'
+    );
+    instancedMeshes(g, kelpBlade, kelpMat, kelpT);
+  }
+
+  // Intertidal kelp wrack & pale mussel shells hugging high-tide line
+  const wrackT: InstanceTransform[] = [];
+  const shellT: InstanceTransform[] = [];
+  for (let i = 0; i < 38; i++) {
+    const wx = -1.2 + R(i * 23 + 510) * 5.2;
+    const wz = -3.4 + R(i * 29 + 530) * 6.4;
+    const wy = bouldersGroundHeight(wx, wz);
+    if (wy < 0.14 || wy > 0.24) continue;
+    wrackT.push({
+      x: wx,
+      y: wy + 0.012,
+      z: wz,
+      ry: R(i * 11) * 6.28,
+      sx: 0.18 + R(i + 2) * 0.18,
+      sy: 0.025,
+      sz: 0.06 + R(i + 3) * 0.05,
+    });
+    if (i % 2 === 0) {
+      shellT.push({
+        x: wx + (R(i + 4) - 0.5) * 0.25,
+        y: wy + 0.012,
+        z: wz + (R(i + 6) - 0.5) * 0.25,
+        ry: R(i * 17) * 6.28,
+        sx: 0.06,
+        sy: 0.025,
+        sz: 0.045,
+      });
+    }
+  }
+  if (wrackT.length > 0) {
+    instancedMeshes(g, CB(1, 1, 1, 0.2), MBark('#4b5332', 0.88), wrackT);
+  }
+  if (shellT.length > 0) {
+    instancedMeshes(g, new THREE.SphereGeometry(0.5, 6, 4), M('#d8d0bc', 0.65), shellT);
+  }
+
+  // Batched background African penguin colony seated cleanly on rocks & beach
   const penguinSpot = (i: number): [number, number, number] => {
     const c = i % 3 === 0 ? clusterA : i % 3 === 1 ? clusterB : clusterC;
     const a = R(i + 20) * 6.28;
     const r = 1.15 + R(i + 30) * 0.85;
-    return [c[0] + r * Math.cos(a), 0.2, c[1] + r * Math.sin(a)];
+    const px = c[0] + r * Math.cos(a);
+    const pz = c[1] + r * Math.sin(a);
+    return [px, Math.max(0.16, bouldersGroundHeight(px, pz)), pz];
   };
-
-  // Batched background colony with authentic pink eye spots + black feet
   const penT: InstanceTransform[] = [];
   for (let i = 0; i < 36; i++) {
     const [px, py, pz] = penguinSpot(i + 100);
@@ -3378,49 +3642,64 @@ export function boulders(): THREE.Group {
   instancedMeshes(g, new THREE.SphereGeometry(0.032, 6, 5).translate(-0.075, 0.81, 0.085), pk, penT);
   instancedMeshes(g, CB(0.18, 0.035, 0.16, 0.01).translate(0, 0.02, 0.06), bk, penT);
 
+  const boardBaseY = bouldersGroundHeight(1.2, -1.1);
   const colonySign = interpretiveSign('#d8a64a');
-  colonySign.position.set(1.2, 0.32, -3.2);
+  colonySign.position.set(1.2, boardBaseY + 0.12, -3.2);
   colonySign.rotation.y = -Math.PI / 2;
   colonySign.scale.setScalar(0.8);
   g.add(colonySign);
   const colonyBench = bench();
-  colonyBench.position.set(2.0, 0.3, -2.5);
+  colonyBench.position.set(2.0, bouldersGroundHeight(2.0, -2.5) + 0.08, -2.5);
   colonyBench.rotation.y = -Math.PI / 2;
   g.add(colonyBench);
 
-  // Foxy Beach timber boardwalk
+  // Foxy Beach timber boardwalk raised on timber piers above sandy cove relief
   const plankT: InstanceTransform[] = [];
-  for (let z = -3.6; z <= 1.4; z += 0.24) plankT.push({ x: 1.2, y: 0.3, z });
+  for (let z = -3.6; z <= 1.4; z += 0.24) plankT.push({ x: 1.2, y: 0.32, z });
   instancedMeshes(g, CB(0.9, 0.06, 0.15, 0.02), MWood('#9a7d55', 0.9), plankT);
   const postT: InstanceTransform[] = [];
   for (let z = -3.5; z <= 1.3; z += 0.9) {
-    postT.push({ x: 0.72, y: 0.58, z });
-    postT.push({ x: 1.68, y: 0.58, z });
+    postT.push({ x: 0.72, y: 0.56, z });
+    postT.push({ x: 1.68, y: 0.56, z });
   }
-  instancedMeshes(g, CB(0.07, 0.6, 0.07, 0.015), MWood('#7d6443', 0.9), postT);
+  instancedMeshes(g, CB(0.07, 0.68, 0.07, 0.015), MWood('#7d6443', 0.9), postT);
   [-1, 1].forEach((s) => {
     const x = 1.2 + s * 0.48;
-    add(g, CB(0.07, 0.07, 5.1, 0.015), MWood('#7d6443', 0.9), x, 0.86, -1.1);
-    add(g, CB(0.12, 0.12, 5.1, 0.02), MWood('#8a7050', 0.9), x, 0.25, -1.1);
+    add(g, CB(0.07, 0.07, 5.1, 0.015), MWood('#7d6443', 0.9), x, 0.88, -1.1);
+    add(g, CB(0.12, 0.14, 5.1, 0.02), MWood('#8a7050', 0.9), x, 0.25, -1.1);
   });
   addStreetLampSet(g, [
-    { x: 0.72, y: 0.33, z: -3.2, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
-    { x: 1.68, y: 0.33, z: -1.6, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
-    { x: 0.72, y: 0.33, z: 0.0, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
-    { x: 1.68, y: 0.33, z: 1.2, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+    { x: 0.72, y: 0.35, z: -3.2, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+    { x: 1.68, y: 0.35, z: -1.6, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+    { x: 0.72, y: 0.35, z: 0.0, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
+    { x: 1.68, y: 0.35, z: 1.2, kind: 'bollard', scale: 0.76, color: '#ffd482', poolRadius: 0.65 },
   ]);
 
+  // Coastal fynbos scrub & dune grass tufts grounded on dry bluffs
   const shrubT: InstanceTransform[] = [];
-  for (let i = 0; i < 34; i++) {
-    const a = R(i + 140) * 6.28;
-    const r = 4.9 + R(i + 160) * 1.0;
+  const duneGrassT: InstanceTransform[] = [];
+  for (let i = 0; i < 42; i++) {
+    const a = Math.PI * 0.78 + R(i + 140) * Math.PI * 1.38;
+    const r = 4.2 + R(i + 160) * 2.2;
+    const sx = r * Math.cos(a);
+    const sz = -0.8 + r * Math.sin(a);
+    if (Math.abs(sx) > 7.1 || Math.abs(sz) > 7.1) continue;
+    const sy = bouldersGroundHeight(sx, sz);
+    if (sy < 0.24) continue;
     shrubT.push({
-      x: r * Math.cos(a),
-      y: 0.2,
-      z: -0.6 + r * Math.sin(a),
+      x: sx,
+      y: sy + 0.04,
+      z: sz,
       sx: 0.4 + R(i + 2) * 0.3,
       sy: 0.22 + R(i + 4) * 0.18,
       sz: 0.4 + R(i + 6) * 0.3,
+    });
+    duneGrassT.push({
+      x: sx + (R(i + 10) - 0.5) * 0.45,
+      y: sy - 0.01,
+      z: sz + (R(i + 12) - 0.5) * 0.45,
+      ry: R(i + 15) * 6.28,
+      sy: 0.9 + R(i + 17) * 0.4,
     });
   }
   instancedMeshes(g, new THREE.IcosahedronGeometry(0.3, 1), Mc('#73865e'), shrubT, [
@@ -3428,29 +3707,11 @@ export function boulders(): THREE.Group {
     '#8d9770',
     '#697b53',
   ]);
-  const shoreFoam = [4.65, 4.95].map((r, i) =>
-    add(
-      g,
-      new THREE.TorusGeometry(r, 0.035, 6, 96).rotateX(Math.PI / 2),
-      new THREE.MeshBasicMaterial({
-        color: '#e6f4f8',
-        transparent: true,
-        opacity: 0.26,
-        depthWrite: false,
-      }),
-      0,
-      0.16 + i * 0.01,
-      -0.6
-    )
-  );
+  grassTufts(g, duneGrassT, ['#7d8d5e', '#9ba373', '#66754d']);
 
   const bd = birds(g, 3, 3, 5);
   g.userData.tick = (t: number) => {
     bd(t);
-    shoreFoam.forEach((ring, i) => {
-      ring.material.opacity = 0.18 + 0.14 * (0.5 + 0.5 * Math.sin(t * 1.6 + i));
-      ring.position.y = 0.16 + i * 0.01 + Math.sin(t * 1.1 + i) * 0.02;
-    });
   };
   return g;
 }
@@ -3566,7 +3827,26 @@ export function agulhas(): THREE.Group {
 export function orlando(): THREE.Group {
   const g = new THREE.Group();
   const pal = ['#b85e50', '#be8655', '#c9a54b', '#458f96', '#6a7478', '#a4a798'];
-  add(g, B(15.2, 0.2, 15.2), MStone('#80965b', 0.94), 0, 0.1, 0);
+  const meta = landmarkMetaByKey.get('Orlando Towers') ?? LANDMARKS[20];
+  const spec = PILOT_PLINTH_SPECS['Orlando Towers'];
+  const cTurf = new THREE.Color('#7f9458');
+  const cGravel = new THREE.Color('#977c5a');
+  const cPad = new THREE.Color('#757874');
+
+  const plinth = buildPilotPlinth(spec, meta, orlandoGroundHeight, (x, z, _y, _slope, out) => {
+    const nVal = terrainSurfaceNoise(x, z);
+    const rad = Math.hypot(x, z);
+    const dTower = Math.min(Math.hypot(x + 2.4, z), Math.hypot(x - 2.4, z));
+    out.copy(cTurf).lerp(cGravel, smoothstep(0.45, 0.85, nVal) * 0.55);
+    if (Math.abs(rad - 4.9) < 0.75) {
+      out.lerp(cGravel, smoothstep(0.75, 0.35, Math.abs(rad - 4.9)) * 0.72);
+    }
+    if (dTower < 2.8) {
+      out.lerp(cPad, smoothstep(2.8, 2.35, dTower) * 0.8);
+    }
+  });
+  attachPilotPlinthToGroup(g, plinth);
+
   const T = (x: number, c1: string, c2: string) => {
     const p: THREE.Vector2[] = [];
     for (let i = 0; i <= 24; i++) {
@@ -3593,15 +3873,16 @@ export function orlando(): THREE.Group {
   T(-2.4, '#a4a798', '#6a7478');
   T(2.4, '#a4a798', '#6a7478');
 
-  // Soweto colorful perimeter homes with pitched roofs
+  // Soweto colorful perimeter homes grounded on outer berm relief
   for (let i = 0; i < 16; i++) {
     const a = i * 0.4;
-    const r = 5.4 + R(i) * 1.2;
+    const r = 5.4 + R(i) * 1.1;
     const x = r * Math.cos(a);
     const z = r * Math.sin(a);
-    const body = add(g, CB(0.7, 0.45, 0.55, 0.02), MPlaster(pal[i % 6], 0.78), x, 0.43, z);
+    const gy = orlandoGroundHeight(x, z);
+    const body = add(g, CB(0.7, 0.45, 0.55, 0.02), MPlaster(pal[i % 6], 0.78), x, gy + 0.225, z);
     body.rotation.y = -a;
-    const rf = add(g, gableRoofGeo(0.72, 0.56, 0.18, 0.04), M('#6a7478', 0.45, 0.55), x, 0.65, z);
+    const rf = add(g, gableRoofGeo(0.72, 0.56, 0.18, 0.04), M('#6a7478', 0.45, 0.55), x, gy + 0.45, z);
     rf.rotation.y = -a;
   }
   const jp = add(g, new THREE.SphereGeometry(0.09, 10, 8), M('#ff3b3b', 0.4), 0, 5.1, 0);
@@ -3615,6 +3896,25 @@ export function orlando(): THREE.Group {
     0.205,
     0
   );
+  // Concrete road kerbs flanking circular asphalt ring
+  const kerbMat = MStone('#9e9b90', 0.88);
+  add(
+    g,
+    new THREE.TorusGeometry(4.58, 0.032, 5, 64).rotateX(Math.PI / 2),
+    kerbMat,
+    0,
+    0.208,
+    0
+  );
+  add(
+    g,
+    new THREE.TorusGeometry(5.22, 0.032, 5, 64).rotateX(Math.PI / 2),
+    kerbMat,
+    0,
+    0.208,
+    0
+  );
+
   const oc = [0, 1, 2, 3, 4].map((i) => {
     const c = car(['#b85e50', '#ddd', '#458f96', '#be8655', '#6a7478'][i], 0.5, false);
     g.add(c);

@@ -3,15 +3,18 @@
  *
  * Resolves the habitat table for the landmark's biome and current conditions,
  * asks the budget manager for capacity hero-first, then places one instanced
- * field per species. The layer re-resolves when the time band, month, weather
- * band or quality tier changes, so a diorama built at noon does not keep
- * daytime species at midnight.
+ * field per species plus one shared particle/ripple effects pool.
+ *
+ * The layer re-resolves when the time band, month, weather band or quality
+ * tier changes, so a diorama built at noon does not keep daytime species at
+ * midnight.
  *
  * Adding a species never touches this file: it is data in `habitat.ts` plus a
  * builder in `species.ts`.
  */
 import * as THREE from 'three';
 import { CreatureBudget, tierDensity, type CreatureTier } from './budget';
+import { CreatureEffectsPool } from './effects';
 import { CREATURE_ENV } from './env';
 import { CreatureField } from './field';
 import {
@@ -21,7 +24,8 @@ import {
   type CreatureZone,
   type HabitatEntry,
 } from './habitat';
-import { getSpeciesBuild } from './species';
+import { updateCreatureUniforms } from './material';
+import { getSpeciesBuild, type SpeciesLod } from './species';
 import type { LandmarkBiome } from '../../types/citylit';
 
 export interface CreatureLayerOptions {
@@ -68,6 +72,10 @@ const ZONE_PLACEMENT: Record<CreatureZone, { inner: number; outer: number; y: nu
 const SIGHTLINE_ANGLE = Math.PI / 4;
 const SIGHTLINE_HALF = 0.4;
 
+function lodForTier(tier: CreatureTier): SpeciesLod {
+  return tier === 2 ? 2 : tier === 1 ? 1 : 0;
+}
+
 export function createCreatureLayer(options: CreatureLayerOptions): CreatureLayer | null {
   // Software GL normally runs none of this. `force` exists for the dev Lab and
   // the `?creatures=on` capture override, never for a user setting.
@@ -78,6 +86,7 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
   group.name = `creatures:${options.key}`;
   const seedBase = options.seed ?? options.key;
   let fields: CreatureField[] = [];
+  let effects: CreatureEffectsPool | null = null;
   let budget = new CreatureBudget(options.tier ?? CREATURE_ENV.tier, false);
   let conditionsKey = '';
   let cached: CreatureLayerStats | null = null;
@@ -96,6 +105,11 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
       fields[i].dispose();
     }
     fields = [];
+    if (effects) {
+      group.remove(effects.group);
+      effects.dispose();
+      effects = null;
+    }
   };
 
   const buildFields = (): void => {
@@ -103,7 +117,10 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
     const software = CREATURE_ENV.software && !force;
     if (software) return;
     const tier = CREATURE_ENV.tier;
+    const lod = lodForTier(tier);
     budget = new CreatureBudget(tier, false);
+    effects = new CreatureEffectsPool(tier);
+    group.add(effects.group);
     const entries: HabitatEntry[] = resolveHabitat({
       biome: options.biome,
       month: CREATURE_ENV.month,
@@ -115,7 +132,7 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
     for (const entry of entries) {
       const requested = tierDensity(entry.density, tier);
       if (requested < 1) continue;
-      const trianglesEach = getSpeciesBuild(entry.species).triangles;
+      const trianglesEach = getSpeciesBuild(entry.species, lod).triangles;
       const granted = budget.reserve(entry.species, entry.priority, requested, trianglesEach);
       if (granted < 1) continue;
       const placement = ZONE_PLACEMENT[entry.zone];
@@ -131,6 +148,8 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
         keepOutAngle: entry.zone === 'air' ? SIGHTLINE_ANGLE : undefined,
         keepOutHalf: entry.zone === 'air' ? SIGHTLINE_HALF : 0,
         tier,
+        lod,
+        effects,
         minSeparation: entry.species === 'whale' ? 2.2 : 0.2,
       });
       fields.push(field);
@@ -150,8 +169,10 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
         conditionsKey = next;
         buildFields();
       }
+      updateCreatureUniforms(elapsed, dt > 0 ? CREATURE_ENV.motion : 0, CREATURE_ENV.wind);
       const distance = CREATURE_ENV.cameraDistance;
       for (let i = 0; i < fields.length; i++) fields[i].update(dt, elapsed, distance);
+      effects?.update(dt);
     },
     setTier(next) {
       budget.setTier(next);
@@ -159,7 +180,8 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
       cached = null;
     },
     stats() {
-      if (cached) return cached;
+      const fxStats = effects?.stats();
+      if (cached && (!fxStats || fxStats.drawCalls === 0)) return cached;
       let instances = 0;
       let triangles = 0;
       let drawCalls = 0;
@@ -169,8 +191,12 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
         triangles += s.triangles;
         drawCalls += s.drawCalls;
       }
+      if (fxStats) {
+        triangles += fxStats.triangles;
+        drawCalls += fxStats.drawCalls;
+      }
       const b = budget.stats();
-      cached = {
+      const res: CreatureLayerStats = {
         instances,
         triangles,
         drawCalls,
@@ -178,7 +204,8 @@ export function createCreatureLayer(options: CreatureLayerOptions): CreatureLaye
         budgetUtilisation: b.utilisation,
         tier: b.tier,
       };
-      return cached;
+      if (!fxStats || fxStats.drawCalls === 0) cached = res;
+      return res;
     },
     dispose() {
       clearFields();

@@ -1,0 +1,177 @@
+Citylit 3D Detail and Life Overhaul: Agent Brief 2
+Companion to the Citylit 3D Visual Overhaul brief. Repo: citylit-pwa. Stack: latest three.js plus custom GLSL. Written 23 November 2026.
+0. How this relates to Brief 1
+Brief 1 covered lighting, materials, atmosphere and post-processing. This brief goes much deeper on what stands in the scene: the platform each diorama sits on, terrain, trees and plants, animals (birds, whales, fish, land animals, insects), animation quality, scene vignettes and tiny details. Brief 1's hard constraints still apply. This work is best done after Brief 1 phases 1 to 3, because good lighting and the shared material library are what make small creatures look premium.
+1. Creative principles
+1.  Alive but calm. The scene should feel like a quiet terrarium, never busy. Most creatures idle most of the time. Special moments are rare and feel like gifts.
+2.  Readable at phone size. Every creature must read as a distinct silhouette at about 24 px tall. Exaggerate the one or two defining features (ostrich neck, whale flukes, penguin tuxedo, flamingo legs).
+3.  One shape language. Rounded, slightly chunky forms, a consistent bevel radius and small glossy bead eyes. Accurate species colours and markings, simplified.
+4.  Never identical. Seeded variation in size, colour, pose and timing for every tree, rock and animal.
+5.  Physically motivated motion. Arcs, weight, anticipation, follow-through and easing. Nothing moves linearly or in lockstep.
+6.  Everything reacts to time of day, weather, season, wind, the camera and taps.
+7.  Cheap by design. Animation runs on the GPU wherever possible and degrades gracefully by tier.
+8.  The landmark is the star. Creatures and plants never hide the landmark or sit on its key sightline.
+2. Constraints and budgets
+• Carry over Brief 1 section 2: latest three.js and GLSL only, no Blender and no imported models (procedural geometry only), fixed real-light count, no per-frame GPU-to-CPU readbacks or allocations, tier gating, reduced motion, software GL untouched, offline PWA.
+• Precache growth for this work: at most 200 KB gzip.
+• Starting caps per landmark (tune from measurements): High up to 1,500 animated instances and 150k extra triangles. Balanced 600 and 60k. Low 150 and 15k. Software GL: none.
+• At most 6 draw calls per species group. One InstancedMesh per species variant and LOD.
+• The creature and plant layer may add at most 8% frame time on Balanced versus the post-Brief-1 baseline.
+• Only hero-size creatures and trees cast real shadows. Small ones use blob shadows.
+• All randomness is seeded per landmark so captures are reproducible.
+3. Working method
+1.  Read first: builders/primitives.ts, the per-landmark builders, the existing wind and weather particles, the season, water and strata shaders, streetLights.ts, the ambient audio mixer, and the engine loop and quality tiers.
+2.  Build a dev-only Lab route (for example ?lab=creatures, excluded from production). It shows a turntable per species, an animation-state picker (idle, walk, run, fly, swim, eat, react), wind and time-of-day sliders, wireframe and overdraw views, triangle and draw-call counters, and 1x and 0.25x speed. Capture contact sheets and short looping clips from it.
+3.  Shared systems first (4D, 4F, 4K), then species, then per-landmark placement.
+4.  Data-driven: each species and plant has a builder, a material preset, an animation set, LOD levels, tier caps and an entry in a habitat table (habitats.ts: biome, season, time of day, weather, density). Adding a species must never touch the engine.
+5.  Prove the pipeline on three landmarks end to end (one coastal, one savanna or mountain, one urban) before rolling out to all.
+6.  End every phase with a contact sheet, loop captures and a perf table.
+4. Workstreams
+A. The platform (plinth and base)
+• Vary the shape. Choose a base outline per landmark: rounded square, circle, hexagon, an organic cut that follows the coastline or terrain, a chiselled natural slab, or stepped terraces. Keep corner radii and the edge bevel consistent, with a thin highlight line that catches the light.
+• Real geology in the cross-section. Extend the existing strata shader with region-specific layers: banded sandstone, dark dolerite sills, granite, red dune sand, black shale, coastal limestone, rich dark Highveld soil, and gold-flecked quartz reef for mining heritage. Vary thickness with noise, tilt and warp the bands, add thin contrast lines, pebbles, fossils and tiny mineral sparkle (specular flecks from a noise threshold). Keep a muted, warm palette.
+• Stories underground. Show root systems under big trees, meerkat burrows, termite mounds, tunnels where the heritage is mining, a water-table band and underground streams. These are static, so they cost almost nothing at runtime.
+• Water cutaways. Where the base includes sea or river, give the side a glass-like water volume: a turquoise to deep-blue gradient, a sand or rock bed, kelp, fish, bubbles, caustics on the bed and a meniscus line against the glass. This is the stage for whales, dolphins, seals and fish.
+• Finish. Choose per theme: matte stone, polished dark acrylic, timber or terrazzo. Add a micro-bevel, a thin shadow gap that makes the base float slightly, and a faint glow line at night.
+• Nameplate. A thin engraved plate with the place name, province and coordinates, rendered from a canvas texture with a normal-mapped engraving and survey-style tick marks. Legible at mobile size and theme-aware.
+• Ground surface. Build terrain from layered noise with domain warping. Carve roads, paths, rivers and shorelines with distance fields. Blend materials by slope and height: rock on steep faces, grass on flats, sand near water, snow by season. Add vertex-colour AO.
+• Light on the base. A soft contact-shadow ring, bounce light from the sky colour, a wet sheen in rain, and the landmark's shadow falling convincingly across the ground.
+• Transitions. The base rises, strata peel into place and creatures and plants fade or scale in with staggered timing. Optionally add one cutaway toggle that slides a clipping plane to reveal the interior (the only new UI, and only if approved).
+• Scale cues near the edge: a survey flag, signpost, picnic table or tiny boat.
+B. Rocks, ground cover and small landscape details
+• Rocks: noise-displaced boxes and icospheres with flat faces and chipped edges, triplanar procedural texture, moss and lichen on shaded faces, a darker wet band at the waterline, partial burial, clusters in three sizes, and strata-aligned outcrops on mountains.
+• Grass: instanced tapered blades in clumps. Wind in the vertex shader with gust waves travelling across the field, a base-to-tip colour gradient, fake translucency and density by tier. Dry-season colour in dry biomes, mown stripes near monuments, worn paths, savanna tufts.
+• Flowers and shrubs: protea and fynbos, spring daisy carpets, aloes in winter bloom, succulents, falling jacaranda petals. Bloom timing follows the season.
+• Water edges: reeds, lily pads, foam lines, wet-sand darkening, shells, driftwood, kelp wrack.
+• Weather details: mushrooms after rain, frost sparkle at dawn, snow caps and footprints, cracked earth in drought, puddles that reflect the sky.
+C. Trees and plants
+• Species library as seeded parametric generators, chosen per biome from the habitat table: flat-topped acacia, baobab, fever tree, marula, jacaranda, cabbage tree, yellowwood, wild fig, tree aloe, palms, cycads, protea and silver tree, eucalyptus and pine plantations, oak avenues, willow, mangrove, bamboo, prickly pear and euphorbia. Use only species that belong in that place, verified against LANDMARK-RESEARCH.md.
+• Structure: trunks as tapered tubes along splines with bark noise and buttress flare, a two-to-three level branch hierarchy, and canopies from clustered leaf cards or displaced blob clusters with procedural alpha-tested leaf textures. Never single-sphere trees. Each species needs a unique silhouette.
+• Shading: back-lit leaf translucency, baked canopy AO in vertex colours (darker inside), colour variation per cluster, glossy leaf glints and bark bump. Seasonal curves: autumn gold and red on deciduous species, spring blossom, jacaranda purple in spring, bare winter branches.
+• Wind: three-level hierarchical sway in the vertex shader (trunk bend, branch sway, leaf flutter) with weights in vertex colours, driven by the shared wind and gust uniform. Storms raise the amplitude. Per-instance phase.
+• Dappled light: project a moving noise gobo through the canopy onto the ground. It is cheap and beautiful.
+• Life in trees: shedding leaves and petals, fruit, perched birds, weaver nests, hanging beehives, a nesting owl at night.
+• LOD: three levels, with distant trees as cross-cards or impostors. Instanced per species with transform, scale, colour and seed attributes.
+• Placement ecology: Poisson-disc sampling with slope, moisture and altitude rules, groves and avenues, clustering around water and buildings, and clear zones for the landmark, paths and sightlines. Deterministic seeds.
+• Grow-in: a scale-in with a small overshoot on scene entry, staggered.
+D. Creature system architecture
+• Procedural creature framework, no imported assets. Build parts from lathe, capsule, tube-along-spline and displaced primitives. Merge them into one geometry per species with vertex attributes: bend weight, part ID, AO and pattern UVs.
+• Pick the cheapest animation that looks right:
+    1.  Spine-bend in the vertex shader for fish, whales, dolphins, snakes and caterpillars: a travelling sine wave along the body axis, growing toward the tail, with per-instance phase.
+    2.  Part-driven GPU animation for birds and mammals: rotate parts by part ID in the vertex shader (wing flap, leg swing, head bob, tail swish) from per-instance phase and speed attributes.
+    3.  Procedural SkinnedMesh with generated bones, only for hero creatures (elephant, giraffe, lion, breaching whale) on High.
+• Behaviour layer: a small state machine per species (idle, graze, walk, run, flee, drink, rest, sleep, fly, glide, perch, dive, swim, surface, breach) with seeded timers, weighted transitions and eased cross-fades of animation parameters. No pops.
+• Instancing: per-instance attributes for phase, speed, state, colour seed and scale. The CPU updates only agent positions and headings at 15 to 30 Hz for a capped number of agents. The shader does the high-frequency body motion.
+• LOD and culling: full, simplified, then blob or impostor by projected size. Frustum cull per group. Off-screen agents pause or tick at 5 Hz. Far ones tick at 10 Hz.
+• Steering: wander plus obstacle avoidance from terrain and footprint distance fields. Flocks use boids with a spatial hash (High, capped counts) or a noise flow field in the shader (Balanced).
+• Face system: bead eyes with a hard specular dot, blink by scaling the eyelid in the shader, and limited look-at toward the camera or a target.
+• Material kits: fur (4 to 8 shells on High, fresnel fuzz on Balanced, flat on Low), feathers (normal-mapped overlapping pattern, iridescence for sunbirds), wet skin (low roughness, strong specular), scales (procedural pattern with sheen), and translucent fins and wings (double-sided thin alpha with veins).
+E. Species packs
+Birds
+• Gulls, terns, cormorants, gannets: flap-and-glide cycles with a faster downstroke and wingtip lag, banking into turns, hovering into wind, a landing flare (wings back, feet down) and a take-off hop. Gannets fold their wings and plunge-dive with a splash ring and bubbles.
+• Flocks at dusk: 200 to 1,000 starling-style boids on High with sinuous murmuration shapes, flow-field flocks on Balanced.
+• Raptors and vultures: circling on thermals with wings spread and separated wingtip feathers (tiny extra cards), and cliff-roosting vultures.
+• Flamingos: one-leg standing, head-sweep feeding, group marching with offset head turns, and reflections in shallow water.
+• Penguins: a waddle with side-to-side roll and foot lift, flipper balance, preening, tobogganing into the water, porpoising while swimming, and small chicks.
+• Ostrich: neck bob, running with wing balance, dust bathing.
+• Small birds: sunbirds hovering at aloes with wing blur, weavers building hanging nests, swallows skimming water, pigeon-style head-bob walking.
+• Details: blink, preen, feather ruffle in wind (vertex noise on crest and tail), beak opening when calling, tail fan on landing, and blob shadows that scale with flight height.
+Marine life
+• Whales (hero creature): a smooth long body with callosities and white patches on right whales, a V-shaped double blow with falling mist, a surfacing cycle (surface, 3 to 5 blows, arched back, fluke-up dive), tail slaps with ring waves, breaching with a rotating arc and a big belly-flop splash, spy-hops, and a calf that mimics its mother with a delay. The water responds with ripples, wake and a foam trail, and the submerged body shows through depth-tinted water. One event every 40 to 90 seconds, weighted by the real whale season.
+• Dolphins: pods porpoising in arcs, bow-riding boat wakes, leaping with a spin, synchronised but offset.
+• Fish: shoals of 200 to 2,000 as instanced fish on a flow field with a vertex-shader tail beat, splitting and re-forming into a bait ball when a seal or shark passes, with silver flashes as they turn (specular flicker from the normal). Colourful reef fish darting, trout in rivers, rock pools with starfish, anemones and sideways-walking crabs, and kelp forests swaying.
+• Seals: lounging on rocks with flops, scratches and yawns, sliding into the water, and play-fighting pups.
+• Sharks: only a small, tasteful dorsal fin with a V wake. No violence.
+• Turtles: alternating flipper strokes, surfacing for air, and a hatchling dash at dusk as a rare event.
+• Shared surface effects: ripples, foam, splash and spray particles, bubbles, light shafts and caustics, wakes behind boats, and rain rings.
+Land animals
+• Herds (zebra, wildebeest, springbok, impala, giraffe, elephant): herd steering with distinct gaits (walk, trot with diagonal leg pairs, gallop). Springbok pronk with stiff-legged arched leaps. Grazing with head down, tail flicks and ear twitches. Giraffes sway their necks and splay their legs to drink. Elephants swing their trunks, flap their ears, dust-spray and bathe in mud. Calves trail adults. Waterholes at dusk with turn-taking. Dust puffs when running.
+• Predators: a lion lounging with tail flick, yawn, slow walk and crouch. A cheetah sprint as a rare event where the prey simply flees (no kills).
+• Small mammals: meerkats standing sentry with head turns and popping in and out of burrows, baboons grooming on rocks with playing juveniles, dassies sunning, a tortoise march, bats at dusk, and owls with a head swivel and porcupines at night.
+• Farm life where relevant: sheep and cattle flocks, horses.
+• Reptiles and insects: lizards doing push-ups, a chameleon with a rocking walk, independent eye swivel and subtle colour shift, geckos at night, tiny snakes. Butterflies with erratic flutter paths, bees visiting flowers, dragonflies hovering over water with iridescent wings, ant trails, snails, and moths around lamps and lighthouse beams.
+• Details: breathing (a tiny chest scale), blinking, ear flicks, tail swish through spring chains, fur ruffle in wind, hoof dust, footprints in sand or snow that fade, head turns toward the camera, and drinking ripples.
+F. Animation quality system
+• Principles in code: anticipation (a crouch before a leap), follow-through (spring tails and ears), overlapping action (head leads, neck lags), arcs, very subtle squash and stretch, ease curves, and secondary motion through damped springs with per-species stiffness.
+• Procedural locomotion: hero mammals get two-bone IK so feet plant and never slide, with stride length matched to speed. Use gait phase offsets per gait, body bob and roll from the gait, pitch to the terrain normal, and lean into turns.
+• Desynchronise: random phase and speed jitter per instance, Poisson-timed events and varied idle durations. No visible lockstep.
+• Variety: at least five idle variants per species plus rare ones (yawn, shake, stretch, scratch).
+• Clean transitions: parameter cross-fades, no foot teleports, and no pop at LOD switches (matched poses and a dithered cross-fade).
+• Time awareness: diurnal and nocturnal schedules, a dawn chorus, dusk flocks, owls, bats and fireflies at night, and sleeping poses at night.
+• Weather response: in rain birds shelter and animals shake off water. Wind bends grass and feathers and birds fly into it. Heat brings panting and shade-seeking. Cold brings breath puffs and huddling penguins.
+• Season: migrations, breeding (nests, chicks, calves), pollinators during bloom, and autumn leaf fall.
+• Robust time: drive everything from a global time uniform with a clamped delta, so tab-resume never hitches and pause and resume work.
+• Reduced motion: pleasing static idle poses, no flocks or particles, slow transitions.
+G. Scene vignettes and storytelling
+• Give each landmark two to four vignettes, small repeating stories drawn from real context: a fishing boat returning with gulls following, hikers on a summit trail, a tour boat watching whales, a braai with smoke at a viewpoint, a train crossing a bridge with steam, a cable car moving along its cable with gentle sway, kids flying a kite, cyclists, market stalls, birds bursting from a bell tower on the hour, a lighthouse beam sweeping through moths. Base them on LANDMARK-RESEARCH.md and do not invent history.
+• Scheduler: a data-driven scheduler triggers vignettes by time of day, weather and season, with a cap on simultaneous vignettes and a minimum gap so scenes stay calm.
+• Tiny people: six to eight variants (clothes, hats), instanced, with a simple shader walk cycle. Groups pause to take photos (a tiny camera flash at night), sit on benches, wave, and use umbrellas in rain.
+• Vehicles and boats: trains, cars with sweeping headlights at night, trucks, fishing boats, ferries and sailboats with billowing sails, plus wakes and lights.
+• Environmental storytelling: wind-driven chimney smoke, flags and washing lines as vertex-shader cloth, market umbrellas, curtains in open windows, tyre tracks and footprints, windows lighting up one by one at dusk, and a blue TV flicker in a single window.
+• Rare events: a rainbow placed opposite the sun at the correct angle after rain, shooting stars, a hot-air balloon, a whale breach, distant lightning, and an eclipse on its real date. Keep them rare.
+• Camera-aware detail: zooming in raises LOD and plays close-up idles. Zoomed out, keep silhouettes bold and skip tiny details.
+H. Interaction and discovery
+• Tapping a creature makes it react (head turn, call, hop, ripples) and shows a small label with the species and one verified fact. Add it to a Wildlife Spotted list in the passport, stored locally, with variants for seen at night or in rain that tie into the Brief 1 conditional stamps. Add a light haptic tick.
+• Settings: Wildlife Off, Low, Normal or Rich (default by tier), and a Calm mode with fewer events.
+• Long-press a creature for a gentle follow-cam for a few seconds, then return.
+• Accessibility: a screen-reader description of the wildlife in view, and reduced motion respected. No harmful or feeding interactions.
+I. Procedural audio (optional)
+• Synthesise with Web Audio, no audio files: gull and tern calls (filtered noise plus FM chirps), crickets and frogs at night, whale song (low sine glissandi through reverb), wind in grass and leaves, and water lapping.
+• Extend the existing ambient mixer, pan by screen position, use at most 8 voices, never autoplay, and respect mute and reduced motion.
+J. Rendering details for living things
+• Eyes: a glossy bead with a hard specular dot and a slight eyelid. It is the single biggest cue for life.
+• Surfaces: fake subsurface (back-lit translucency) for ears, wings and leaves. Rim light for separation. A wet look for marine animals (lower roughness, higher specular, darker albedo). Caustic light on underwater creatures.
+• Grounding: blob contact shadows, shadows of flying birds on ground and water, and reflections of large animals in water.
+• Colour: accurate but pulled into the scene palette, with subtle per-individual variation and no pure white or black (penguin: blue-black and warm white).
+• Depth: atmospheric perspective on distant creatures, depth of field that respects the hero subject, and no heavy bloom on animals.
+K. Performance architecture
+• GPU-first animation: body motion, wind, flapping and swimming in vertex shaders from a time uniform plus per-instance attributes. CPU work is limited to low-rate agent positions. Flocks use shader flow fields on Balanced and true boids with a spatial hash only on High.
+• Few programs: one creature-animation shader chunk patched into the shared Brief 1 materials via onBeforeCompile with defines per animation type. No per-species programs. Precompile variants during idle with compileAsync.
+• Budget manager: a central registry tracks instances and triangles per tier. It spawns and despawns by priority (hero, mid, ambient) when frame time rises, hooking into the existing adaptive quality governor. Fade and scale instead of popping.
+• Culling and rates: frustum and distance culling, with off-screen agents paused or at 5 Hz and far agents at 10 Hz.
+• Memory: pool geometry, dispose on leaving a landmark, cap texture memory, and generate procedural textures once and cache them like the thumbnails.
+• No per-frame allocations: reuse vectors and matrices, write typed arrays directly, and update only the dirty ranges of instance buffers where supported.
+• Shadows: blob shadows for small creatures, real shadows for hero ones, and alpha-tested foliage shadows on High only.
+• Telemetry: the Lab HUD shows instances, draw calls, triangles and update ms per frame. CI fails on budget breaks.
+L. Micro-detail checklist
+• Ground: pebbles, footprints, tyre tracks, tide lines and shells, driftwood, fallen leaves in autumn, puddles, moss, mushrooms, anthills, dew-lit spider webs at dawn, frost on cold mornings.
+• Plants: flowers that open in sun and close at night, falling petals, pollen puffs, drifting seeds, grass that bends where animals walk, reeds that sway with ripples.
+• Water: lily pads, fish-rise ripples, dragonfly dips, foam at rocks, bubble streams, floating leaves, ducks leaving V wakes, reflections broken by ripples.
+• Air: dust motes, breath steam in cold, chimney smoke, heat shimmer, valley mist at dawn, contrails, bats at dusk, fireflies, insects around lamps.
+• Human touches: laundry, flags, boats, windows lighting up one by one, headlights sweeping, tiny camera flashes.
+• Creatures: blinking, breathing, ear flicks, tail swish, yawns, stretches, scratching, shaking off water, glancing at the camera, ruffled feathers in cold.
+5. Quality tiers
+• High: shell fur, skinned hero creatures, boid flocks, full vignettes, dappled-light gobo, all particles and procedural audio.
+• Balanced: part-driven GPU animation, flow-field flocks, fresnel fur, reduced vignettes, fewer particles, blob shadows only.
+• Low: spine-bend and simple flap animation only, a handful of hero creatures, baked-AO plants, no particles, and at most one vignette.
+• Software GL: none of this runs.
+6. Order of work
+1.  Foundations: the Lab route, the creature framework (shader chunk, instancing, budget manager), the habitat table, shared wind uniforms, the blob shadow system, and a shared splash and particle system.
+2.  Platform: shapes, geology cross-sections, nameplate, water cutaways, terrain generation and ground cover.
+3.  Vegetation: the tree and plant library, wind, seasons, placement ecology and dappled shadows.
+4.  Flyers: birds, insects and bats (cheap and high impact).
+5.  Marine: water interactions, fish shoals, seals, penguins, dolphins, then whales.
+6.  Land animals: herds, small mammals, reptiles and hero skinned creatures.
+7.  Scenes: vignettes, people, vehicles, events and the scheduler.
+8.  Polish: interaction and passport tie-in, audio, settings, tier tuning and a performance pass.
+Prove each phase on the three pilot landmarks first, then roll out to all.
+7. Verification checklist
+• Every loop is seamless: no pop at the seam, verified from captures.
+• Foot-slide test: foot velocity during stance stays under a small threshold for hero mammals.
+• Silhouette test at 24 px: each species is recognisable.
+• Seeded captures are reproducible.
+• The worst-case scene (max density, rain, night) stays within the frame budget on Balanced and Low.
+• Five-minute soak test: renderer.info geometries, textures and programs stay flat, with no instance growth and no NaNs.
+• Tab resume and pause do not hitch or teleport creatures.
+• Reduced motion, software GL and both themes behave.
+• Brief 1 lighting results do not regress. Tests and build pass and the precache stays in budget.
+8. Anti-goals
+• No uncanny realism and no clip-art mismatch. Keep the miniature shape language.
+• No crowding: calm beats busy.
+• No lockstep motion, foot sliding, jitter or LOD popping.
+• No violence or gore, and no harmful interactions.
+• No new real lights, no per-creature draw calls, no auto-playing sound.
+• Nothing hides or competes with the landmark.
+• No species that do not belong in that place and season, and no unverified facts in tap labels.
+9. Condensed prompt (paste into the agent)
+You are adding life and detail to the 3D scenes in this repo (three.js plus custom GLSL, no Blender, no imported models, procedural geometry only). Read the Citylit 3D Detail and Life Overhaul Agent Brief 2 in full and obey Brief 1's hard constraints. Start by building a dev-only Lab route and the shared creature framework (instanced GPU animation, habitat table, budget manager). Prove the pipeline on three pilot landmarks (one coastal, one savanna or mountain, one urban) before rolling out. Work in the order of section 6, one commit per workstream, with contact sheets, loop captures and a perf table after each phase. Respect the tier caps and the 8% frame-time budget in section 2. Stop and report if a budget breaks. Finish each phase with a short summary of changes, results and deferred items.

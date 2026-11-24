@@ -8,8 +8,14 @@
  */
 import * as THREE from 'three';
 import { createRng, easeOutBack, scatterRing, type SeededRng } from './seeded';
-import { getSpeciesBuild, type SpeciesBuild } from './species';
-import { createCreatureMaterial, getBlobShadowMaterial, updateCreatureUniforms } from './material';
+import { getSpeciesBuild, type SpeciesBuild, type SpeciesLod } from './species';
+import {
+  createCreatureMaterial,
+  encodeCreatureState,
+  getBlobShadowMaterial,
+  type CreatureAnimState,
+} from './material';
+import type { CreatureEffectsPool } from './effects';
 import type { CreatureZone, SpeciesId } from './habitat';
 import type { CreatureTier } from './budget';
 
@@ -26,6 +32,8 @@ export interface CreatureFieldOptions {
   keepOutHalf?: number;
   minSeparation?: number;
   tier: CreatureTier;
+  lod?: SpeciesLod;
+  effects?: CreatureEffectsPool;
   /** Extra per-instance tint multiplier, usually from season. */
   tint?: THREE.Color;
 }
@@ -34,6 +42,7 @@ export interface CreatureFieldStats {
   instances: number;
   triangles: number;
   drawCalls: number;
+  lod: SpeciesLod;
 }
 
 const TAU = Math.PI * 2;
@@ -53,6 +62,7 @@ export class CreatureField {
   readonly species: SpeciesId;
   readonly count: number;
   readonly triangles: number;
+  readonly lod: SpeciesLod;
 
   private readonly build: SpeciesBuild;
   private readonly mesh: THREE.InstancedMesh;
@@ -60,6 +70,7 @@ export class CreatureField {
   private readonly shadow: THREE.InstancedMesh;
   private readonly bodyMaterial: THREE.MeshStandardMaterial;
   private readonly eyeMaterial: THREE.MeshStandardMaterial | null;
+  private readonly effects?: CreatureEffectsPool;
 
   private readonly ax: Float32Array;
   private readonly az: Float32Array;
@@ -70,6 +81,8 @@ export class CreatureField {
   private readonly targetY: Float32Array;
   private readonly scale: Float32Array;
   private readonly timer: Float32Array;
+  private readonly reactTimer: Float32Array;
+  private readonly effectTimer: Float32Array;
   private readonly state: Float32Array;
   private readonly wander: Float32Array;
   private readonly delay: Float32Array;
@@ -106,7 +119,9 @@ export class CreatureField {
     this.outer = Math.max(this.inner + 0.1, options.outerRadius);
     this.groundY = options.groundY;
     this.tier = options.tier;
-    this.build = getSpeciesBuild(options.species);
+    this.lod = options.lod ?? (options.tier === 2 ? 2 : options.tier === 1 ? 1 : 0);
+    this.effects = options.effects;
+    this.build = getSpeciesBuild(options.species, this.lod);
     this.rng = createRng(options.seed);
     this.triangles = Math.round(this.build.triangles * this.count);
 
@@ -120,6 +135,8 @@ export class CreatureField {
     this.targetY = new Float32Array(count);
     this.scale = new Float32Array(count);
     this.timer = new Float32Array(count);
+    this.reactTimer = new Float32Array(count);
+    this.effectTimer = new Float32Array(count);
     this.state = new Float32Array(count);
     this.wander = new Float32Array(count);
     this.delay = new Float32Array(count);
@@ -144,6 +161,7 @@ export class CreatureField {
       this.scale[i] = this.rng.range(options.scaleRange[0], options.scaleRange[1]);
       this.wander[i] = this.rng.range(0, TAU);
       this.delay[i] = this.rng.range(0, 0.9);
+      this.effectTimer[i] = this.rng.range(0.6, 3.2);
       instances[i * 4] = this.rng.next();
       instances[i * 4 + 2] = this.rng.next();
       this.state[i] = 0;
@@ -211,6 +229,8 @@ export class CreatureField {
     this.shadow.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.shadow.frustumCulled = false;
     this.shadow.renderOrder = 1;
+    this.shadow.userData.noShadow = true;
+    this.shadow.userData.cannotReceiveAO = true;
     this.group.add(this.shadow);
 
     // Subtle per-individual tint keeps a herd from looking cloned.
@@ -260,18 +280,55 @@ export class CreatureField {
   }
 
   /**
-   * Lab hook: pin the animation state (0 active, 0.55 glide/graze, 1 rest).
-   * `null` returns to the seeded state machine.
+   * Pin one animation state (`'idle' | 'walk' | 'run' | 'fly' | 'swim' | 'eat' | 'react'`
+   * or numeric scalar). `null` returns to the seeded state machine.
    */
-  setStateOverride(value: number | null): void {
-    this.stateOverride = value;
-    if (value === null) return;
-    const clamped = Math.max(0, Math.min(1, value));
+  setStateOverride(value: CreatureAnimState | number | null): void {
+    if (value === null) {
+      this.stateOverride = null;
+      return;
+    }
+    const encoded = encodeCreatureState(value);
+    this.stateOverride = encoded;
     for (let i = 0; i < this.count; i++) {
-      this.state[i] = clamped;
-      this.instanceAttr.array[i * 4 + 3] = clamped;
+      this.state[i] = encoded;
+      this.instanceAttr.array[i * 4 + 3] = encoded;
+      this.targetSpeed[i] = this.speedForState(encoded, i);
+      if (this.zone === 'air') {
+        this.targetY[i] =
+          encoded >= 0.9 && encoded < 1.5
+            ? this.groundY + this.scale[i] * 0.06
+            : this.groundY + this.airAltitude(this.species);
+      }
     }
     this.instanceAttr.needsUpdate = true;
+  }
+
+  /** Trigger a brief startle/perk reaction on one or all individuals (e.g. tap). */
+  triggerReaction(index?: number, duration = 1.4): void {
+    const start = index !== undefined ? Math.max(0, Math.min(this.count - 1, index)) : 0;
+    const end = index !== undefined ? start + 1 : this.count;
+    for (let i = start; i < end; i++) {
+      this.state[i] = -1;
+      this.reactTimer[i] = duration;
+      this.targetSpeed[i] = this.zone === 'ground' ? 0.14 : 0.35;
+      this.instanceAttr.array[i * 4 + 3] = -1;
+      if (this.effects && this.zone === 'water') {
+        this.effects.spawnRipple(this.ax[i], this.groundY + 0.012, this.az[i], 0.32 * this.scale[i], 1.2);
+        this.effects.spawnSplash(this.ax[i], this.groundY + 0.02, this.az[i], 4, 0.42, 0.045);
+      } else if (this.effects && this.zone === 'ground') {
+        this.effects.spawnDust(this.ax[i], this.groundY + 0.01, this.az[i], 3, 0.18, 0.06);
+      }
+    }
+    this.instanceAttr.needsUpdate = true;
+  }
+
+  private speedForState(encoded: number, i: number): number {
+    if (encoded < -0.2) return this.zone === 'ground' ? 0.12 : 0.32;
+    if (encoded >= 1.5) return this.zone === 'ground' ? 0.22 : this.zone === 'water' ? 0.24 : 0.48;
+    if (encoded >= 0.9) return this.zone === 'ground' ? 0 : 0.02;
+    if (encoded >= 0.4) return this.zone === 'ground' ? 0.008 : 0.15;
+    return this.zone === 'water' ? 0.09 + (i % 3) * 0.025 : this.zone === 'air' ? 0.24 : 0.08;
   }
 
   setWireframe(enabled: boolean): void {
@@ -300,13 +357,14 @@ export class CreatureField {
   private pickState(i: number): void {
     const rng = this.rng;
     if (this.zone === 'water') {
-      this.state[i] = 0;
-      this.targetSpeed[i] = rng.range(0.05, 0.16);
-      this.timer[i] = rng.range(4, 9);
+      const sprint = rng.chance(0.18);
+      this.state[i] = sprint ? 2.0 : 0;
+      this.targetSpeed[i] = sprint ? rng.range(0.18, 0.28) : rng.range(0.06, 0.16);
+      this.timer[i] = rng.range(3.5, 8.5);
       return;
     }
     if (this.zone === 'air') {
-      const canPerch = M_PERCH.includes(this.species) && rng.chance(0.3);
+      const canPerch = M_PERCH.includes(this.species) && rng.chance(0.28);
       if (canPerch) {
         this.state[i] = 1;
         this.targetSpeed[i] = 0.02;
@@ -325,16 +383,20 @@ export class CreatureField {
       }
       return;
     }
-    // Ground: graze (slow head-down) vs walk vs rest.
+    // Ground: graze (eat) vs walk vs occasional trot/run vs rest (idle).
     const roll = rng.next();
-    if (roll < 0.4) {
+    if (roll < 0.36) {
       this.state[i] = 0.55;
       this.targetSpeed[i] = 0.005;
       this.timer[i] = rng.range(3, 8);
-    } else if (roll < 0.85) {
+    } else if (roll < 0.76) {
       this.state[i] = 0;
       this.targetSpeed[i] = rng.range(0.05, 0.12);
       this.timer[i] = rng.range(2.5, 6);
+    } else if (roll < 0.88) {
+      this.state[i] = 2.0;
+      this.targetSpeed[i] = rng.range(0.16, 0.24);
+      this.timer[i] = rng.range(1.4, 3);
     } else {
       this.state[i] = 1;
       this.targetSpeed[i] = 0;
@@ -345,8 +407,15 @@ export class CreatureField {
   private tick(dt: number): void {
     const steer = 1.8;
     for (let i = 0; i < this.count; i++) {
-      this.timer[i] -= dt;
-      if (this.timer[i] <= 0 && this.stateOverride === null) this.pickState(i);
+      if (this.reactTimer[i] > 0) {
+        this.reactTimer[i] -= dt;
+        if (this.reactTimer[i] <= 0 && this.stateOverride === null) {
+          this.pickState(i);
+        }
+      } else {
+        this.timer[i] -= dt;
+        if (this.timer[i] <= 0 && this.stateOverride === null) this.pickState(i);
+      }
 
       // Wander: a slow per-agent sine gives heading drift without a noise call.
       this.wander[i] += dt * (0.25 + (i % 5) * 0.03);
@@ -367,6 +436,28 @@ export class CreatureField {
 
       if (this.zone === 'air') {
         this.ay[i] += (this.targetY[i] - this.ay[i]) * Math.min(1, dt * 1.1);
+      }
+
+      // Periodic ambient ripples for swimmers and dust puffs for runners.
+      if (this.effects) {
+        this.effectTimer[i] -= dt;
+        if (this.effectTimer[i] <= 0) {
+          if (this.zone === 'water' && this.speed[i] > 0.04) {
+            this.effects.spawnRipple(
+              this.ax[i],
+              this.groundY + 0.012,
+              this.az[i],
+              this.species === 'whale' ? 0.55 : 0.24 * this.scale[i],
+              1.4
+            );
+            this.effectTimer[i] = this.species === 'whale' ? 2.4 : 1.6;
+          } else if (this.zone === 'ground' && this.state[i] >= 1.5 && this.speed[i] > 0.12) {
+            this.effects.spawnDust(this.ax[i], this.groundY + 0.01, this.az[i], 2, 0.15, 0.045);
+            this.effectTimer[i] = 0.55;
+          } else {
+            this.effectTimer[i] = 1.5;
+          }
+        }
       }
 
       const nextState = this.state[i];
@@ -418,7 +509,7 @@ export class CreatureField {
   }
 
   /** `dt` is already motion-scaled by the engine. */
-  update(dt: number, elapsed: number, cameraDistance: number): void {
+  update(dt: number, _elapsed: number, cameraDistance: number): void {
     this.age += dt;
     // Low tier still shows a reduced count; only the software-GL path (handled
     // by the layer, which never builds fields) runs none of this.
@@ -428,7 +519,6 @@ export class CreatureField {
       this.group.visible = visible;
     }
     if (!visible) return;
-    updateCreatureUniforms(elapsed, dt > 0 ? 1 : 0, 0.6);
 
     // 20 Hz near, 10 Hz far: body motion stays on the GPU, so a coarse agent
     // tick is invisible at these speeds.
@@ -449,6 +539,7 @@ export class CreatureField {
       instances: this.count,
       triangles: this.triangles,
       drawCalls: this.eyes ? 3 : 2,
+      lod: this.lod,
     };
   }
 

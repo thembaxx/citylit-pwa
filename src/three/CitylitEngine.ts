@@ -312,6 +312,8 @@ export class CitylitEngine {
   private readonly nightHighlightTint = new THREE.Vector3(0.98, 1.02, 1.06);
   private lastGradeHour = -Infinity;
   private readonly plinthGroup: THREE.Group;
+  private readonly plinthRing: THREE.Mesh;
+  private readonly defaultPlinthRingGeo: THREE.BufferGeometry;
   private readonly ringMat: THREE.MeshStandardMaterial;
   /** Kept alive so Studio mode can switch away from the sky HDRI without breaking it. */
   private readonly roomEnvTex: THREE.Texture;
@@ -791,12 +793,11 @@ export class CitylitEngine {
     rimHole.lineTo(PLINTH_INNER_HALF_EXTENT, -PLINTH_INNER_HALF_EXTENT);
     rimHole.closePath();
     rimShape.holes.push(rimHole);
-    const plinthRing = new THREE.Mesh(
-      new THREE.ShapeGeometry(rimShape).rotateX(-Math.PI / 2),
-      this.ringMat
-    );
-    plinthRing.position.y = 0.01;
-    this.plinthGroup.add(plinthRing);
+    this.defaultPlinthRingGeo = new THREE.ShapeGeometry(rimShape).rotateX(-Math.PI / 2);
+    this.defaultPlinthRingGeo.userData.sharedResource = true;
+    this.plinthRing = new THREE.Mesh(this.defaultPlinthRingGeo, this.ringMat);
+    this.plinthRing.position.y = 0.01;
+    this.plinthGroup.add(this.plinthRing);
 
     this.studioShadow = new THREE.Mesh(
       new THREE.PlaneGeometry(9, 9),
@@ -1926,6 +1927,7 @@ export class CitylitEngine {
   updateCoastalTide(dt = 0, immediate = false): void {
     if (this.coastalWaterMeshes.length === 0) {
       this.coastalTideOffset = 0;
+      WU.coastalTide.value = 0;
       return;
     }
     const target = this.isStudio()
@@ -1935,8 +1937,10 @@ export class CitylitEngine {
     this.coastalTideOffset = immediate
       ? target
       : this.coastalTideOffset + (target - this.coastalTideOffset) * rate;
+    WU.coastalTide.value = this.coastalTideOffset;
     for (let i = 0; i < this.coastalWaterMeshes.length; i++) {
       const entry = this.coastalWaterMeshes[i];
+      if (entry.mesh.userData.shaderHandlesTide) continue;
       entry.mesh.position.y = entry.baseY + this.coastalTideOffset;
     }
   }
@@ -2440,6 +2444,13 @@ export class CitylitEngine {
     this.updateNighttimeEmissives(0, true);
     this.collectCoastalWaterSurfaces(this.currentGroup);
     this.updateCoastalTide(0, true);
+    const customOutlineGeo = this.currentGroup.userData.plinthOutlineGeo as
+      | THREE.BufferGeometry
+      | undefined;
+    const customOutlineY = this.currentGroup.userData.plinthOutlineY as number | undefined;
+    this.plinthRing.geometry = customOutlineGeo ?? this.defaultPlinthRingGeo;
+    this.plinthRing.position.y =
+      typeof customOutlineY === 'number' ? customOutlineY : 0.01;
     const birdPerches = collectBirdPerchPoints(this.currentGroup);
     this.daylightBirds.setSite(LANDMARKS[index].biome, birdPerches, true);
     this.updateDaylightBirds(0, true);
