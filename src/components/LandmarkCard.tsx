@@ -495,55 +495,146 @@ export function LandmarkCard({
   };
 
   if (compact) {
+    // Same icon-only quick actions as the expanded card's top-right cluster,
+    // with Details added as a fourth control.
+    const compactActions = [
+      {
+        label: 'Create 3D postcard',
+        ariaLabel: 'Create 3D postcard',
+        icon: Camera,
+        onClick: onOpenPostcard,
+        active: false,
+      },
+      {
+        label: 'Landmark photo gallery',
+        ariaLabel: 'Landmark photo gallery',
+        icon: Images,
+        onClick: onOpenGallery,
+        active: false,
+      },
+      {
+        label: 'Save favorite',
+        ariaLabel: isFavorite ? 'Remove from favorites' : 'Save favorite',
+        icon: Heart,
+        onClick: onToggleFavorite,
+        active: isFavorite,
+      },
+      {
+        label: 'Details',
+        ariaLabel: 'Landmark historical and architectural details',
+        icon: Info,
+        onClick: onOpenInfo,
+        active: false,
+      },
+    ];
+
     return (
-      <div className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] lg:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none">
+      <AnimatePresence initial={false}>
         <motion.div
-          initial={reducedMotion ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={reducedMotion ? { duration: 0 } : { duration: DURATION.quick, ease: EASE_SMOOTH_OUT }}
-          className="flex items-center gap-2 rounded-2xl bg-[#121319]/92 border border-white/15 squircle-card px-3 py-2.5 pointer-events-auto shadow-2xl"
+          key="card-compact"
+          exit={
+            reducedMotion
+              ? { opacity: 0, transition: { duration: 0 } }
+              : { opacity: 0, transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT } }
+          }
+          className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] lg:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
         >
-          <div className="min-w-0 flex-1">
-            <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[9.5px] truncate">
-              {lm.c}
-            </small>
-            <div className="truncate font-serif-display italic text-[18px] leading-tight text-[#f3efe6]">
-              {lm.k}
+          <motion.div
+            layoutId="landmark-card-shell"
+            layout={!reducedMotion}
+            initial={reducedMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={
+              reducedMotion
+                ? { opacity: 0, transition: { duration: 0 } }
+                : { opacity: 0, transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT } }
+            }
+            transition={
+              reducedMotion
+                ? { duration: 0 }
+                : {
+                    layout: SPRING.morph,
+                    opacity: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT },
+                  }
+            }
+            className="flex flex-col gap-2 rounded-2xl bg-[#121319]/92 border border-white/15 squircle-card px-3 py-2.5 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
+          >
+            <div className="min-w-0">
+              <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[9.5px] truncate">
+                {lm.c}
+              </small>
+              <motion.div
+                layoutId="landmark-title"
+                transition={reducedMotion ? { duration: 0 } : SPRING.morph}
+                className="truncate font-serif-display italic text-[18px] leading-tight text-[#f3efe6]"
+              >
+                {lm.k}
+              </motion.div>
             </div>
-          </div>
-          <motion.button
-            type="button"
-            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-            onClick={onPrev}
-            aria-label="Previous landmark"
-            className={`${smallBtn} w-8 h-8`}
-          >
-            <CaretLeft size={14} />
-          </motion.button>
-          <span className="text-[10.5px] font-mono tabular-nums text-[#a9a69e] shrink-0">
-            {index + 1}/{LANDMARKS.length}
-          </span>
-          <motion.button
-            type="button"
-            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-            onClick={onNext}
-            aria-label="Next landmark"
-            className={`${smallBtn} w-8 h-8`}
-          >
-            <CaretRight size={14} />
-          </motion.button>
-          <motion.button
-            type="button"
-            whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
-            onClick={onToggleCompact}
-            aria-label="Expand controls"
-            title="Expand controls"
-            className={`${smallBtn} w-8 h-8 border-[#e8b04a]/55 text-[#e8b04a]`}
-          >
-            <CaretUp size={15} weight="bold" />
-          </motion.button>
+
+            <p className="m-0 text-[12.5px] leading-relaxed text-[#a9a69e]">{lm.f}</p>
+
+            <div className="flex items-center justify-end gap-1.5">
+              {compactActions.map(({ label, ariaLabel, icon: Icon, onClick, active }) => (
+                <motion.button
+                  key={label}
+                  type="button"
+                  whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                  transition={SPRING.snappy}
+                  onClick={onClick}
+                  aria-label={ariaLabel}
+                  title={ariaLabel}
+                  className={`${smallBtn} ${active ? 'border-[#ff6b81] text-[#ff6b81]' : ''}`}
+                >
+                  <Icon size={16} weight={active ? 'fill' : 'regular'} />
+                </motion.button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <motion.button
+                type="button"
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                onClick={onPrev}
+                aria-label="Previous landmark"
+                className={`${smallBtn} w-8 h-8`}
+              >
+                <CaretLeft size={14} />
+              </motion.button>
+              <div className="flex-1 h-[3px] rounded-full bg-white/15 overflow-hidden">
+                <motion.div
+                  className="h-full w-full origin-left bg-[#e8b04a]"
+                  initial={false}
+                  animate={{ scaleX: progressPct / 100 }}
+                  transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_SMOOTH_OUT }}
+                />
+              </div>
+              <span className="text-[10.5px] font-mono tabular-nums text-[#a9a69e] shrink-0">
+                {index + 1}/{LANDMARKS.length}
+              </span>
+              <motion.button
+                type="button"
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                onClick={onNext}
+                aria-label="Next landmark"
+                className={`${smallBtn} w-8 h-8`}
+              >
+                <CaretRight size={14} />
+              </motion.button>
+              <motion.button
+                type="button"
+                whileTap={reducedMotion ? undefined : { scale: PRESS_SCALE }}
+                onClick={onToggleCompact}
+                aria-label="Expand controls"
+                title="Expand controls"
+                className={`${smallBtn} w-8 h-8 border-[#e8b04a]/55 text-[#e8b04a] ml-auto`}
+              >
+                <CaretUp size={15} weight="bold" />
+              </motion.button>
+            </div>
+          </motion.div>
         </motion.div>
-      </div>
+      </AnimatePresence>
     );
   }
 
@@ -560,16 +651,34 @@ export function LandmarkCard({
   }));
 
   return (
-    <>
-      <div
+    <AnimatePresence initial={false}>
+      <motion.div
+        key="card-full"
         ref={cardWrapRef}
+        exit={
+          reducedMotion
+            ? { opacity: 0, transition: { duration: 0 } }
+            : { opacity: 0, transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT } }
+        }
         className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] md:landscape:max-w-[490px] lg:max-w-[560px] lg:landscape:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
       >
         <motion.div
-          initial={reducedMotion ? false : { opacity: 0, y: 12, scale: 0.985 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
+          layoutId="landmark-card-shell"
+          layout={!reducedMotion}
+          initial={reducedMotion ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={
+            reducedMotion
+              ? { opacity: 0, transition: { duration: 0 } }
+              : { opacity: 0, transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT } }
+          }
           transition={
-            reducedMotion ? { duration: 0 } : { duration: DURATION.slow, ease: EASE_SMOOTH_OUT }
+            reducedMotion
+              ? { duration: 0 }
+              : {
+                  layout: SPRING.morph,
+                  opacity: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT },
+                }
           }
           onContextMenu={(e) => {
             e.preventDefault();
@@ -1279,9 +1388,9 @@ export function LandmarkCard({
             </motion.div>
           </AnimatePresence>
         </motion.div>
-      </div>
+      </motion.div>
 
-      <AnimatePresence>
+      <AnimatePresence key="radial-actions">
         {radialPos && (
           <motion.div
             key="radial-backdrop"
@@ -1321,6 +1430,6 @@ export function LandmarkCard({
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </AnimatePresence>
   );
 }
