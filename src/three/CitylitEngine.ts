@@ -5554,7 +5554,6 @@ export class CitylitEngine {
         fog: this.weather.current.fog,
         cover: this.weather.current.cover,
         wind: this.weather.current.wind,
-        windFromDeg: this.weather.getWindDirection(),
         fogColor,
         studioWeight: this.studioWeight,
       });

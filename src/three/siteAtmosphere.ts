@@ -9,7 +9,6 @@ import { SKY_NOISE_GLSL } from './shaders';
  */
 export type AtmosphereEffect =
   | 'ridgeFog'
-  | 'tableCloth'
   | 'heatHaze'
   | 'seaMist'
   | 'sprayMist'
@@ -35,8 +34,6 @@ export interface AtmosphereUpdateOptions {
   fogColor: THREE.Color;
   /** 1 = Studio mode (hides atmospheric mist & particles). */
   studioWeight?: number;
-  /** Meteorological wind bearing in degrees (open-meteo: direction it comes from). */
-  windFromDeg?: number;
 }
 
 export interface AtmosphereSceneController {
@@ -80,7 +77,6 @@ interface AtmosphereProfile {
 
 const EFFECT_TINTS: Record<AtmosphereEffect, string> = {
   ridgeFog: '#dbe7f0',
-  tableCloth: '#eef4f8',
   heatHaze: '#ffcf96',
   seaMist: '#dfeff7',
   sprayMist: '#eaf8ff',
@@ -101,10 +97,10 @@ const BIOME_EFFECTS: Record<LandmarkBiome, Partial<EffectWeights>> = {
 
 /**
  * Named landmarks get a stronger, more characterful signature than their
- * biome default: Table Mountain's tablecloth, Kgalagadi's heat shimmer.
+ * biome default: Kgalagadi's heat shimmer, for example.
  */
 const SITE_OVERRIDES: Record<string, Partial<EffectWeights>> = {
-  'Table Mountain': { ridgeFog: 0.6, tableCloth: 1 },
+  'Table Mountain': { ridgeFog: 0.6 },
   'Sani Pass': { ridgeFog: 1, valleyMist: 0.72 },
   'Drakensberg Amphitheatre': { ridgeFog: 0.7, sprayMist: 0.55, valleyMist: 0.78 },
   'Three Rondavels': { ridgeFog: 0.9, valleyMist: 0.82 },
@@ -124,39 +120,9 @@ const SITE_OVERRIDES: Record<string, Partial<EffectWeights>> = {
   'Kruger National Park': { dustHaze: 0.6, heatHaze: 0.28 },
 };
 
-const CLOTH_VERTEX = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-const CLOTH_FRAGMENT = `
-varying vec2 vUv;
-uniform float uTime, uOpacity, uDensity, uSeed;
-uniform vec3 uColor;
-${SKY_NOISE_GLSL}
-void main() {
-  vec2 centered = vUv - 0.5;
-  float radius = length(centered) * 2.0;
-  float edge = 1.0 - smoothstep(0.32, 1.0, radius);
-
-  vec2 q = vUv * 4.2 + vec2(uSeed, uTime * 0.02);
-  float broad = fbm(q);
-  float fine = fbm(q * 2.2 - vec2(uTime * 0.04, 0.0));
-  float body = smoothstep(0.3, 0.8, broad * 0.7 + fine * 0.3);
-
-  float alpha = body * edge * uOpacity * uDensity;
-  if (alpha < 0.003) discard;
-  gl_FragColor = vec4(uColor, alpha);
-}
-`;
-
 function emptyWeights(): EffectWeights {
   return {
     ridgeFog: 0,
-    tableCloth: 0,
     heatHaze: 0,
     seaMist: 0,
     sprayMist: 0,
@@ -195,17 +161,6 @@ function effectOpacity(effect: AtmosphereEffect, options: AtmosphereUpdateOption
       // Rain thickens the bank near the plinth: a physical 'wet ground' reading.
       // Daylight thins it so the landmark palette reads as crisply as Places.
       return (0.55 + fog * 1.45 + cover * 0.18 + wet * 0.35) * (0.55 + 0.45 * day);
-    case 'tableCloth': {
-      const base = (0.55 + cover * 0.45) * (0.55 + 0.45 * day);
-      const bearing = options.windFromDeg;
-      if (bearing === undefined || !Number.isFinite(bearing)) return base;
-      // The real "Cape Doctor" is a south-easter (~135°). The cloud pours over
-      // the plateau only when the wind comes from that quarter; on calm or
-      // north-westerly days the summit stays bare.
-      const alignment = Math.max(0, Math.cos(((bearing - 135) * Math.PI) / 180));
-      const breeze = Math.max(0, Math.min(1, options.wind));
-      return base * (0.12 + 0.88 * alignment * Math.min(1, 0.3 + breeze * 0.4));
-    }
     case 'heatHaze':
       return dry * (0.22 + 0.78 * day) * (0.55 + 0.45 * (1 - cover));
     case 'dustHaze':
@@ -221,58 +176,12 @@ function effectOpacity(effect: AtmosphereEffect, options: AtmosphereUpdateOption
   }
 }
 
-function createClothMaterial(): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    uniforms: {
-      uTime: { value: 0 },
-      uOpacity: { value: 0 },
-      uDensity: { value: 0.9 },
-      uWind: { value: 1 },
-      uSeed: { value: 1.3 },
-      uColor: { value: new THREE.Color(EFFECT_TINTS.tableCloth) },
-    },
-    vertexShader: CLOTH_VERTEX,
-    fragmentShader: CLOTH_FRAGMENT,
-  });
-}
-
 export function createAtmosphereScene(scene: THREE.Scene): AtmosphereSceneController {
   const root = new THREE.Group();
   root.name = 'site-atmosphere';
   scene.add(root);
 
   const layers: AtmosphereLayer[] = [];
-
-  // Table Mountain's tablecloth: a soft, drifting cloud sheet over the massif.
-  const clothGeometry = new THREE.PlaneGeometry(11.8, 11.8, 40, 40).rotateX(-Math.PI / 2);
-  const clothMat = createClothMaterial();
-  const clothMesh = new THREE.Mesh(clothGeometry, clothMat);
-  clothMesh.position.y = 3.35;
-  clothMesh.renderOrder = 1;
-  clothMesh.frustumCulled = false;
-  root.add(clothMesh);
-  const clothLayer: AtmosphereLayer = {
-    effect: 'tableCloth',
-    mesh: clothMesh,
-    mat: clothMat,
-    spec: {
-      effect: 'tableCloth',
-      radius: 10,
-      height: 0.1,
-      y: 3.35,
-      base: 0.72,
-      density: 0.9,
-      spin: 0.006,
-      seed: 1.3,
-      mode: 0,
-      additive: false,
-    },
-    tint: new THREE.Color(EFFECT_TINTS.tableCloth),
-  };
-  layers.push(clothLayer);
 
   // Two stratified canyon/valley height-mist banks hugging gorges, dams, and escarpment bases.
   for (const [idx, my, radScale, baseOp, spin, seed] of [
@@ -534,14 +443,7 @@ export function createAtmosphereScene(scene: THREE.Scene): AtmosphereSceneContro
       layer.mat.uniforms.uWind.value += (options.wind - layer.mat.uniforms.uWind.value) * atmoLerp;
       layer.mat.uniforms.uColor.value.lerp(tintTmp, atmoLerp);
 
-      if (layer.effect === 'tableCloth') {
-        layer.mesh.rotation.y = animTime * layer.spec.spin;
-        const drift = Math.sin(animTime * 0.07) * 0.35;
-        layer.mesh.position.x = drift;
-        layer.mesh.position.z = Math.cos(animTime * 0.05) * 0.25;
-      } else {
-        layer.mesh.rotation.y = animTime * layer.spec.spin;
-      }
+      layer.mesh.rotation.y = animTime * layer.spec.spin;
     }
 
     // Update GPU micro-wildlife layer (coastal seabirds by day, biome fireflies at night, arid motes)

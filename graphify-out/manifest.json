@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795475521.7538185,
-    "seen": 1795507801.6547465,
-    "ast_hash": "2ec4d554e9a5a179230263e583c770d2",
+    "mtime": 1795512412.728109,
+    "seen": 1795512503.976952,
+    "ast_hash": "1760f7010daaf82051a2331511676c23",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -235,15 +235,15 @@
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
-    "mtime": 1795462760.90824,
-    "seen": 1795463393.8451185,
-    "ast_hash": "36e06475400ca4c5b1131f4edc10f9c5",
+    "mtime": 1795511510.3246393,
+    "seen": 1795512503.9769738,
+    "ast_hash": "f0080c1b41c19b9f00f099902896f06c",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksB.ts": {
-    "mtime": 1795465499.8411713,
-    "seen": 1795465701.4394903,
-    "ast_hash": "183eae018e2bec2c9eebdc5537a7ebaa",
+    "mtime": 1795511510.326597,
+    "seen": 1795512503.976979,
+    "ast_hash": "64a03b1e977215ec66fbe2728fb26e1b",
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
@@ -295,9 +295,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
-    "mtime": 1795455522.886605,
-    "seen": 1795456573.314534,
-    "ast_hash": "30ae0d15229ff4fcedd70e11af69eade",
+    "mtime": 1795511510.3346329,
+    "seen": 1795512503.9771836,
+    "ast_hash": "77d96eb13b1b8a2e9bad56a169d0580d",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
@@ -331,9 +331,9 @@
     "semantic_hash": ""
   },
   "src/three/siteAtmosphere.ts": {
-    "mtime": 1795451832.1753263,
-    "seen": 1795452110.092763,
-    "ast_hash": "ea4b8042ec6b36b73c650019977fbefe",
+    "mtime": 1795512400.8122904,
+    "seen": 1795512503.9772246,
+    "ast_hash": "f3d3a54c15b4dfce3e97959d29da3ccc",
     "semantic_hash": ""
   },
   "src/three/thumbnailCache.ts": {
@@ -535,9 +535,9 @@
     "semantic_hash": ""
   },
   "src/three/globalIllumination.ts": {
-    "mtime": 1795284946.3877435,
-    "seen": 1795285281.7918177,
-    "ast_hash": "cf99c9c5d1755e2ebf36fa926b4f92fd",
+    "mtime": 1795511510.3336227,
+    "seen": 1795512503.977068,
+    "ast_hash": "bebe4ed855c16ba41fd7c12affe935db",
     "semantic_hash": ""
   },
   "src/data/routes.ts": {
@@ -6391,9 +6391,9 @@
     "semantic_hash": ""
   },
   "src/lab/creaturesLab.ts": {
-    "mtime": 1795476045.8580537,
-    "seen": 1795507801.654551,
-    "ast_hash": "81ae7737f9ee3d379c6253dd3c19755c",
+    "mtime": 1795511510.3165894,
+    "seen": 1795512503.9767306,
+    "ast_hash": "851189077c58ed6e880941bddc2e30f8",
     "semantic_hash": ""
   },
   "src/lib/creatureBudget.test.ts": {
@@ -6427,9 +6427,9 @@
     "semantic_hash": ""
   },
   "src/three/creatures/field.ts": {
-    "mtime": 1795478059.6038156,
-    "seen": 1795507801.6547992,
-    "ast_hash": "9fcd5bdcd8639cfa504d6b6ae4488722",
+    "mtime": 1795511510.3296468,
+    "seen": 1795512503.9770265,
+    "ast_hash": "8403011e5a09f58892ac711074bc8f30",
     "semantic_hash": ""
   },
   "src/three/creatures/habitat.ts": {
@@ -6439,15 +6439,15 @@
     "semantic_hash": ""
   },
   "src/three/creatures/layer.ts": {
-    "mtime": 1795477553.0126207,
-    "seen": 1795507801.654808,
-    "ast_hash": "6e5ba08601fc62cf04d15eeb790edf43",
+    "mtime": 1795511510.3305943,
+    "seen": 1795512503.9770396,
+    "ast_hash": "e0d83287e743c1b7bbb6a05f9672542c",
     "semantic_hash": ""
   },
   "src/three/creatures/material.ts": {
-    "mtime": 1795475851.3535576,
-    "seen": 1795507801.654812,
-    "ast_hash": "c63ad48612d84a41be30189db9369119",
+    "mtime": 1795511510.3305943,
+    "seen": 1795512503.9770453,
+    "ast_hash": "db60489351eb4624ff25a1f14630340e",
     "semantic_hash": ""
   },
   "src/three/creatures/seeded.ts": {
@@ -6457,9 +6457,9 @@
     "semantic_hash": ""
   },
   "src/three/creatures/species.ts": {
-    "mtime": 1795475870.824818,
-    "seen": 1795507801.6548204,
-    "ast_hash": "1669f13c1aad7bef2bdfdfc20bc6251d",
+    "mtime": 1795511510.3321009,
+    "seen": 1795512503.9770572,
+    "ast_hash": "921ecd4806fac6739ef9fa7f676b1b0a",
     "semantic_hash": ""
   },
   "docs/creatures-lab.png": {
@@ -6502,6 +6502,54 @@
     "mtime": 1795478548.931387,
     "seen": 1795507801.6553414,
     "ast_hash": "e057d41e2146f59b5ccb04dd5b3c331c",
+    "semantic_hash": ""
+  },
+  ".tmp_qa/verify_phase2.mjs": {
+    "mtime": 1795511510.3135884,
+    "seen": 1795512503.9763007,
+    "ast_hash": "97a03a1f2706fce389592e0098d21d22",
+    "semantic_hash": ""
+  },
+  "scripts/_audit.mts": {
+    "mtime": 1795511510.3155878,
+    "seen": 1795512503.9763956,
+    "ast_hash": "31dec9d7485f9802ac8148abc68760e7",
+    "semantic_hash": ""
+  },
+  "src/lib/creatureSpecies.test.ts": {
+    "mtime": 1795511510.3175948,
+    "seen": 1795512503.97678,
+    "ast_hash": "41b4789a0cb5c22413fe561d50ec643d",
+    "semantic_hash": ""
+  },
+  "src/lib/plinthProfiles.test.ts": {
+    "mtime": 1795511510.3185935,
+    "seen": 1795512503.976868,
+    "ast_hash": "0a920dd65fabfd28c665841dc8bc90cc",
+    "semantic_hash": ""
+  },
+  "src/lib/plinthProfiles.ts": {
+    "mtime": 1795511510.3195958,
+    "seen": 1795512503.9768717,
+    "ast_hash": "524ad142cdfb11744926465dbdbf077d",
+    "semantic_hash": ""
+  },
+  "src/three/builders/plinthKit.ts": {
+    "mtime": 1795511510.3276076,
+    "seen": 1795512503.9769845,
+    "ast_hash": "a55629e08502e59339ebe37bd00f5a78",
+    "semantic_hash": ""
+  },
+  "src/three/creatures/effects.ts": {
+    "mtime": 1795511510.3285956,
+    "seen": 1795512503.977014,
+    "ast_hash": "4e80d98be1ea25e5f3ed910a520a9cbf",
+    "semantic_hash": ""
+  },
+  ".tmp_qa/boulders_noon.png": {
+    "mtime": 1795511510.3125834,
+    "seen": 1795512503.9776425,
+    "ast_hash": "d9cff55ddeca038b31e8b94a647f5060",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

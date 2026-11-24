@@ -4,6 +4,12 @@
 objects remain (cloth, two valley-mist planes, wildlife points) down from 19,
 and the hero screenshot shows no rings or ripples. Keep the horizon skyline.
 
+**Follow-up (2026-11-24):** the tablecloth sheet was removed from
+`siteAtmosphere.ts` because it read as a translucent square above the hero
+landmark. The atmosphere root now holds 3 objects (two valley-mist planes and
+wildlife points); Table Mountain's built-in mist clumps in `landmarksA.ts`
+remain.
+
 ## Why
 The soft translucent bands wrapping each diorama are the atmospheric fog
 cylinders in `src/three/siteAtmosphere.ts`. They are also the largest source of
@@ -18,17 +24,19 @@ are the second, smaller ring system. The user asked for both gone.
   - `createAtmosphereScene()` L501–517: creates one `CylinderGeometry` mesh per
     spec, `renderOrder = 1`, `frustumCulled = false`.
   - `update()` L784–816: per-layer visibility/opacity/uniform/rotation work,
-    including the `lowQuality && radius > 12` cull.
+    including the `lowQuality && radius > 12` cull. (The tablecloth layer and
+    its special-case drift were removed in the 2026-11-24 follow-up.)
 - `src/three/builders/primitives.ts:3018-3050`: `seaRings()` helper.
 - 12 call sites: `landmarksA.ts` (4), `landmarksB.ts` (8), each stores
   `const sr = seaRings(...)` and calls `sr(t)` inside `userData.tick`.
 
 ## Target
 1. In `siteAtmosphere.ts`, delete `RING_SPECS`, `RING_VERTEX`, `RING_FRAGMENT`,
-   `createRingMaterial()` and the cylinder-mesh creation loop. Keep the table
-   cloth sheet, the two valley-mist planes, the micro-wildlife points and the
-   weight/tint state machine — `LayerSpec`, `EFFECT_TINTS`, `effectOpacity()`,
-   `SKY_NOISE_GLSL`, `setSite`/`setHidden`/`update`/`dispose` all stay.
+   `createRingMaterial()` and the cylinder-mesh creation loop. Keep the two
+   valley-mist planes, the micro-wildlife points and the weight/tint state
+   machine — `LayerSpec`, `EFFECT_TINTS`, `effectOpacity()`, `SKY_NOISE_GLSL`,
+   `setSite`/`setHidden`/`update`/`dispose` all stay. The tablecloth sheet was
+   later removed (see follow-up above).
 2. In `update()`, remove the now-dead ring-only `isFar` check; keep
    `lowQuality` for the wildlife gate.
 3. Delete `seaRings()` from `primitives.ts`, remove it from the two builder
@@ -43,9 +51,9 @@ are the second, smaller ring system. The user asked for both gone.
 2. Edit `primitives.ts` and both landmark builder files. Preserve tick order of
    the remaining FX.
 3. `pnpm lint` (oxlint + tsc) and `pnpm test`.
-4. Visual check: hero day + night should still show the Table Mountain
-   tablecloth, valley mist and wildlife, but no translucent bands hugging the
-   plinth and no white ripples on the water.
+4. Visual check: hero day + night should still show valley mist and wildlife,
+   but no translucent bands or square sheet above the landmark, no rings
+   hugging the plinth and no white ripples on the water.
 
 ## Boundaries
 - No change to weather, sky, horizon or lighting.
