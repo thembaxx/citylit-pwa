@@ -586,7 +586,9 @@ export class CitylitEngine {
     }
     // Anisotropy and procedural normal maps are set up before any landmark
     // texture is generated; software GL keeps the cheaper height-map path.
-    configureTextureQuality(this.renderer.capabilities.getMaxAnisotropy(), !this.isSoftwareGl);
+    // halfResNormals starts false here; setQualityIndex overrides it once the
+    // quality tier is resolved.
+    configureTextureQuality(this.renderer.capabilities.getMaxAnisotropy(), !this.isSoftwareGl, false);
 
     const canvas = this.renderer.domElement;
     canvas.className = 'block fixed inset-0 w-full h-full touch-none';
@@ -2974,6 +2976,13 @@ export class CitylitEngine {
     this.globe.setQuality(idx);
     this.appliedRenderScale = -1;
     this.applyRenderScale();
+    // Regenerate normal maps at half resolution on low-end devices (tier 2).
+    // The call is idempotent once textures are cached, so it's safe to repeat.
+    configureTextureQuality(
+      this.renderer.capabilities.getMaxAnisotropy(),
+      !this.isSoftwareGl,
+      /* halfResNormals */ idx >= 2
+    );
 
     const highFx = !this.isSoftwareGl && idx === 0;
     const midFx = !this.isSoftwareGl && idx === 1;

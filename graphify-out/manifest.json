@@ -79,9 +79,9 @@
     "semantic_hash": ""
   },
   "src/components/LandmarkCard.tsx": {
-    "mtime": 1795518141.0924623,
-    "seen": 1795518169.9300518,
-    "ast_hash": "b1771f1f6ef2a70cf48b238fdcce6c6d",
+    "mtime": 1795519987.0165622,
+    "seen": 1795520015.9129953,
+    "ast_hash": "83daab3e9c0ff967c96feea4dc33d72d",
     "semantic_hash": ""
   },
   "src/components/PassportModal.tsx": {
@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795516608.2572775,
-    "seen": 1795516846.161781,
-    "ast_hash": "99dffa556c344abab301a5fda31b15f5",
+    "mtime": 1795519737.0778406,
+    "seen": 1795520015.9134998,
+    "ast_hash": "071a8c130c0b744aa53e6235f6587e46",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -247,9 +247,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/primitives.ts": {
-    "mtime": 1795469926.687312,
-    "seen": 1795470968.687989,
-    "ast_hash": "cefdc3291260c91dd33bd64d5a99cd83",
+    "mtime": 1795519297.5630963,
+    "seen": 1795520015.9135444,
+    "ast_hash": "55228740e2fa4f06b113a8cdf9f1fe01",
     "semantic_hash": ""
   },
   "src/three/globeScene.ts": {
@@ -295,9 +295,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders.ts": {
-    "mtime": 1795511510.3346329,
-    "seen": 1795512503.9771836,
-    "ast_hash": "77d96eb13b1b8a2e9bad56a169d0580d",
+    "mtime": 1795519353.0744784,
+    "seen": 1795520015.9137623,
+    "ast_hash": "216de2dd427c6fe204b32bef3267fcf8",
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {

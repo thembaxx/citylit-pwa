@@ -171,6 +171,8 @@ export function installDissolveShader(): void {
  */
 let textureAnisotropy = 1;
 let normalMapsEnabled = false;
+/** When true, normal map canvases are generated at half resolution (128 instead of 256). */
+let normalMapHalfRes = false;
 const trackedCanvasTextures = new Set<THREE.CanvasTexture>();
 const normalTextureCache: Record<string, THREE.CanvasTexture> = {};
 /** Surfaces that share the procedural height -> roughness pipeline. */
@@ -188,9 +190,10 @@ export function prepareCanvasTexture(tex: THREE.CanvasTexture): THREE.CanvasText
 }
 
 /** Configure filtering for all generated textures; call once from CitylitEngine. */
-export function configureTextureQuality(anisotropy: number, useNormalMaps: boolean): void {
+export function configureTextureQuality(anisotropy: number, useNormalMaps: boolean, halfResNormals = false): void {
   textureAnisotropy = Math.max(1, Math.floor(anisotropy));
   normalMapsEnabled = useNormalMaps;
+  normalMapHalfRes = halfResNormals;
   for (const tex of trackedCanvasTextures) {
     tex.anisotropy = textureAnisotropy;
     tex.needsUpdate = true;
@@ -221,17 +224,24 @@ function heightToNormalTexture(
   const src = heightTex.image as HTMLCanvasElement | undefined;
   const sctx = src?.getContext('2d', { willReadFrequently: true });
   if (!src || !sctx) return null;
-  const w = src.width;
-  const h = src.height;
-  const srcData = sctx.getImageData(0, 0, w, h).data;
-  const out = getOrCreateCanvas(`normal:${key}`, w, h, (dst) => {
-    const sample = (x: number, y: number) =>
-      srcData[((((y % h) + h) % h) * w + (((x % w) + w) % w)) * 4] / 255;
+  const srcW = src.width;
+  const srcH = src.height;
+  // On low-end devices (tier 2) generate a half-resolution normal map.
+  // The Sobel pass samples from the full-res source so the derivatives are
+  // still accurate; only the output canvas is smaller, halving upload cost.
+  const w = normalMapHalfRes ? Math.max(1, srcW >> 1) : srcW;
+  const h = normalMapHalfRes ? Math.max(1, srcH >> 1) : srcH;
+  const srcData = sctx.getImageData(0, 0, srcW, srcH).data;
+  const out = getOrCreateCanvas(`normal:${key}${normalMapHalfRes ? '_lr' : ''}`, w, h, (dst) => {
+    // Sample from the full-res height data, downscaling coordinates.
+    const sample = (x: number, y: number) => {
+      const sx = Math.round(x * (srcW / w));
+      const sy = Math.round(y * (srcH / h));
+      return srcData[((((sy % srcH) + srcH) % srcH) * srcW + (((sx % srcW) + srcW) % srcW)) * 4] / 255;
+    };
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const dx = (sample(x + 1, y) - sample(x - 1, y)) * strength;
-        // Image rows increase downward but UV v increases upward: flip dy to
-        // produce an OpenGL-style (+Y green) tangent-space normal.
         const dy = (sample(x, y - 1) - sample(x, y + 1)) * strength;
         const inv = 1 / Math.sqrt(dx * dx + dy * dy + 1);
         const i = (y * w + x) * 4;
@@ -842,10 +852,13 @@ float rainFac=clamp(uRain,0.,1.);
 float gustWave=.62+.26*sin(dot(wp.xz,uWindDir)*.48-t*1.38+seed*.35)+.14*sin(t*.41+seed*1.2);
 float slow=sin(t*.86+seed),mid=sin(t*1.82+seed*1.7+1.3);
 float leafRipple=sin(t*4.1+wp.x*4.9+wp.z*5.4+wp.y*3.1);
+// Secondary jitter at a different frequency and spatial phase breaks the
+// uniform pulsing so trees in a grove sway independently rather than in unison.
+float leafRipple2=sin(t*2.73+wp.x*7.1-wp.z*3.8+seed*1.4)*0.42;
 float amp=.094*windStrength*k*gustWave*${swayScale};
 float sway=(slow*.62+mid*.28)*amp;
 float leewardLean=.042*windStrength*k*(.62+.38*gustWave)*${swayScale};
-float flutter=leafRipple*.026*windStrength*k*(.35+.65*radial)*mix(1.,.65,rainFac)*${flutterScale};
+float flutter=(leafRipple+leafRipple2)*.026*windStrength*k*(.35+.65*radial)*mix(1.,.65,rainFac)*${flutterScale};
 // Subtle rotational crown twist weighted by radial branch distance.
 float twist=sin(t*1.25+seed*2.1)*.032*windStrength*radial*hb*${swayScale};
 vec2 dir=uWindDir;

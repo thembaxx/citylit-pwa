@@ -574,7 +574,7 @@ export function LandmarkCard({
 
             <p className="m-0 text-[12.5px] leading-relaxed text-[#a9a69e]">{lm.f}</p>
 
-            <div className="flex items-center justify-end gap-1.5">
+            <div className="flex items-center justify-start gap-1.5">
               {compactActions.map(({ label, ariaLabel, icon: Icon, onClick, active }) => (
                 <motion.button
                   key={label}

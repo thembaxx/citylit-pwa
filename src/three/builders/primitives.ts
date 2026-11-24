@@ -595,11 +595,16 @@ export function MBark(
   const colHex = tmpColor.set(surface).getHexString();
   const key = `bark_${colHex}_${r.toFixed(2)}_${bumpScale.toFixed(3)}`;
   if (matCache[key]) return matCache[key];
-  const mat = new THREE.MeshStandardMaterial({
+  // MeshPhysicalMaterial extends Standard, so the return type is still
+  // compatible. Anisotropy adds a subtle sheen along the wood grain / thatch
+  // fibres without changing the roughness or bump map setup.
+  const mat = new THREE.MeshPhysicalMaterial({
     color: surface,
     roughness: r,
     metalness: 0.0,
     envMapIntensity: ROUGH_SURFACE_ENV_INTENSITY,
+    anisotropy: 0.55,
+    anisotropyRotation: Math.PI / 4,
     ...surfaceDetail('wood', bumpScale),
   });
   mat.userData.naturalSurface = true;
@@ -2093,21 +2098,110 @@ export function bird(): THREE.Group {
   return b;
 }
 
+/**
+ * Lightweight boid flock. Each bird maintains a 2-D velocity in the XZ plane
+ * that steers toward the flock centre (cohesion), away from neighbours that
+ * are too close (separation), and gradually aligns with their average heading
+ * (alignment). The Z/Y offsets from the old orbit are kept as a subtle thermal
+ * drift so the group never flies perfectly flat.
+ *
+ * All maths is done on plain numbers to avoid per-frame allocations.
+ */
 export function birds(g: THREE.Object3D, count: number, r: number, y: number): (t: number) => void {
   const bs = Array.from({ length: count }, () => {
     const b = bird();
     g.add(b);
     return b;
   });
+
+  // Per-bird state: position (xz) and velocity (xz).
+  const px = new Float32Array(count);
+  const pz = new Float32Array(count);
+  const vx = new Float32Array(count);
+  const vz = new Float32Array(count);
+
+  // Seed positions evenly around the orbit radius.
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    px[i] = r * Math.cos(a);
+    pz[i] = r * Math.sin(a);
+    // Tangential velocity so the flock starts already moving.
+    const speed = 0.9 + R(i * 3.1) * 0.4;
+    vx[i] = -Math.sin(a) * speed;
+    vz[i] = Math.cos(a) * speed;
+  }
+
+  // Boid weights.
+  const W_COH = 0.004;   // pull toward flock centre
+  const W_SEP = 0.18;    // push away from close neighbours
+  const W_ALI = 0.028;   // align heading with neighbours
+  const SEP_DIST_SQ = (r * 0.38) ** 2;
+  const MAX_SPEED = 1.6;
+  const MIN_SPEED = 0.5;
+
+  let prevT = -1;
+
   return (t: number) => {
-    for (let i = 0; i < bs.length; i++) {
-      const b = bs[i];
-      const a = t * 0.25 + (i * 6.2832) / count;
-      const climb = Math.sin(t * 0.7 + i);
+    const dt = prevT < 0 ? 0.016 : Math.min(0.05, t - prevT);
+    prevT = t;
+
+    // --- boid steering ---
+    for (let i = 0; i < count; i++) {
+      let cxAcc = 0, czAcc = 0;   // cohesion
+      let sxAcc = 0, szAcc = 0;   // separation
+      let axAcc = 0, azAcc = 0;   // alignment
+      let neighbours = 0;
+
+      for (let j = 0; j < count; j++) {
+        if (i === j) continue;
+        const dx = px[j] - px[i];
+        const dz = pz[j] - pz[i];
+        const dSq = dx * dx + dz * dz;
+        cxAcc += dx;
+        czAcc += dz;
+        axAcc += vx[j];
+        azAcc += vz[j];
+        neighbours++;
+        if (dSq < SEP_DIST_SQ && dSq > 0.0001) {
+          const inv = 1 / dSq;
+          sxAcc -= dx * inv;
+          szAcc -= dz * inv;
+        }
+      }
+
+      if (neighbours > 0) {
+        const inv = 1 / neighbours;
+        vx[i] += cxAcc * inv * W_COH + sxAcc * W_SEP + axAcc * inv * W_ALI;
+        vz[i] += czAcc * inv * W_COH + szAcc * W_SEP + azAcc * inv * W_ALI;
+      }
+
+      // Soft boundary: gentle pull back toward the orbit circle.
+      const dist = Math.hypot(px[i], pz[i]) || 1;
+      const dBound = dist - r;
+      const inward = 0.012 * dBound;
+      vx[i] -= (px[i] / dist) * inward;
+      vz[i] -= (pz[i] / dist) * inward;
+
+      // Clamp speed.
+      const spd = Math.hypot(vx[i], vz[i]) || 1;
+      if (spd > MAX_SPEED) { vx[i] = vx[i] / spd * MAX_SPEED; vz[i] = vz[i] / spd * MAX_SPEED; }
+      if (spd < MIN_SPEED) { vx[i] = vx[i] / spd * MIN_SPEED; vz[i] = vz[i] / spd * MIN_SPEED; }
+    }
+
+    // --- integrate & animate each bird ---
+    for (let i = 0; i < count; i++) {
+      px[i] += vx[i] * dt;
+      pz[i] += vz[i] * dt;
+
+      const climb = Math.sin(t * 0.7 + i * 1.3) * 0.28 + Math.sin(t * 0.19 + i * 2.7) * 0.1;
       const glideEnv = Math.max(0.16, 0.56 + 0.56 * Math.sin(t * 0.52 + i * 1.9));
       const flap = Math.sin(t * 9.2 + i * 1.7) * 0.62 * glideEnv;
-      b.position.set(r * Math.cos(a), y + climb * 0.32, r * Math.sin(a));
-      b.rotation.set(-Math.cos(t * 0.7 + i) * 0.14, -a, -0.24 - Math.cos(t * 0.8 + i) * 0.08);
+
+      const b = bs[i];
+      const heading = Math.atan2(vx[i], vz[i]);
+      b.position.set(px[i], y + climb, pz[i]);
+      b.rotation.set(-Math.cos(t * 0.7 + i) * 0.12, heading, -0.22 - Math.cos(t * 0.8 + i) * 0.07);
+
       for (let c = 0; c < b.children.length; c++) {
         const w = b.children[c];
         const s = w.userData.s as number;
