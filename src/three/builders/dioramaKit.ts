@@ -737,6 +737,55 @@ function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: 
   geo.deleteAttribute('uv');
 }
 
+/**
+ * Derives a surface-feature colour for a given (x, z) position on the rim
+ * top, blending the site's rock and plant palette so the rim reads as an
+ * extension of the terrain rather than a uniform stone slab. Used both for
+ * the top face colour and for carrying the edge colour into the wall band.
+ */
+function rimEdgeColor(
+  x: number,
+  z: number,
+  profile: SiteProfile,
+  tmp: THREE.Color
+): THREE.Color {
+  const [top] = profile.rim;
+  const [rock0, rock1] = profile.rock;
+  const plants = profile.plants;
+  const isCoastalOrWet = profile.biome === 'coastal' || profile.biome === 'wetland';
+  const isWaterfall = profile.biome === 'waterfall';
+
+  // Base: the rim top colour.
+  tmp.set(top);
+
+  // Blend in terrain rock tones at the outer ring so the stone slab reads as
+  // the same geological material as the landscape edge above it.
+  const outerR = Math.max(Math.abs(x), Math.abs(z));
+  const edgeBlend = Math.max(0, (outerR - 5.5) / 2.9); // 0 at centre → 1 at rim lip
+
+  const cRock = new THREE.Color(rock0).lerp(new THREE.Color(rock1), 0.5);
+  tmp.lerp(cRock, edgeBlend * 0.55);
+
+  // Blend in ground-cover green for vegetated biomes.
+  if (plants && plants.length > 0 && !isCoastalOrWet) {
+    const cPlant = new THREE.Color(plants[Math.floor(edgeBlend * (plants.length - 0.001))]);
+    tmp.lerp(cPlant, edgeBlend * 0.28 * (1 - edgeBlend));
+  }
+
+  // Water-biome edge: tint toward shallow water colour so the sea/river appears
+  // to lap right against the cut slab wall.
+  if (isCoastalOrWet) {
+    const cWater = new THREE.Color(profile.biome === 'wetland' ? '#607767' : '#2d7a89');
+    tmp.lerp(cWater, edgeBlend * 0.42);
+  } else if (isWaterfall) {
+    // Waterfall sites: carry a damp, mossy tone to the perimeter.
+    const cDamp = new THREE.Color('#4a7060');
+    tmp.lerp(cDamp, edgeBlend * 0.28);
+  }
+
+  return tmp;
+}
+
 /** Square cutaway block with layered earth walls, used for the estate dioramas. */
 export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   const [top, edge, band, wall] = profile.rim;
@@ -747,6 +796,8 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   const pos = geo.attributes.position;
   const col = geo.attributes.color as THREE.BufferAttribute;
   const cTop = new THREE.Color(top);
+  const cTmp = new THREE.Color();
+  const cEdge = new THREE.Color(edge);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
@@ -767,6 +818,11 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
       const path = Math.exp(-Math.min(Math.abs(x), Math.abs(z)) * 1.7) * 0.055;
       const contact = 1 - 0.2 * Math.max(0, (perimeter - 0.82) / 0.18);
       const tone = (macro + plaza + path) * contact;
+      // Blend a surface-feature colour toward the perimeter so the terrain
+      // edge continues seamlessly onto the top of the rim slab.
+      rimEdgeColor(x, z, profile, cTmp);
+      cTop.set(top);
+      cTop.lerp(cTmp, Math.max(0, (perimeter - 0.3) / 0.7) * 0.72);
       col.setXYZ(
         i,
         Math.min(1, cTop.r * tone),
@@ -780,7 +836,18 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
       if (Math.abs(z) > 8.2) pos.setZ(i, z + Math.sign(z) * step);
       // Contact shade just under the lip where wall meets ground.
       const contact = 1 - 0.18 * Math.max(0, 1 - Math.abs(y + 0.02) / 0.16);
-      col.setXYZ(i, col.getX(i) * contact, col.getY(i) * contact, col.getZ(i) * contact);
+      // Carry the terrain-edge feature colour into the top band of the wall
+      // face (y > -0.14) so rivers, roads and soil seams continue through the
+      // cut rather than stopping dead at the slab edge.
+      if (y > -0.14) {
+        const wallBlend = Math.max(0, 1 - Math.abs(y + 0.07) / 0.07); // peaks at y≈−0.07
+        rimEdgeColor(x, z, profile, cTmp);
+        cEdge.set(edge);
+        cEdge.lerp(cTmp, wallBlend * 0.6);
+        col.setXYZ(i, cEdge.r * contact, cEdge.g * contact, cEdge.b * contact);
+      } else {
+        col.setXYZ(i, col.getX(i) * contact, col.getY(i) * contact, col.getZ(i) * contact);
+      }
     }
   }
   col.needsUpdate = true;
@@ -1131,6 +1198,88 @@ function addStandUnderside(g: THREE.Group, profile: SiteProfile): void {
   g.add(mesh);
 }
 
+/**
+ * Adds thin feature-continuation strips along all four walls of the square
+ * rim block. Each strip is a narrow quad band right at the slab edge (y ≈ 0)
+ * whose vertex colours are sampled from the terrain surface at that edge
+ * position, so rivers, roads, soil seams and vegetation borders read as
+ * continuing through the cut wall instead of stopping dead at the slab face.
+ *
+ * The strips run from just below the slab top (y = 0) down to the contact
+ * depth (~0.4 units) where they dissolve into the standard strata below.
+ * One merged mesh, one draw call, shares the existing rim material.
+ */
+function addRimEdgeContinuity(g: THREE.Group, profile: SiteProfile): void {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const indices: number[] = [];
+  const HALF = 8.4; // rim half-width
+  const BAND_H = 0.38; // height of the continuation band on the wall
+  const TOP_Y = 0.0; // just flush with the slab top
+  const BOT_Y = TOP_Y - BAND_H;
+  const SEG = 20; // segments along each edge
+
+  const cTmp = new THREE.Color();
+  const cBot = new THREE.Color(profile.rim[1]); // edge colour at the bottom of the band
+
+  // Emit one edge of quads. `edgeFn(t)` returns the [x, z] world position on
+  // the slab perimeter at parametric position t ∈ [0,1].
+  const emitEdge = (edgeFn: (t: number) => [number, number], outX: number, outZ: number) => {
+    const base = positions.length / 3;
+    for (let i = 0; i <= SEG; i++) {
+      const t = i / SEG;
+      const [x, z] = edgeFn(t);
+      // Push the wall vertex inward by a hair so it sits behind the rim face.
+      const wx = x + outX * 0.015;
+      const wz = z + outZ * 0.015;
+
+      // Top vertex: colour sampled from the terrain edge feature.
+      rimEdgeColor(x, z, profile, cTmp);
+      positions.push(wx, TOP_Y, wz);
+      colors.push(cTmp.r, cTmp.g, cTmp.b);
+
+      // Bottom vertex: fades toward the strata edge colour so the band
+      // dissolves naturally into the geology below.
+      const fade = cTmp.clone().lerp(cBot, 0.65);
+      positions.push(wx, BOT_Y, wz);
+      colors.push(fade.r, fade.g, fade.b);
+    }
+    for (let i = 0; i < SEG; i++) {
+      const t0 = base + i * 2;
+      const t1 = t0 + 2;
+      const b0 = t0 + 1;
+      const b1 = t1 + 1;
+      // Winding: outward normals (facing away from centre).
+      if (outZ > 0 || outX < 0) {
+        indices.push(t0, b0, t1, t1, b0, b1);
+      } else {
+        indices.push(t0, t1, b0, t1, b1, b0);
+      }
+    }
+  };
+
+  // Front face (z = +HALF, outward = +Z)
+  emitEdge((t) => [-HALF + t * HALF * 2, HALF], 0, 1);
+  // Back face (z = -HALF, outward = -Z)
+  emitEdge((t) => [HALF - t * HALF * 2, -HALF], 0, -1);
+  // Right face (x = +HALF, outward = +X)
+  emitEdge((t) => [HALF, HALF - t * HALF * 2], 1, 0);
+  // Left face (x = -HALF, outward = -X)
+  emitEdge((t) => [-HALF, -HALF + t * HALF * 2], -1, 0);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+
+  const mesh = new THREE.Mesh(geo, getRimMaterial());
+  mesh.receiveShadow = false;
+  mesh.userData.noShadow = true;
+  g.add(mesh);
+}
+
 /** A thin low-poly stream spilling over one edge, biome-calibrated. */
 function addEdgeWaterfall(g: THREE.Group, angle: number, profile: SiteProfile): void {
   const rows = 10;
@@ -1142,8 +1291,13 @@ function addEdgeWaterfall(g: THREE.Group, angle: number, profile: SiteProfile): 
   const colors: number[] = [];
   const indices: number[] = [];
   const isWetland = profile.biome === 'wetland';
-  const cTop = new THREE.Color(isWetland ? '#98aa9e' : '#bad8e0');
-  const cBottom = new THREE.Color(isWetland ? '#485f54' : '#21627b');
+  const isWaterfall = profile.biome === 'waterfall';
+  const cTop = new THREE.Color(
+    isWetland ? '#98aa9e' : isWaterfall ? '#a8d4c0' : '#bad8e0'
+  );
+  const cBottom = new THREE.Color(
+    isWetland ? '#485f54' : isWaterfall ? '#2e6b52' : '#21627b'
+  );
   const tmp = new THREE.Color();
 
   for (let r = 0; r <= rows; r++) {
@@ -1188,14 +1342,19 @@ function addEdgeWaterfall(g: THREE.Group, angle: number, profile: SiteProfile): 
   g.add(mesh);
 }
 
-/** Fill the corners of the square block with sea so coastal/wetland scenes read as water-filled cuts. */
+/** Fill the corners of the square block with sea so coastal/wetland/waterfall scenes read as water-filled cuts. */
 function addSquareWaterPlate(g: THREE.Group, profile: SiteProfile): void {
   const geo = new THREE.PlaneGeometry(16.2, 16.2, 32, 32).rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
   const cols = new Float32Array(pos.count * 3);
   const isWetland = profile.biome === 'wetland';
-  const deep = new THREE.Color(isWetland ? '#3e5449' : '#16526d');
-  const shallow = new THREE.Color(isWetland ? '#607767' : '#2d7a89');
+  const isWaterfall = profile.biome === 'waterfall';
+  const deep = new THREE.Color(
+    isWetland ? '#3e5449' : isWaterfall ? '#2a5540' : '#16526d'
+  );
+  const shallow = new THREE.Color(
+    isWetland ? '#607767' : isWaterfall ? '#4a8060' : '#2d7a89'
+  );
   const tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -3762,7 +3921,8 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
 
   addCraftedRim(group, profile);
   addStandUnderside(group, profile);
-  if (profile.biome === 'coastal' || profile.biome === 'wetland') {
+  addRimEdgeContinuity(group, profile);
+  if (profile.biome === 'coastal' || profile.biome === 'wetland' || profile.biome === 'waterfall') {
     addSquareWaterPlate(group, profile);
     addEdgeWaterfall(group, angle, profile);
   }
@@ -3823,6 +3983,10 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
  * batching, contact-shadow stamping, the animated-shadow flag and the site
  * metadata the engine reads when swapping landmarks. No rim, scatter, ring,
  * anchor prop, weather, wildlife, birds or hidden detail is added.
+ *
+ * Stand continuity (rim block, underside, edge feature strips, water plate)
+ * is applied here so every landmark — including the three pilot-plinth sites —
+ * gets seamless terrain-to-stand integration.
  */
 export function finalizeLandmarkGroup(key: string, group: THREE.Group): THREE.Group {
   finalizeTreeBatch(group);
@@ -3831,6 +3995,27 @@ export function finalizeLandmarkGroup(key: string, group: THREE.Group): THREE.Gr
 
   const profileKey = normalizeProfileKey(key);
   const profile = getSiteProfile(profileKey);
+
+  // --- Stand continuity kit -------------------------------------------
+  // Pilot-plinth landmarks (Kruger, Boulders, Orlando) already have their own
+  // geological terrain slab built by buildPilotPlinth / attachPilotPlinthToGroup,
+  // so we skip adding a second rim block on top. All other landmarks get the
+  // full diorama rim + underside. Every landmark — pilot or not — gets the
+  // feature-continuation strips and water features, since those are always
+  // additive and complementary to whatever slab is present.
+  const hasPilotPlinth = Boolean(group.userData.plinthOutlineGeo);
+  const angle = keyAngle(profileKey) + 0.6;
+
+  if (!hasPilotPlinth) {
+    addCraftedRim(group, profile);
+    addStandUnderside(group, profile);
+  }
+  addRimEdgeContinuity(group, profile);
+  if (profile.biome === 'coastal' || profile.biome === 'wetland' || profile.biome === 'waterfall') {
+    addSquareWaterPlate(group, profile);
+    addEdgeWaterfall(group, angle, profile);
+  }
+  // --------------------------------------------------------------------
 
   // Creature life is part of the live build path (the context kit is not).
   const creatures = addCreatureLife(group, key, profile.biome);

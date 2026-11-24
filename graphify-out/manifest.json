@@ -229,9 +229,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
-    "mtime": 1795476596.8634589,
-    "seen": 1795507801.654759,
-    "ast_hash": "63b4d6b0fd11584c6b0f4e0c920c2063",
+    "mtime": 1795525966.7815578,
+    "seen": 1795526003.656259,
+    "ast_hash": "fbb560b81a67de0e9fc6434892fb96af",
     "semantic_hash": ""
   },
   "src/three/builders/landmarksA.ts": {
@@ -6535,9 +6535,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/plinthKit.ts": {
-    "mtime": 1795516329.1827343,
-    "seen": 1795516846.1618333,
-    "ast_hash": "33ad501698716ab1abd3583b2d842bf6",
+    "mtime": 1795525285.2407026,
+    "seen": 1795525374.4156132,
+    "ast_hash": "2c429c55fccdcba6da18c6629a54bb8e",
     "semantic_hash": ""
   },
   "src/three/creatures/effects.ts": {

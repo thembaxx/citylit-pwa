@@ -846,17 +846,32 @@ export function buildPilotPlinth(
       const z = zs[kCurr];
       const topY = hs[kCurr];
 
-      // Bottom vertex
+      // Bottom vertex: deep basement rock tone.
       pos.push(x, baseY, z);
       norm.push(nx, 0, nz);
       col.push(cWallBase.r, cWallBase.g, cWallBase.b);
       topYAttr.push(topY);
       isWallAttr.push(1);
 
-      // Top vertex (matches terrain perimeter exact vertex coords)
+      // Top vertex: carry the terrain surface colour to the top of the cut
+      // wall so rivers, roads, soil seams and vegetation borders read as
+      // continuing through the geological section face.
+      const cSurface = new THREE.Color();
+      const kL = edgeIndices[Math.max(0, i - 1)];
+      const kR = edgeIndices[Math.min(nPts - 1, i + 1)];
+      const dxSpan = Math.max(1e-4, xs[kR] - xs[kL]);
+      const dzSpan = Math.max(1e-4, zs[kR] - zs[kL]);
+      const dx = (hs[kR] - hs[kL]) / dxSpan;
+      const dz = (hs[kR] - hs[kL]) / dzSpan;
+      const nLen = Math.hypot(dx, 1, dz) || 1;
+      const slope = 1 - (1 / nLen);
+      topColorAt(x, z, topY, slope, cSurface);
+      // Blend: surface colour at the very top, fading into the mid-rock tone
+      // over the upper quarter of the wall so the transition stays geological.
+      const wallTopBlend = cSurface.clone().lerp(cWallMid, 0.38);
       pos.push(x, topY, z);
       norm.push(nx, 0, nz);
-      col.push(cWallMid.r, cWallMid.g, cWallMid.b);
+      col.push(wallTopBlend.r, wallTopBlend.g, wallTopBlend.b);
       topYAttr.push(topY);
       isWallAttr.push(1);
     }
@@ -938,8 +953,32 @@ export function buildPilotPlinth(
   skirtGeo.computeVertexNormals();
   skirtGeo.computeBoundingSphere();
 
+  // Per-vertex colours: blend the terrain's ground surface tone into the skirt
+  // top (at baseY) and fade to the museum skirt colour at the bottom (botY),
+  // so the plinth pedestal reads as growing organically from the cut slab above.
+  const skirtVertCount = skirtPos.length / 3;
+  const skirtColArr = new Float32Array(skirtVertCount * 3);
+  const cSkirtBase = new THREE.Color(spec.strata.skirtColor);
+  const cGroundBlend = new THREE.Color(spec.strata.groundBase)
+    .lerp(new THREE.Color(spec.strata.upperRock), 0.45);
+  const skirtSpan = Math.max(0.001, baseY - botY);
+  for (let vi = 0; vi < skirtVertCount; vi++) {
+    const vy = skirtPos[vi * 3 + 1];
+    // t = 0 at the top of the skirt (baseY), t = 1 at the base (botY).
+    const t = Math.min(1, Math.max(0, (baseY - vy) / skirtSpan));
+    const c = cGroundBlend.clone().lerp(cSkirtBase, Math.pow(t, 0.65));
+    // Subtle horizontal grain variation so the skirt doesn't read as flat.
+    const vx = skirtPos[vi * 3];
+    const vz = skirtPos[vi * 3 + 2];
+    const grain = 1 + 0.04 * Math.sin(vx * 3.7 + vz * 2.9) + 0.025 * Math.sin(vz * 7.1 - vx * 4.3);
+    skirtColArr[vi * 3]     = Math.min(1, c.r * grain);
+    skirtColArr[vi * 3 + 1] = Math.min(1, c.g * grain);
+    skirtColArr[vi * 3 + 2] = Math.min(1, c.b * grain);
+  }
+  skirtGeo.setAttribute('color', new THREE.Float32BufferAttribute(skirtColArr, 3));
+
   const skirtMat = new THREE.MeshStandardMaterial({
-    color: spec.strata.skirtColor,
+    vertexColors: true,
     roughness: 0.56,
     metalness: 0.34,
   });
