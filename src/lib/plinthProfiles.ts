@@ -1,7 +1,13 @@
 import type { LandmarkBiome } from '../types/citylit';
-import { clamp, PLINTH_INNER_HALF_EXTENT } from './fitMath.ts';
+import { clamp } from './fitMath.ts';
+import {
+  getStandOutlinePoints,
+  mapStandDomain,
+  STAND_DETAIL_HALF,
+  type StandSilhouette,
+} from './standFootprint.ts';
 
-export type PlinthSilhouette = 'square' | 'coastal-cut' | 'terrace' | 'hex-chamfer';
+export type PlinthSilhouette = StandSilhouette;
 
 export type UndergroundStoryKind = 'burrows' | 'termites' | 'conduit' | 'roots';
 
@@ -120,85 +126,19 @@ export function formatDmsCoords(lat: number, lon: number): string {
 
 /**
  * Maps normalized square domain `(u, v) in [-1, 1]^2` onto the landmark's
- * plinth footprint `(x, z)` cleanly inside `PLINTH_INNER_HALF_EXTENT`.
- * Because the map is continuous and exact along `(u = ±1)` and `(v = ±1)`,
- * terrain top, geological strata walls, glass water cutaway walls, and the
- * pedestal rim all share the exact perimeter with zero seams.
+ * plinth footprint `(x, z)`.
+ *
+ * The maths lives in `standFootprint.ts` so the stand, the pilot silhouettes
+ * and the fit bounds all agree on one footprint; this alias keeps the
+ * existing call sites readable.
  */
-export function mapDomainToPlinth(
-  u: number,
-  v: number,
-  silhouette: PlinthSilhouette,
-  half: number
-): [number, number] {
-  const safeHalf = Math.min(half, PLINTH_INNER_HALF_EXTENT - 0.32);
-  if (silhouette === 'square') {
-    return [u * safeHalf, v * safeHalf];
-  }
-
-  const au = Math.abs(u);
-  const av = Math.abs(v);
-  const cheb = Math.max(au, av);
-
-  if (silhouette === 'hex-chamfer') {
-    // Bold chamfered octagonal footprint retaining flat front/back faces for nameplate
-    const cornerCut = Math.max(0, au + av - 1.56);
-    const shrink = 1 - cornerCut * 0.24;
-    return [u * safeHalf * shrink, v * safeHalf * shrink];
-  }
-
-  if (silhouette === 'terrace') {
-    // Gently bevelled architectural square with subtle organic earth trim
-    const cornerCut = Math.max(0, au + av - 1.72);
-    const shrink = 1 - cornerCut * 0.16;
-    const micro =
-      cheb > 0.88
-        ? Math.sin(u * 5.2 + v * 3.7) * 0.055 * smoothstep(0.88, 1.0, cheb)
-        : 0;
-    return [u * safeHalf * shrink + micro * Math.sign(u || 1), v * safeHalf * shrink];
-  }
-
-  // 'coastal-cut': gently rounded headland corners on the granite west/north
-  // flanks and a crisp False Bay bay-slice chamfer along the ocean edge.
-  const cornerCut = Math.max(0, au + av - 1.66);
-  let shrink = 1 - cornerCut * 0.19;
-  if (u > 0.2 && v > 0.15) {
-    // Subtle seaward curve on the False Bay aquarium edge
-    const bayT = smoothstep(0.2, 1.0, Math.max(u, v));
-    shrink -= 0.032 * bayT * Math.sin(clamp((u + v) * 0.9, 0, Math.PI));
-  }
-  return [u * safeHalf * shrink, v * safeHalf * shrink];
-}
+export const mapDomainToPlinth = mapStandDomain;
 
 /**
  * Generates an ordered closed polygon along the outer boundary of a plinth
- * silhouette (for building matching engine pedestal rings & bevel collars).
+ * silhouette (for building matching engine pedestal plates & bevel collars).
  */
-export function getPlinthOutlinePoints(
-  silhouette: PlinthSilhouette,
-  half: number,
-  segmentsPerEdge = 14
-): Array<[number, number]> {
-  const pts: Array<[number, number]> = [];
-  const step = Math.max(2, segmentsPerEdge);
-  // Bottom edge (v = +1, u: -1 -> +1)
-  for (let i = 0; i < step; i++) {
-    pts.push(mapDomainToPlinth(-1 + (2 * i) / step, 1, silhouette, half));
-  }
-  // Right edge (u = +1, v: +1 -> -1)
-  for (let i = 0; i < step; i++) {
-    pts.push(mapDomainToPlinth(1, 1 - (2 * i) / step, silhouette, half));
-  }
-  // Top edge (v = -1, u: +1 -> -1)
-  for (let i = 0; i < step; i++) {
-    pts.push(mapDomainToPlinth(1 - (2 * i) / step, -1, silhouette, half));
-  }
-  // Left edge (u = -1, v: -1 -> +1)
-  for (let i = 0; i < step; i++) {
-    pts.push(mapDomainToPlinth(-1, -1 + (2 * i) / step, silhouette, half));
-  }
-  return pts;
-}
+export const getPlinthOutlinePoints = getStandOutlinePoints;
 
 /**
  * Boulders Beach terrain relief:
@@ -304,7 +244,7 @@ export const PILOT_PLINTH_SPECS: Record<string, PlinthSiteSpec> = {
   'Boulders Beach': {
     key: 'Boulders Beach',
     silhouette: 'coastal-cut',
-    halfExtent: 7.72,
+    halfExtent: STAND_DETAIL_HALF,
     baseY: -1.25,
     skirtBottomY: -1.44,
     story: 'burrows',
@@ -339,7 +279,7 @@ export const PILOT_PLINTH_SPECS: Record<string, PlinthSiteSpec> = {
   'Kruger National Park': {
     key: 'Kruger National Park',
     silhouette: 'terrace',
-    halfExtent: 7.72,
+    halfExtent: STAND_DETAIL_HALF,
     baseY: -1.25,
     skirtBottomY: -1.44,
     story: 'termites',
@@ -363,7 +303,7 @@ export const PILOT_PLINTH_SPECS: Record<string, PlinthSiteSpec> = {
   'Orlando Towers': {
     key: 'Orlando Towers',
     silhouette: 'hex-chamfer',
-    halfExtent: 7.72,
+    halfExtent: STAND_DETAIL_HALF,
     baseY: -1.25,
     skirtBottomY: -1.44,
     story: 'conduit',

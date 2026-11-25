@@ -30,10 +30,18 @@ import type {
   WeatherMoment,
 } from '../types/citylit';
 import {
-  boundsFitPlinth,
-  fitBoundsToPlinth,
-  PLINTH_HALF_EXTENT,
+  boundsFitStand,
+  fitBoundsToStand,
 } from '../lib/fitMath';
+import {
+  defaultStandPolygon,
+  insetStandPolygon,
+  STAND_BLOCK_HALF,
+  STAND_HALF,
+  STAND_MARGIN,
+  type StandPolygon,
+} from '../lib/standFootprint';
+import { auditStandContainment, type StandAudit } from './standAudit';
 import {
   computeFoliageSwayAngle,
   computeFoliageWindStrength,
@@ -819,18 +827,46 @@ export class CitylitEngine {
       side: THREE.DoubleSide,
     });
     this.ringMat.userData.i = 0.6;
-    // Solid square stand: the whole footprint is filled, so the diorama sits
-    // on an opaque square base instead of inside a thin translucent frame.
-    const rimShape = new THREE.Shape();
-    rimShape.moveTo(-PLINTH_HALF_EXTENT, -PLINTH_HALF_EXTENT);
-    rimShape.lineTo(PLINTH_HALF_EXTENT, -PLINTH_HALF_EXTENT);
-    rimShape.lineTo(PLINTH_HALF_EXTENT, PLINTH_HALF_EXTENT);
-    rimShape.lineTo(-PLINTH_HALF_EXTENT, PLINTH_HALF_EXTENT);
-    rimShape.closePath();
-    this.defaultPlinthRingGeo = new THREE.ShapeGeometry(rimShape).rotateX(-Math.PI / 2);
+    // The stand's trim: a thin glowing line around the cut block's top edge.
+    // The block itself carries the painted terrain lip, so the stand must not
+    // cover it with a flat plate.
+    const trimOuter = STAND_BLOCK_HALF;
+    const trimInner = STAND_BLOCK_HALF - 0.07;
+    const trimY = 0.002;
+    const trimOuterPts: Array<[number, number]> = [
+      [-trimOuter, -trimOuter],
+      [trimOuter, -trimOuter],
+      [trimOuter, trimOuter],
+      [-trimOuter, trimOuter],
+    ];
+    const trimInnerPts: Array<[number, number]> = [
+      [-trimInner, -trimInner],
+      [trimInner, -trimInner],
+      [trimInner, trimInner],
+      [-trimInner, trimInner],
+    ];
+    const trimPos: number[] = [];
+    const trimIdx: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      const base = trimPos.length / 3;
+      trimPos.push(
+        trimOuterPts[i][0], trimY, trimOuterPts[i][1],
+        trimOuterPts[j][0], trimY, trimOuterPts[j][1],
+        trimInnerPts[i][0], trimY, trimInnerPts[i][1],
+        trimInnerPts[j][0], trimY, trimInnerPts[j][1]
+      );
+      trimIdx.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+    }
+    const trimGeo = new THREE.BufferGeometry();
+    trimGeo.setAttribute('position', new THREE.Float32BufferAttribute(trimPos, 3));
+    trimGeo.setIndex(trimIdx);
+    trimGeo.computeVertexNormals();
+    trimGeo.computeBoundingSphere();
+    this.defaultPlinthRingGeo = trimGeo;
     this.defaultPlinthRingGeo.userData.sharedResource = true;
     this.plinthRing = new THREE.Mesh(this.defaultPlinthRingGeo, this.ringMat);
-    this.plinthRing.position.y = 0.01;
+    this.plinthRing.position.y = 0;
     this.plinthGroup.add(this.plinthRing);
 
     this.studioShadow = new THREE.Mesh(
@@ -2068,10 +2104,77 @@ export class CitylitEngine {
   }
 
   /**
+   * The stand's own outer boundary for a landmark group: the pilot plinth's
+   * silhouette when the site has one, otherwise the engine's square plate.
+   */
+  private standPolygonFor(group: THREE.Group): StandPolygon {
+    const outline = group.userData.standOutline as
+      | ReadonlyArray<readonly [number, number]>
+      | undefined;
+    if (outline && outline.length >= 3) return outline;
+    return defaultStandPolygon(STAND_HALF);
+  }
+
+  /**
+   * Re-anchors the stand geometry after a fit changed the group's transform.
+   *
+   * The stand is the container, so it must keep the size it was built at: a
+   * content fit that scales the group would otherwise shrink the cut block
+   * away from the engine's stand plate and open a seam around the diorama.
+   */
+  private restoreStandTransform(
+    group: THREE.Group,
+    scale: number,
+    baseScale: number,
+    baseX: number,
+    baseZ: number,
+    posX: number,
+    posZ: number
+  ): void {
+    if (scale === 0 || !Number.isFinite(scale)) return;
+    const inv = baseScale / scale;
+    const ox = (baseX - posX) * inv;
+    const oz = (baseZ - posZ) * inv;
+    const cached = group.userData.standRoots as THREE.Object3D[] | undefined;
+    let roots: THREE.Object3D[];
+    if (cached) {
+      roots = cached;
+    } else {
+      roots = [];
+      group.traverse((obj) => {
+        if (!obj.userData.standGeometry) return;
+        // Nested stand parts inherit their parent's correction.
+        if (obj.parent && obj.parent.userData.standGeometry) return;
+        roots.push(obj);
+      });
+      group.userData.standRoots = roots;
+    }
+    for (const obj of roots) {
+      const authored = (obj.userData.standAuthored as
+        | { s: number; px: number; py: number; pz: number }
+        | undefined) ?? {
+        s: obj.scale.x,
+        px: obj.position.x,
+        py: obj.position.y,
+        pz: obj.position.z,
+      };
+      obj.userData.standAuthored = authored;
+      obj.scale.setScalar(authored.s * inv);
+      obj.position.set(authored.px * inv + ox, authored.py, authored.pz * inv + oz);
+    }
+  }
+
+  /**
    * Scale and centre a freshly built diorama onto the plinth using the same
    * pure fit maths the audit uses. Applied at build time so cached, prewarmed
    * and freshly built groups all share the transform before anchors, markers,
    * cutaway entries, shadow bounds and camera framing are collected.
+   *
+   * The fit is silhouette-aware: a pilot plinth's chamfered corners are part
+   * of its boundary, so content is fitted to the stand's real footprint
+   * rather than to a square that would let it spill over a corner. The stand
+   * geometry itself is excluded from the measurement and re-anchored
+   * afterwards, so the cut block always keeps the size it was built at.
    */
   private fitGroupToPlinth(group: THREE.Group): void {
     // Re-runnable: restore the builder's transform first so repeated fits
@@ -2083,41 +2186,79 @@ export class CitylitEngine {
       authored = { sx: group.scale.x, x: group.position.x, z: group.position.z };
       group.userData.plinthAuthored = authored;
     }
-    let fit: ReturnType<typeof fitBoundsToPlinth> | null = null;
+    const standPolygon = insetStandPolygon(this.standPolygonFor(group), STAND_MARGIN);
+    let fit: ReturnType<typeof fitBoundsToStand> | null = null;
     let fits = false;
     // The first bounds query after a transform restore can see stale child
     // matrices (e.g. a bridge deck revealed by LOD selection). Re-measure from
     // the authored transform until the verified footprint is actually inside
-    // the rim; three passes is ample for the layouts in this app.
+    // the stand; three passes is ample for the layouts in this app.
     for (let pass = 0; pass < 3; pass++) {
       group.scale.setScalar(authored.sx);
       // Preserve any authored Y placement; only centre the X/Z footprint.
       group.position.x = authored.x;
       group.position.z = authored.z;
-      const box = this.computeDioramaBounds(group, true);
+      this.restoreStandTransform(group, authored.sx, authored.sx, authored.x, authored.z, authored.x, authored.z);
+      const box = this.computeDioramaBounds(group, true, true);
       if (box.isEmpty()) return;
-      fit = fitBoundsToPlinth({
-        minX: box.min.x,
-        maxX: box.max.x,
-        minZ: box.min.z,
-        maxZ: box.max.z,
-      });
+      fit = fitBoundsToStand(
+        {
+          minX: box.min.x,
+          maxX: box.max.x,
+          minZ: box.min.z,
+          maxZ: box.max.z,
+        },
+        standPolygon
+      );
       group.scale.setScalar(authored.sx * fit.scale);
       group.position.x = authored.x + fit.offsetX;
       group.position.z = authored.z + fit.offsetZ;
-      const fittedBox = this.computeDioramaBounds(group, true);
-      fits = boundsFitPlinth({
-        minX: fittedBox.min.x,
-        maxX: fittedBox.max.x,
-        minZ: fittedBox.min.z,
-        maxZ: fittedBox.max.z,
-      });
+      this.restoreStandTransform(
+        group,
+        authored.sx * fit.scale,
+        authored.sx,
+        authored.x,
+        authored.z,
+        authored.x + fit.offsetX,
+        authored.z + fit.offsetZ
+      );
+      const fittedBox = this.computeDioramaBounds(group, true, true);
+      fits = boundsFitStand(
+        {
+          minX: fittedBox.min.x,
+          maxX: fittedBox.max.x,
+          minZ: fittedBox.min.z,
+          maxZ: fittedBox.max.z,
+        },
+        standPolygon
+      );
       if (fits) break;
     }
     if (!fit) return;
     group.userData.plinthFit = fit;
     group.userData.needsPlinthScale = fit.scale < 0.999;
     group.userData.fitsPlinth = fits;
+    group.userData.standPolygon = standPolygon;
+    if (this.standAuditEnabled) {
+      const audit = auditStandContainment(group, standPolygon, {
+        maxVertexSamples: 256,
+      });
+      group.userData.standAudit = audit;
+      if (!audit.ok) {
+        console.warn(
+          `[citylit] stand overflow: ${audit.worst.toFixed(3)} outside the stand —`,
+          audit.offenders.map((o) => `${o.label} (+${o.overflow.toFixed(3)})`).join(', ')
+        );
+      }
+    }
+  }
+
+  /** Dev-only: run the stand containment audit on every built landmark. */
+  standAuditEnabled = false;
+
+  /** Dev-only: the last containment audit for the mounted landmark. */
+  get standAudit(): StandAudit | undefined {
+    return this.currentGroup?.userData.standAudit as StandAudit | undefined;
   }
 
   private buildLandmarkGroup(index: number): THREE.Group {
@@ -2563,13 +2704,14 @@ export class CitylitEngine {
     this.updateNighttimeEmissives(0, true);
     this.collectCoastalWaterSurfaces(this.currentGroup);
     this.updateCoastalTide(0, true);
-    const customOutlineGeo = this.currentGroup.userData.plinthOutlineGeo as
+    const customTrimGeo = this.currentGroup.userData.plinthTrimGeo as
       | THREE.BufferGeometry
       | undefined;
-    const customOutlineY = this.currentGroup.userData.plinthOutlineY as number | undefined;
-    this.plinthRing.geometry = customOutlineGeo ?? this.defaultPlinthRingGeo;
-    this.plinthRing.position.y =
-      typeof customOutlineY === 'number' ? customOutlineY : 0.01;
+    const customTrimY = this.currentGroup.userData.plinthTrimY as number | undefined;
+    this.plinthRing.geometry = customTrimGeo ?? this.defaultPlinthRingGeo;
+    // A pilot plinth lights its own silhouette edge; every other site uses the
+    // glow around the cut block.
+    this.plinthRing.position.y = typeof customTrimY === 'number' ? customTrimY : 0;
     const birdPerches = collectBirdPerchPoints(this.currentGroup);
     this.daylightBirds.setSite(LANDMARKS[index].biome, birdPerches, true);
     this.updateDaylightBirds(0, true);
@@ -4194,17 +4336,30 @@ export class CitylitEngine {
    * Solid geometry only: floating FX clouds, birds, sprites and invisible
    * helpers would otherwise inflate the box and make every site look tiny.
    */
-  private computeDioramaBounds(group: THREE.Group, includeHiddenLods = false): THREE.Box3 {
+  private computeDioramaBounds(
+    group: THREE.Group,
+    includeHiddenLods = false,
+    excludeStand = false
+  ): THREE.Box3 {
     const box = new THREE.Box3();
     const objBox = new THREE.Box3();
     group.updateWorldMatrix(true, true);
     group.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return;
-      if (obj.userData.noShadow || obj.userData.cannotReceiveAO || obj.userData.noDissolve) return;
+      // Content that opts into the fit is measured even when it casts no
+      // shadow (sea plates, edge waterfalls), so it cannot drift outside the
+      // stand while the rest of the diorama is centred.
+      const counted = obj.userData.fitToStand === true;
+      if ((obj.userData.noShadow && !counted) || obj.userData.cannotReceiveAO || obj.userData.noDissolve) {
+        return;
+      }
       let node: THREE.Object3D | null = obj;
       let insideLod = false;
       while (node) {
         if (node instanceof THREE.LOD) insideLod = true;
+        // The stand is the container, not the content: measuring it as content
+        // would shrink the cut block along with whatever it holds.
+        if (excludeStand && node.userData.standGeometry) return;
         // Fit-to-stand must see the union of every LOD level: a level that is
         // hidden now can become visible on zoom and overflow the plinth.
         if (!node.visible && !(includeHiddenLods && insideLod)) return;

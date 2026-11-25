@@ -2181,30 +2181,92 @@ export function soccer(): THREE.Group {
 
 export function rondavels(): THREE.Group {
   const g = new THREE.Group();
-  const cm = MT('#eef3f7', 0.58, 0.98, 0, false);
+
+  // The estate terrain sheet matches every other landmark, so the canyon lands
+  // on the stand's top plate instead of floating over it.
+  const TERRAIN_HALF = 8.1;
+  // The canyon bed rests just above the stand plate; everything above it is
+  // escarpment.
+  const FLOOR = 0.12;
+  // Where the outer band settles onto the stand's lip.
+  const EDGE_Y = 0.03;
 
   // Continuous displaced Blyde Canyon escarpment terrain sloping down into the jade Blyde Dam
-  const terrain = new THREE.PlaneGeometry(15.2, 15.2, 56, 56).rotateX(-Math.PI / 2);
-  const tp = terrain.attributes.position;
-  const hAt = (x: number, z: number) => {
-    const ridge = Math.max(0, Math.min(1, (x + 2.2) / 5.4));
-    const shelf = Math.pow(ridge, 1.35) * 3.1;
-    const canyon = Math.exp(-Math.pow((x + 3.4) / 2.6, 2)) * 1.1;
-    const und = 0.22 * Math.sin(x * 0.7 + z * 0.5) + 0.14 * Math.cos(x * 1.3 - z * 0.9);
-    return Math.max(-1.65, -1.2 + shelf - canyon + und * 0.7);
+  const terrain = new THREE.PlaneGeometry(
+    TERRAIN_HALF * 2,
+    TERRAIN_HALF * 2,
+    56,
+    56
+  ).rotateX(-Math.PI / 2);
+
+  // River centreline, sampled once so the terrain can cut its channel. It runs
+  // the length of the canyon and stops on the terrain edge, so the water never
+  // reaches past the stand.
+  const riverPts: Array<[number, number]> = [
+    [-4.65, -7.1],
+    [-4.25, -6.1],
+    [-3.15, -3.0],
+    [-3.85, 0.6],
+    [-2.85, 4.1],
+    [-3.55, 6.2],
+    [-4.05, 7.1],
+  ];
+  const river = new THREE.CatmullRomCurve3(
+    riverPts.map(([x, z]) => new THREE.Vector3(x, 0, z))
+  );
+  const riverPath = river.getPoints(110);
+  const channelDist = (x: number, z: number): number => {
+    let best = Infinity;
+    for (const p of riverPath) {
+      const dx = x - p.x;
+      const dz = z - p.z;
+      const d = dx * dx + dz * dz;
+      if (d < best) best = d;
+    }
+    return Math.sqrt(best);
   };
+
+  const hAt = (x: number, z: number) => {
+    // The eastern plateau climbs out of the gorge in a series of shoulders.
+    const ridge = Math.max(0, Math.min(1, (x + 2.4) / 5.6));
+    const shelf = Math.pow(ridge, 1.4) * 3.15;
+    // The gorge: a wide cleft around x ≈ -3.6 that holds the river.
+    const gorge = Math.exp(-Math.pow((x + 3.6) / 2.5, 2));
+    const und =
+      0.22 * Math.sin(x * 0.7 + z * 0.5) + 0.14 * Math.cos(x * 1.3 - z * 0.9);
+    // The land rises from the bed; inside the gorge it stays down at the floor.
+    let y = FLOOR + (shelf + und * 0.62) * (1 - gorge * 0.85);
+    // Cut the river bed: flat along the centreline, easing up into the banks, so
+    // the water sits in a gully rather than floating on a shelf.
+    const d = channelDist(x, z);
+    if (d < 3.3) y = FLOOR + (y - FLOOR) * THREE.MathUtils.smoothstep(d, 1.05, 3.3);
+    // Settle the outer band onto the plinth plate. Without this the displaced
+    // sheet ends in mid-air, a paper edge floating over the stand.
+    const rim = THREE.MathUtils.smoothstep(
+      Math.max(Math.abs(x), Math.abs(z)),
+      6.5,
+      TERRAIN_HALF - 0.06
+    );
+    // The terrain may never dip below the stand's top plate, or the sheet
+    // would sink into the block it is supposed to sit on.
+    return Math.max(EDGE_Y, EDGE_Y + (y - EDGE_Y) * (1 - rim));
+  };
+  const tp = terrain.attributes.position;
   for (let i = 0; i < tp.count; i++) {
-    const x = tp.getX(i);
-    const z = tp.getZ(i);
-    tp.setY(i, hAt(x, z));
+    tp.setY(i, hAt(tp.getX(i), tp.getZ(i)));
   }
-  const cFloor = new THREE.Color('#3e5a38');
-  const cMid = new THREE.Color('#667746');
+  const cFloor = new THREE.Color('#3f5b39');
+  const cMid = new THREE.Color('#6b7a46');
   const cCliff = new THREE.Color('#8e6447');
+  const cWet = new THREE.Color('#43604f');
   tint(terrain, (k, x, y, z) => {
     const steep = Math.abs(hAt(x + 0.25, z) - hAt(x - 0.25, z));
-    k.copy(cFloor).lerp(cMid, THREE.MathUtils.clamp((y + 1.2) / 2.8, 0, 1));
-    if (steep > 0.22 && y > -0.8) k.lerp(cCliff, THREE.MathUtils.clamp((steep - 0.22) * 2.2, 0, 0.75));
+    k.copy(cFloor).lerp(cMid, THREE.MathUtils.clamp((y - FLOOR) / 2.6, 0, 1));
+    if (steep > 0.16) k.lerp(cCliff, THREE.MathUtils.clamp((steep - 0.16) * 2.4, 0, 0.7));
+    // Damp margin along the channel, so the water sits in wet ground instead of
+    // being cut out of dry lawn.
+    const dch = channelDist(x, z);
+    if (dch < 2.2) k.lerp(cWet, (1 - dch / 2.2) * 0.55);
   });
   weatherVertexColors(terrain, { ao: 0.28, exposure: 0.12, grain: 0.06 });
   const terrMat = new THREE.MeshStandardMaterial({
@@ -2215,17 +2277,20 @@ export function rondavels(): THREE.Group {
   terrMat.userData.naturalSurface = true;
   add(g, terrain, terrMat);
 
-  // Winding jade Blyde Dam water plane nestled inside the western canyon floor
-  const river = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-4.2, -1.05, -7.1),
-    new THREE.Vector3(-3.0, -1.05, -3.2),
-    new THREE.Vector3(-3.8, -1.05, 0.4),
-    new THREE.Vector3(-2.8, -1.05, 4.0),
-    new THREE.Vector3(-3.6, -1.05, 7.1),
-  ]);
-  const rGeo = new THREE.TubeGeometry(river, 64, 1.55, 10, false);
-  rGeo.scale(1, 0.1, 1);
-  add(g, rGeo, MWater('#426d68', 0.09, 0.25), 0, -0.96, 0);
+  // Winding jade Blyde Dam water plane lying in the carved bed. Squashing the
+  // tube's Y also flattens any curve height, so the curve stays at y=0 and the
+  // mesh is lifted to the bed instead.
+  const rGeo = new THREE.TubeGeometry(river, 72, 1.05, 12, false);
+  rGeo.scale(1, 0.09, 1);
+  // Ease the surface down onto the stand's lip over the last stretch, so the
+  // riverbed meets the cut edge of the diorama instead of ending in mid-air.
+  const rp = rGeo.attributes.position;
+  for (let i = 0; i < rp.count; i++) {
+    const t = THREE.MathUtils.smoothstep(Math.abs(rp.getZ(i)), 5.0, 7.1);
+    const y = rp.getY(i);
+    rp.setY(i, y * (1 - 0.35 * t) + (EDGE_Y - 0.03 - FLOOR) * t);
+  }
+  add(g, rGeo, MWater('#3f7d74', 0.09, 0.25), 0, FLOOR, 0);
 
   // Three asymmetric horizontally-banded quartzite Rondavel drum peaks + flat-topped Mapjaneng
   const crest = new THREE.Group();
@@ -2238,7 +2303,7 @@ export function rondavels(): THREE.Group {
     [2.05, 2.2, 2.85, 0.92],
   ].forEach(([x, z, h, r], idx) => {
     const baseY = hAt(x, z) - 0.18;
-    rock(g, r * 0.78, r * 1.18, h, x, z, '#a56e4b', '#c0a37b', 0.11, baseY);
+    rock(g, r * 0.78, r * 1.18, h, x, z, '#96805f', '#cbbb95', 0.11, baseY);
     const dome = add(crest, capGeo, helmetMat, x, baseY + h - 0.06, z);
     dome.scale.set(r * 0.96, r * (0.44 + idx * 0.04), r * 0.96);
     const hutTip = add(crest, new THREE.ConeGeometry(r * 0.18, 0.56, 10), helmetMat, x, baseY + h + 0.18, z);
@@ -2246,7 +2311,7 @@ export function rondavels(): THREE.Group {
   });
   // Mapjaneng, the broad flat-topped chief peak
   const mapBase = hAt(-0.15, 0.15) - 0.18;
-  rock(g, 1.18, 1.56, 2.75, -0.15, 0.15, '#a56e4b', '#c0a37b', 0.09, mapBase);
+  rock(g, 1.18, 1.56, 2.75, -0.15, 0.15, '#96805f', '#cbbb95', 0.09, mapBase);
   add(crest, C(1.14, 1.16, 0.12, 32), helmetMat, -0.15, mapBase + 2.74, 0.15);
   mergeByMaterial(crest);
 
@@ -2270,30 +2335,42 @@ export function rondavels(): THREE.Group {
   });
   g.add(mergeByMaterial(troop));
 
-  // Canyon floor mist & soaring eagles
-  const ms = Array.from({ length: 8 }, (_, i) => {
-    const o = add(
-      g,
-      new THREE.SphereGeometry(0.68, 14, 10),
-      cm,
-      -3.4 + R(i) * 3.2,
-      -0.3 + R(i + 4) * 0.75,
-      -3.2 + R(i + 9) * 6.4
-    );
-    o.scale.set(1.85, 0.42, 1.15);
-    o.userData.x = o.position.x;
-    return o;
+  // Canyon floor haze & soaring eagles. Soft billboards read as valley air;
+  // solid puffs would read as white pills floating on the river.
+  const hazeMat = new THREE.SpriteMaterial({
+    map: getSoftTexture(),
+    color: '#cbd9e4',
+    transparent: true,
+    opacity: 0.26,
+    depthWrite: false,
+    fog: true,
   });
+  const ms: THREE.Sprite[] = [];
+  for (let i = 0; i < 6; i++) {
+    const mz = -4.4 + R(i + 9) * 8.8;
+    const mx = -4.2 + R(i) * 1.8;
+    const s = new THREE.Sprite(hazeMat);
+    s.position.set(mx, FLOOR + 0.22 + R(i + 4) * 0.26, mz);
+    s.scale.set(3.6, 1.0, 1);
+    s.userData.x = s.position.x;
+    s.userData.phase = R(i + 21) * 6.2832;
+    s.userData.noShadow = true;
+    g.add(s);
+    ms.push(s);
+  }
   for (let i = 0; i < 12; i++) {
     const tx = -2.2 + R(i) * 3.2;
     const tz = -5.4 + R(i + 30) * 10.8;
+    // Keep the gorge bed clear so the river is not hidden by trunks.
+    if (channelDist(tx, tz) < 2.3) continue;
     tree(g, tx, tz, 0.68 + R(i + 5) * 0.28, i % 4 ? 1 : 2, hAt(tx, tz));
   }
   const bd = birds(g, 3, 4.4, 6.2);
   g.userData.tick = (t: number) => {
     ms.forEach((o, i) => {
-      o.position.x = (o.userData.x as number) + Math.sin(t * 0.24 + i) * 0.45;
-      o.scale.y = 0.42 + 0.07 * Math.sin(t * 0.48 + i);
+      const phase = (o.userData.phase as number) ?? i;
+      o.position.x = (o.userData.x as number) + Math.sin(t * 0.24 + phase) * 0.45;
+      o.scale.set(3.6 + Math.sin(t * 0.31 + phase) * 0.3, 1.0, 1);
     });
     bd(t);
   };

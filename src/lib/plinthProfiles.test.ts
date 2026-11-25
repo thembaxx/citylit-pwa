@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { boundsFitPlinth, PLINTH_INNER_HALF_EXTENT } from './fitMath.ts';
+import { boundsFitPlinth } from './fitMath.ts';
+import { STAND_DETAIL_HALF, STAND_HALF } from './standFootprint.ts';
 import {
   bouldersGroundHeight,
   formatDmsCoords,
@@ -19,10 +20,10 @@ test('formatDmsCoords renders crisp South African DMS strings', () => {
   assert.equal(formatDmsCoords(-26.27, 27.93), '26°16′S · 27°56′E');
 });
 
-test('all pilot plinth silhouettes remain strictly inside PLINTH_INNER_HALF_EXTENT', () => {
+test('all pilot plinth silhouettes stay inside the shared stand footprint', () => {
   const silhouettes: PlinthSilhouette[] = ['square', 'coastal-cut', 'terrace', 'hex-chamfer'];
   for (const sil of silhouettes) {
-    const pts = getPlinthOutlinePoints(sil, 7.72, 16);
+    const pts = getPlinthOutlinePoints(sil, STAND_DETAIL_HALF, 16);
     assert.ok(pts.length >= 56);
     let minX = Infinity;
     let maxX = -Infinity;
@@ -35,9 +36,19 @@ test('all pilot plinth silhouettes remain strictly inside PLINTH_INNER_HALF_EXTE
       minZ = Math.min(minZ, z);
       maxZ = Math.max(maxZ, z);
     }
-    assert.ok(maxX <= PLINTH_INNER_HALF_EXTENT - 0.3);
-    assert.ok(maxZ <= PLINTH_INNER_HALF_EXTENT - 0.3);
+    // The pilots keep their own silhouettes inside the shared boundary.
+    assert.ok(maxX <= STAND_HALF, `${sil} maxX ${maxX}`);
+    assert.ok(maxZ <= STAND_HALF, `${sil} maxZ ${maxZ}`);
+    assert.ok(minX >= -STAND_HALF);
+    assert.ok(minZ >= -STAND_HALF);
     assert.equal(boundsFitPlinth({ minX, maxX, minZ, maxZ }), true);
+  }
+});
+
+test('every pilot plinth spec uses the shared stand footprint', () => {
+  for (const [key, spec] of Object.entries(PILOT_PLINTH_SPECS)) {
+    assert.equal(spec.halfExtent, STAND_DETAIL_HALF, `${key} drifts from the shared footprint`);
+    assert.ok(spec.halfExtent < STAND_HALF);
   }
 });
 

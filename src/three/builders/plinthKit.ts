@@ -25,6 +25,18 @@ export interface BuiltPilotPlinth {
   readonly pedestalGroup: THREE.Group;
   readonly plinthOutlineGeo: THREE.BufferGeometry;
   readonly plinthOutlineY: number;
+  /**
+   * A thin glowing line that follows the plinth's silhouette, so the engine
+   * can light the stand's edge without covering the terrain with a plate.
+   */
+  readonly plinthTrimGeo: THREE.BufferGeometry;
+  readonly plinthTrimY: number;
+  /**
+   * The stand's own outer boundary, in world X/Z. The engine fits content to
+   * this polygon (not to a square) so a chamfered pilot silhouette can never
+   * be overrun in its corners.
+   */
+  readonly standOutline: ReadonlyArray<readonly [number, number]>;
   readonly waterLevel?: number;
   readonly groundHeightAt: (x: number, z: number) => number;
 }
@@ -47,16 +59,57 @@ export function getPlinthRingOutlineGeometry(
 
   const pts = getPlinthOutlinePoints(silhouette, halfExtent, 16);
   const outer = new THREE.Shape();
-  const outerScale = (halfExtent + 0.1) / halfExtent;
-
+  // The plate matches the terrain edge exactly. An outward overhang here would
+  // put stand material past the cut block.
   for (let i = 0; i < pts.length; i++) {
     const [x, z] = pts[i];
-    if (i === 0) outer.moveTo(x * outerScale, -z * outerScale);
-    else outer.lineTo(x * outerScale, -z * outerScale);
+    if (i === 0) outer.moveTo(x, -z);
+    else outer.lineTo(x, -z);
   }
   outer.closePath();
 
   const geo = new THREE.ShapeGeometry(outer).rotateX(-Math.PI / 2);
+  geo.computeBoundingSphere();
+  geo.userData.sharedResource = true;
+  rimGeoCache.set(key, geo);
+  return geo;
+}
+
+/**
+ * A thin flat band that follows a plinth's silhouette. It is the only piece of
+ * the engine's stand trim that a pilot site uses: a filled plate would either
+ * cover the terrain or float past the block's edge.
+ */
+export function getPlinthTrimGeometry(
+  silhouette: PlinthSilhouette,
+  half: number
+): THREE.BufferGeometry {
+  const key = `trim_${silhouette}_${half.toFixed(2)}`;
+  const hit = rimGeoCache.get(key);
+  if (hit) return hit;
+
+  const pts = getPlinthOutlinePoints(silhouette, half, 16);
+  const k = (half + 0.007) / half;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const [x, z] = pts[i];
+    positions.push(x * k, 0, z * k);
+    positions.push(x, 0, z);
+  }
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a = i * 2;
+    const b = a + 1;
+    const c = j * 2;
+    const d = c + 1;
+    indices.push(a, b, c, b, d, c);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
   geo.computeBoundingSphere();
   geo.userData.sharedResource = true;
   rimGeoCache.set(key, geo);
@@ -1132,6 +1185,9 @@ export function buildPilotPlinth(
     pedestalGroup,
     plinthOutlineGeo: getPlinthRingOutlineGeometry(sil, half),
     plinthOutlineY: baseY - 0.02,
+    plinthTrimGeo: getPlinthTrimGeometry(sil, half),
+    plinthTrimY: baseY + 0.006,
+    standOutline: skirtPts,
     waterLevel: spec.water?.waterLevel,
     groundHeightAt,
   };
@@ -1151,6 +1207,18 @@ export function attachPilotPlinthToGroup(
   if (built.waterWallMesh) group.add(built.waterWallMesh);
   group.userData.plinthOutlineGeo = built.plinthOutlineGeo;
   group.userData.plinthOutlineY = built.plinthOutlineY;
+  group.userData.plinthTrimGeo = built.plinthTrimGeo;
+  group.userData.plinthTrimY = built.plinthTrimY;
+  group.userData.standOutline = built.standOutline;
+  // The stand is the container, not the content: it must never be scaled by
+  // the fit-to-stand pass, nor counted as content that has to fit inside it.
+  built.terrainMesh.userData.standGeometry = true;
+  built.pedestalGroup.userData.standGeometry = true;
+  built.pedestalGroup.traverse((obj) => {
+    obj.userData.standGeometry = true;
+  });
+  if (built.waterTopMesh) built.waterTopMesh.userData.standGeometry = true;
+  if (built.waterWallMesh) built.waterWallMesh.userData.standGeometry = true;
 }
 
 /** Helper to sample deterministic surface color noise for `topColorAt` callbacks. */

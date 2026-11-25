@@ -18,6 +18,7 @@ import {
   waterize,
 } from '../shaders';
 import { MAX_REFERENCE_UNITS, MIN_REFERENCE_UNITS } from '../../lib/scale';
+import { STAND_BLOCK_HALF, STAND_HALF } from '../../lib/standFootprint';
 import { getSeasonMonth, isSpeciesBlooming } from '../../lib/season';
 import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
 import { createCreatureLayer, isCreaturePilotSite } from '../creatures/layer';
@@ -699,7 +700,12 @@ function paintRadial(
   geo.deleteAttribute('uv');
 }
 
-function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: number): void {
+function paintStrata(
+  geo: THREE.BufferGeometry,
+  bands: readonly string[],
+  seed: number,
+  seamStrength = 0.16
+): void {
   geo.computeBoundingBox();
   const bb = geo.boundingBox;
   const minY = bb ? bb.min.y : 0;
@@ -727,7 +733,7 @@ function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: 
     const bandPos = f - Math.floor(f);
     const seam = Math.max(0, 1 - Math.min(bandPos, 1 - bandPos) * 9);
     const pebble = Math.pow(Math.max(0, Math.sin(x * 13.7 + z * 11.3 + y * 7.1)), 16);
-    c.multiplyScalar(grain * (1 - seam * 0.16) + pebble * 0.12);
+    c.multiplyScalar(grain * (1 - seam * seamStrength) + pebble * 0.12);
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
@@ -742,44 +748,67 @@ function paintStrata(geo: THREE.BufferGeometry, bands: readonly string[], seed: 
  * extension of the terrain rather than a uniform stone slab. Used both for
  * the top face colour and for carrying the edge colour into the wall band.
  */
+interface RimColorPalette {
+  top: THREE.Color;
+  rockMix: THREE.Color;
+  plants: THREE.Color[] | null;
+  wetMix: THREE.Color;
+  damp: THREE.Color;
+}
+
+// Parsed palette per profile, so per-vertex edge sampling does not re-create
+// colour objects for every vertex of every rim.
+const rimPaletteCache = new WeakMap<SiteProfile, RimColorPalette>();
+
+function getRimPalette(profile: SiteProfile): RimColorPalette {
+  let pal = rimPaletteCache.get(profile);
+  if (!pal) {
+    const [rock0, rock1] = profile.rock;
+    pal = {
+      top: new THREE.Color(profile.rim[0]),
+      rockMix: new THREE.Color(rock0).lerp(new THREE.Color(rock1), 0.5),
+      plants: profile.plants?.length ? profile.plants.map((c) => new THREE.Color(c)) : null,
+      wetMix: new THREE.Color(profile.biome === 'wetland' ? '#607767' : '#2d7a89'),
+      damp: new THREE.Color('#4a7060'),
+    };
+    rimPaletteCache.set(profile, pal);
+  }
+  return pal;
+}
+
 function rimEdgeColor(
   x: number,
   z: number,
   profile: SiteProfile,
   tmp: THREE.Color
 ): THREE.Color {
-  const [top] = profile.rim;
-  const [rock0, rock1] = profile.rock;
-  const plants = profile.plants;
+  const pal = getRimPalette(profile);
   const isCoastalOrWet = profile.biome === 'coastal' || profile.biome === 'wetland';
   const isWaterfall = profile.biome === 'waterfall';
 
   // Base: the rim top colour.
-  tmp.set(top);
+  tmp.copy(pal.top);
 
   // Blend in terrain rock tones at the outer ring so the stone slab reads as
   // the same geological material as the landscape edge above it.
   const outerR = Math.max(Math.abs(x), Math.abs(z));
   const edgeBlend = Math.max(0, (outerR - 5.5) / 2.9); // 0 at centre → 1 at rim lip
 
-  const cRock = new THREE.Color(rock0).lerp(new THREE.Color(rock1), 0.5);
-  tmp.lerp(cRock, edgeBlend * 0.55);
+  tmp.lerp(pal.rockMix, edgeBlend * 0.55);
 
   // Blend in ground-cover green for vegetated biomes.
-  if (plants && plants.length > 0 && !isCoastalOrWet) {
-    const cPlant = new THREE.Color(plants[Math.floor(edgeBlend * (plants.length - 0.001))]);
+  if (pal.plants && !isCoastalOrWet) {
+    const cPlant = pal.plants[Math.floor(edgeBlend * (pal.plants.length - 0.001))];
     tmp.lerp(cPlant, edgeBlend * 0.28 * (1 - edgeBlend));
   }
 
   // Water-biome edge: tint toward shallow water colour so the sea/river appears
   // to lap right against the cut slab wall.
   if (isCoastalOrWet) {
-    const cWater = new THREE.Color(profile.biome === 'wetland' ? '#607767' : '#2d7a89');
-    tmp.lerp(cWater, edgeBlend * 0.42);
+    tmp.lerp(pal.wetMix, edgeBlend * 0.42);
   } else if (isWaterfall) {
     // Waterfall sites: carry a damp, mossy tone to the perimeter.
-    const cDamp = new THREE.Color('#4a7060');
-    tmp.lerp(cDamp, edgeBlend * 0.28);
+    tmp.lerp(pal.damp, edgeBlend * 0.28);
   }
 
   return tmp;
@@ -790,8 +819,15 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   const [top, edge, band, wall] = profile.rim;
   // Subdivided so the carved lip and the two small ledges are real geometry,
   // not just painted bands — still one mesh and one material.
-  const geo = new THREE.BoxGeometry(16.8, 1.2, 16.8, 10, 24, 10).translate(0, -0.56, 0);
-  paintStrata(geo, [wall, band, edge, edge], 3.4);
+  // Shallower block (0.62 deep, was 1.2) so the stand reads as a thin plinth
+  // under the terrain rather than a second slab. Fewer, softer seams keep the
+  // wall from repeating the same stripe pattern all the way down.
+  const geo = new THREE.BoxGeometry(STAND_BLOCK_HALF * 2, 0.62, STAND_BLOCK_HALF * 2, 10, 12, 10).translate(
+    0,
+    -0.31,
+    0
+  );
+  paintStrata(geo, [wall, band, edge], 3.4, 0.05);
   const pos = geo.attributes.position;
   const col = geo.attributes.color as THREE.BufferAttribute;
   const cTop = new THREE.Color(top);
@@ -803,7 +839,7 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
     const z = pos.getZ(i);
     if (y > 0.03) {
       // Erode the perimeter of the top face so it reads as a cut slab.
-      const perimeter = Math.max(Math.abs(x), Math.abs(z)) / 8.4;
+      const perimeter = Math.max(Math.abs(x), Math.abs(z)) / STAND_BLOCK_HALF;
       const lip = Math.max(0, (perimeter - 0.8) / 0.2);
       const chip = Math.sin(x * 4.7 + z * 3.1) * lip;
       pos.setX(i, x * (1 - 0.012 * lip) + 0.035 * chip);
@@ -831,8 +867,8 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
     } else if (y > -0.36) {
       // Shallow stepped ledges on the four walls give the strata relief.
       const step = y > -0.14 ? 0.055 : 0.026;
-      if (Math.abs(x) > 8.2) pos.setX(i, x + Math.sign(x) * step);
-      if (Math.abs(z) > 8.2) pos.setZ(i, z + Math.sign(z) * step);
+      if (Math.abs(x) > STAND_BLOCK_HALF - 0.2) pos.setX(i, x + Math.sign(x) * step);
+      if (Math.abs(z) > STAND_BLOCK_HALF - 0.2) pos.setZ(i, z + Math.sign(z) * step);
       // Contact shade just under the lip where wall meets ground.
       const contact = 1 - 0.18 * Math.max(0, 1 - Math.abs(y + 0.02) / 0.16);
       // Carry the terrain-edge feature colour into the top band of the wall
@@ -851,11 +887,24 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   }
   col.needsUpdate = true;
   pos.needsUpdate = true;
+  // The carved lip and the stone ledges must never push past the stand's
+  // shared outer boundary.
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    if (x > STAND_BLOCK_HALF) pos.setX(i, STAND_BLOCK_HALF);
+    else if (x < -STAND_BLOCK_HALF) pos.setX(i, -STAND_BLOCK_HALF);
+    if (z > STAND_BLOCK_HALF) pos.setZ(i, STAND_BLOCK_HALF);
+    else if (z < -STAND_BLOCK_HALF) pos.setZ(i, -STAND_BLOCK_HALF);
+  }
   geo.computeVertexNormals();
   weatherVertexColors(geo, { ao: 0.16, exposure: 0.06, grain: 0.05, aoSpan: 1.2 });
   geo.computeBoundingSphere();
   const mesh = new THREE.Mesh(geo, getRimMaterial());
   mesh.receiveShadow = true;
+  // The rim block *is* the stand: it is never scaled by the fit-to-stand pass
+  // and never counted as content that has to fit inside itself.
+  mesh.userData.standGeometry = true;
   g.add(mesh);
 }
 
@@ -867,19 +916,24 @@ function addCraftedRim(g: THREE.Group, profile: SiteProfile): void {
     return;
   }
   const [top, edge, band, wall] = profile.rim;
-  const topGeo = new THREE.RingGeometry(7.62, 8.22, 120, 2)
+  // The circular stand keeps the same proportions as before but is measured
+  // from the shared footprint, so its skirt can no longer bulge past it.
+  const rTop = STAND_HALF - 0.78;
+  const rOuter = STAND_HALF - 0.18;
+  const rBevel = STAND_HALF - 0.02;
+  const topGeo = new THREE.RingGeometry(rTop, rOuter, 120, 2)
     .rotateX(-Math.PI / 2)
     .translate(0, 0.185, 0);
-  paintRadial(topGeo, top, edge, band, 7.62, 8.22);
+  paintRadial(topGeo, top, edge, band, rTop, rOuter);
 
-  const bevelGeo = new THREE.CylinderGeometry(8.22, 8.38, 0.075, 120, 1, true).translate(
+  const bevelGeo = new THREE.CylinderGeometry(rOuter, rBevel, 0.075, 120, 1, true).translate(
     0,
     0.147,
     0
   );
   paintStrata(bevelGeo, [edge, band], 1.7);
 
-  const skirtGeo = new THREE.CylinderGeometry(8.38, 8.5, 0.135, 120, 3, true).translate(
+  const skirtGeo = new THREE.CylinderGeometry(rBevel, STAND_HALF, 0.135, 120, 3, true).translate(
     0,
     0.045,
     0
@@ -894,6 +948,7 @@ function addCraftedRim(g: THREE.Group, profile: SiteProfile): void {
   merged.computeBoundingSphere();
   const mesh = new THREE.Mesh(merged, getRimMaterial());
   mesh.receiveShadow = true;
+  mesh.userData.standGeometry = true;
   g.add(mesh);
 }
 
@@ -995,7 +1050,10 @@ function addRimEdgeContinuity(g: THREE.Group, profile: SiteProfile): void {
   const positions: number[] = [];
   const colors: number[] = [];
   const indices: number[] = [];
-  const HALF = 8.4; // rim half-width
+  // Pilot plinths already carry their own skirt and strata at their real edge;
+  // this band floats past that edge (a lip), so skip it for them.
+  if (g.userData.plinthOutlineGeo) return;
+  const HALF = STAND_BLOCK_HALF; // rim half-width
   const BAND_H = 0.38; // height of the continuation band on the wall
   const TOP_Y = 0.0; // just flush with the slab top
   const BOT_Y = TOP_Y - BAND_H;
@@ -1003,6 +1061,7 @@ function addRimEdgeContinuity(g: THREE.Group, profile: SiteProfile): void {
 
   const cTmp = new THREE.Color();
   const cBot = new THREE.Color(profile.rim[1]); // edge colour at the bottom of the band
+  const cFade = new THREE.Color();
 
   // Emit one edge of quads. `edgeFn(t)` returns the [x, z] world position on
   // the slab perimeter at parametric position t ∈ [0,1].
@@ -1022,9 +1081,9 @@ function addRimEdgeContinuity(g: THREE.Group, profile: SiteProfile): void {
 
       // Bottom vertex: fades toward the strata edge colour so the band
       // dissolves naturally into the geology below.
-      const fade = cTmp.clone().lerp(cBot, 0.65);
+      cFade.copy(cTmp).lerp(cBot, 0.65);
       positions.push(wx, BOT_Y, wz);
-      colors.push(fade.r, fade.g, fade.b);
+      colors.push(cFade.r, cFade.g, cFade.b);
     }
     for (let i = 0; i < SEG; i++) {
       const t0 = base + i * 2;
@@ -1059,6 +1118,7 @@ function addRimEdgeContinuity(g: THREE.Group, profile: SiteProfile): void {
   const mesh = new THREE.Mesh(geo, getRimMaterial());
   mesh.receiveShadow = false;
   mesh.userData.noShadow = true;
+  mesh.userData.standGeometry = true;
   g.add(mesh);
 }
 
@@ -1121,6 +1181,8 @@ function addEdgeWaterfall(g: THREE.Group, angle: number, profile: SiteProfile): 
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.userData.noShadow = true;
+  // The spill is real content too: it has to stay inside the stand.
+  mesh.userData.fitToStand = true;
   g.add(mesh);
 }
 
@@ -1159,6 +1221,9 @@ function addSquareWaterPlate(g: THREE.Group, profile: SiteProfile): void {
   mesh.position.y = 0.06;
   mesh.userData.noShadow = true;
   mesh.userData.isWaterSurface = true;
+  // The sea plate is real content: it has to stay inside the stand, so the
+  // fit-to-stand pass must measure it even though it casts no shadow.
+  mesh.userData.fitToStand = true;
   g.add(mesh);
 }
 
@@ -3703,7 +3768,10 @@ export function applyDioramaUpgrade(key: string, group: THREE.Group): THREE.Grou
 
   addCraftedRim(group, profile);
   addRimEdgeContinuity(group, profile);
-  if (profile.biome === 'coastal' || profile.biome === 'wetland' || profile.biome === 'waterfall') {
+  if (
+    !group.userData.plinthOutlineGeo &&
+    (profile.biome === 'coastal' || profile.biome === 'wetland' || profile.biome === 'waterfall')
+  ) {
     addSquareWaterPlate(group, profile);
     addEdgeWaterfall(group, angle, profile);
   }
@@ -3791,7 +3859,13 @@ export function finalizeLandmarkGroup(key: string, group: THREE.Group): THREE.Gr
     addCraftedRim(group, profile);
   }
   addRimEdgeContinuity(group, profile);
-  if (profile.biome === 'coastal' || profile.biome === 'wetland' || profile.biome === 'waterfall') {
+  // A pilot plinth carries its own glass water cutaway, and its silhouette is
+  // not square: a square water plate would spill past the chamfered corners
+  // and double-draw the sea, so the shared water kit is skipped there.
+  if (
+    !hasPilotPlinth &&
+    (profile.biome === 'coastal' || profile.biome === 'wetland' || profile.biome === 'waterfall')
+  ) {
     addSquareWaterPlate(group, profile);
     addEdgeWaterfall(group, angle, profile);
   }
