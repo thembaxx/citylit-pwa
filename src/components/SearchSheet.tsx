@@ -18,6 +18,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { LANDMARK_TAGS, LANDMARKS, PROVINCES } from '../data/landmarks';
 import { countLandmarksByTag, filterLandmarks, parseSearch } from '../lib/landmarkSearch';
 import { PRESS_SCALE, SPRING, revealItem, revealVariants, swapTransition } from '../lib/motion';
+import { useSideDrawerLayout } from '../lib/useMediaQuery';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import type { LandmarkTag } from '../types/citylit';
 import { Menu, type MenuItem } from './ui/Menu';
@@ -75,6 +76,9 @@ export function SearchSheet({
     }
   });
   const inputRef = useRef<HTMLInputElement>(null);
+  // Phones browse in a bottom sheet; larger screens get a right-hand drawer
+  // so the diorama stays visible beside the list.
+  const sideDrawer = useSideDrawerLayout(1024);
 
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
 
@@ -167,11 +171,19 @@ export function SearchSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      side="bottom"
+      side={sideDrawer ? 'right' : 'bottom'}
       reducedMotion={reducedMotion}
       instant={instantOpen}
       label="Browse all landmarks"
-      className="px-3.5 pt-1 pb-[calc(14px+env(safe-area-inset-bottom,0px))]"
+      safeAreaKey={sideDrawer ? 'search-drawer' : undefined}
+      safeAreaSide={sideDrawer ? 'right' : undefined}
+      panelClassName={sideDrawer ? 'lg:max-w-[680px]' : ''}
+      bottomHeightClass="h-[80%]"
+      className={
+        sideDrawer
+          ? 'px-4 pt-4 pb-[env(safe-area-inset-bottom,0px)]'
+          : 'px-3.5 pt-1 pb-[calc(14px+env(safe-area-inset-bottom,0px))]'
+      }
     >
       <div className="flex items-center gap-2 mb-3">
         <div className="relative flex-1 min-w-0">
@@ -467,7 +479,7 @@ export function SearchSheet({
             variants={reducedMotion ? undefined : revealVariants}
             initial={reducedMotion ? false : 'initial'}
             animate="animate"
-            className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 pb-3"
+            className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pb-3"
           >
             <AnimatePresence mode="popLayout">
               {filteredIndices.map(({ lm, i }) => {

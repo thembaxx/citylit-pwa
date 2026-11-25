@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useDragControls, type PanInfo } from 'motion/r
 import { ambientAudio } from '../../audio/ambientAudio';
 import { useFocusTrap } from '../../lib/focusTrap';
 import { EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, shouldDismiss, Z } from '../../lib/motion';
+import { clearSafeArea, setSafeArea } from '../../lib/uiSafeArea';
 
 /**
  * Draggable sheet, adapted from EasyUI's Sheet component.
@@ -28,6 +29,16 @@ interface SheetProps {
   onExpand?: () => void;
   /** Two-stage sheets: drag down past the threshold to collapse (before dismiss). */
   onCollapse?: () => void;
+  /**
+   * Publishes this sheet's footprint to the UI safe-area registry so the 3D
+   * stage can frame the diorama in the remaining free space. Use a stable,
+   * unique key per surface.
+   */
+  safeAreaKey?: string;
+  /** Which edge this sheet covers. Bottom sheets occlude from the bottom. */
+  safeAreaSide?: 'bottom' | 'right';
+  /** Extra classes for the panel (e.g. a wider right drawer). */
+  panelClassName?: string;
   children: ReactNode;
 }
 
@@ -45,6 +56,9 @@ export function Sheet({
   bottomHeightClass = 'h-[80%]',
   onExpand,
   onCollapse,
+  safeAreaKey,
+  safeAreaSide,
+  panelClassName = '',
   children,
 }: SheetProps) {
   const controls = useDragControls();
@@ -52,6 +66,28 @@ export function Sheet({
   const returnTo = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
   useFocusTrap(panelRef, open);
+
+  // Publish the covered edge so the 3D stage can reframe around this sheet.
+  useEffect(() => {
+    if (!open || !safeAreaKey || !safeAreaSide) return undefined;
+    const publish = () => {
+      const el = panelRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (safeAreaSide === 'right') {
+        setSafeArea(safeAreaKey, { right: Math.round(rect.width) });
+      } else {
+        setSafeArea(safeAreaKey, { bottom: Math.round(rect.height) });
+      }
+    };
+    publish();
+    const ro = new ResizeObserver(publish);
+    if (panelRef.current) ro.observe(panelRef.current);
+    return () => {
+      ro.disconnect();
+      clearSafeArea(safeAreaKey);
+    };
+  }, [open, safeAreaKey, safeAreaSide]);
 
   // One cue per surface change, regardless of whether the user used the X,
   // the backdrop, a drag gesture or Escape to dismiss it.
@@ -117,7 +153,7 @@ export function Sheet({
               horizontal
                 ? 'inset-y-0 right-0 w-full sm:max-w-[460px] border-l'
                 : `inset-x-0 bottom-0 mx-auto w-full rounded-t-[28px] border-x border-t ${bottomHeightClass}`
-            } ${className}`}
+            } ${className} ${panelClassName}`}
             initial={instant ? { opacity: 0 } : reducedMotion ? { opacity: 0 } : from}
             animate={instant ? { opacity: 1 } : reducedMotion ? { opacity: 1 } : to}
             exit={instant ? { opacity: 0 } : reducedMotion ? { opacity: 0 } : from}

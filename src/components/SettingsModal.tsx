@@ -34,7 +34,7 @@ import type {
 import { AnimatedNumber } from './ui/AnimatedNumber';
 import { LiquidToggle } from './ui/LiquidToggle';
 import { PillNavigation } from './ui/PillNavigation';
-import { SettleModal } from './ui/SettleModal';
+import { AdaptiveDialog } from './ui/AdaptiveDialog';
 
 interface SettingsModalProps {
   open: boolean;
@@ -220,7 +220,15 @@ export function SettingsModal({
   };
 
   return (
-    <SettleModal open={open} onClose={onClose} reducedMotion={reducedMotion} title="Settings">
+    <AdaptiveDialog
+      open={open}
+      onClose={onClose}
+      label="Settings"
+      title="Settings"
+      reducedMotion={reducedMotion}
+      bottomHeightClass="h-[88%]"
+      sheetClassName="px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] overflow-y-auto"
+    >
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-serif-display italic text-[24px] text-[#f3efe6] m-0">Settings</h2>
         <motion.button
@@ -620,6 +628,6 @@ export function SettingsModal({
           </div>
         </div>
       </div>
-    </SettleModal>
+    </AdaptiveDialog>
   );
 }

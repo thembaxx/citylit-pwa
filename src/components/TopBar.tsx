@@ -106,7 +106,7 @@ export function TopBar({
           initial={reducedMotion ? false : { opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={reducedMotion ? { duration: 0 } : { duration: DURATION.slow, ease: EASE_SMOOTH_OUT }}
-          className="fixed inset-x-0 top-0 z-10 flex items-center justify-between pl-[calc(1rem+env(safe-area-inset-left,0px))] pr-[calc(1rem+env(safe-area-inset-right,0px))] pt-[calc(14px+env(safe-area-inset-top,0px))] pointer-events-none"
+          className="topbar fixed inset-x-0 top-0 z-10 flex items-center justify-between pl-[calc(1rem+env(safe-area-inset-left,0px))] pr-[calc(1rem+env(safe-area-inset-right,0px))] pt-[calc(14px+env(safe-area-inset-top,0px))] pointer-events-none"
         >
           <div
             className={`font-serif-display italic text-[22px] tracking-[0.01em] select-none transition-colors duration-300 ${

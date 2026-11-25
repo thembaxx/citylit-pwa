@@ -617,3 +617,42 @@ measured rationale.
 **Verification:** `pnpm lint` (only the pre-existing graphify-plugin warning), `pnpm test` 104/104,
 `pnpm build` green, and the CDP perf guardrail **PASS — 129 site/hour checks** against
 `docs/baseline/current-stats.json` (+10% calls/tris).
+
+## 13. Batch 4 — adaptive layout & stage framing (2026-11-25)
+
+A responsiveness pass over the whole shell: the HUD now adapts to the viewport it
+runs in, and the diorama is **composed inside the free (unoccluded) area** of
+the canvas instead of hiding behind a panel.
+
+**Shipped:**
+- **Free-area framing as pure maths** (`lib/viewportFraming.ts` + `viewportFraming.test.ts`): the
+  HUD coverage is measured, the free rect is derived, and the composition shift is computed by
+  DOM-free, unit-tested functions (`planFraming`, `freeRect`, `freeFitFactor`, `layoutModeFor`,
+  `viewOffsetForShift`).
+- **Off-axis lens shift** (`CitylitEngine.setUiInsets` → `PerspectiveCamera.setViewOffset`): the
+  frustum keeps its field of view and only its principal point moves, so the scene slides inside
+  the frame instead of swinging around it. Picking and `unproject` stay exact because they read the
+  same projection matrix (verified against `THREE.PerspectiveCamera` and `Raycaster`).
+- **HUD coverage registry** (`lib/uiSafeArea.ts`): every fixed surface publishes its footprint under
+  a stable key; the merged result is mirrored to `--cl-safe-*` for plain CSS.
+- **Search as a right-hand drawer** (`SearchSheet.tsx`): phones keep the bottom sheet, ≥1024 px gets
+  a drawer with a **4-per-row** results grid.
+- **Adaptive dialogs** (`ui/AdaptiveDialog.tsx`): Passport, Settings and Postcard are a bottom sheet
+  on phones and the calm centred modal on wider screens.
+- **Info drawer** (`InfoDrawer.tsx`): a two-stage bottom sheet (peek → expanded) on the compact
+  shell, a right-hand drawer from 768 px up.
+- **HUD collision** (`index.css`): in short landscape the compass shrinks to a 46 px dial below the
+  top bar, so it never fights the title or the weather island.
+- **Ultrawide stage** (`--cl-stage-inset`): the top bar, compass and landmark card live inside a
+  centred 1760 px stage.
+- **Foldable / square framing** (`layoutModeFor`): near-square viewports get their own composition
+  target instead of the wide-screen one.
+- **Card collapse** (`LandmarkCard.tsx`): a vertical drag on the title collapses the card to its
+  title strip and back; a horizontal flick still switches landmark. `lib/useDrag.ts` now reports the
+  committed axis, which also revives the gallery viewer's drag-to-dismiss.
+- **Resize transient** (`CitylitEngine.ts`): orientation changes and window drags render at a reduced
+  resolution without the depth-of-field pass until the viewport settles.
+
+**Verification:** `pnpm lint` (only the pre-existing graphify-plugin warning), `pnpm test` 200/200,
+`pnpm build` green, plus CDP checks in headless Edge at 390×844, 844×390, 941×943 and 1440×900
+(search drawer + 4-column grid, phone bottom sheets, landscape HUD, lens shift on drawer open).

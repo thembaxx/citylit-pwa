@@ -21,7 +21,7 @@ import { HERITAGE_ROUTES, routeDistanceKm } from '../data/routes';
 import { PRESS_SCALE, SPRING, revealItem, revealVariants } from '../lib/motion';
 import type { LandmarkNote, NoteCategory } from '../types/citylit';
 import { PillNavigation, type PillOption } from './ui/PillNavigation';
-import { SettleModal } from './ui/SettleModal';
+import { AdaptiveDialog } from './ui/AdaptiveDialog';
 
 type PassportTab = 'stamps' | 'stats' | 'hidden' | 'notes' | 'routes';
 
@@ -246,12 +246,15 @@ export function PassportModal({
   }, [flatNotes, noteQuery, noteCategoryFilter]);
 
   return (
-    <SettleModal
+    <AdaptiveDialog
       open={open}
       onClose={onClose}
-      reducedMotion={reducedMotion}
+      label="Explorer Passport"
       title="Explorer Passport"
-      className="max-w-lg"
+      reducedMotion={reducedMotion}
+      bottomHeightClass="h-[88%]"
+      modalClassName="max-w-lg"
+      sheetClassName="px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] overflow-y-auto"
     >
       <div className="space-y-5">
         <div className="flex items-start justify-between gap-3">
@@ -708,6 +711,6 @@ export function PassportModal({
           </button>
         </div>
       </div>
-    </SettleModal>
+    </AdaptiveDialog>
   );
 }

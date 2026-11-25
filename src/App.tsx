@@ -10,6 +10,7 @@ import {
   Z,
 } from './lib/motion';
 import { referenceDisplayFactor } from './lib/scale';
+import { getSafeArea, onSafeAreaChange } from './lib/uiSafeArea';
 import { msUntilNextThemeBoundary, resolveAutoTheme, resolveTheme } from './lib/theme';
 import {
   readInitialCoordinate,
@@ -370,7 +371,10 @@ export function App() {
     } catch {
       // Ignore storage failures.
     }
-    return window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`).matches;
+    return (
+      window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`).matches ||
+      window.matchMedia('(max-height: 480px)').matches
+    );
   });
   const [showDirection, setShowDirection] = useState(false);
   const [cutawayActive, setCutawayActive] = useState(false);
@@ -437,6 +441,19 @@ export function App() {
       }
       setCompact(e.matches);
     };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  // A short viewport (a phone on its side) cannot fit the full card, so it
+  // collapses to the compact shell even when the user picked the wide one.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(max-height: 480px)');
+    const onChange = () => {
+      if (mq.matches) setCompact(true);
+    };
+    onChange();
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
@@ -936,6 +953,17 @@ export function App() {
     }
     return undefined;
   }, [fullscreen, globeOpen, placesOpen]);
+
+  // HUD coverage drives the stage composition: the diorama is framed inside
+  // the free area of the viewport instead of hiding behind a drawer.
+  useEffect(() => {
+    if (!booted) return undefined;
+    const push = () => {
+      engineRef.current?.setUiInsets(getSafeArea());
+    };
+    push();
+    return onSafeAreaChange(push);
+  }, [booted]);
 
   // 24-hour atmospheric Time Lapse cycle
   useEffect(() => {

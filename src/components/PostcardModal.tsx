@@ -2,7 +2,7 @@ import { DownloadSimple, MapPin, ShareNetwork, X } from '@phosphor-icons/react';
 import { motion } from 'motion/react';
 import { PRESS_SCALE, SPRING } from '../lib/motion';
 import type { LandmarkNote } from '../types/citylit';
-import { SettleModal } from './ui/SettleModal';
+import { AdaptiveDialog } from './ui/AdaptiveDialog';
 
 const SKY_PRESETS = [
   { label: 'Dawn', hour: 6.3 },
@@ -39,11 +39,14 @@ export function PostcardModal({
   onClose,
 }: PostcardModalProps) {
   return (
-    <SettleModal
+    <AdaptiveDialog
       open={open}
       onClose={onClose}
-      reducedMotion={reducedMotion}
+      label="3D Landmark Postcard"
       title="3D Landmark Postcard"
+      reducedMotion={reducedMotion}
+      bottomHeightClass="h-[86%]"
+      sheetClassName="px-4 pt-4 pb-[calc(16px+env(safe-area-inset-bottom,0px))] overflow-y-auto"
     >
       <div className="flex items-center justify-between">
         <span className="font-serif-display italic text-[18px] text-[#f3efe6]">{landmarkName}</span>
@@ -157,6 +160,6 @@ export function PostcardModal({
           </motion.button>
         ))}
       </div>
-    </SettleModal>
+    </AdaptiveDialog>
   );
 }

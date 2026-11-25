@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from 'motion/react';
 import { ambientAudio } from '../audio/ambientAudio';
 import { DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, SPRING, useSpringFor } from '../lib/motion';
+import { useCoarsePointer } from '../lib/useMediaQuery';
 import type { CitylitEngine } from '../three/CitylitEngine';
 import type { CompassState } from '../types/citylit';
 
@@ -84,6 +85,9 @@ export function Compass({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [dragging, setDragging] = useState(false);
+  // Touch devices have no hover, so the readout is pinned by tapping the dial.
+  const coarsePointer = useCoarsePointer();
+  const [readoutPinned, setReadoutPinned] = useState(false);
   const [pulseState, setPulseState] = useState({ lastIdx: landmarkIndex, seq: 0 });
   if (landmarkIndex !== pulseState.lastIdx) {
     setPulseState({ lastIdx: landmarkIndex, seq: pulseState.seq + 1 });
@@ -99,7 +103,7 @@ export function Compass({
   const tiltTextRef = useRef<HTMLSpanElement>(null);
   const lastReadoutRef = useRef({ bearing: -1, tilt: Number.NaN, mode: '', active: '' });
 
-  const showReadout = hovered || focused || dragging;
+  const showReadout = hovered || focused || dragging || readoutPinned;
   // One 100ms press cue for every compass control; dropped entirely on reduced motion.
   const tapFeedback = reduce
     ? {}
@@ -394,9 +398,15 @@ export function Compass({
     if (info && info.radial > 11) {
       snapToHeading(info.bearing);
       updateHoverMarker(info.bearing);
-    } else {
-      resetCameraOrientation();
+      return;
     }
+    if (coarsePointer) {
+      // No hover on touch: a tap on the boss pins the bearing readout, which
+      // carries the cardinal shortcuts and the reset button.
+      setReadoutPinned((pinned) => !pinned);
+      return;
+    }
+    resetCameraOrientation();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -461,7 +471,11 @@ export function Compass({
           className="compass__dial focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#e8b04a]"
           role="button"
           tabIndex={0}
-          aria-label="Reset camera to default landmark orientation. Current heading 000° N. Drag bezel or use Left/Right arrows to orbit."
+          aria-label={
+            coarsePointer
+              ? 'Compass dial. Tap the centre for bearing controls, tap the bezel to face a heading, drag to orbit.'
+              : 'Reset camera to default landmark orientation. Current heading 000° N. Drag bezel or use Left/Right arrows to orbit.'
+          }
           data-dragging={dragging ? 'true' : undefined}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -478,7 +492,11 @@ export function Compass({
             }
           }}
           onKeyDown={handleKeyDown}
-          title="Click a bearing to face it · centre click or R resets · drag to orbit · scroll to step"
+          title={
+            coarsePointer
+              ? 'Tap the centre for bearing controls · tap a bearing to face it · drag to orbit'
+              : 'Click a bearing to face it · centre click or R resets · drag to orbit · scroll to step'
+          }
         >
           <svg width="60" height="60" viewBox="0 0 60 60" fill="none" aria-hidden="true">
             {/* Outer brass hairline and inner track */}

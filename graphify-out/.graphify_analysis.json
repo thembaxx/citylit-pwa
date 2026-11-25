@@ -827,29 +827,12 @@
       "pnpm_workspace_overrides",
       "pnpm_workspace_overrides_workbox_build_glob"
     ],
-    "38": [
-      "package_dependencies_n8ao",
-      "ref_n8ao"
-    ],
-    "39": [
-      "package_dependencies_oxlint",
-      "ref_oxlint"
-    ],
-    "40": [
-      "package_dependencies_react_dom",
-      "ref_react_dom"
-    ],
-    "41": [
-      "package_dependencies_typescript",
-      "ref_typescript"
-    ],
-    "42": [
-      "package_dependencies_workbox_window",
-      "ref_workbox_window"
-    ],
-    "43": [
-      "src_vite_env_d"
-    ]
+    "38": ["package_dependencies_n8ao", "ref_n8ao"],
+    "39": ["package_dependencies_oxlint", "ref_oxlint"],
+    "40": ["package_dependencies_react_dom", "ref_react_dom"],
+    "41": ["package_dependencies_typescript", "ref_typescript"],
+    "42": ["package_dependencies_workbox_window", "ref_workbox_window"],
+    "43": ["src_vite_env_d"]
   },
   "cohesion": {
     "0": 0.17083946980854198,
@@ -953,10 +936,7 @@
     {
       "source": "App()",
       "target": "CitylitEngine",
-      "source_files": [
-        "src/App.tsx",
-        "src/three/CitylitEngine.ts"
-      ],
+      "source_files": ["src/App.tsx", "src/three/CitylitEngine.ts"],
       "confidence": "EXTRACTED",
       "relation": "calls",
       "why": "bridges separate communities"
@@ -964,10 +944,7 @@
     {
       "source": "CitylitEngine",
       "target": "SwayItem",
-      "source_files": [
-        "src/three/CitylitEngine.ts",
-        "src/three/builders/primitives.ts"
-      ],
+      "source_files": ["src/three/CitylitEngine.ts", "src/three/builders/primitives.ts"],
       "confidence": "EXTRACTED",
       "relation": "references",
       "why": "bridges separate communities"
@@ -975,10 +952,7 @@
     {
       "source": "CitylitEngine",
       "target": "WetMaterialEntry",
-      "source_files": [
-        "src/three/CitylitEngine.ts",
-        "src/three/builders/primitives.ts"
-      ],
+      "source_files": ["src/three/CitylitEngine.ts", "src/three/builders/primitives.ts"],
       "confidence": "EXTRACTED",
       "relation": "references",
       "why": "bridges separate communities"
@@ -986,10 +960,7 @@
     {
       "source": "CitylitEngine",
       "target": "GlobeController",
-      "source_files": [
-        "src/three/CitylitEngine.ts",
-        "src/three/globeScene.ts"
-      ],
+      "source_files": ["src/three/CitylitEngine.ts", "src/three/globeScene.ts"],
       "confidence": "EXTRACTED",
       "relation": "references",
       "why": "bridges separate communities"
@@ -997,10 +968,7 @@
     {
       "source": "CitylitEngine",
       "target": "PlacesController",
-      "source_files": [
-        "src/three/CitylitEngine.ts",
-        "src/three/placesScene.ts"
-      ],
+      "source_files": ["src/three/CitylitEngine.ts", "src/three/placesScene.ts"],
       "confidence": "EXTRACTED",
       "relation": "references",
       "why": "bridges separate communities"

@@ -52,6 +52,10 @@
   --cl-compact-max: 700px;
   /* Pixel amount the on-screen keyboard covers the visual viewport; written by App.tsx. */
   --cl-kbd-inset: 0px;
+  /* Ultrawide stage: the HUD is confined to a centred 1760px stage so the
+     controls never drift to the far corners of a very wide display. */
+  --cl-stage-w: 1760px;
+  --cl-stage-inset: max(0px, calc((100vw - var(--cl-stage-w)) / 2));
 }
 
 :root[data-theme='daylight'] {
@@ -427,7 +431,7 @@ body,
 /* Interactive architectural compass on the left edge, clearing LandmarkCard dynamically. */
 .compass {
   position: fixed;
-  left: calc(14px + env(safe-area-inset-left, 0px));
+  left: calc(var(--cl-stage-inset) + 14px + env(safe-area-inset-left, 0px));
   top: min(46%, calc(100dvh - var(--cl-card-h, 218px) - 96px));
   margin-top: -30px;
   z-index: 15;
@@ -565,6 +569,34 @@ body,
 @media (max-height: 620px) {
   .weather-forecast {
     display: none;
+  }
+}
+
+/* Phone on its side: the HUD has to share one short row, so the compass
+   shrinks to a 46px dial and drops under the top bar. That keeps it clear of
+   the title on the left and the weather island on the right. */
+@media (max-height: 520px) and (orientation: landscape) {
+  .compass {
+    top: calc(52px + env(safe-area-inset-top, 0px));
+    margin-top: 0;
+  }
+
+  .compass__dial {
+    width: 46px;
+    height: 46px;
+  }
+
+  .compass__dial svg {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+/* Ultrawide: the top bar spans the centred stage instead of the full width. */
+@media (min-width: 1760px) {
+  .topbar {
+    padding-left: calc(var(--cl-stage-inset) + 1rem + env(safe-area-inset-left, 0px));
+    padding-right: calc(var(--cl-stage-inset) + 1rem + env(safe-area-inset-right, 0px));
   }
 }
 

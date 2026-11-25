@@ -356,10 +356,22 @@ export function LandmarkCard({
   }
   const slideCustom: SlideCustom = { dir: direction, reduced: reducedMotion };
   const cardWrapRef = useRef<HTMLDivElement>(null);
+  const cardShellRef = useRef<HTMLDivElement>(null);
+  const cardTitleRef = useRef<HTMLDivElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const holdTimer = useRef<number | null>(null);
   const dragX = useMotionValue(0);
   const dragOrigin = useRef(0);
+  // Vertical drag collapses the card to its title strip and back.
+  const [peeked, setPeeked] = useState(false);
+  const peekedRef = useRef(false);
+  const [cardHeightReady, setCardHeightReady] = useState(false);
+  const cardMaxHeight = useMotionValue(0);
+  const cardHeightStart = useRef(0);
+  const dragAxis = useRef<'x' | 'y' | null>(null);
+  const naturalHeight = useRef(0);
+  const peekHeight = useRef(0);
+  const measuredKey = useRef('');
 
   useEffect(() => {
     if (notesOpen) {
@@ -400,24 +412,91 @@ export function LandmarkCard({
     };
   }, [visible]);
 
-  // Drag the title strip to change landmark; velocity decides a flick.
+  // Content signature: the card has to be measured again whenever its
+  // content changes height.
+  const cardContentKey = `${index}|${notes.length}|${notesOpen ? 1 : 0}|${
+    weatherInsightOpen ? 1 : 0
+  }`;
+
+  // Measure the card so a vertical drag can collapse it to its title strip.
+  // The shell is the scroll container, so its scroll height is the content
+  // height; the natural height is that value capped by the viewport.
+  useEffect(() => {
+    if (!visible) return undefined;
+    const measure = () => {
+      const shell = cardShellRef.current;
+      const title = cardTitleRef.current;
+      if (!shell) return;
+      const viewportMax = Math.max(160, window.innerHeight - 104);
+      naturalHeight.current = Math.min(shell.scrollHeight, viewportMax);
+      peekHeight.current = title
+        ? Math.min(viewportMax, title.offsetHeight + 40)
+        : naturalHeight.current;
+      const target = peekedRef.current ? peekHeight.current : naturalHeight.current;
+      if (cardMaxHeight.get() === 0) cardMaxHeight.set(target);
+      else animate(cardMaxHeight, target, SPRING.surface);
+      setCardHeightReady(true);
+    };
+    measure();
+    // Late pass: fonts, images and the WebGPU warm-up all change the height.
+    const late = window.setTimeout(measure, 400);
+    window.addEventListener('resize', measure);
+    measuredKey.current = cardContentKey;
+    return () => {
+      window.clearTimeout(late);
+      window.removeEventListener('resize', measure);
+    };
+  }, [visible, cardContentKey, cardMaxHeight]);
+
+  // Drag the title strip: sideways switches landmark, vertically collapses
+  // the card to its title strip. Velocity decides a flick.
   const headerDrag = useDrag({
-    lockAxis: 'x',
     onStart: () => {
       dragX.stop();
       dragOrigin.current = dragX.get();
+      dragAxis.current = null;
+      cardHeightStart.current = cardMaxHeight.get();
     },
     onMove: (delta) => {
-      const nextX = dragOrigin.current + delta.x * 0.7;
-      dragX.set(nextX);
-      onDragParallax?.(nextX);
+      if (delta.x !== 0) {
+        dragAxis.current = 'x';
+        const nextX = dragOrigin.current + delta.x * 0.7;
+        dragX.set(nextX);
+        onDragParallax?.(nextX);
+        return;
+      }
+      if (delta.y === 0) return;
+      dragAxis.current = 'y';
+      const min = peekHeight.current;
+      const max = naturalHeight.current;
+      if (!min || !max || compact) return;
+      // Dragging down shrinks the card towards its title strip.
+      cardMaxHeight.set(Math.max(min, Math.min(max, cardHeightStart.current - delta.y)));
     },
     onEnd: (velocity) => {
       const landing = dragX.get() + project(velocity.x * 0.5);
       animate(dragX, 0, { ...SPRING.surface, velocity: velocity.x });
       onDragParallax?.(0);
-      if (landing < -64) onNext();
-      else if (landing > 64) onPrev();
+      if (dragAxis.current === 'x') {
+        if (landing < -64) onNext();
+        else if (landing > 64) onPrev();
+        return;
+      }
+      if (dragAxis.current !== 'y') return;
+      const min = peekHeight.current;
+      const max = naturalHeight.current;
+      if (!min || !max || compact) {
+        cardMaxHeight.set(max);
+        return;
+      }
+      // Snap: down collapses to the title strip, up opens the card again.
+      const current = cardMaxHeight.get();
+      const mid = (min + max) / 2;
+      const target =
+        velocity.y > 0.3 ? min : velocity.y < -0.3 ? max : current > mid ? max : min;
+      peekedRef.current = target === min;
+      setPeeked(peekedRef.current);
+      animate(cardMaxHeight, target, { ...SPRING.surface, velocity: velocity.y });
     },
   });
 
@@ -540,7 +619,7 @@ export function LandmarkCard({
               ? { opacity: 0, transition: { duration: 0 } }
               : { opacity: 0, transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT } }
           }
-          className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] lg:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
+          className="fixed left-[var(--cl-stage-inset)] bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] lg:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
         >
           <motion.div
             layoutId="landmark-card-shell"
@@ -663,9 +742,10 @@ export function LandmarkCard({
             ? { opacity: 0, transition: { duration: 0 } }
             : { opacity: 0, transition: { duration: DURATION.quick, ease: EASE_SMOOTH_OUT } }
         }
-        className="fixed left-0 bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] md:landscape:max-w-[490px] lg:max-w-[560px] lg:landscape:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
+        className="fixed left-[var(--cl-stage-inset)] bottom-0 z-10 w-full max-w-[560px] landscape:max-w-[380px] md:max-w-[490px] md:landscape:max-w-[490px] lg:max-w-[560px] lg:landscape:max-w-[560px] pl-[calc(0.875rem+env(safe-area-inset-left,0px))] pr-[calc(0.875rem+env(safe-area-inset-right,0px))] pb-[calc(14px+env(safe-area-inset-bottom,0px))] pointer-events-none"
       >
         <motion.div
+          ref={cardShellRef}
           layoutId="landmark-card-shell"
           layout={!reducedMotion}
           initial={reducedMotion ? false : { opacity: 0 }}
@@ -688,6 +768,8 @@ export function LandmarkCard({
             openRadial(e.clientX, e.clientY);
           }}
           className="relative bg-[#121319]/92 border border-white/15 squircle-card px-4 py-[18px] landscape:px-3.5 landscape:py-3.5 md:landscape:px-4 md:landscape:py-[18px] [@media(max-height:700px)]:px-3.5 [@media(max-height:700px)]:py-3.5 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
+          data-peeked={peeked ? 'true' : undefined}
+          style={cardHeightReady ? { maxHeight: cardMaxHeight } : undefined}
         >
           {activeRoute && (
             <div className="mb-2.5 flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/10">
@@ -744,6 +826,7 @@ export function LandmarkCard({
               >
                 <motion.div
                   {...headerDrag}
+                  ref={cardTitleRef}
                   style={{ x: dragX }}
                   variants={cardItemVariants}
                   initial="initial"

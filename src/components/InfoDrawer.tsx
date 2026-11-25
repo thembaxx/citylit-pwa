@@ -30,6 +30,8 @@ import { isAnimalActive } from '../three/builders/animalKit';
 import { loadHistorySummary, type HistorySummary } from '../services/historyService';
 import { loadWikipediaSummary, type WikiSummary } from '../services/mediaService';
 import { PillNavigation, type PillOption } from './ui/PillNavigation';
+import { useMediaQuery, useSideDrawerLayout } from '../lib/useMediaQuery';
+import { COMPACT_BREAKPOINT_PX } from '../lib/motion';
 import { Sheet } from './ui/Sheet';
 import { UnfoldAccordion } from './ui/UnfoldAccordion';
 
@@ -96,6 +98,22 @@ export function InfoDrawer({
   // Keying both slices by landmark index means a new landmark naturally lands
   // on Info with no stale history, without writing state from an effect.
   const activeTab = tabState.index === index ? tabState.tab : 'info';
+  // Phones browse the details in a two-stage bottom sheet; wider screens get
+  // the calm right-hand drawer.
+  const compactShell = useMediaQuery(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`);
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+  // Only a narrow drawer leaves room for the stage to compose around; on
+  // phones the panel covers the viewport and shifting the diorama is moot.
+  const sideDrawer = useSideDrawerLayout(768);
+
+  // The two-stage sheet always reopens at the peek height: adjust the state
+  // while rendering instead of in an effect, so the reset happens in the
+  // same commit as the close.
+  const [lastOpen, setLastOpen] = useState(open);
+  if (open !== lastOpen) {
+    setLastOpen(open);
+    if (!open) setSheetExpanded(false);
+  }
   const history = historyState.index === index ? historyState.data : null;
   const historyLoading = historyState.index === index && historyState.loading;
 
@@ -151,10 +169,19 @@ export function InfoDrawer({
     <Sheet
       open={open}
       onClose={onClose}
-      side="right"
+      side={compactShell ? 'bottom' : 'right'}
       reducedMotion={reducedMotion}
       label={`${lm.k} historical and architectural info`}
-      className="pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] md:max-w-[540px] lg:max-w-[580px]"
+      safeAreaKey={sideDrawer ? 'info-drawer' : undefined}
+      safeAreaSide={sideDrawer ? 'right' : undefined}
+      bottomHeightClass={sheetExpanded ? 'h-[88%]' : 'h-[64%]'}
+      onExpand={() => setSheetExpanded(true)}
+      onCollapse={() => setSheetExpanded(false)}
+      className={
+        compactShell
+          ? 'pt-1 pb-[env(safe-area-inset-bottom,0px)]'
+          : 'pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] md:max-w-[540px] lg:max-w-[580px]'
+      }
     >
       <header className="px-5 pt-5 pb-4 border-b border-white/12 flex items-start justify-between gap-3 shrink-0">
         <div className="min-w-0">

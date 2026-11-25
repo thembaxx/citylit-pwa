@@ -77,8 +77,11 @@ export function useDrag({ onStart, onMove, onEnd, lockAxis }: DragOptions) {
         state.current.locked = Math.abs(dx) > Math.abs(dy) * 2 ? 'x' : 'y';
       }
       tracker.current.add(e.clientX, e.clientY);
-      if (state.current.locked === 'y') return;
-      onMove({ x: dx, y: dy });
+      // Report only the committed axis: a horizontal flick must not drag the
+      // card vertically, and a vertical drag must not slide it sideways.
+      if (state.current.locked === 'x') onMove({ x: dx, y: 0 });
+      else if (state.current.locked === 'y') onMove({ x: 0, y: dy });
+      else onMove({ x: dx, y: dy });
     },
     onPointerUp: end,
     onPointerCancel: end,

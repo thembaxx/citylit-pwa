@@ -42,6 +42,18 @@ import {
 import { getSeasonMonth, setSeasonMonth as setFoliageSeasonMonth } from '../lib/season';
 import { computeCoastalTideOffset } from '../lib/tide';
 import { resolveTheme } from '../lib/theme';
+import {
+  EMPTY_INSETS,
+  freeFitFactor,
+  isCompactViewport,
+  layoutModeFor,
+  lodShortViewportBias,
+  planFraming,
+  renderScaleFloor,
+  touchPickRadius,
+  viewOffsetForShift,
+  type UiInsets,
+} from '../lib/viewportFraming';
 import { setAnimalSeasonMonth } from './builders/animalKit';
 import { LANDMARK_BUILDERS } from './builders/landmarksB';
 import { publishCreatureEnvironment } from './creatures/env';
@@ -426,6 +438,21 @@ export class CitylitEngine {
   private cardParallaxTarget = 0;
   private cardParallaxCurrent = 0;
   private baseTargetX = 0;
+  /**
+   * HUD coverage in CSS pixels, published by the app shell. The diorama is
+   * composed inside the free (unoccluded) part of the viewport: an off-axis
+   * lens shift moves the rendered image and a fit factor keeps the subject
+   * inside the free area, so a panel never sits on top of the landmark.
+   */
+  private uiInsets: UiInsets = EMPTY_INSETS;
+  /** The framing mode the lens shift was last applied for. */
+  private lensMode = '';
+  /** True while the stage renders at reduced resolution after a viewport change. */
+  private resizeTransient = false;
+  /** Timestamp (ms) until which the reduced-resolution mode stays on. */
+  private resizeSettleUntil = 0;
+  /** Desired depth-of-field state, remembered across resize transitions. */
+  private dofEnabled = true;
   private baseTargetY = 1.5;
   /** Per-landmark hero framing, recomputed only on switch/reset/resize/theme change. */
   private readonly heroFitCenter = new THREE.Vector3();
@@ -1495,7 +1522,9 @@ export class CitylitEngine {
       const sx = (this.pickWorld.x * 0.5 + 0.5) * window.innerWidth;
       const sy = (-this.pickWorld.y * 0.5 + 0.5) * window.innerHeight;
       const dist = Math.hypot(sx - clientX, sy - clientY);
-      const radius = isTouch ? Math.max(28, target.touchRadius) : target.touchRadius;
+      const radius = isTouch
+        ? Math.max(touchPickRadius(window.innerWidth, window.innerHeight), target.touchRadius)
+        : target.touchRadius;
       if (dist <= radius && dist < bestDist) {
         best = target;
         bestDist = dist;
@@ -2270,7 +2299,9 @@ export class CitylitEngine {
     }
     this.lastLodCamPos.copy(cam.position);
     this.lastLodQuality = this.qualityIndex;
-    const lodBias = this.qualityIndex === 2 ? 1.45 : this.qualityIndex === 1 ? 1.18 : 1.0;
+    const lodBias =
+      (this.qualityIndex === 2 ? 1.45 : this.qualityIndex === 1 ? 1.18 : 1.0) *
+      lodShortViewportBias(window.innerHeight);
     if (lodBias === 1) {
       for (let i = 0; i < this.activeLods.length; i++) {
         this.activeLods[i].update(cam);
@@ -3036,6 +3067,7 @@ export class CitylitEngine {
   }
 
   refreshFraming(): void {
+    this.applyLensShift();
     if (this.globe.isOpen || this.places.isOpen || this.isStudio()) return;
     this.computeResponsiveFraming();
     if (!this.hasCustomFocus && this.currentGroup) {
@@ -3081,7 +3113,8 @@ export class CitylitEngine {
     this.n8aoPass.enabled = highFx && !suspendAoForMotion;
     this.renderPass.enabled = midFx || (highFx && suspendAoForMotion);
           this.bloomPass.enabled = postFx && this.studioWeight < 0.99;
-    this.miniaturePass.enabled = postFx;
+    this.dofEnabled = postFx;
+    this.miniaturePass.enabled = postFx && !this.resizeTransient;
     this.smaaPass.enabled = postFx;
 
     const shadowsOn = !this.isSoftwareGl && idx < 2;
@@ -3128,12 +3161,26 @@ export class CitylitEngine {
     const base = [Math.min(devicePixelRatio || 1, 1.5), Math.min(devicePixelRatio || 1, 1.25), 1][
       this.qualityIndex
     ];
-    const pr = Math.max(0.6, base * this.renderScale);
+    const pr = Math.max(0.6, base * this.renderScale * (this.resizeTransient ? 0.7 : 1));
     if (Math.abs(this.appliedRenderScale - pr) < 0.001) return;
     this.appliedRenderScale = pr;
     this.renderer.setPixelRatio(pr);
     this.composer.setPixelRatio(pr);
     this.composer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  /**
+   * Drops to a cheaper picture while the viewport is in motion.
+   *
+   * Orientation changes and window drags re-allocate every render target, so
+   * the stage renders at a lower resolution and skips the depth-of-field
+   * pass until things settle again.
+   */
+  private setResizeTransient(active: boolean): void {
+    if (this.resizeTransient === active) return;
+    this.resizeTransient = active;
+    this.applyRenderScale();
+    this.miniaturePass.enabled = this.dofEnabled && !active;
   }
 
   private createProceduralSkyEnv(
@@ -3924,22 +3971,95 @@ export class CitylitEngine {
     ambientAudio.setSpatialFocusBoost(0.95);
   }
 
+  /**
+   * Publishes the current HUD coverage and reframes the diorama around it.
+   *
+   * The app shell measures the floating HUD surfaces (drawers, cards) and
+   * reports them here; the stage then composes the diorama inside whatever
+   * space is left instead of behind a panel.
+   */
+  setUiInsets(insets: UiInsets): void {
+    const next: UiInsets = {
+      top: Math.max(0, Math.round(insets.top)),
+      right: Math.max(0, Math.round(insets.right)),
+      bottom: Math.max(0, Math.round(insets.bottom)),
+      left: Math.max(0, Math.round(insets.left)),
+    };
+    if (
+      next.top === this.uiInsets.top &&
+      next.right === this.uiInsets.right &&
+      next.bottom === this.uiInsets.bottom &&
+      next.left === this.uiInsets.left
+    ) {
+      return;
+    }
+    this.uiInsets = next;
+    this.refreshFraming();
+  }
+
+  /**
+   * Applies the off-axis lens shift that composes the diorama in the free
+   * area.
+   *
+   * The shift lives in the projection matrix, not in the camera transform:
+   * the field of view and the viewing angle stay untouched, so the scene
+   * slides inside the frame instead of swinging around it. Picking and
+   * `unproject` stay exact because they read the same projection matrix, and
+   * the composition recomposes for free whenever the viewport resizes.
+   *
+   * The globe, places and studio modes own their own framing, so the offset
+   * is cleared while they are open.
+   */
+  private applyLensShift(): void {
+    const w = window.innerWidth;
+    const h = Math.max(1, window.innerHeight);
+    const heroMode = this.lensModeKey() === 'hero';
+    const plan = heroMode ? planFraming(this.uiInsets, w, h) : null;
+    const args = plan ? viewOffsetForShift(plan.shiftX, plan.shiftY, w, h) : null;
+    if (args) {
+      this.camera.setViewOffset(
+        args.fullWidth,
+        args.fullHeight,
+        args.offsetX,
+        args.offsetY,
+        args.width,
+        args.height
+      );
+      return;
+    }
+    const view = this.camera.view;
+    if (view && view.enabled) this.camera.clearViewOffset();
+  }
+
+  /** Which stage owns the framing right now; only the hero stage is composed. */
+  private lensModeKey(): string {
+    if (this.globe.isOpen) return 'globe';
+    if (this.places.isOpen) return 'places';
+    if (this.isStudio()) return 'studio';
+    return 'hero';
+  }
+
   private computeResponsiveFraming(): void {
     const w = window.innerWidth;
     const h = Math.max(1, window.innerHeight);
-    const aspect = w / h;
+    const mode = layoutModeFor(w, h);
     const rawCardH = parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue('--cl-card-h') || '0'
     );
     const cardRatio = rawCardH > 0 ? THREE.MathUtils.clamp(rawCardH / h, 0.14, 0.44) : 0.25;
-    if (aspect < 0.85) {
+    if (mode === 'portrait') {
       // Portrait mobile: lift diorama cleanly above the bottom card based on live card height.
       this.baseTargetX = 0;
       this.baseTargetY = 0.72 + (0.3 - Math.min(0.3, cardRatio)) * 0.8;
-    } else if (h < 520 && aspect > 1.35) {
+    } else if (mode === 'short-landscape') {
       // Short landscape mobile: shift diorama right of the compact bottom-left card.
       this.baseTargetX = -1.08;
       this.baseTargetY = 1.38;
+    } else if (mode === 'square') {
+      // Near-square viewports (unfolded foldables, small tablets): the card
+      // still sits bottom-left, so nudge the diorama right and a little up.
+      this.baseTargetX = -0.55;
+      this.baseTargetY = 1.22;
     } else {
       this.baseTargetX = 0;
       this.baseTargetY = 1.5;
@@ -4115,12 +4235,26 @@ export class CitylitEngine {
     const vFov = THREE.MathUtils.degToRad(this.camera.fov);
     const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.camera.aspect);
     const fit = Math.max(radius / Math.tan(vFov / 2), radius / Math.tan(hFov / 2));
-    const compactScreen = window.innerHeight < 680 || this.camera.aspect < 0.72;
-    const distance = THREE.MathUtils.clamp(
+    const compactScreen = isCompactViewport(window.innerWidth, window.innerHeight);
+    let distance = THREE.MathUtils.clamp(
       fit * (compactScreen ? 1.18 : 1.11),
       this.controls.minDistance + 0.2,
       this.controls.maxDistance - 0.2
     );
+
+    // Keep the subject inside the free area when a HUD panel squeezes the
+    // viewport: back the camera off just enough for it to clear the panel.
+    const free = planFraming(this.uiInsets, window.innerWidth, window.innerHeight).free;
+    const subjectRadiusPx =
+      (radius * (window.innerHeight * 0.5)) / (distance * Math.tan(vFov / 2));
+    const fitFactor = freeFitFactor(subjectRadiusPx, free);
+    if (fitFactor > 1) {
+      distance = THREE.MathUtils.clamp(
+        distance * fitFactor,
+        this.controls.minDistance + 0.2,
+        this.controls.maxDistance - 0.2
+      );
+    }
 
     this.heroFitDirection.copy(this.camera.position).sub(this.controls.target);
     if (this.heroFitDirection.lengthSq() < 1e-6) this.heroFitDirection.set(11.5, 4.7, 13);
@@ -4599,7 +4733,11 @@ export class CitylitEngine {
       this.renderer.setSize(w, h);
       this.composer.setSize(w, h);
       this.computeResponsiveFraming();
+      this.applyLensShift();
       this.frameCurrentLandmark();
+      // The viewport is in motion: render cheap until it settles.
+      this.resizeSettleUntil = performance.now() + 320;
+      this.setResizeTransient(true);
     };
 
     const onControlStart = () => {
@@ -5077,6 +5215,18 @@ export class CitylitEngine {
     // reduced motion eases into the new rate rather than jumping the shader phase.
     this.shaderTime += dt * this.motionScale;
     WU.t.value = this.shaderTime;
+    // Switching between the hero stage, globe, places and studio changes who
+    // owns the framing, so the off-axis composition is recomposed once.
+    const lensMode = this.lensModeKey();
+    if (lensMode !== this.lensMode) {
+      this.lensMode = lensMode;
+      this.applyLensShift();
+    }
+    // Restore full resolution once the viewport stopped moving.
+    if (this.resizeTransient && now >= this.resizeSettleUntil) {
+      this.resizeSettleUntil = 0;
+      this.setResizeTransient(false);
+    }
     this.cursorStrengthTarget = Math.max(0, this.cursorStrengthTarget - dt * 1.4);
     WU.cursorStrength.value +=
       (this.cursorStrengthTarget - WU.cursorStrength.value) * Math.min(1, dt * 8);
@@ -5113,8 +5263,8 @@ export class CitylitEngine {
         const avgMs = (this.autoScaleAcc / this.autoScaleSamples) * 1000;
         if (avgMs > 22 && this.qualityIndex === 0) {
           this.setQualityIndex(1);
-        } else if (avgMs > 18.5 && this.renderScale > 0.75) {
-          this.renderScale = Math.max(0.75, this.renderScale - 0.1);
+        } else if (avgMs > 18.5 && this.renderScale > renderScaleFloor(devicePixelRatio || 1)) {
+          this.renderScale = Math.max(renderScaleFloor(devicePixelRatio || 1), this.renderScale - 0.1);
           this.applyRenderScale();
         } else if (avgMs < 13.5 && this.renderScale < 1) {
           this.renderScale = Math.min(1, this.renderScale + 0.05);
