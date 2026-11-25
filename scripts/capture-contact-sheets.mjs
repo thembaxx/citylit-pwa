@@ -252,7 +252,8 @@ class CdpSession {
       returnByValue: true,
     });
     if (r.exceptionDetails) {
-      const detail = r.exceptionDetails.exception?.description || JSON.stringify(r.exceptionDetails);
+      const detail =
+        r.exceptionDetails.exception?.description || JSON.stringify(r.exceptionDetails);
       throw new Error(`Page evaluation failed: ${detail}`);
     }
     return r.result.value;
@@ -287,7 +288,10 @@ async function acquirePageTarget(cdpUrl) {
   if (!res.ok) throw new Error(`Cannot list CDP targets at ${cdpUrl} (HTTP ${res.status})`);
   const targets = await res.json();
   const page = targets.find((t) => t.type === 'page');
-  if (!page) throw new Error(`No CDP page target at ${cdpUrl}; launch Chrome with --remote-debugging-port=9222`);
+  if (!page)
+    throw new Error(
+      `No CDP page target at ${cdpUrl}; launch Chrome with --remote-debugging-port=9222`
+    );
   return { target: page, close: () => {} };
 }
 
@@ -316,9 +320,34 @@ function setupEval() {
     e.isSoftwareGl = false;
     e.applyQuality('high');
     e.renderer.raw.info.autoReset = false;
+    const images = [...document.querySelectorAll('#grid img')];
+    const imageChecks = images.map((image) => {
+      if (!image.complete || image.naturalWidth === 0 || !image.src.startsWith('data:image/')) {
+        return { loaded: false, variedPixels: false };
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return { loaded: true, variedPixels: false };
+      ctx.drawImage(image, 0, 0, 16, 16);
+      const pixels = ctx.getImageData(0, 0, 16, 16).data;
+      const colors = new Set();
+      let opaquePixels = 0;
+      for (let offset = 0; offset < pixels.length; offset += 16) {
+        colors.add([pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]].join(','));
+        if (pixels[offset + 3] > 0) opaquePixels++;
+      }
+      return { loaded: true, variedPixels: colors.size > 8 && opaquePixels > 32 };
+    });
     return {
       ok: true,
       figures: document.querySelectorAll('#grid figure').length,
+      thumbnails: {
+        count: imageChecks.length,
+        loaded: imageChecks.filter((image) => image.loaded).length,
+        rendered: imageChecks.filter((image) => image.variedPixels).length,
+      },
       qualitySetting: e.qualitySetting,
       qualityIndex: e.qualityIndex,
       isSoftwareGl: e.isSoftwareGl,
@@ -386,6 +415,15 @@ async function captureHour(cdp, cfg, hour, stats) {
   if (!setup?.ok) throw new Error(`Setup failed for hour ${hour}: ${setup?.reason || 'unknown'}`);
   if (setup.figures !== EXPECTED_LANDMARKS) {
     throw new Error(`Expected ${EXPECTED_LANDMARKS} landmarks, found ${setup.figures}`);
+  }
+  if (
+    setup.thumbnails?.count !== EXPECTED_LANDMARKS ||
+    setup.thumbnails.loaded !== EXPECTED_LANDMARKS ||
+    setup.thumbnails.rendered !== EXPECTED_LANDMARKS
+  ) {
+    throw new Error(
+      `Incomplete or blank thumbnails for hour ${hour}: ${JSON.stringify(setup.thumbnails)}`
+    );
   }
 
   try {

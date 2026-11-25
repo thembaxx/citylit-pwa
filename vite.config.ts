@@ -30,7 +30,6 @@ export default defineConfig({
         'icons/icon-512.png',
         'icons/apple-touch-icon.png',
         'icons/maskable-512.png',
-        'assets/env/sky.hdr',
       ],
       manifest: {
         id: '/',
@@ -86,7 +85,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,hdr,webmanifest}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,hdr,webmanifest,woff2}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         // Generated/AI Studio experiments are not referenced by the app. Keep
         // them out of the precache if they are ever restored under public/.

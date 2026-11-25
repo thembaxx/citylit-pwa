@@ -81,11 +81,7 @@ import {
   smoothstep,
 } from '../../lib/plinthProfiles';
 import { grassWindy } from '../shaders';
-import {
-  attachPilotPlinthToGroup,
-  buildPilotPlinth,
-  terrainSurfaceNoise,
-} from './plinthKit';
+import { attachPilotPlinthToGroup, buildPilotPlinth, terrainSurfaceNoise } from './plinthKit';
 
 const landmarkMetaByKey = new Map(LANDMARKS.map((lm) => [lm.k, lm]));
 
@@ -212,24 +208,63 @@ export function table(): THREE.Group {
   // Tablecloth mist cascades gracefully over the windward (north) rim only.
   const cmOuter = MT('#dce4ec', 0.38, 0.96, 0, false);
   const cmInner = MT('#eaeef2', 0.48, 0.96, 0, false);
-  const cl: THREE.Mesh[] = [];
+  const cloudGeo = new THREE.IcosahedronGeometry(0.52, 1);
   const clothCount = 22;
+  const cloudTransforms: Array<InstanceTransform & { index: number }> = [];
   for (let i = 0; i < clothCount; i++) {
     const x = -3.2 + i * (6.4 / (clothCount - 1));
     const z = Math.sqrt(Math.max(0.4, 12.4 - x * x)) * 0.79;
-    const mat = i % 2 === 0 ? cmOuter : cmInner;
-    const o = add(g, new THREE.IcosahedronGeometry(0.52, 1), mat, x, 2.75 + (i % 3) * 0.09, z);
-    o.scale.set(1.25 + R(i) * 0.3, 0.48 + R(i + 2) * 0.2, 0.98);
-    o.userData.x = x;
-    o.userData.baseY = o.position.y;
-    cl.push(o);
+    const cloudScale = 1.25 + R(i) * 0.3;
+    cloudTransforms.push({
+      index: i,
+      x,
+      y: 2.75 + (i % 3) * 0.09,
+      z,
+      sx: cloudScale,
+      sy: 0.48 + R(i + 2) * 0.2,
+      sz: 0.98,
+    });
   }
   [-2.1, -1.0, 0.1, 1.3, 2.2].forEach((x, idx) => {
-    const o = add(g, new THREE.IcosahedronGeometry(0.48, 1), cmOuter, x, 2.3 - idx * 0.07, 3.5);
-    o.scale.set(1.22, 0.85, 0.62);
-    o.userData.x = x;
-    o.userData.baseY = o.position.y;
-    cl.push(o);
+    cloudTransforms.push({
+      index: clothCount + idx,
+      x,
+      y: 2.3 - idx * 0.07,
+      z: 3.5,
+      sx: 1.22 * (0.48 / 0.52),
+      sy: 0.85 * (0.48 / 0.52),
+      sz: 0.62 * (0.48 / 0.52),
+    });
+  });
+
+  const scratchPosition = new THREE.Vector3();
+  const scratchScale = new THREE.Vector3();
+  const scratchRotation = new THREE.Quaternion();
+  const scratchMatrix = new THREE.Matrix4();
+  const cloudBanks = [
+    { material: cmOuter, transforms: cloudTransforms.filter((cloud) => cloud.index % 2 === 0) },
+    { material: cmInner, transforms: cloudTransforms.filter((cloud) => cloud.index % 2 === 1) },
+  ].map(({ material, transforms }) => {
+    const mesh = instancedMeshes(g, cloudGeo, material, transforms);
+    if (!mesh) return () => {};
+    return (t: number) => {
+      transforms.forEach((cloud, i) => {
+        const phase = cloud.index;
+        scratchPosition.set(
+          cloud.x + Math.sin(t * 0.4 + phase) * 0.16,
+          cloud.y + Math.sin(t * 0.52 + phase * 0.7) * 0.09,
+          cloud.z + Math.sin(t * 0.3 + phase * 1.3) * 0.14
+        );
+        scratchScale.set(
+          cloud.sx ?? 1,
+          (cloud.sy ?? 1) * (1 + 0.14 * Math.sin(t * 0.6 + phase)),
+          cloud.sz ?? 1
+        );
+        scratchMatrix.compose(scratchPosition, scratchRotation, scratchScale);
+        mesh.setMatrixAt(i, scratchMatrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    };
   });
 
   // Batched fynbos bushes around lower slopes
@@ -358,15 +393,7 @@ export function table(): THREE.Group {
   );
 
   g.userData.tick = (t: number) => {
-    cl.forEach((c, i) => {
-      const z0 = (c.userData.z0 ??= c.position.z) as number;
-      c.position.x = (c.userData.x as number) + Math.sin(t * 0.4 + i) * 0.16;
-      c.position.z = z0 + Math.sin(t * 0.3 + i * 1.3) * 0.14;
-      const y0 = (c.userData.baseY ??= c.position.y) as number;
-      c.position.y = y0 + Math.sin(t * 0.52 + i * 0.7) * 0.09;
-      const sy = (c.userData.sy ??= c.scale.y) as number;
-      c.scale.y = sy * (1 + 0.14 * Math.sin(t * 0.6 + i));
-    });
+    cloudBanks.forEach((updateClouds) => updateClouds(t));
     const u = (Math.sin(t * 0.35) + 1) / 2;
     const sag1 = 0.14 * 4 * u * (1 - u);
     const sag2 = 0.14 * 4 * (1 - u) * u;
@@ -694,8 +721,24 @@ export function union(): THREE.Group {
     { x: -1.4, y: 0.62, z: 0.9, kind: 'victorian', scale: 0.92, color: '#ffd488' },
     { x: 1.4, y: 0.62, z: 0.9, kind: 'victorian', scale: 0.92, color: '#ffd488' },
     { x: 3.4, y: 0.62, z: 0.9, kind: 'victorian', scale: 0.92, color: '#ffd488' },
-    { x: -0.62, y: 0.78, z: -0.36, kind: 'uplight', scale: 0.95, color: '#ffe09c', coneHeight: 1.35 },
-    { x: 0.62, y: 0.78, z: -0.36, kind: 'uplight', scale: 0.95, color: '#ffe09c', coneHeight: 1.35 },
+    {
+      x: -0.62,
+      y: 0.78,
+      z: -0.36,
+      kind: 'uplight',
+      scale: 0.95,
+      color: '#ffe09c',
+      coneHeight: 1.35,
+    },
+    {
+      x: 0.62,
+      y: 0.78,
+      z: -0.36,
+      kind: 'uplight',
+      scale: 0.95,
+      color: '#ffe09c',
+      coneHeight: 1.35,
+    },
     { x: -4.2, y: 0.07, z: 3.92, kind: 'victorian', scale: 1.02, color: '#ffd080' },
     { x: -1.9, y: 0.07, z: 3.92, kind: 'victorian', scale: 1.02, color: '#ffd080' },
     { x: 1.9, y: 0.07, z: 3.92, kind: 'victorian', scale: 1.02, color: '#ffd080' },
@@ -822,15 +865,15 @@ export function stadium(): THREE.Group {
   ].map((p) => new THREE.Vector2(...p));
   add(bowl, new THREE.LatheGeometry(pr, 96), sh);
   // Inner seating cone with UV gradient
+  add(bowl, new THREE.CylinderGeometry(3.85, 2.34, 1.85, 96, 1, true), seatMat, 0, 1.12, 0);
   add(
     bowl,
-    new THREE.CylinderGeometry(3.85, 2.34, 1.85, 96, 1, true),
-    seatMat,
+    new THREE.CircleGeometry(2.3, 64).rotateX(-Math.PI / 2),
+    M('#3b8646', 0.95),
     0,
-    1.12,
+    0.16,
     0
   );
-  add(bowl, new THREE.CircleGeometry(2.3, 64).rotateX(-Math.PI / 2), M('#3b8646', 0.95), 0, 0.16, 0);
   add(bowl, new THREE.TorusGeometry(4.35, 0.1, 10, 128).rotateX(Math.PI / 2), gl, 0, 2.35, 0);
   add(bowl, new THREE.TorusGeometry(4.4, 0.05, 8, 128).rotateX(Math.PI / 2), gl, 0, 1.3, 0);
 
@@ -856,13 +899,22 @@ export function stadium(): THREE.Group {
   for (let x = -3.6; x <= 3.7; x += 0.34) {
     const zo = Math.sqrt(Math.max(0, 4.42 * 4.42 - x * x));
     [-1, 1].forEach((s) => {
-      archSegs.push([[x, yFn(x), dzFn(x, s)], [x, rimY, s * zo]]);
+      archSegs.push([
+        [x, yFn(x), dzFn(x, s)],
+        [x, rimY, s * zo],
+      ]);
       if (Math.abs(x) < 3.25) {
         const zi = Math.sqrt(Math.max(0, 3.3 * 3.3 - x * x));
-        archSegs.push([[x, yFn(x), dzFn(x, s)], [x, 2.15 * BOWL_SCALE, s * zi]]);
+        archSegs.push([
+          [x, yFn(x), dzFn(x, s)],
+          [x, 2.15 * BOWL_SCALE, s * zi],
+        ]);
       }
     });
-    archSegs.push([[x, yFn(x), dzFn(x, -1)], [x, yFn(x), dzFn(x, 1)]]);
+    archSegs.push([
+      [x, yFn(x), dzFn(x, -1)],
+      [x, yFn(x), dzFn(x, 1)],
+    ]);
   }
   cableBatch(g, archSegs, 0.015, cableMat);
 
@@ -903,7 +955,10 @@ export function stadium(): THREE.Group {
     const a = (i / 36) * 6.2832;
     const c = Math.cos(a);
     const s = Math.sin(a);
-    roofTrussSegs.push([[3.3 * c, 2.15, 3.3 * s], [4.45 * c, 2.4, 4.45 * s]]);
+    roofTrussSegs.push([
+      [3.3 * c, 2.15, 3.3 * s],
+      [4.45 * c, 2.4, 4.45 * s],
+    ]);
   }
   cableBatch(bowl, roofTrussSegs, 0.018, M('#9ea8b4', 0.4, 0.65));
 
@@ -999,8 +1054,14 @@ export function bridge(): THREE.Group {
     // Cross-portal H-beam & diagonal X-bracing trusses
     add(g, CB(0.24, 0.2, 1.85, 0.02), wh, mx, topY - 0.8, 0);
     add(g, CB(0.22, 0.18, 1.85, 0.02), wh, mx, topY - 2.4, 0);
-    staySegs.push([[mx, topY - 0.85, -0.88], [mx, topY - 2.35, 0.88]]);
-    staySegs.push([[mx, topY - 0.85, 0.88], [mx, topY - 2.35, -0.88]]);
+    staySegs.push([
+      [mx, topY - 0.85, -0.88],
+      [mx, topY - 2.35, 0.88],
+    ]);
+    staySegs.push([
+      [mx, topY - 0.85, 0.88],
+      [mx, topY - 2.35, -0.88],
+    ]);
   });
   cableBatch(g, staySegs, 0.015, M('#c2cccf', 0.35, 0.75));
 
@@ -1253,7 +1314,10 @@ export function hole(): THREE.Group {
   ] as const) {
     const tx = 6.3 + (bx - 6.3) * 0.35;
     const tz = -1.4 + (bz + 1.4) * 0.35;
-    legSegs.push([[bx, 0, bz], [tx, 3.55, tz]]);
+    legSegs.push([
+      [bx, 0, bz],
+      [tx, 3.55, tz],
+    ]);
   }
   for (const h of [0.85, 1.75, 2.65]) {
     const k = 1 - (h / 3.55) * 0.65;
@@ -1262,13 +1326,34 @@ export function hole(): THREE.Group {
     const z0 = -1.4 - 0.35 * k;
     const z1 = -1.4 + 0.35 * k;
     legSegs.push(
-      [[x0, h, z0], [x1, h, z0]],
-      [[x0, h, z1], [x1, h, z1]],
-      [[x0, h, z0], [x0, h, z1]],
-      [[x1, h, z0], [x1, h, z1]]
+      [
+        [x0, h, z0],
+        [x1, h, z0],
+      ],
+      [
+        [x0, h, z1],
+        [x1, h, z1],
+      ],
+      [
+        [x0, h, z0],
+        [x0, h, z1],
+      ],
+      [
+        [x1, h, z0],
+        [x1, h, z1],
+      ]
     );
   }
-  legSegs.push([[7.4, 0, -1.6], [6.4, 3.5, -1.55]], [[7.4, 0, -1.2], [6.4, 3.5, -1.25]]);
+  legSegs.push(
+    [
+      [7.4, 0, -1.6],
+      [6.4, 3.5, -1.55],
+    ],
+    [
+      [7.4, 0, -1.2],
+      [6.4, 3.5, -1.25],
+    ]
+  );
   cableBatch(g, legSegs, 0.062, rs);
 
   const wl = new THREE.Group();
@@ -1290,7 +1375,14 @@ export function hole(): THREE.Group {
     postT.push({ x: 6.42 * Math.cos(ang), y: 0.27, z: 5.75 * Math.sin(ang) });
   }
   instancedMeshes(g, C(0.02, 0.02, 0.55, 6), fm, postT);
-  add(g, new THREE.TorusGeometry(6.42, 0.015, 6, 128).rotateX(Math.PI / 2), fm, 0, 0.5, 0).scale.set(1, 1, 0.9);
+  add(
+    g,
+    new THREE.TorusGeometry(6.42, 0.015, 6, 128).rotateX(Math.PI / 2),
+    fm,
+    0,
+    0.5,
+    0
+  ).scale.set(1, 1, 0.9);
   const hoistCable = add(g, C(0.022, 0.022, 1, 6), M('#2a2e34', 0.4, 0.8), 4.25, 0.8, -1.0);
   const bk = add(g, CB(0.3, 0.25, 0.3, 0.03), rs, 2.2, -2.0, -0.6);
 
@@ -1348,11 +1440,36 @@ export function hole(): THREE.Group {
   addStreetLampSet(g, [
     { x: -3.2, y: 0, z: 6.45, kind: 'lantern', scale: 0.88, color: '#ffd588', poolRadius: 0.82 },
     { x: -1.8, y: 0, z: 6.45, kind: 'lantern', scale: 0.88, color: '#ffd588', poolRadius: 0.82 },
-    { x: -0.95, y: 0.16, z: 4.75, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
+    {
+      x: -0.95,
+      y: 0.16,
+      z: 4.75,
+      kind: 'bollard',
+      scale: 0.85,
+      color: '#ffe09c',
+      poolRadius: 0.72,
+    },
     { x: 0.95, y: 0.16, z: 4.75, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
-    { x: -0.95, y: 0.16, z: 6.45, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
+    {
+      x: -0.95,
+      y: 0.16,
+      z: 6.45,
+      kind: 'bollard',
+      scale: 0.85,
+      color: '#ffe09c',
+      poolRadius: 0.72,
+    },
     { x: 0.95, y: 0.16, z: 6.45, kind: 'bollard', scale: 0.85, color: '#ffe09c', poolRadius: 0.72 },
-    { x: 6.3, y: 0, z: -1.05, kind: 'uplight', scale: 1.0, color: '#ffb868', coneHeight: 1.75, coneRadius: 0.62 },
+    {
+      x: 6.3,
+      y: 0,
+      z: -1.05,
+      kind: 'uplight',
+      scale: 1.0,
+      color: '#ffb868',
+      coneHeight: 1.75,
+      coneRadius: 0.62,
+    },
   ]);
 
   const dN = 90;
@@ -1530,7 +1647,13 @@ export function voortrekker(): THREE.Group {
       if (side < 2) {
         chevT.push({ x: dist, y: 4.82, z: (side === 0 ? 1 : -1) * 2.28, rz: diag });
       } else {
-        chevT.push({ x: (side === 2 ? 1 : -1) * 2.28, y: 4.82, z: dist, rx: diag, ry: Math.PI / 2 });
+        chevT.push({
+          x: (side === 2 ? 1 : -1) * 2.28,
+          y: 4.82,
+          z: dist,
+          rx: diag,
+          ry: Math.PI / 2,
+        });
       }
     }
   }
@@ -1570,14 +1693,7 @@ export function voortrekker(): THREE.Group {
   );
   dome.scale.y = 0.52;
   add(g, new THREE.TorusGeometry(0.36, 0.08, 10, 32).rotateX(-Math.PI / 2), dk, 0, 6.66, 0);
-  add(
-    g,
-    new THREE.CircleGeometry(0.3, 32).rotateX(-Math.PI / 2),
-    M('#17140f', 0.92),
-    0,
-    6.65,
-    0
-  );
+  add(g, new THREE.CircleGeometry(0.3, 32).rotateX(-Math.PI / 2), M('#17140f', 0.92), 0, 6.65, 0);
   // Tapered additive light shaft from the oculus onto the Hall of Heroes.
   // Entirely static (no tick), so reduced-motion needs no special case. Depth
   // test is relaxed so the faint cone reads through the solid dome shell.
@@ -1635,7 +1751,15 @@ export function voortrekker(): THREE.Group {
     { x: 0.92, y: 0.2, z: 4.35, kind: 'lantern', scale: 0.95, color: '#ffca72' },
     { x: -2.42, y: 0.8, z: 2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
     { x: 2.42, y: 0.8, z: 2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
-    { x: -2.42, y: 0.8, z: -2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
+    {
+      x: -2.42,
+      y: 0.8,
+      z: -2.42,
+      kind: 'uplight',
+      scale: 1.05,
+      color: '#ffb95e',
+      coneHeight: 1.85,
+    },
     { x: 2.42, y: 0.8, z: -2.42, kind: 'uplight', scale: 1.05, color: '#ffb95e', coneHeight: 1.85 },
   ]);
   for (let i = 0; i < 6; i++) {
@@ -1722,7 +1846,14 @@ export function capePoint(): THREE.Group {
   add(g, C(0.27, 0.32, 0.66, 24), wh, -1.6, 5.09, -0.2);
   add(g, C(0.45, 0.45, 0.09, 24), castBlack, -1.6, 5.45, -0.2);
   add(g, C(0.22, 0.22, 0.3, 16), museumLantern, -1.6, 5.65, -0.2);
-  add(g, new THREE.SphereGeometry(0.28, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), redDome, -1.6, 5.8, -0.2);
+  add(
+    g,
+    new THREE.SphereGeometry(0.28, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    redDome,
+    -1.6,
+    5.8,
+    -0.2
+  );
   colonialHouse(g, {
     x: -1.6,
     y: 3.88,
@@ -1739,7 +1870,14 @@ export function capePoint(): THREE.Group {
   add(g, CB(0.46, 0.68, 0.46, 0.02), wh, 1.9, 2.62, 0.7);
   add(g, CB(0.56, 0.06, 0.56, 0.01), dk, 1.9, 2.99, 0.7);
   add(g, C(0.15, 0.15, 0.24, 16), ltNew, 1.9, 3.14, 0.7);
-  add(g, new THREE.SphereGeometry(0.19, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), redDome, 1.9, 3.26, 0.7);
+  add(
+    g,
+    new THREE.SphereGeometry(0.19, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2),
+    redDome,
+    1.9,
+    3.26,
+    0.7
+  );
 
   // Winding switchback road snaking up the cliff face to the old lighthouse
   const roadPts: THREE.Vector3[] = [];
@@ -1791,8 +1929,16 @@ export function capePoint(): THREE.Group {
     }
   }
   const railMat = M('#555a62', 0.42, 0.72);
-  add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railLeftPts), 40, 0.018, 6, false), railMat);
-  add(g, new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railRightPts), 40, 0.018, 6, false), railMat);
+  add(
+    g,
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railLeftPts), 40, 0.018, 6, false),
+    railMat
+  );
+  add(
+    g,
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railRightPts), 40, 0.018, 6, false),
+    railMat
+  );
   instancedMeshes(g, CB(0.05, 0.022, 0.24, 0.005), MWood('#5c4632', 0.88), sleeperT);
   const funicularCar = add(g, CB(0.24, 0.16, 0.18, 0.02), M('#d8d2c4', 0.68), 3.9, 0.55, -2.6);
   addStreetLampSet(g, [
@@ -2026,7 +2172,14 @@ export function bokaap(): THREE.Group {
   add(g, CB(0.42, 0.08, 0.42, 0.02), sage, 6.65, 1.92, -2.05);
   add(g, CB(0.26, 0.65, 0.26, 0.02), wh, 6.65, 2.28, -2.05);
   add(g, C(0.14, 0.16, 0.28, 8), wh, 6.65, 2.74, -2.05);
-  add(g, new THREE.SphereGeometry(0.14, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), sage, 6.65, 2.88, -2.05);
+  add(
+    g,
+    new THREE.SphereGeometry(0.14, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    sage,
+    6.65,
+    2.88,
+    -2.05
+  );
   add(g, C(0.012, 0.018, 0.22, 6), brass, 6.65, 3.08, -2.05);
 
   for (let i = 0; i < 5; i++) tree(g, -4 + i * 2, 4.1, 0.8, 1);
@@ -2192,12 +2345,9 @@ export function rondavels(): THREE.Group {
   const EDGE_Y = 0.03;
 
   // Continuous displaced Blyde Canyon escarpment terrain sloping down into the jade Blyde Dam
-  const terrain = new THREE.PlaneGeometry(
-    TERRAIN_HALF * 2,
-    TERRAIN_HALF * 2,
-    56,
-    56
-  ).rotateX(-Math.PI / 2);
+  const terrain = new THREE.PlaneGeometry(TERRAIN_HALF * 2, TERRAIN_HALF * 2, 56, 56).rotateX(
+    -Math.PI / 2
+  );
 
   // River centreline, sampled once so the terrain can cut its channel. It runs
   // the length of the canyon and stops on the terrain edge, so the water never
@@ -2211,9 +2361,7 @@ export function rondavels(): THREE.Group {
     [-3.55, 6.2],
     [-4.05, 7.1],
   ];
-  const river = new THREE.CatmullRomCurve3(
-    riverPts.map(([x, z]) => new THREE.Vector3(x, 0, z))
-  );
+  const river = new THREE.CatmullRomCurve3(riverPts.map(([x, z]) => new THREE.Vector3(x, 0, z)));
   const riverPath = river.getPoints(110);
   const channelDist = (x: number, z: number): number => {
     let best = Infinity;
@@ -2232,8 +2380,7 @@ export function rondavels(): THREE.Group {
     const shelf = Math.pow(ridge, 1.4) * 3.15;
     // The gorge: a wide cleft around x ≈ -3.6 that holds the river.
     const gorge = Math.exp(-Math.pow((x + 3.6) / 2.5, 2));
-    const und =
-      0.22 * Math.sin(x * 0.7 + z * 0.5) + 0.14 * Math.cos(x * 1.3 - z * 0.9);
+    const und = 0.22 * Math.sin(x * 0.7 + z * 0.5) + 0.14 * Math.cos(x * 1.3 - z * 0.9);
     // The land rises from the bed; inside the gorge it stays down at the floor.
     let y = FLOOR + (shelf + und * 0.62) * (1 - gorge * 0.85);
     // Cut the river bed: flat along the centreline, easing up into the banks, so
@@ -2306,7 +2453,14 @@ export function rondavels(): THREE.Group {
     rock(g, r * 0.78, r * 1.18, h, x, z, '#96805f', '#cbbb95', 0.11, baseY);
     const dome = add(crest, capGeo, helmetMat, x, baseY + h - 0.06, z);
     dome.scale.set(r * 0.96, r * (0.44 + idx * 0.04), r * 0.96);
-    const hutTip = add(crest, new THREE.ConeGeometry(r * 0.18, 0.56, 10), helmetMat, x, baseY + h + 0.18, z);
+    const hutTip = add(
+      crest,
+      new THREE.ConeGeometry(r * 0.18, 0.56, 10),
+      helmetMat,
+      x,
+      baseY + h + 0.18,
+      z
+    );
     hutTip.rotation.z = (idx - 1) * 0.06;
   });
   // Mapjaneng, the broad flat-topped chief peak
@@ -2330,8 +2484,22 @@ export function rondavels(): THREE.Group {
   ).forEach(([x, sc, ry], i) => {
     const z = -0.12 + i * 0.16;
     add(troop, new THREE.IcosahedronGeometry(0.13 * sc, 0), baboonMat, x, ledgeY + 0.14 * sc, z);
-    add(troop, new THREE.IcosahedronGeometry(0.07 * sc, 0), baboonMat, x + 0.1 * sc, ledgeY + 0.27 * sc, z);
-    add(troop, B(0.02, 0.02, 0.2 * sc), baboonMat, x - 0.12 * sc, ledgeY + 0.12 * sc, z).rotation.y = ry;
+    add(
+      troop,
+      new THREE.IcosahedronGeometry(0.07 * sc, 0),
+      baboonMat,
+      x + 0.1 * sc,
+      ledgeY + 0.27 * sc,
+      z
+    );
+    add(
+      troop,
+      B(0.02, 0.02, 0.2 * sc),
+      baboonMat,
+      x - 0.12 * sc,
+      ledgeY + 0.12 * sc,
+      z
+    ).rotation.y = ry;
   });
   g.add(mergeByMaterial(troop));
 
@@ -2433,7 +2601,14 @@ export function baobab(): THREE.Group {
   g.add(flutes);
   for (let i = 0; i < 10; i++) {
     const a = (i * Math.PI * 2) / 10;
-    const rib = add(flutes, C(0.055, 0.13, 2.25, 8), bk, 2.02 * Math.cos(a), 1.38, 2.02 * Math.sin(a));
+    const rib = add(
+      flutes,
+      C(0.055, 0.13, 2.25, 8),
+      bk,
+      2.02 * Math.cos(a),
+      1.38,
+      2.02 * Math.sin(a)
+    );
     rib.rotation.z = -0.07 * Math.cos(a);
     rib.rotation.x = 0.07 * Math.sin(a);
   }
@@ -2468,20 +2643,31 @@ export function baobab(): THREE.Group {
         subTip.y + 0.42,
         subTip.z + Math.sin(a2 + s * 0.35) * 0.45
       );
-      add(twigs, new THREE.TubeGeometry(new THREE.CatmullRomCurve3([subTip, twigTip]), 4, 0.032, 5), bk);
+      add(
+        twigs,
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3([subTip, twigTip]), 4, 0.032, 5),
+        bk
+      );
 
       // Palmate leaf tuft + hanging oval velvet baobab seed pod
       const f = new THREE.Group();
       f.position.copy(twigTip);
       g.add(f);
-      add(f, new THREE.IcosahedronGeometry(0.18, 1), Mc(i % 2 ? '#61823e' : '#73914b'), 0, 0.04, 0).scale.set(
-        1.15,
-        0.72,
-        1.15
-      );
+      add(
+        f,
+        new THREE.IcosahedronGeometry(0.18, 1),
+        Mc(i % 2 ? '#61823e' : '#73914b'),
+        0,
+        0.04,
+        0
+      ).scale.set(1.15, 0.72, 1.15);
       if (i % 2 === 0 || s > 0) {
         add(f, C(0.005, 0.005, 0.18, 4), bk, 0.04, -0.1, 0);
-        add(f, new THREE.SphereGeometry(0.052, 8, 6), podMat, 0.04, -0.22, 0).scale.set(0.85, 1.65, 0.85);
+        add(f, new THREE.SphereGeometry(0.052, 8, 6), podMat, 0.04, -0.22, 0).scale.set(
+          0.85,
+          1.65,
+          0.85
+        );
       }
       swayItems.push({ o: f, ph: i * 1.4 + s, a: 0.045, sp: 1.25 });
     }
@@ -3020,10 +3206,31 @@ export function palace(): THREE.Group {
   // Grand Staircase stepped water cascade + sandy crescent Valley of Waves lagoon
   for (let i = 0; i < 4; i++) {
     add(g, CB(1.5 + i * 0.25, 0.14, 0.55, 0.02), st, 0, 0.72 - i * 0.14, 1.45 + i * 0.52);
-    add(g, CB(0.75, 0.05, 0.55, 0.01), MCascade('#dfeef2', 0.82), 0, 0.78 - i * 0.14, 1.45 + i * 0.52);
+    add(
+      g,
+      CB(0.75, 0.05, 0.55, 0.01),
+      MCascade('#dfeef2', 0.82),
+      0,
+      0.78 - i * 0.14,
+      1.45 + i * 0.52
+    );
   }
-  add(g, C(2.9, 3.05, 0.09, 36, 1, false, -Math.PI / 2, Math.PI), MStone('#dbcaa0', 0.92), 0, 0.21, 3.5);
-  add(g, C(2.45, 2.45, 0.07, 36, 1, false, -Math.PI / 2, Math.PI), MWater('#4e989c', 0.08, 0.22), 0, 0.23, 3.5);
+  add(
+    g,
+    C(2.9, 3.05, 0.09, 36, 1, false, -Math.PI / 2, Math.PI),
+    MStone('#dbcaa0', 0.92),
+    0,
+    0.21,
+    3.5
+  );
+  add(
+    g,
+    C(2.45, 2.45, 0.07, 36, 1, false, -Math.PI / 2, Math.PI),
+    MWater('#4e989c', 0.08, 0.22),
+    0,
+    0.23,
+    3.5
+  );
   addStreetLampSet(g, [
     { x: -3.6, y: 0.2, z: 4.45, kind: 'lantern', scale: 1.0, color: '#ffd278' },
     { x: -1.65, y: 0.2, z: 4.55, kind: 'lantern', scale: 1.0, color: '#ffd278' },
@@ -3031,7 +3238,15 @@ export function palace(): THREE.Group {
     { x: 3.6, y: 0.2, z: 4.45, kind: 'lantern', scale: 1.0, color: '#ffd278' },
     { x: -1.28, y: 0.2, z: 2.65, kind: 'bollard', scale: 0.95, color: '#ffe092' },
     { x: 1.28, y: 0.2, z: 2.65, kind: 'bollard', scale: 0.95, color: '#ffe092' },
-    { x: -4.25, y: 0.54, z: -1.15, kind: 'uplight', scale: 1.05, color: '#ffd078', coneHeight: 2.0 },
+    {
+      x: -4.25,
+      y: 0.54,
+      z: -1.15,
+      kind: 'uplight',
+      scale: 1.05,
+      color: '#ffd078',
+      coneHeight: 2.0,
+    },
     { x: 4.25, y: 0.54, z: -1.15, kind: 'uplight', scale: 1.05, color: '#ffd078', coneHeight: 2.0 },
   ]);
   for (let i = 0; i < 8; i++) tree(g, -5.2 + i * 1.5, 5.25, 0.95, 3, 0.2);
@@ -3172,8 +3387,7 @@ export function kruger(): THREE.Group {
     // Subtle dusty worn elephant game trails converging toward waterhole
     const trailA = Math.exp(-Math.pow(z - (0.45 * x + 1.14), 2) / 0.34);
     const trailB = Math.exp(-Math.pow(x - (0.35 * z + 2.42), 2) / 0.32);
-    const trailMask =
-      Math.max(trailA, trailB) * smoothstep(-5.8, 1.5, x) * smoothstep(4.2, 2.0, x);
+    const trailMask = Math.max(trailA, trailB) * smoothstep(-5.8, 1.5, x) * smoothstep(4.2, 2.0, x);
     out.lerp(cTrailDust, trailMask * 0.52);
 
     // Leaf litter pools under northern umbrella acacias
@@ -3196,8 +3410,7 @@ export function kruger(): THREE.Group {
   const pondSegs = 44;
   for (let i = 0; i <= pondSegs; i++) {
     const a = (i / pondSegs) * Math.PI * 2;
-    const rad =
-      1.78 + Math.sin(a * 3 + 0.7) * 0.2 + Math.cos(a * 5 - 1.1) * 0.12;
+    const rad = 1.78 + Math.sin(a * 3 + 0.7) * 0.2 + Math.cos(a * 5 - 1.1) * 0.12;
     const px = rad * Math.cos(a);
     const py = rad * Math.sin(a);
     if (i === 0) pondShape.moveTo(px, py);
@@ -3281,7 +3494,12 @@ export function kruger(): THREE.Group {
     });
   }
   const reedGeo = new THREE.CylinderGeometry(0.014, 0.024, 0.52, 5).translate(0, 0.26, 0);
-  instancedMeshes(g, reedGeo, grassWindy(new THREE.MeshStandardMaterial({ color: '#788446', roughness: 0.85 })), reedT);
+  instancedMeshes(
+    g,
+    reedGeo,
+    grassWindy(new THREE.MeshStandardMaterial({ color: '#788446', roughness: 0.85 })),
+    reedT
+  );
 
   for (let i = 0; i < 6; i++) {
     const tx = -5.2 + i * 2.1;
@@ -3383,8 +3601,18 @@ export function ponte(): THREE.Group {
     outerBandT.push({ x: 0, y, z: 0, rx: Math.PI / 2 });
     innerBandT.push({ x: 0, y, z: 0, rx: Math.PI / 2 });
   }
-  instancedMeshes(g, new THREE.TorusGeometry(1.645, 0.012, 4, 48), MPlaster('#a29785', 0.86), outerBandT);
-  instancedMeshes(g, new THREE.TorusGeometry(0.845, 0.014, 4, 36), MPlaster('#7a7368', 0.88), innerBandT);
+  instancedMeshes(
+    g,
+    new THREE.TorusGeometry(1.645, 0.012, 4, 48),
+    MPlaster('#a29785', 0.86),
+    outerBandT
+  );
+  instancedMeshes(
+    g,
+    new THREE.TorusGeometry(0.845, 0.014, 4, 36),
+    MPlaster('#7a7368', 0.88),
+    innerBandT
+  );
 
   // Flat open sky-ring roof parapet looking down into the hollow rock core
   const roofRing = add(
@@ -3479,7 +3707,11 @@ export function ponte(): THREE.Group {
   }
   addStreetLampSet(g, ponteLamps);
   const cs = Array.from({ length: 8 }, (_, i) => {
-    const c = car(['#c33', '#eee', '#36c', '#fc3', '#2a9d8f', '#222', '#e76f51', '#ddd'][i], 0.45, false);
+    const c = car(
+      ['#c33', '#eee', '#36c', '#fc3', '#2a9d8f', '#222', '#e76f51', '#ddd'][i],
+      0.45,
+      false
+    );
     g.add(c);
     return c;
   });
@@ -3716,7 +3948,12 @@ export function boulders(): THREE.Group {
   );
   instancedMeshes(g, new THREE.SphereGeometry(0.12, 10, 8).translate(0, 0.78, 0), bk, penT);
   instancedMeshes(g, new THREE.SphereGeometry(0.032, 6, 5).translate(0.075, 0.81, 0.085), pk, penT);
-  instancedMeshes(g, new THREE.SphereGeometry(0.032, 6, 5).translate(-0.075, 0.81, 0.085), pk, penT);
+  instancedMeshes(
+    g,
+    new THREE.SphereGeometry(0.032, 6, 5).translate(-0.075, 0.81, 0.085),
+    pk,
+    penT
+  );
   instancedMeshes(g, CB(0.18, 0.035, 0.16, 0.01).translate(0, 0.02, 0.06), bk, penT);
 
   const boardBaseY = bouldersGroundHeight(1.2, -1.1);
@@ -3959,7 +4196,14 @@ export function orlando(): THREE.Group {
     const gy = orlandoGroundHeight(x, z);
     const body = add(g, CB(0.7, 0.45, 0.55, 0.02), MPlaster(pal[i % 6], 0.78), x, gy + 0.225, z);
     body.rotation.y = -a;
-    const rf = add(g, gableRoofGeo(0.72, 0.56, 0.18, 0.04), M('#6a7478', 0.45, 0.55), x, gy + 0.45, z);
+    const rf = add(
+      g,
+      gableRoofGeo(0.72, 0.56, 0.18, 0.04),
+      M('#6a7478', 0.45, 0.55),
+      x,
+      gy + 0.45,
+      z
+    );
     rf.rotation.y = -a;
   }
   const jp = add(g, new THREE.SphereGeometry(0.09, 10, 8), M('#ff3b3b', 0.4), 0, 5.1, 0);
@@ -3975,22 +4219,8 @@ export function orlando(): THREE.Group {
   );
   // Concrete road kerbs flanking circular asphalt ring
   const kerbMat = MStone('#9e9b90', 0.88);
-  add(
-    g,
-    new THREE.TorusGeometry(4.58, 0.032, 5, 64).rotateX(Math.PI / 2),
-    kerbMat,
-    0,
-    0.208,
-    0
-  );
-  add(
-    g,
-    new THREE.TorusGeometry(5.22, 0.032, 5, 64).rotateX(Math.PI / 2),
-    kerbMat,
-    0,
-    0.208,
-    0
-  );
+  add(g, new THREE.TorusGeometry(4.58, 0.032, 5, 64).rotateX(Math.PI / 2), kerbMat, 0, 0.208, 0);
+  add(g, new THREE.TorusGeometry(5.22, 0.032, 5, 64).rotateX(Math.PI / 2), kerbMat, 0, 0.208, 0);
 
   const oc = [0, 1, 2, 3, 4].map((i) => {
     const c = car(['#b85e50', '#ddd', '#458f96', '#be8655', '#6a7478'][i], 0.5, false);
@@ -4101,18 +4331,34 @@ export function bourke(): THREE.Group {
     const posts: InstanceTransform[] = [];
     [-0.28, 0.28].forEach((z) => {
       add(bg, CB(len, 0.045, 0.045, 0.01), rl, 0, 0.3, z);
-      for (let i = 0; i < 6; i++) posts.push({ x: -len * 0.46 + i * ((len * 0.92) / 5), y: 0.15, z });
+      for (let i = 0; i < 6; i++)
+        posts.push({ x: -len * 0.46 + i * ((len * 0.92) / 5), y: 0.15, z });
     });
     instancedMeshes(bg, CB(0.045, 0.32, 0.045, 0.01), rl, posts);
     [-1, 1].forEach((s) =>
-      add(bg, CB(0.2, cy + 0.1, 0.72, 0.03), MStone('#7a5a3c', 0.88), s * (len * 0.5 + 0.05), -cy / 2, 0)
+      add(
+        bg,
+        CB(0.2, cy + 0.1, 0.72, 0.03),
+        MStone('#7a5a3c', 0.88),
+        s * (len * 0.5 + 0.05),
+        -cy / 2,
+        0
+      )
     );
     g.add(bg);
   };
   addFootbridge(0, 1.38, 0.15, 5.2, 0.12);
   addFootbridge(-0.65, 1.56, -1.65, 3.8, -0.58);
   addStreetLampSet(g, [
-    { x: -2.55, y: 1.43, z: -0.15, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
+    {
+      x: -2.55,
+      y: 1.43,
+      z: -0.15,
+      kind: 'bollard',
+      scale: 0.78,
+      color: '#ffd080',
+      poolRadius: 0.68,
+    },
     { x: 2.55, y: 1.43, z: 0.45, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
     { x: -2.2, y: 1.61, z: -0.5, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
     { x: 0.9, y: 1.61, z: -2.8, kind: 'bollard', scale: 0.78, color: '#ffd080', poolRadius: 0.68 },
@@ -4137,4 +4383,3 @@ export function bourke(): THREE.Group {
   };
   return g;
 }
-

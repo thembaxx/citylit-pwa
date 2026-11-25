@@ -36,7 +36,14 @@ import { LANDMARKS } from '../data/landmarks';
 import { resolvePlaceEditorial } from '../lib/placeEditorial';
 import { animate, DURATION, EASE_SMOOTH_OUT, PRESS_SCALE, project, SPRING } from '../lib/motion';
 import { useDrag } from '../lib/useDrag';
-import type { CameraPreset, HeritageRoute, LandmarkNote, NoteCategory, WeatherConditionKey, WeatherDisplayState } from '../types/citylit';
+import type {
+  CameraPreset,
+  HeritageRoute,
+  LandmarkNote,
+  NoteCategory,
+  WeatherConditionKey,
+  WeatherDisplayState,
+} from '../types/citylit';
 import { Menu, type MenuItem } from './ui/Menu';
 import { AnimatedNumber } from './ui/AnimatedNumber';
 
@@ -47,9 +54,7 @@ interface SlideCustom {
 
 const cardItemVariants: Variants = {
   initial: ({ dir, reduced }: SlideCustom) =>
-    reduced
-      ? { opacity: 1 }
-      : { opacity: 0, x: dir * 12, y: 6, filter: 'blur(3px)' },
+    reduced ? { opacity: 1 } : { opacity: 0, x: dir * 12, y: 6, filter: 'blur(3px)' },
   animate: ({ reduced }: SlideCustom) => ({
     opacity: 1,
     x: 0,
@@ -492,8 +497,7 @@ export function LandmarkCard({
       // Snap: down collapses to the title strip, up opens the card again.
       const current = cardMaxHeight.get();
       const mid = (min + max) / 2;
-      const target =
-        velocity.y > 0.3 ? min : velocity.y < -0.3 ? max : current > mid ? max : min;
+      const target = velocity.y > 0.3 ? min : velocity.y < -0.3 ? max : current > mid ? max : min;
       peekedRef.current = target === min;
       setPeeked(peekedRef.current);
       animate(cardMaxHeight, target, { ...SPRING.surface, velocity: velocity.y });
@@ -504,7 +508,11 @@ export function LandmarkCard({
 
   const lm = LANDMARKS[index];
   const insight = weather ? airQualityInsight(weather, lm.biome) : null;
-  const humidityText = weather ? (weather.live != null ? `${Math.round(weather.live.humidity)}%` : `${typicalHumidity(weather.condition)}%`) : null;
+  const humidityText = weather
+    ? weather.live != null
+      ? `${Math.round(weather.live.humidity)}%`
+      : `${typicalHumidity(weather.condition)}%`
+    : null;
   const nextLm = LANDMARKS[(index + 1) % LANDMARKS.length];
   const { cardinal, km } = nextBearingSummary(lm.coords, nextLm.coords);
   const progressPct = ((index + 1) / LANDMARKS.length) * 100;
@@ -566,7 +574,7 @@ export function LandmarkCard({
   ];
 
   const smallBtn =
-    'w-9 h-9 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer';
+    'min-w-11 min-h-11 rounded-full grid place-items-center bg-white/[0.06] border border-white/15 text-[#f3efe6] hover:border-[#e8b04a] hover:text-[#e8b04a] transition-colors cursor-pointer';
 
   const submitDraftNote = () => {
     const clean = draftNote.trim();
@@ -642,19 +650,19 @@ export function LandmarkCard({
             className="flex flex-col gap-2 rounded-2xl bg-[#121319]/92 border border-white/15 squircle-card px-3 py-2.5 pointer-events-auto shadow-2xl max-h-[calc(100dvh-104px)] overflow-y-auto overscroll-contain no-scrollbar"
           >
             <div className="min-w-0">
-              <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[9.5px] truncate">
+              <small className="block text-[#e8b04a] tracking-[0.12em] uppercase text-[10.5px] truncate">
                 {lm.c}
               </small>
               <motion.div
                 layoutId="landmark-title"
                 transition={reducedMotion ? { duration: 0 } : SPRING.morph}
-                className="truncate font-serif-display italic text-[18px] leading-tight text-[#f3efe6]"
+                className="truncate font-serif-display italic text-[19px] leading-tight text-[#f3efe6]"
               >
                 {lm.k}
               </motion.div>
             </div>
 
-            <p className="m-0 text-[12.5px] leading-relaxed text-[#a9a69e]">{lm.f}</p>
+            <p className="m-0 text-[13px] leading-relaxed text-[#c2beb5]">{lm.f}</p>
 
             <div className="flex items-center justify-start gap-1.5">
               {compactActions.map(({ label, ariaLabel, icon: Icon, onClick, active }) => (
@@ -691,7 +699,7 @@ export function LandmarkCard({
                   transition={{ duration: reducedMotion ? 0 : 0.25, ease: EASE_SMOOTH_OUT }}
                 />
               </div>
-              <span className="text-[10.5px] font-mono tabular-nums text-[#a9a69e] shrink-0">
+              <span className="text-[11.5px] font-mono tabular-nums text-[#c2beb5] shrink-0">
                 {index + 1}/{LANDMARKS.length}
               </span>
               <motion.button
@@ -837,7 +845,10 @@ export function LandmarkCard({
                   onTouchStart={(e) => {
                     clearHold();
                     const t = e.touches[0];
-                    holdTimer.current = window.setTimeout(() => openRadial(t.clientX, t.clientY), 450);
+                    holdTimer.current = window.setTimeout(
+                      () => openRadial(t.clientX, t.clientY),
+                      450
+                    );
                   }}
                   onTouchEnd={clearHold}
                   onTouchMove={() => clearHold()}
@@ -910,7 +921,10 @@ export function LandmarkCard({
                           : 'bg-white/[0.04] border-white/12 text-[#d6d1c6] hover:border-[#5cd6a9]/65 hover:text-[#5cd6a9]'
                     }`}
                   >
-                    <NotePencil size={13} weight={notesOpen || notes.length > 0 ? 'fill' : 'regular'} />
+                    <NotePencil
+                      size={13}
+                      weight={notesOpen || notes.length > 0 ? 'fill' : 'regular'}
+                    />
                     {notes.length > 0 ? `Add Note (${notes.length})` : 'Add Note'}
                   </motion.button>
                   {onToggleCutaway && cutawaySupported && (
@@ -1010,35 +1024,35 @@ export function LandmarkCard({
                   <Menu
                     ariaLabel="3D camera views"
                     reducedMotion={reducedMotion}
-                  items={cameraMenuItems}
-                  trigger={
-                    <button
-                      type="button"
-                      aria-label={`3D camera view: ${
-                        CAMERA_PRESETS.find((p) => p.id === activePreset)?.label ?? 'Default'
-                      }`}
-                      title="Choose 3D camera view"
-                      className="h-6 px-2 rounded-full inline-flex items-center gap-1 bg-white/[0.04] border border-white/10 text-[10.5px] text-[#c8c4bc] hover:border-[#e8b04a]/65 hover:text-[#e8b04a] transition-colors cursor-pointer"
-                    >
-                      <Camera size={11} />
-                      <span>View</span>
-                      <CaretDown size={9} />
-                    </button>
-                  }
-                />
-              )}
-              {onStepPin && totalInteractivePins > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onStepPin(1)}
-                  title="Cycle through 3D fact pins & personal notes (Shortcut: P)"
-                  aria-label={`Cycle 3D pins (${totalInteractivePins} available)`}
-                  className="h-6 px-2.5 rounded-full inline-flex items-center gap-1 bg-white/[0.04] border border-white/10 text-[10.5px] font-mono tabular-nums text-[#d6d1c6] hover:border-[#5cd6a9]/60 hover:text-[#5cd6a9] transition-colors cursor-pointer ml-auto"
-                >
-                  <MapPin size={11} weight="fill" className="text-[#e8b04a]" />
-                  <span>Pins ({totalInteractivePins})</span>
-                </button>
-              )}
+                    items={cameraMenuItems}
+                    trigger={
+                      <button
+                        type="button"
+                        aria-label={`3D camera view: ${
+                          CAMERA_PRESETS.find((p) => p.id === activePreset)?.label ?? 'Default'
+                        }`}
+                        title="Choose 3D camera view"
+                        className="h-6 px-2 rounded-full inline-flex items-center gap-1 bg-white/[0.04] border border-white/10 text-[10.5px] text-[#c8c4bc] hover:border-[#e8b04a]/65 hover:text-[#e8b04a] transition-colors cursor-pointer"
+                      >
+                        <Camera size={11} />
+                        <span>View</span>
+                        <CaretDown size={9} />
+                      </button>
+                    }
+                  />
+                )}
+                {onStepPin && totalInteractivePins > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onStepPin(1)}
+                    title="Cycle through 3D fact pins & personal notes (Shortcut: P)"
+                    aria-label={`Cycle 3D pins (${totalInteractivePins} available)`}
+                    className="h-6 px-2.5 rounded-full inline-flex items-center gap-1 bg-white/[0.04] border border-white/10 text-[10.5px] font-mono tabular-nums text-[#d6d1c6] hover:border-[#5cd6a9]/60 hover:text-[#5cd6a9] transition-colors cursor-pointer ml-auto"
+                  >
+                    <MapPin size={11} weight="fill" className="text-[#e8b04a]" />
+                    <span>Pins ({totalInteractivePins})</span>
+                  </button>
+                )}
               </motion.div>
             </AnimatePresence>
           )}
@@ -1343,7 +1357,9 @@ export function LandmarkCard({
                 >
                   <span className="inline-flex items-center gap-1 min-w-0">
                     <Tag size={10} className="shrink-0" />
-                    <span className="truncate">Marker positions are illustrative, not survey-accurate</span>
+                    <span className="truncate">
+                      Marker positions are illustrative, not survey-accurate
+                    </span>
                   </span>
                   {editorial.sources.map((source) => (
                     <a
@@ -1424,9 +1440,24 @@ export function LandmarkCard({
                   {weatherInsightOpen && (
                     <motion.div
                       key="weather-insight"
-                      initial={reducedMotion ? false : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -4 }}
-                      animate={reducedMotion ? { opacity: 1 } : { opacity: 1, clipPath: 'inset(0 0 0% 0)', y: 0, filter: 'blur(0px)' }}
-                      exit={reducedMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -4, filter: 'blur(2px)' }}
+                      initial={
+                        reducedMotion ? false : { opacity: 0, clipPath: 'inset(0 0 100% 0)', y: -4 }
+                      }
+                      animate={
+                        reducedMotion
+                          ? { opacity: 1 }
+                          : { opacity: 1, clipPath: 'inset(0 0 0% 0)', y: 0, filter: 'blur(0px)' }
+                      }
+                      exit={
+                        reducedMotion
+                          ? { opacity: 0 }
+                          : {
+                              opacity: 0,
+                              clipPath: 'inset(0 0 100% 0)',
+                              y: -4,
+                              filter: 'blur(2px)',
+                            }
+                      }
                       transition={{ duration: reducedMotion ? 0 : 0.35, ease: EASE_SMOOTH_OUT }}
                       className="overflow-hidden"
                     >
@@ -1438,7 +1469,9 @@ export function LandmarkCard({
                             className="text-[15px] font-semibold text-[#f3efe6]"
                             reducedMotion={reducedMotion}
                           />
-                          <span className="text-[11px] text-[#e8b04a] truncate">{weather.label}</span>
+                          <span className="text-[11px] text-[#e8b04a] truncate">
+                            {weather.label}
+                          </span>
                           <span className="ml-auto text-[10px] font-mono tabular-nums text-[#a9a69e]">
                             {weather.timeText} · {weather.city}
                           </span>
@@ -1449,7 +1482,9 @@ export function LandmarkCard({
                               <Drop size={12} className="text-[#a9a69e] shrink-0" />
                               <span className="text-[10px] text-[#a9a69e]">Humidity</span>
                             </div>
-                            <span className="text-[11px] font-medium text-[#f3efe6]">{humidityText!}</span>
+                            <span className="text-[11px] font-medium text-[#f3efe6]">
+                              {humidityText!}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between px-2 py-1.5 rounded-lg bg-white/[0.03]">
                             <div className="inline-flex items-center gap-1.5">
@@ -1457,14 +1492,22 @@ export function LandmarkCard({
                               <span className="text-[10px] text-[#a9a69e]">Air quality</span>
                             </div>
                             <div className="flex items-center gap-1 text-[11px] font-medium">
-                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: insight!.color }} />
+                              <span
+                                className="w-1.5 h-1.5 rounded-full shrink-0"
+                                style={{ backgroundColor: insight!.color }}
+                              />
                               <span className="text-[#f3efe6]">{insight!.band}</span>
-                              <span className="ml-1 text-[10px] text-[#a9a69e]">· {insight!.score}</span>
+                              <span className="ml-1 text-[10px] text-[#a9a69e]">
+                                · {insight!.score}
+                              </span>
                             </div>
                           </div>
                         </div>
                         <div className="text-[10px] text-[#7f7d77]">
-                          {weather.live ? 'Live observation · Open-Meteo' : 'Typical · climate model'} · Air quality estimated
+                          {weather.live
+                            ? 'Live observation · Open-Meteo'
+                            : 'Typical · climate model'}{' '}
+                          · Air quality estimated
                         </div>
                       </div>
                     </motion.div>

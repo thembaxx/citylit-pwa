@@ -29,10 +29,7 @@ import type {
   WeatherConditionKey,
   WeatherMoment,
 } from '../types/citylit';
-import {
-  boundsFitStand,
-  fitBoundsToStand,
-} from '../lib/fitMath';
+import { boundsFitStand, fitBoundsToStand } from '../lib/fitMath';
 import {
   defaultStandPolygon,
   insetStandPolygon,
@@ -144,7 +141,6 @@ import type {
   SceneRenderer,
 } from './renderer/types';
 
-
 export type InteractiveKind = 'fact' | 'note' | 'wildlife' | 'egg';
 
 /**
@@ -196,7 +192,11 @@ const spatialListener: SpatialListener = {
   right: spatialRight,
   forward: spatialForward,
 };
-function setSpatialListener(camera: THREE.Camera, right: THREE.Vector3, forward: THREE.Vector3): void {
+function setSpatialListener(
+  camera: THREE.Camera,
+  right: THREE.Vector3,
+  forward: THREE.Vector3
+): void {
   spatialPosition[0] = camera.position.x;
   spatialPosition[1] = camera.position.y;
   spatialPosition[2] = camera.position.z;
@@ -329,7 +329,7 @@ export class CitylitEngine {
   private readonly gradeHighlightNow = new THREE.Vector3(1, 1, 1);
   private readonly duskShadowTint = new THREE.Vector3(0.86, 0.94, 1.12);
   private readonly duskHighlightTint = new THREE.Vector3(1.12, 1.01, 0.88);
-  private readonly nightShadowTint = new THREE.Vector3(0.80, 0.94, 1.14);
+  private readonly nightShadowTint = new THREE.Vector3(0.8, 0.94, 1.14);
   private readonly nightHighlightTint = new THREE.Vector3(0.98, 1.02, 1.06);
   private lastGradeHour = -Infinity;
   private readonly plinthGroup: THREE.Group;
@@ -576,10 +576,14 @@ export class CitylitEngine {
    * Async factory: WebGPU needs `await renderer.init()`. Existing synchronous
    * callers (contact-sheet tooling) keep the WebGL constructor default.
    */
-  static async create(container: HTMLElement, callbacks: EngineCallbacks = {}): Promise<CitylitEngine> {
+  static async create(
+    container: HTMLElement,
+    callbacks: EngineCallbacks = {}
+  ): Promise<CitylitEngine> {
     const softwareGl = detectSoftwareGlBackend();
     const selection = await selectRenderer(softwareGl);
-    if (import.meta.env.DEV) console.info('[citylit] renderer:', selection.backend, selection.reason);
+    if (import.meta.env.DEV)
+      console.info('[citylit] renderer:', selection.backend, selection.reason);
     // Restore cached procedural maps before any builder asks for a surface.
     await preloadProceduralTextures();
     const instance = new CitylitEngine(container, callbacks, selection);
@@ -625,7 +629,11 @@ export class CitylitEngine {
     // texture is generated; software GL keeps the cheaper height-map path.
     // halfResNormals starts false here; setQualityIndex overrides it once the
     // quality tier is resolved.
-    configureTextureQuality(this.renderer.capabilities.getMaxAnisotropy(), !this.isSoftwareGl, false);
+    configureTextureQuality(
+      this.renderer.capabilities.getMaxAnisotropy(),
+      !this.isSoftwareGl,
+      false
+    );
 
     const canvas = this.renderer.domElement;
     canvas.className = 'block fixed inset-0 w-full h-full touch-none';
@@ -651,9 +659,30 @@ export class CitylitEngine {
 
     this.pmrem = this.renderer.createPMREM();
     this.roomEnvTex = this.pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.dayEnvTex = this.createProceduralSkyEnv('#5c95d6', '#cce2f2', '#fff3d6', '#545044', [10, 14, 8], 1.15);
-    this.goldenEnvTex = this.createProceduralSkyEnv('#465f92', '#f39f5e', '#ffd280', '#453129', [14, 4, 8], 1.35);
-    this.nightEnvTex = this.createProceduralSkyEnv('#0d1830', '#253c66', '#98b9e8', '#101724', [-9, 10, -8], 0.95);
+    this.dayEnvTex = this.createProceduralSkyEnv(
+      '#5c95d6',
+      '#cce2f2',
+      '#fff3d6',
+      '#545044',
+      [10, 14, 8],
+      1.15
+    );
+    this.goldenEnvTex = this.createProceduralSkyEnv(
+      '#465f92',
+      '#f39f5e',
+      '#ffd280',
+      '#453129',
+      [14, 4, 8],
+      1.35
+    );
+    this.nightEnvTex = this.createProceduralSkyEnv(
+      '#0d1830',
+      '#253c66',
+      '#98b9e8',
+      '#101724',
+      [-9, 10, -8],
+      0.95
+    );
     this.envTex = this.dayEnvTex;
     this.scene.environment = this.envTex;
     this.scene.environmentIntensity = 0.6;
@@ -851,10 +880,18 @@ export class CitylitEngine {
       const j = (i + 1) % 4;
       const base = trimPos.length / 3;
       trimPos.push(
-        trimOuterPts[i][0], trimY, trimOuterPts[i][1],
-        trimOuterPts[j][0], trimY, trimOuterPts[j][1],
-        trimInnerPts[i][0], trimY, trimInnerPts[i][1],
-        trimInnerPts[j][0], trimY, trimInnerPts[j][1]
+        trimOuterPts[i][0],
+        trimY,
+        trimOuterPts[i][1],
+        trimOuterPts[j][0],
+        trimY,
+        trimOuterPts[j][1],
+        trimInnerPts[i][0],
+        trimY,
+        trimInnerPts[i][1],
+        trimInnerPts[j][0],
+        trimY,
+        trimInnerPts[j][1]
       );
       trimIdx.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
     }
@@ -1658,9 +1695,7 @@ export class CitylitEngine {
       const light = this.streetLampPool[i];
       const anchor = heroActive && i < activeCount ? this.streetLampAnchors[i] : undefined;
       if (anchor) {
-        light.position
-          .set(anchor.x, anchor.y, anchor.z)
-          .applyMatrix4(this.heroRoot.matrixWorld);
+        light.position.set(anchor.x, anchor.y, anchor.z).applyMatrix4(this.heroRoot.matrixWorld);
         // Per-biome night palette: sodium amber in the city, mercury blue on the
         // coast, warmer tungsten in the bushveld.
         light.color
@@ -1973,8 +2008,7 @@ export class CitylitEngine {
     if (!group || !this.isCoastalLandmark(group)) return;
     group.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return;
-      let isWater =
-        obj.userData.isWaterSurface === true || obj.userData.tracksCoastalTide === true;
+      let isWater = obj.userData.isWaterSurface === true || obj.userData.tracksCoastalTide === true;
       if (!isWater) {
         const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
         for (let i = 0; i < mats.length; i++) {
@@ -2198,7 +2232,15 @@ export class CitylitEngine {
       // Preserve any authored Y placement; only centre the X/Z footprint.
       group.position.x = authored.x;
       group.position.z = authored.z;
-      this.restoreStandTransform(group, authored.sx, authored.sx, authored.x, authored.z, authored.x, authored.z);
+      this.restoreStandTransform(
+        group,
+        authored.sx,
+        authored.sx,
+        authored.x,
+        authored.z,
+        authored.x,
+        authored.z
+      );
       const box = this.computeDioramaBounds(group, true, true);
       if (box.isEmpty()) return;
       fit = fitBoundsToStand(
@@ -2507,8 +2549,7 @@ export class CitylitEngine {
       setContactShadowFade(this.currentGroup, Math.max(0, 1 - Math.min(1, this.dissolveT)));
       this.dustPoints.visible = true;
       this.dustMat.uniforms.uColor.value.copy(this.scene.background as THREE.Color);
-      this.dustMat.uniforms.uOpacity.value =
-        Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
+      this.dustMat.uniforms.uOpacity.value = Math.sin(Math.min(1, this.dissolveT) * Math.PI) * 0.9;
       this.dustMat.uniforms.uElapsed.value = this.elapsed;
       this.dustMat.uniforms.uCutY.value = cutY;
       this.dustMat.uniforms.uPointScale.value = Math.min(
@@ -2627,10 +2668,7 @@ export class CitylitEngine {
     this.cutawayCap.position.z = this.cutawayPlane.constant;
     this.cutawayCapMat.uniforms.uAmount.value = amount;
     this.cutawayCap.visible =
-      amount > 0.01 &&
-      this.heroRoot.visible &&
-      !this.globe.isOpen &&
-      !this.places.isOpen;
+      amount > 0.01 && this.heroRoot.visible && !this.globe.isOpen && !this.places.isOpen;
   }
 
   showLandmarkImmediate(index: number): void {
@@ -3046,14 +3084,7 @@ export class CitylitEngine {
     this.exposureDtAccum = 0;
     this.exposureReadPending = true;
     void (this.renderer.raw as THREE.WebGLRenderer)
-      .readRenderTargetPixelsAsync(
-        rt as THREE.WebGLRenderTarget,
-        sampleX,
-        rowY,
-        sampleW,
-        1,
-        buf
-      )
+      .readRenderTargetPixelsAsync(rt as THREE.WebGLRenderTarget, sampleX, rowY, sampleW, 1, buf)
       .then((data) => {
         this.exposureReadPending = false;
         if (this.disposed || this.contextLost || gl.isContextLost()) return;
@@ -3155,11 +3186,18 @@ export class CitylitEngine {
     this.renderer.setPostFXGrade(
       {
         contrast:
-          this.theme === 'studio' ? 1 : this.theme === 'dark' ? Math.min(1.16, g.contrast + 0.03) : g.contrast,
+          this.theme === 'studio'
+            ? 1
+            : this.theme === 'dark'
+              ? Math.min(1.16, g.contrast + 0.03)
+              : g.contrast,
         saturation:
-          this.theme === 'studio' ? 1.05 : this.theme === 'dark' ? g.saturation + 0.02 : g.saturation,
-        shadowLift:
-          this.theme === 'studio' ? 0 : this.theme === 'dark' ? g.shadowLift : 0.004,
+          this.theme === 'studio'
+            ? 1.05
+            : this.theme === 'dark'
+              ? g.saturation + 0.02
+              : g.saturation,
+        shadowLift: this.theme === 'studio' ? 0 : this.theme === 'dark' ? g.shadowLift : 0.004,
         shadowTint: this.theme === 'studio' ? [1, 1, 1] : g.shadowTint,
         highlightTint: this.theme === 'studio' ? [1, 1, 1] : g.highlightTint,
       },
@@ -3254,7 +3292,7 @@ export class CitylitEngine {
       (window.devicePixelRatio || 1) > 1.5;
     this.n8aoPass.enabled = highFx && !suspendAoForMotion;
     this.renderPass.enabled = midFx || (highFx && suspendAoForMotion);
-          this.bloomPass.enabled = postFx && this.studioWeight < 0.99;
+    this.bloomPass.enabled = postFx && this.studioWeight < 0.99;
     this.dofEnabled = postFx;
     this.miniaturePass.enabled = postFx && !this.resizeTransient;
     this.smaaPass.enabled = postFx;
@@ -3814,8 +3852,7 @@ export class CitylitEngine {
     this.camGoalT = 0;
     this.camSpringV = 0;
     if (this.motionScale === 0) return;
-    const fromFlick =
-      this.isUserOrbiting || this.elapsed - this.camHandoffAt < 0.35;
+    const fromFlick = this.isUserOrbiting || this.elapsed - this.camHandoffAt < 0.35;
     if (!fromFlick) return;
 
     const vx = this.isUserOrbiting ? this.camOrbitVelX : this.camHandoffVelX;
@@ -4350,7 +4387,11 @@ export class CitylitEngine {
       // shadow (sea plates, edge waterfalls), so it cannot drift outside the
       // stand while the rest of the diorama is centred.
       const counted = obj.userData.fitToStand === true;
-      if ((obj.userData.noShadow && !counted) || obj.userData.cannotReceiveAO || obj.userData.noDissolve) {
+      if (
+        (obj.userData.noShadow && !counted) ||
+        obj.userData.cannotReceiveAO ||
+        obj.userData.noDissolve
+      ) {
         return;
       }
       let node: THREE.Object3D | null = obj;
@@ -4400,8 +4441,7 @@ export class CitylitEngine {
     // Keep the subject inside the free area when a HUD panel squeezes the
     // viewport: back the camera off just enough for it to clear the panel.
     const free = planFraming(this.uiInsets, window.innerWidth, window.innerHeight).free;
-    const subjectRadiusPx =
-      (radius * (window.innerHeight * 0.5)) / (distance * Math.tan(vFov / 2));
+    const subjectRadiusPx = (radius * (window.innerHeight * 0.5)) / (distance * Math.tan(vFov / 2));
     const fitFactor = freeFitFactor(subjectRadiusPx, free);
     if (fitFactor > 1) {
       distance = THREE.MathUtils.clamp(
@@ -4552,6 +4592,8 @@ export class CitylitEngine {
               H
             )) as Uint8Array;
             if (cancelled || this.disposed) break;
+          } else {
+            this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, pixels);
           }
           if (scratchCtx && imgData) {
             const dst = imgData.data;
@@ -5346,10 +5388,18 @@ export class CitylitEngine {
    * Pacing for the currently active stage. `reducedExtraQuiet` carries the
    * hero's additional cursor-glow gate; the other stages pass the default.
    */
-  private stageThrottle(active: boolean, reducedExtraQuiet = true, reducedThresholdSeconds = 2): number {
+  private stageThrottle(
+    active: boolean,
+    reducedExtraQuiet = true,
+    reducedThresholdSeconds = 2
+  ): number {
     const idleSeconds = this.elapsed - this.lastInteractAt;
     const quiet = stageQuiet({ active, idleSeconds });
-    const reducedQuiet = stageQuiet({ active, idleSeconds, thresholdSeconds: reducedThresholdSeconds });
+    const reducedQuiet = stageQuiet({
+      active,
+      idleSeconds,
+      thresholdSeconds: reducedThresholdSeconds,
+    });
     return frameThrottleMs({
       fpsCapMs: this.fpsCapMs,
       reducedStaticIdle: this.motionScale === 0 && reducedQuiet && reducedExtraQuiet,
@@ -5361,702 +5411,718 @@ export class CitylitEngine {
   private readonly frame = (now: number): void => {
     if (this.disposed || this.contextLost || this.paused) return;
     try {
-
-    const rawFrameMs = now - this.lastTick;
-    const dt = Math.max(0, Math.min(0.05, rawFrameMs / 1000));
-    this.lastTick = Math.max(this.lastTick, now);
-    this.elapsed += dt;
-    // Accumulate scaled time instead of multiplying wall time by the scale, so toggling
-    // reduced motion eases into the new rate rather than jumping the shader phase.
-    this.shaderTime += dt * this.motionScale;
-    WU.t.value = this.shaderTime;
-    // Switching between the hero stage, globe, places and studio changes who
-    // owns the framing, so the off-axis composition is recomposed once.
-    const lensMode = this.lensModeKey();
-    if (lensMode !== this.lensMode) {
-      this.lensMode = lensMode;
-      this.applyLensShift();
-    }
-    // Restore full resolution once the viewport stopped moving.
-    if (this.resizeTransient && now >= this.resizeSettleUntil) {
-      this.resizeSettleUntil = 0;
-      this.setResizeTransient(false);
-    }
-    this.cursorStrengthTarget = Math.max(0, this.cursorStrengthTarget - dt * 1.4);
-    WU.cursorStrength.value +=
-      (this.cursorStrengthTarget - WU.cursorStrength.value) * Math.min(1, dt * 8);
-    this.wakeStrengthTarget = Math.max(0, this.wakeStrengthTarget - dt * 1.4);
-    WU.wakeStrength.value +=
-      (this.wakeStrengthTarget - WU.wakeStrength.value) * Math.min(1, dt * 8);
-
-    // One dissolve driver for every camera mode: a landmark switch armed while
-    // another stage is open still completes instead of stranding the cut plane.
-    this.stepSwitchDissolve(dt);
-
-    // Window schedule advances in every camera mode: Places and Globe share the
-    // same facade materials, so a frozen schedule would show the hero's hour.
-    updateWindowLights(
-      this.weather.current.timeOfDay,
-      dt * this.motionScale,
-      this.weather.current.cover
-    );
-    // Sky glow tracks real occupancy: the more rooms are lit, the harder the city
-    // pushes sodium into the air, so it swells at 20:00 and dies back by 03:00.
-    const occupancyPollution =
-      windowLitFraction() * THREE.MathUtils.smoothstep(this.weather.current.night, 0.1, 0.75);
-    WU.pollution.value +=
-      (occupancyPollution - WU.pollution.value) *
-      (this.motionScale === 0 ? 1 : Math.min(1, dt * 1.5));
-
-    // Auto quality monitor: drop a tier when clearly off target, then fine-tune
-    // resolution so the 60fps budget is met without losing shadows or post FX.
-    if (this.qualitySetting === 'auto' && !this.isSoftwareGl && !this.qualityBenchmark) {
-      this.autoScaleTimer += dt;
-      this.autoScaleAcc += dt;
-      this.autoScaleSamples++;
-      if (this.autoScaleTimer >= 1 && this.autoScaleSamples >= 8) {
-        const avgMs = (this.autoScaleAcc / this.autoScaleSamples) * 1000;
-        if (avgMs > 22 && this.qualityIndex === 0) {
-          this.setQualityIndex(1);
-        } else if (avgMs > 18.5 && this.renderScale > renderScaleFloor(devicePixelRatio || 1)) {
-          this.renderScale = Math.max(renderScaleFloor(devicePixelRatio || 1), this.renderScale - 0.1);
-          this.applyRenderScale();
-        } else if (avgMs < 13.5 && this.renderScale < 1) {
-          this.renderScale = Math.min(1, this.renderScale + 0.05);
-          this.applyRenderScale();
-        }
-        this.autoScaleTimer = 0;
-        this.autoScaleAcc = 0;
-        this.autoScaleSamples = 0;
+      const rawFrameMs = now - this.lastTick;
+      const dt = Math.max(0, Math.min(0.05, rawFrameMs / 1000));
+      this.lastTick = Math.max(this.lastTick, now);
+      this.elapsed += dt;
+      // Accumulate scaled time instead of multiplying wall time by the scale, so toggling
+      // reduced motion eases into the new rate rather than jumping the shader phase.
+      this.shaderTime += dt * this.motionScale;
+      WU.t.value = this.shaderTime;
+      // Switching between the hero stage, globe, places and studio changes who
+      // owns the framing, so the off-axis composition is recomposed once.
+      const lensMode = this.lensModeKey();
+      if (lensMode !== this.lensMode) {
+        this.lensMode = lensMode;
+        this.applyLensShift();
       }
-    }
-
-    if (this.globe.isOpen) {
-      this.globe.update(dt, this.elapsed, this.motionScale, this.keyLight);
-      // Auto-rotation and fly-to moves the globe camera; only a settled view
-      // drops to the shared 30 fps idle cadence.
-      const globeCamMoving =
-        this.globe.camera.position.distanceToSquared(this.prevGlobeCamPos) > 1e-6;
-      this.prevGlobeCamPos.copy(this.globe.camera.position);
-      const throttleMs = this.stageThrottle(globeCamMoving);
-      if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
-        this.renderer.render(this.globe.group, this.globe.camera);
-        this.lastRenderAt = now;
-        this.updateAutoExposure(dt);
+      // Restore full resolution once the viewport stopped moving.
+      if (this.resizeTransient && now >= this.resizeSettleUntil) {
+        this.resizeSettleUntil = 0;
+        this.setResizeTransient(false);
       }
-    } else if (this.places.isOpen) {
-      this.weather.update(dt, this.elapsed, {
-        qualityIndex: this.qualityIndex,
-        motionScale: this.motionScale,
-        lowDetail: this.isSoftwareGl,
-        keyLight: this.keyLight,
-        fillLight: this.fillLight,
-        hemiLight: this.hemiLight,
-        scene: this.scene,
-        renderer: this.renderer,
-        camera: this.camera,
-        onThunder: this.onThunder,
-      });
-      updateRimLight(
-        this.rimLight,
-        this.weather.current.night,
-        WU.sun.value,
-        WU.sunHor.value,
-        dt,
-        this.motionScale,
-        0
+      this.cursorStrengthTarget = Math.max(0, this.cursorStrengthTarget - dt * 1.4);
+      WU.cursorStrength.value +=
+        (this.cursorStrengthTarget - WU.cursorStrength.value) * Math.min(1, dt * 8);
+      this.wakeStrengthTarget = Math.max(0, this.wakeStrengthTarget - dt * 1.4);
+      WU.wakeStrength.value +=
+        (this.wakeStrengthTarget - WU.wakeStrength.value) * Math.min(1, dt * 8);
+
+      // One dissolve driver for every camera mode: a landmark switch armed while
+      // another stage is open still completes instead of stranding the cut plane.
+      this.stepSwitchDissolve(dt);
+
+      // Window schedule advances in every camera mode: Places and Globe share the
+      // same facade materials, so a frozen schedule would show the hero's hour.
+      updateWindowLights(
+        this.weather.current.timeOfDay,
+        dt * this.motionScale,
+        this.weather.current.cover
       );
-      this.updateFoliageWindSway(dt);
-      this.weather.clouds.visible = false;
-      this.weather.groundShadow.visible = false;
-      this.weather.rainLines.visible = false;
-      this.weather.stormCurtain.visible = false;
-      const placesEnvLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
-      if (this.isStudio()) {
-        this.scene.environmentIntensity += (0.55 - this.scene.environmentIntensity) * placesEnvLerp;
+      // Sky glow tracks real occupancy: the more rooms are lit, the harder the city
+      // pushes sodium into the air, so it swells at 20:00 and dies back by 03:00.
+      const occupancyPollution =
+        windowLitFraction() * THREE.MathUtils.smoothstep(this.weather.current.night, 0.1, 0.75);
+      WU.pollution.value +=
+        (occupancyPollution - WU.pollution.value) *
+        (this.motionScale === 0 ? 1 : Math.min(1, dt * 1.5));
+
+      // Auto quality monitor: drop a tier when clearly off target, then fine-tune
+      // resolution so the 60fps budget is met without losing shadows or post FX.
+      if (this.qualitySetting === 'auto' && !this.isSoftwareGl && !this.qualityBenchmark) {
+        this.autoScaleTimer += dt;
+        this.autoScaleAcc += dt;
+        this.autoScaleSamples++;
+        if (this.autoScaleTimer >= 1 && this.autoScaleSamples >= 8) {
+          const avgMs = (this.autoScaleAcc / this.autoScaleSamples) * 1000;
+          if (avgMs > 22 && this.qualityIndex === 0) {
+            this.setQualityIndex(1);
+          } else if (avgMs > 18.5 && this.renderScale > renderScaleFloor(devicePixelRatio || 1)) {
+            this.renderScale = Math.max(
+              renderScaleFloor(devicePixelRatio || 1),
+              this.renderScale - 0.1
+            );
+            this.applyRenderScale();
+          } else if (avgMs < 13.5 && this.renderScale < 1) {
+            this.renderScale = Math.min(1, this.renderScale + 0.05);
+            this.applyRenderScale();
+          }
+          this.autoScaleTimer = 0;
+          this.autoScaleAcc = 0;
+          this.autoScaleSamples = 0;
+        }
+      }
+
+      if (this.globe.isOpen) {
+        this.globe.update(dt, this.elapsed, this.motionScale, this.keyLight);
+        // Auto-rotation and fly-to moves the globe camera; only a settled view
+        // drops to the shared 30 fps idle cadence.
+        const globeCamMoving =
+          this.globe.camera.position.distanceToSquared(this.prevGlobeCamPos) > 1e-6;
+        this.prevGlobeCamPos.copy(this.globe.camera.position);
+        const throttleMs = this.stageThrottle(globeCamMoving);
+        if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
+          this.renderer.render(this.globe.group, this.globe.camera);
+          this.lastRenderAt = now;
+          this.updateAutoExposure(dt);
+        }
+      } else if (this.places.isOpen) {
+        this.weather.update(dt, this.elapsed, {
+          qualityIndex: this.qualityIndex,
+          motionScale: this.motionScale,
+          lowDetail: this.isSoftwareGl,
+          keyLight: this.keyLight,
+          fillLight: this.fillLight,
+          hemiLight: this.hemiLight,
+          scene: this.scene,
+          renderer: this.renderer,
+          camera: this.camera,
+          onThunder: this.onThunder,
+        });
+        updateRimLight(
+          this.rimLight,
+          this.weather.current.night,
+          WU.sun.value,
+          WU.sunHor.value,
+          dt,
+          this.motionScale,
+          0
+        );
+        this.updateFoliageWindSway(dt);
+        this.weather.clouds.visible = false;
+        this.weather.groundShadow.visible = false;
+        this.weather.rainLines.visible = false;
+        this.weather.stormCurtain.visible = false;
+        const placesEnvLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
+        if (this.isStudio()) {
+          this.scene.environmentIntensity +=
+            (0.55 - this.scene.environmentIntensity) * placesEnvLerp;
+        } else {
+          const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
+          const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
+          const targetPlacesEnv =
+            envFloor +
+            (envCeiling - envFloor) *
+              (1 - this.weather.current.night) *
+              (1 - this.weather.current.cover * 0.35);
+          this.scene.environmentIntensity +=
+            (targetPlacesEnv - this.scene.environmentIntensity) * placesEnvLerp;
+        }
+        updateWetSurfaces(
+          Math.max(this.weather.current.rain, this.places.getWeatherMode() === 'rain' ? 0.85 : 0)
+        );
+
+        this.places.update(
+          dt,
+          this.elapsed,
+          this.motionScale,
+          this.keyLight,
+          this.scene.fog,
+          this.weather.current,
+          this.renderer.getPixelRatio()
+        );
+
+        const sel = this.places.getSelectedInfo();
+        const sliceChanged = sel.sliceIndex !== this.lastPlaceSliceIndex;
+        if (sliceChanged) {
+          this.lastPlaceSliceIndex = sel.sliceIndex;
+        }
+        // Explorer slices have no landmark index; keep the ambient bed of the
+        // current diorama so the Places stage never crashes on a missing entry.
+        const lm = LANDMARKS[sel.landmarkIndex] ?? LANDMARKS[this.activeIndex] ?? LANDMARKS[0];
+        this.places.camera.updateMatrixWorld();
+        audioRight.setFromMatrixColumn(this.places.camera.matrixWorld, 0).normalize();
+        audioForward.setFromMatrixColumn(this.places.camera.matrixWorld, 2).normalize().negate();
+        ambientAudio.setCameraYaw(
+          Math.atan2(
+            this.places.camera.position.x - this.places.controls.target.x,
+            this.places.camera.position.z - this.places.controls.target.z
+          )
+        );
+        setSpatialListener(this.places.camera, audioRight, audioForward);
+        ambientAudio.update(
+          dt,
+          this.elapsed,
+          lm.ambient,
+          lm.biome,
+          this.weather.current.wind,
+          this.weather.current.rain,
+          this.weather.current.night,
+          this.weather.current.storm,
+          this.weather.current.fog,
+          this.weather.current.timeOfDay
+        );
+
+        // Orbit, pan, a fly-to or a slice change keeps Places at full rate; a
+        // settled cutaway joins the same idle cadence as the hero stage.
+        const placesCamMoving =
+          this.places.camera.position.distanceToSquared(this.prevPlacesCamPos) > 1e-6 ||
+          this.places.controls.target.distanceToSquared(this.prevPlacesTarget) > 1e-6;
+        this.prevPlacesCamPos.copy(this.places.camera.position);
+        this.prevPlacesTarget.copy(this.places.controls.target);
+        const throttleMs = this.stageThrottle(
+          placesCamMoving || sliceChanged || this.places.isTransitioning()
+        );
+        if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
+          if (
+            !this.isSoftwareGl &&
+            this.qualityIndex < 2 &&
+            (sliceChanged || this.places.isTransitioning() || (this.shadowFrameCounter++ & 1) === 0)
+          ) {
+            this.renderer.shadowMap.needsUpdate = true;
+          }
+          this.renderCurrentPass();
+          this.lastRenderAt = now;
+          this.updateAutoExposure(dt);
+        }
       } else {
-        const envCeiling = this.usingSkyHdr ? 0.22 : 0.48;
-        const envFloor = this.usingSkyHdr ? 0.07 : 0.16;
-        const targetPlacesEnv =
-          envFloor +
-          (envCeiling - envFloor) *
-            (1 - this.weather.current.night) *
-            (1 - this.weather.current.cover * 0.35);
-        this.scene.environmentIntensity +=
-          (targetPlacesEnv - this.scene.environmentIntensity) * placesEnvLerp;
-      }
-      updateWetSurfaces(
-        Math.max(this.weather.current.rain, this.places.getWeatherMode() === 'rain' ? 0.85 : 0)
-      );
+        // Sample drag velocity before the preset overwrites the camera position.
+        this.trackOrbitVelocity(dt);
 
-      this.places.update(
-        dt,
-        this.elapsed,
-        this.motionScale,
-        this.keyLight,
-        this.scene.fog,
-        this.weather.current,
-        this.renderer.getPixelRatio()
-      );
-
-      const sel = this.places.getSelectedInfo();
-      const sliceChanged = sel.sliceIndex !== this.lastPlaceSliceIndex;
-      if (sliceChanged) {
-        this.lastPlaceSliceIndex = sel.sliceIndex;
-      }
-      // Explorer slices have no landmark index; keep the ambient bed of the
-      // current diorama so the Places stage never crashes on a missing entry.
-      const lm = LANDMARKS[sel.landmarkIndex] ?? LANDMARKS[this.activeIndex] ?? LANDMARKS[0];
-      this.places.camera.updateMatrixWorld();
-      audioRight.setFromMatrixColumn(this.places.camera.matrixWorld, 0).normalize();
-      audioForward.setFromMatrixColumn(this.places.camera.matrixWorld, 2).normalize().negate();
-      ambientAudio.setCameraYaw(
-        Math.atan2(
-          this.places.camera.position.x - this.places.controls.target.x,
-          this.places.camera.position.z - this.places.controls.target.z
-        )
-      );
-      setSpatialListener(this.places.camera, audioRight, audioForward);
-      ambientAudio.update(
-        dt,
-        this.elapsed,
-        lm.ambient,
-        lm.biome,
-        this.weather.current.wind,
-        this.weather.current.rain,
-        this.weather.current.night,
-        this.weather.current.storm,
-        this.weather.current.fog,
-        this.weather.current.timeOfDay
-      );
-
-      // Orbit, pan, a fly-to or a slice change keeps Places at full rate; a
-      // settled cutaway joins the same idle cadence as the hero stage.
-      const placesCamMoving =
-        this.places.camera.position.distanceToSquared(this.prevPlacesCamPos) > 1e-6 ||
-        this.places.controls.target.distanceToSquared(this.prevPlacesTarget) > 1e-6;
-      this.prevPlacesCamPos.copy(this.places.camera.position);
-      this.prevPlacesTarget.copy(this.places.controls.target);
-      const throttleMs = this.stageThrottle(
-        placesCamMoving || sliceChanged || this.places.isTransitioning()
-      );
-      if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
-        if (
-          !this.isSoftwareGl &&
-          this.qualityIndex < 2 &&
-          (sliceChanged ||
-            this.places.isTransitioning() ||
-            (this.shadowFrameCounter++ & 1) === 0)
-        ) {
-          this.renderer.shadowMap.needsUpdate = true;
-        }
-        this.renderCurrentPass();
-        this.lastRenderAt = now;
-        this.updateAutoExposure(dt);
-      }
-    } else {
-      // Sample drag velocity before the preset overwrites the camera position.
-      this.trackOrbitVelocity(dt);
-
-      // Camera fly preset, compass heading sweep & fact-pin focus interpolation.
-      // Critically damped spring (analytic step, no allocations): x'' + 2w x'
-      // + w^2 x = 0 with x = progress - 1. Seeded velocity carries a flick or
-      // an in-flight interruption straight into the new preset.
-      if (this.camGoal) {
-        if (this.motionScale === 0) {
-          this.camGoalT = 1;
-          this.camSpringV = 0;
-        } else if (this.camGoalT < 1) {
-          const x0 = this.camGoalT - 1;
-          const b = this.camSpringV + CAMERA_SPRING_OMEGA * x0;
-          const decay = Math.exp(-CAMERA_SPRING_OMEGA * dt);
-          this.camGoalT = 1 + (x0 + b * dt) * decay;
-          this.camSpringV = (this.camSpringV - CAMERA_SPRING_OMEGA * b * dt) * decay;
-          if (this.camGoalT >= 1) {
+        // Camera fly preset, compass heading sweep & fact-pin focus interpolation.
+        // Critically damped spring (analytic step, no allocations): x'' + 2w x'
+        // + w^2 x = 0 with x = progress - 1. Seeded velocity carries a flick or
+        // an in-flight interruption straight into the new preset.
+        if (this.camGoal) {
+          if (this.motionScale === 0) {
             this.camGoalT = 1;
             this.camSpringV = 0;
-          }
-        }
-        const s = THREE.MathUtils.clamp(this.camGoalT, 0, 1);
-        if (this.camGoalOrbital) {
-          const az = THREE.MathUtils.lerp(this.camStartAzimuth, this.camTargetAzimuth, s);
-          this.camera.position.set(
-            this.controls.target.x - Math.sin(az) * this.camGoalHorizDist,
-            this.controls.target.y + this.camGoalHeightOffset,
-            this.controls.target.z + Math.cos(az) * this.camGoalHorizDist
-          );
-        } else {
-          this.camera.position.lerpVectors(this.camStart, this.camTargetPos, s);
-        }
-        if (this.targetGoalActive) {
-          this.controls.target.lerpVectors(this.targetStart, this.targetEnd, s);
-        }
-        if (this.camGoalT >= 1) {
-          this.camGoal = null;
-          this.camGoalOrbital = false;
-          this.targetGoalActive = false;
-        }
-      }
-
-      // Advanced once per frame above, in every camera mode.
-
-      // Smooth choreographed switch settle + card drag swipe parallax
-      const paraLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 10);
-      this.cardParallaxCurrent += (this.cardParallaxTarget - this.cardParallaxCurrent) * paraLerp;
-      if (this.switchSettle > 0.001) {
-        this.switchSettle = Math.max(0, this.switchSettle - dt * 2.1);
-      }
-      const settleEase = this.motionScale > 0 ? this.switchSettle * this.switchSettle : 0;
-      this.heroRoot.rotation.y = this.cardParallaxCurrent + this.switchDir * 0.06 * settleEase;
-      this.heroRoot.scale.setScalar(1 - 0.025 * settleEase);
-
-      // Warm upcoming & previous landmarks in the LRU pool between transitions
-      if (this.dissolvePhase === 0 && this.elapsed - this.lastSwitchAt > 2.5) {
-        this.prewarmNextLandmark();
-      }
-
-      // Publish the shared creature environment once per frame: fields read it
-      // for season/time/weather gating and coarse distance LOD.
-      publishCreatureEnvironment(
-        this.weather.current.timeOfDay,
-        this.weather.current.night,
-        this.weather.current.rain,
-        this.weather.current.wind,
-        this.weather.current.storm,
-        getSeasonMonth() ?? 1,
-        this.motionScale,
-        this.qualityIndex,
-        this.isSoftwareGl,
-        this.camera.position.distanceTo(this.heroRoot.position)
-      );
-
-      // Landmark tick + sway + glowing windows
-      const tickFn = this.currentGroup?.userData.tick as
-        | ((t: number, dt: number) => void)
-        | undefined;
-      if (tickFn) {
-        tickFn(this.elapsed * this.motionScale, dt * this.motionScale);
-      }
-      for (let i = 0; i < this.activeAnimalLods.length; i++) {
-        const target = this.activeAnimalLods[i];
-        const setLod = target.userData.updateAnimalLod as (distance: number) => void;
-        target.getWorldPosition(this.tmpAnimalLodPos);
-        setLod(this.camera.position.distanceTo(this.tmpAnimalLodPos));
-      }
-      const litStrength = WU.lit.value;
-      // Detect nighttime hours and toggle window & streetlight emissive materials
-      // across all landmark models, then animate night-mode vehicle light sources,
-      // coastal tides, and daylight bird flocks.
-      this.updateNighttimeEmissives(dt);
-      this.animateVehicleNightLights(dt);
-      this.updateCoastalTide(dt);
-      this.updateDaylightBirds(dt);
-      this.updateAnimalAudio(dt);
-
-      // Fact pin & private User Pin sprite pulse + float + pop-in + hover boost
-      this.markerSprites.forEach((sp, i) => {
-        const isUserNote = sp.userData.pinKind === 'note';
-        if (isUserNote) {
-          const baseY = (sp.userData.baseY as number | undefined) ?? sp.position.y;
-          sp.position.y = baseY + Math.sin(this.elapsed * 2.1 * this.motionScale + i * 1.3) * 0.05;
-          let popMul = 1;
-          const noteId = sp.userData.noteId as string | undefined;
-          if (noteId) {
-            const pop = this.userPinPopTimers.get(noteId);
-            if (pop !== undefined) {
-              const nextPop = Math.max(0, pop - dt * 2.2);
-              if (nextPop <= 0) this.userPinPopTimers.delete(noteId);
-              else this.userPinPopTimers.set(noteId, nextPop);
-              popMul = 1 + Math.sin(nextPop * Math.PI) * 0.42;
+          } else if (this.camGoalT < 1) {
+            const x0 = this.camGoalT - 1;
+            const b = this.camSpringV + CAMERA_SPRING_OMEGA * x0;
+            const decay = Math.exp(-CAMERA_SPRING_OMEGA * dt);
+            this.camGoalT = 1 + (x0 + b * dt) * decay;
+            this.camSpringV = (this.camSpringV - CAMERA_SPRING_OMEGA * b * dt) * decay;
+            if (this.camGoalT >= 1) {
+              this.camGoalT = 1;
+              this.camSpringV = 0;
             }
           }
-          const base = 0.66 + 0.065 * Math.sin(this.elapsed * 2.6 * this.motionScale + i);
-          sp.scale.setScalar((i === this.hoveredMarkerIndex ? base * 1.28 : base) * popMul);
+          const s = THREE.MathUtils.clamp(this.camGoalT, 0, 1);
+          if (this.camGoalOrbital) {
+            const az = THREE.MathUtils.lerp(this.camStartAzimuth, this.camTargetAzimuth, s);
+            this.camera.position.set(
+              this.controls.target.x - Math.sin(az) * this.camGoalHorizDist,
+              this.controls.target.y + this.camGoalHeightOffset,
+              this.controls.target.z + Math.cos(az) * this.camGoalHorizDist
+            );
+          } else {
+            this.camera.position.lerpVectors(this.camStart, this.camTargetPos, s);
+          }
+          if (this.targetGoalActive) {
+            this.controls.target.lerpVectors(this.targetStart, this.targetEnd, s);
+          }
+          if (this.camGoalT >= 1) {
+            this.camGoal = null;
+            this.camGoalOrbital = false;
+            this.targetGoalActive = false;
+          }
+        }
+
+        // Advanced once per frame above, in every camera mode.
+
+        // Smooth choreographed switch settle + card drag swipe parallax
+        const paraLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 10);
+        this.cardParallaxCurrent += (this.cardParallaxTarget - this.cardParallaxCurrent) * paraLerp;
+        if (this.switchSettle > 0.001) {
+          this.switchSettle = Math.max(0, this.switchSettle - dt * 2.1);
+        }
+        const settleEase = this.motionScale > 0 ? this.switchSettle * this.switchSettle : 0;
+        this.heroRoot.rotation.y = this.cardParallaxCurrent + this.switchDir * 0.06 * settleEase;
+        this.heroRoot.scale.setScalar(1 - 0.025 * settleEase);
+
+        // Warm upcoming & previous landmarks in the LRU pool between transitions
+        if (this.dissolvePhase === 0 && this.elapsed - this.lastSwitchAt > 2.5) {
+          this.prewarmNextLandmark();
+        }
+
+        // Publish the shared creature environment once per frame: fields read it
+        // for season/time/weather gating and coarse distance LOD.
+        publishCreatureEnvironment(
+          this.weather.current.timeOfDay,
+          this.weather.current.night,
+          this.weather.current.rain,
+          this.weather.current.wind,
+          this.weather.current.storm,
+          getSeasonMonth() ?? 1,
+          this.motionScale,
+          this.qualityIndex,
+          this.isSoftwareGl,
+          this.camera.position.distanceTo(this.heroRoot.position)
+        );
+
+        // Landmark tick + sway + glowing windows
+        const tickFn = this.currentGroup?.userData.tick as
+          | ((t: number, dt: number) => void)
+          | undefined;
+        if (tickFn) {
+          tickFn(this.elapsed * this.motionScale, dt * this.motionScale);
+        }
+        for (let i = 0; i < this.activeAnimalLods.length; i++) {
+          const target = this.activeAnimalLods[i];
+          const setLod = target.userData.updateAnimalLod as (distance: number) => void;
+          target.getWorldPosition(this.tmpAnimalLodPos);
+          setLod(this.camera.position.distanceTo(this.tmpAnimalLodPos));
+        }
+        const litStrength = WU.lit.value;
+        // Detect nighttime hours and toggle window & streetlight emissive materials
+        // across all landmark models, then animate night-mode vehicle light sources,
+        // coastal tides, and daylight bird flocks.
+        this.updateNighttimeEmissives(dt);
+        this.animateVehicleNightLights(dt);
+        this.updateCoastalTide(dt);
+        this.updateDaylightBirds(dt);
+        this.updateAnimalAudio(dt);
+
+        // Fact pin & private User Pin sprite pulse + float + pop-in + hover boost
+        this.markerSprites.forEach((sp, i) => {
+          const isUserNote = sp.userData.pinKind === 'note';
+          if (isUserNote) {
+            const baseY = (sp.userData.baseY as number | undefined) ?? sp.position.y;
+            sp.position.y =
+              baseY + Math.sin(this.elapsed * 2.1 * this.motionScale + i * 1.3) * 0.05;
+            let popMul = 1;
+            const noteId = sp.userData.noteId as string | undefined;
+            if (noteId) {
+              const pop = this.userPinPopTimers.get(noteId);
+              if (pop !== undefined) {
+                const nextPop = Math.max(0, pop - dt * 2.2);
+                if (nextPop <= 0) this.userPinPopTimers.delete(noteId);
+                else this.userPinPopTimers.set(noteId, nextPop);
+                popMul = 1 + Math.sin(nextPop * Math.PI) * 0.42;
+              }
+            }
+            const base = 0.66 + 0.065 * Math.sin(this.elapsed * 2.6 * this.motionScale + i);
+            sp.scale.setScalar((i === this.hoveredMarkerIndex ? base * 1.28 : base) * popMul);
+          } else {
+            const base = 0.56 + 0.08 * Math.sin(this.elapsed * 3 * this.motionScale + i);
+            sp.scale.setScalar(i === this.hoveredMarkerIndex ? base * 1.24 : base);
+          }
+        });
+
+        // Next-landmark soft directional trail & ground pulse (GPU vertex animation)
+        const dirGoal = this.directionActive && !this.globe.isOpen && !this.places.isOpen ? 1 : 0;
+        const dirRate = this.motionScale === 0 ? Math.min(1, dt * 10) : Math.min(1, dt * 5.5);
+        this.directionStrength += (dirGoal - this.directionStrength) * dirRate;
+        if (this.directionStrength > 0.005) {
+          this.directionGroup.visible = true;
+          const yawDiff = Math.atan2(
+            Math.sin(this.directionTargetYaw - this.directionCurrentYaw),
+            Math.cos(this.directionTargetYaw - this.directionCurrentYaw)
+          );
+          this.directionCurrentYaw += yawDiff * Math.min(1, dt * 7);
+          this.directionGroup.rotation.y = this.directionCurrentYaw;
+
+          const dayWarmth = this.theme === 'daylight' || this.isStudio() ? 0.88 : 1.0;
+          this.directionPointsMat.uniforms.uAnimTime.value =
+            this.elapsed * (this.motionScale > 0 ? 0.52 : 0);
+          this.directionPointsMat.uniforms.uDayWarmth.value = dayWarmth;
+          this.directionPointsMat.uniforms.uOpacity.value = 0.92 * this.directionStrength;
+          this.directionPointsMat.uniforms.uPointScale.value = Math.min(
+            260,
+            Math.max(100, window.innerHeight * 0.22)
+          );
+
+          const pulsePhase = this.motionScale > 0 ? (this.elapsed * 0.72) % 1 : 0.35;
+          this.directionChevronMat.opacity =
+            (0.68 + 0.22 * Math.sin(this.elapsed * 2.6 * this.motionScale)) *
+            this.directionStrength;
+          this.directionChevron.scale.setScalar(
+            1 + 0.06 * Math.sin(this.elapsed * 2.6 * this.motionScale)
+          );
+          this.directionPulse.scale.setScalar(0.85 + pulsePhase * 1.65);
+          this.directionPulseMat.opacity = (1 - pulsePhase) * 0.55 * this.directionStrength;
         } else {
-          const base = 0.56 + 0.08 * Math.sin(this.elapsed * 3 * this.motionScale + i);
-          sp.scale.setScalar(i === this.hoveredMarkerIndex ? base * 1.24 : base);
+          this.directionGroup.visible = false;
         }
-      });
 
-      // Next-landmark soft directional trail & ground pulse (GPU vertex animation)
-      const dirGoal = this.directionActive && !this.globe.isOpen && !this.places.isOpen ? 1 : 0;
-      const dirRate = this.motionScale === 0 ? Math.min(1, dt * 10) : Math.min(1, dt * 5.5);
-      this.directionStrength += (dirGoal - this.directionStrength) * dirRate;
-      if (this.directionStrength > 0.005) {
-        this.directionGroup.visible = true;
-        const yawDiff = Math.atan2(
-          Math.sin(this.directionTargetYaw - this.directionCurrentYaw),
-          Math.cos(this.directionTargetYaw - this.directionCurrentYaw)
-        );
-        this.directionCurrentYaw += yawDiff * Math.min(1, dt * 7);
-        this.directionGroup.rotation.y = this.directionCurrentYaw;
-
-        const dayWarmth = this.theme === 'daylight' || this.isStudio() ? 0.88 : 1.0;
-        this.directionPointsMat.uniforms.uAnimTime.value =
-          this.elapsed * (this.motionScale > 0 ? 0.52 : 0);
-        this.directionPointsMat.uniforms.uDayWarmth.value = dayWarmth;
-        this.directionPointsMat.uniforms.uOpacity.value = 0.92 * this.directionStrength;
-        this.directionPointsMat.uniforms.uPointScale.value = Math.min(
-          260,
-          Math.max(100, window.innerHeight * 0.22)
-        );
-
-        const pulsePhase = this.motionScale > 0 ? (this.elapsed * 0.72) % 1 : 0.35;
-        this.directionChevronMat.opacity =
-          (0.68 + 0.22 * Math.sin(this.elapsed * 2.6 * this.motionScale)) * this.directionStrength;
-        this.directionChevron.scale.setScalar(
-          1 + 0.06 * Math.sin(this.elapsed * 2.6 * this.motionScale)
-        );
-        this.directionPulse.scale.setScalar(0.85 + pulsePhase * 1.65);
-        this.directionPulseMat.opacity = (1 - pulsePhase) * 0.55 * this.directionStrength;
-      } else {
-        this.directionGroup.visible = false;
-      }
-
-      // Architectural cutaway: sweep a section plane through the diorama so the
-      // existing strata/rock reads as a sliced cross-section (damped smoothly).
-      const cutawayGoal = this.cutawayActive && this.dissolvePhase === 0 ? 1 : 0;
-      const cutawayPrev = this.cutawayAmount;
-      if (Math.abs(cutawayGoal - this.cutawayAmount) > 0.0005 && this.cutawayReady) {
-        this.cutawayAmount =
-          this.motionScale === 0
-            ? cutawayGoal
-            : THREE.MathUtils.damp(this.cutawayAmount, cutawayGoal, 7, dt);
-        this.applyCutawayAmount(this.cutawayAmount);
-        if (!this.isSoftwareGl && Math.abs(this.cutawayAmount - cutawayPrev) > 0.01) {
-          this.renderer.shadowMap.needsUpdate = true;
+        // Architectural cutaway: sweep a section plane through the diorama so the
+        // existing strata/rock reads as a sliced cross-section (damped smoothly).
+        const cutawayGoal = this.cutawayActive && this.dissolvePhase === 0 ? 1 : 0;
+        const cutawayPrev = this.cutawayAmount;
+        if (Math.abs(cutawayGoal - this.cutawayAmount) > 0.0005 && this.cutawayReady) {
+          this.cutawayAmount =
+            this.motionScale === 0
+              ? cutawayGoal
+              : THREE.MathUtils.damp(this.cutawayAmount, cutawayGoal, 7, dt);
+          this.applyCutawayAmount(this.cutawayAmount);
+          if (!this.isSoftwareGl && Math.abs(this.cutawayAmount - cutawayPrev) > 0.01) {
+            this.renderer.shadowMap.needsUpdate = true;
+          }
         }
-      }
 
-      // Weather simulation
-      this.weather.update(dt, this.elapsed, {
-        qualityIndex: this.qualityIndex,
-        motionScale: this.motionScale,
-        lowDetail: this.isSoftwareGl,
-        keyLight: this.keyLight,
-        fillLight: this.fillLight,
-        hemiLight: this.hemiLight,
-        scene: this.scene,
-        renderer: this.renderer,
-        camera: this.camera,
-        onThunder: this.onThunder,
-      });
-      this.updateFoliageWindSway(dt);
-      const hoverLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 7);
-      this.hoverRimBoost += ((this.hoveredHero ? 1 : 0) - this.hoverRimBoost) * hoverLerp;
-      this.rackFocusBlend +=
-        ((this.hasCustomFocus ? 1 : 0) - this.rackFocusBlend) * Math.min(1, dt * 5);
-      const nightVal = this.weather.current.night;
-      const visual = this.activeSiteVisual;
-      updateShadowMood(
-        this.keyLight,
-        nightVal,
-        WU.sunHor.value,
-        this.studioWeight,
-        dt,
-        this.motionScale
-      );
-      updateRimLight(
-        this.rimLight,
-        nightVal,
-        WU.sun.value,
-        WU.sunHor.value,
-        dt,
-        this.motionScale,
-        this.hoverRimBoost * 0.32 + (this.theme === 'dark' ? 0.22 : 0),
-        this.studioWeight < 0.5 ? visual.rimColor : undefined,
-        this.studioWeight < 0.5 ? visual.rimBoost : 1
-      );
-      updateBounceLightMood(
-        this.bounceLight,
-        visual.bounceDay,
-        visual.bounceNight,
-        nightVal,
-        this.studioWeight,
-        dt,
-        this.motionScale
-      );
-
-      // Sky-blue fill: peaks at solar noon (low horizon ramp), fades with cloud
-      // cover and vanishes at night. Only affects upward-facing surfaces.
-      {
-        const skyFillGoal = Math.max(0,
-          (1 - WU.sunHor.value * 1.4) *         // dims at golden hour
-          (1 - this.weather.current.cover * 0.7) * // dims under cloud
-          (1 - nightVal) *                        // off at night
-          (1 - this.studioWeight) * 0.18          // off in studio
+        // Weather simulation
+        this.weather.update(dt, this.elapsed, {
+          qualityIndex: this.qualityIndex,
+          motionScale: this.motionScale,
+          lowDetail: this.isSoftwareGl,
+          keyLight: this.keyLight,
+          fillLight: this.fillLight,
+          hemiLight: this.hemiLight,
+          scene: this.scene,
+          renderer: this.renderer,
+          camera: this.camera,
+          onThunder: this.onThunder,
+        });
+        this.updateFoliageWindSway(dt);
+        const hoverLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 7);
+        this.hoverRimBoost += ((this.hoveredHero ? 1 : 0) - this.hoverRimBoost) * hoverLerp;
+        this.rackFocusBlend +=
+          ((this.hasCustomFocus ? 1 : 0) - this.rackFocusBlend) * Math.min(1, dt * 5);
+        const nightVal = this.weather.current.night;
+        const visual = this.activeSiteVisual;
+        updateShadowMood(
+          this.keyLight,
+          nightVal,
+          WU.sunHor.value,
+          this.studioWeight,
+          dt,
+          this.motionScale
         );
-        const sfLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 2.0);
-        this.skyFillLight.intensity += (skyFillGoal - this.skyFillLight.intensity) * sfLerp;
-      }
-
-      // Pooled dual non-shadowing night point lights anchored to each landmark's focal architecture
-      const nightGlowMix =
-        !this.isStudio() && nightVal > 0.15
-          ? THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8) * (0.45 + litStrength * 0.55) * (1 - this.studioWeight)
-          : 0;
-      const ptLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 3.5);
-      this.nightApronLight.position.lerp(this.nightPrimaryPos, ptLerp);
-      this.nightApronLight.color.lerp(this.nightPrimaryCol, ptLerp);
-      this.nightApronLight.distance += (this.nightPrimaryDistance - this.nightApronLight.distance) * ptLerp;
-      const primaryGoal = nightGlowMix * this.nightPrimaryIntensity;
-      this.nightApronLight.intensity += (primaryGoal - this.nightApronLight.intensity) * ptLerp;
-
-      this.nightAccentLight.position.lerp(this.nightSecondaryPos, ptLerp);
-      this.nightAccentLight.color.lerp(this.nightSecondaryCol, ptLerp);
-      this.nightAccentLight.distance += (this.nightSecondaryDistance - this.nightAccentLight.distance) * ptLerp;
-      const secondaryGoal = nightGlowMix * this.nightSecondaryIntensity;
-      this.nightAccentLight.intensity += (secondaryGoal - this.nightAccentLight.intensity) * ptLerp;
-
-      // Moonlight: only lifts the scene when the disc is actually up and visible.
-      const moonOpacity = (this.weather.moonDisc.material as THREE.MeshBasicMaterial).opacity;
-      const moonGoal = moonOpacity * nightVal * 0.5 * (1 - this.studioWeight);
-      this.moonLight.intensity += (moonGoal - this.moonLight.intensity) * ptLerp;
-      if (this.weather.moonDisc.position.lengthSq() > 0.001) {
-        this.moonLight.position.copy(this.weather.moonDisc.position).normalize().multiplyScalar(26);
-        this.moonLight.target.position.set(0, 0.8, 0);
-      }
-
-      // Dynamic night readability lift in MiniaturePass so shaded landmark colors stay luminous at night
-      const targetPostNight =
-        this.isStudio() ? 0 : Math.min(1, Math.max(0, (1 - WU.sun.value) * visual.grade.nightLift * 3.2));
-      if (Math.abs(targetPostNight - this.lastPostNightFactor) > 0.01) {
-        this.lastPostNightFactor = targetPostNight;
-        this.miniaturePass.setGrade({ nightFactor: targetPostNight });
-      }
-
-      const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
-      const envLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
-      this.studioWeight += ((this.isStudio() ? 1 : 0) - this.studioWeight) * themeLerp;
-      if (!this.isSoftwareGl && this.qualityIndex < 2) {
-        this.bloomPass.enabled = this.studioWeight < 0.99;
-      }
-      this.ringMat.color.lerp(this.targetRingCol, themeLerp);
-      this.ringMat.emissive.lerp(this.targetRingCol, themeLerp);
-      this.ringMat.emissiveIntensity +=
-        (this.targetRingEmissive + this.hoverRimBoost * 0.18 - this.ringMat.emissiveIntensity) *
-        themeLerp;
-      const nightBloomMix = THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8);
-      const horVal = WU.sunHor.value;
-
-      // Screen-space sun glow: High tier, dawn/dusk only. Reuses the beauty
-      // buffer inside MiniaturePass, so no extra program or draw call.
-      if (!this.isSoftwareGl && this.qualityIndex === 0 && GOD_RAYS_ENABLED && this.studioWeight < 0.5) {
-        const disc = this.weather.sunDisc;
-        this.sunScreenTmp.copy(disc.position).project(this.camera);
-        const onScreen =
-          disc.visible &&
-          this.sunScreenTmp.z < 1 &&
-          Math.abs(this.sunScreenTmp.x) < 1.2 &&
-          Math.abs(this.sunScreenTmp.y) < 1.2;
-        const glow = onScreen ? (disc.material as THREE.MeshBasicMaterial).opacity : 0;
-        this.miniaturePass.setSunGlow(
-          this.sunScreenTmp.x * 0.5 + 0.5,
-          this.sunScreenTmp.y * 0.5 + 0.5,
-          glow,
-          GOD_RAY_STRENGTH * horVal * (1 - nightVal)
+        updateRimLight(
+          this.rimLight,
+          nightVal,
+          WU.sun.value,
+          WU.sunHor.value,
+          dt,
+          this.motionScale,
+          this.hoverRimBoost * 0.32 + (this.theme === 'dark' ? 0.22 : 0),
+          this.studioWeight < 0.5 ? visual.rimColor : undefined,
+          this.studioWeight < 0.5 ? visual.rimBoost : 1
         );
-      } else {
-        this.miniaturePass.setSunGlow(0.5, 0.85, 0, 0);
-      }
+        updateBounceLightMood(
+          this.bounceLight,
+          visual.bounceDay,
+          visual.bounceNight,
+          nightVal,
+          this.studioWeight,
+          dt,
+          this.motionScale
+        );
 
-      // Analytical time-of-day grade on top of the authored per-site split tone:
-      // warm highlights / cool shadows at dusk, teal-leaning night, neutral noon.
-      const gradeKey = nightVal * 2 + horVal;
-      if (TIME_OF_DAY_GRADE_SHIFT > 0 && Math.abs(gradeKey - this.lastGradeHour) > 0.02) {
-        this.lastGradeHour = gradeKey;
-        const k = TIME_OF_DAY_GRADE_SHIFT;
-        const dusk = horVal * (1 - nightVal) * k;
-        this.gradeShadowNow.copy(this.gradeShadowBase).lerp(this.duskShadowTint, dusk);
-        this.gradeShadowNow.lerp(this.nightShadowTint, nightVal * k);
-        this.gradeHighlightNow.copy(this.gradeHighlightBase).lerp(this.duskHighlightTint, dusk);
-        this.gradeHighlightNow.lerp(this.nightHighlightTint, nightVal * k);
-        (this.miniaturePass.uniforms.uShadowTint.value as THREE.Vector3).copy(this.gradeShadowNow);
-        (this.miniaturePass.uniforms.uHighlightTint.value as THREE.Vector3).copy(this.gradeHighlightNow);
-      }
-
-      // Emitter-gated bloom: the daylight threshold sits above pale sunlit masonry
-      // so only true light sources bloom by day; at night it drops back to let lit
-      // windows and lamps glow as before.
-      const bloomGoalThreshold = this.isStudio()
-        ? 1.15
-        : THREE.MathUtils.lerp(1.22, 0.8, nightBloomMix) - horVal * 0.06;
-      const bloomGoalStrength = this.isStudio()
-        ? 0.14
-        : THREE.MathUtils.lerp(0.16, 0.26, nightBloomMix) + horVal * 0.04;
-      this.bloomPass.threshold += (bloomGoalThreshold - this.bloomPass.threshold) * themeLerp;
-      this.bloomPass.strength += (bloomGoalStrength - this.bloomPass.strength) * themeLerp;
-
-      // Dynamic day / golden-hour / night IBL regime switch (zero per-frame PMREM cost)
-      const desiredSkyProbe =
-        nightVal > 0.55
-          ? this.nightEnvTex
-          : horVal > 0.35
-            ? this.goldenEnvTex
-            : this.dayEnvTex;
-      this.envTex = desiredSkyProbe;
-      const desiredEnv = this.studioWeight > 0.5 ? this.roomEnvTex : desiredSkyProbe;
-      if (this.scene.environment !== desiredEnv) {
-        this.scene.environment = desiredEnv;
-      }
-
-      const envCeiling = this.usingSkyHdr && desiredSkyProbe === this.dayEnvTex ? 0.36 : 0.62;
-      const envFloor = desiredSkyProbe === this.nightEnvTex ? 0.34 : this.usingSkyHdr ? 0.18 : 0.3;
-      const rainSpecularBoost = 1 + this.weather.current.rain * 0.28;
-      const skyEnvIntensity =
-        (envFloor +
-          (envCeiling - envFloor) *
-            (1 - this.weather.current.night * 0.85) *
-            (1 - this.weather.current.cover * 0.32)) *
-        rainSpecularBoost;
-      const targetEnvIntensity = skyEnvIntensity + (0.55 - skyEnvIntensity) * this.studioWeight;
-      this.scene.environmentIntensity +=
-        (targetEnvIntensity - this.scene.environmentIntensity) * envLerp;
-      updateWetSurfaces(this.weather.current.rain);
-
-      // Localized atmosphere shell: ridge fog, heat shimmer, valley mist, sea and spray mist
-      const fog = this.scene.fog;
-      const fogColor =
-        fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color);
-      this.atmosphere.update(dt, this.elapsed, {
-        qualityIndex: this.qualityIndex,
-        motionScale: this.motionScale,
-        night: this.weather.current.night,
-        rain: this.weather.current.rain,
-        fog: this.weather.current.fog,
-        cover: this.weather.current.cover,
-        wind: this.weather.current.wind,
-        fogColor,
-        studioWeight: this.studioWeight,
-      });
-
-      // Wind-driven leaves & grass wisps + distant biome horizon relief
-      this.windParticles.update(dt, this.elapsed, {
-        qualityIndex: this.qualityIndex,
-        motionScale: this.motionScale,
-        wind: this.weather.current.wind,
-        rain: this.weather.current.rain,
-        fog: this.weather.current.fog,
-        storm: this.weather.current.storm,
-        cover: this.weather.current.cover,
-        night: this.weather.current.night,
-        season: WU.season.value,
-        windDir: WU.windDir.value,
-      });
-      if (this.studioWeight >= 0.96) {
-        this.windParticles.points.visible = false;
-      }
-      this.horizon.update(dt, this.motionScale, {
-        fogColor,
-        skyColor: this.weather.skyTopColor,
-        sunGlow: this.weather.sunGlowColor,
-        pollutionTint: this.pollutionTintCol,
-        hor: WU.sunHor.value,
-        night: this.weather.current.night,
-        rain: this.weather.current.rain,
-        studioWeight: this.studioWeight,
-      });
-
-      // Gentle gyro tilt offset + responsive viewport framing. When inspecting a fact pin,
-      // preserve the custom focus center until reset/reframe.
-      if (!this.isStudio() && !this.targetGoalActive) {
-        if (this.hasCustomFocus) {
-          this.controls.target.set(
-            this.targetEnd.x + this.tiltOffsetX,
-            this.targetEnd.y + this.tiltOffsetY,
-            this.targetEnd.z
+        // Sky-blue fill: peaks at solar noon (low horizon ramp), fades with cloud
+        // cover and vanishes at night. Only affects upward-facing surfaces.
+        {
+          const skyFillGoal = Math.max(
+            0,
+            (1 - WU.sunHor.value * 1.4) * // dims at golden hour
+              (1 - this.weather.current.cover * 0.7) * // dims under cloud
+              (1 - nightVal) * // off at night
+              (1 - this.studioWeight) *
+              0.18 // off in studio
           );
-        } else if (this.hasHeroFit) {
-          this.controls.target.set(
-            this.heroFitCenter.x + this.tiltOffsetX,
-            this.heroFitCenter.y + this.tiltOffsetY,
-            this.heroFitCenter.z
-          );
-        } else {
-          this.controls.target.set(
-            this.baseTargetX + this.tiltOffsetX,
-            this.baseTargetY + this.tiltOffsetY,
-            0
-          );
+          const sfLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 2.0);
+          this.skyFillLight.intensity += (skyFillGoal - this.skyFillLight.intensity) * sfLerp;
         }
-      }
-      this.controls.update();
-      this.updateLods(this.camera);
 
-      // Update ambient audio synthesizer and position the listener in the diorama
-      const lm = LANDMARKS[this.activeIndex] ?? LANDMARKS[0];
-      this.camera.updateMatrixWorld();
-      audioRight.setFromMatrixColumn(this.camera.matrixWorld, 0).normalize();
-      audioForward.setFromMatrixColumn(this.camera.matrixWorld, 2).normalize().negate();
-      ambientAudio.setCameraYaw(
-        Math.atan2(
-          this.camera.position.x - this.controls.target.x,
-          this.camera.position.z - this.controls.target.z
-        )
-      );
-      setSpatialListener(this.camera, audioRight, audioForward);
-      ambientAudio.update(
-        dt,
-        this.elapsed,
-        lm.ambient,
-        lm.biome,
-        this.weather.current.wind,
-        this.weather.current.rain,
-        this.weather.current.night,
-        this.weather.current.storm,
-        this.weather.current.fog,
-        this.weather.current.timeOfDay
-      );
+        // Pooled dual non-shadowing night point lights anchored to each landmark's focal architecture
+        const nightGlowMix =
+          !this.isStudio() && nightVal > 0.15
+            ? THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8) *
+              (0.45 + litStrength * 0.55) *
+              (1 - this.studioWeight)
+            : 0;
+        const ptLerp = this.motionScale === 0 ? 1 : Math.min(1, dt * 3.5);
+        this.nightApronLight.position.lerp(this.nightPrimaryPos, ptLerp);
+        this.nightApronLight.color.lerp(this.nightPrimaryCol, ptLerp);
+        this.nightApronLight.distance +=
+          (this.nightPrimaryDistance - this.nightApronLight.distance) * ptLerp;
+        const primaryGoal = nightGlowMix * this.nightPrimaryIntensity;
+        this.nightApronLight.intensity += (primaryGoal - this.nightApronLight.intensity) * ptLerp;
 
-      // Adaptive idle frame pacing, now shared with the Places and Globe
-      // stages. Never throttle while orbiting, dissolving, flying, time-lapsing
-      // or within the settle window; simulation still advances every rAF.
-      const camDeltaSq = this.camera.position.distanceToSquared(this.prevFrameCamPos);
-      this.prevFrameCamPos.copy(this.camera.position);
-      const heroActive =
-        this.isUserOrbiting ||
-        this.dissolvePhase > 0 ||
-        this.camGoal !== null ||
-        this.timeLapsePlaying ||
-        camDeltaSq >= 1e-6;
-      const throttleMs = this.stageThrottle(
-        heroActive,
-        WU.cursorStrength.value < 0.01,
-        1.5
-      );
+        this.nightAccentLight.position.lerp(this.nightSecondaryPos, ptLerp);
+        this.nightAccentLight.color.lerp(this.nightSecondaryCol, ptLerp);
+        this.nightAccentLight.distance +=
+          (this.nightSecondaryDistance - this.nightAccentLight.distance) * ptLerp;
+        const secondaryGoal = nightGlowMix * this.nightSecondaryIntensity;
+        this.nightAccentLight.intensity +=
+          (secondaryGoal - this.nightAccentLight.intensity) * ptLerp;
 
-      if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
-        const shadowStride = this.isUserOrbiting ? 3 : 2;
-        const keyMoved = this.keyLight.position.distanceToSquared(this.lastShadowKeyPos) > 0.002;
-        const animateShadows =
-          this.hasAnimatedShadowScene &&
-          this.motionScale > 0 &&
-          this.shadowFrameCounter++ % shadowStride === 0;
+        // Moonlight: only lifts the scene when the disc is actually up and visible.
+        const moonOpacity = (this.weather.moonDisc.material as THREE.MeshBasicMaterial).opacity;
+        const moonGoal = moonOpacity * nightVal * 0.5 * (1 - this.studioWeight);
+        this.moonLight.intensity += (moonGoal - this.moonLight.intensity) * ptLerp;
+        if (this.weather.moonDisc.position.lengthSq() > 0.001) {
+          this.moonLight.position
+            .copy(this.weather.moonDisc.position)
+            .normalize()
+            .multiplyScalar(26);
+          this.moonLight.target.position.set(0, 0.8, 0);
+        }
+
+        // Dynamic night readability lift in MiniaturePass so shaded landmark colors stay luminous at night
+        const targetPostNight = this.isStudio()
+          ? 0
+          : Math.min(1, Math.max(0, (1 - WU.sun.value) * visual.grade.nightLift * 3.2));
+        if (Math.abs(targetPostNight - this.lastPostNightFactor) > 0.01) {
+          this.lastPostNightFactor = targetPostNight;
+          this.miniaturePass.setGrade({ nightFactor: targetPostNight });
+        }
+
+        const themeLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 4.5);
+        const envLerp = this.motionScale === 0 ? 1 : 1 - Math.exp(-dt * 2.8);
+        this.studioWeight += ((this.isStudio() ? 1 : 0) - this.studioWeight) * themeLerp;
+        if (!this.isSoftwareGl && this.qualityIndex < 2) {
+          this.bloomPass.enabled = this.studioWeight < 0.99;
+        }
+        this.ringMat.color.lerp(this.targetRingCol, themeLerp);
+        this.ringMat.emissive.lerp(this.targetRingCol, themeLerp);
+        this.ringMat.emissiveIntensity +=
+          (this.targetRingEmissive + this.hoverRimBoost * 0.18 - this.ringMat.emissiveIntensity) *
+          themeLerp;
+        const nightBloomMix = THREE.MathUtils.smoothstep(nightVal, 0.15, 0.8);
+        const horVal = WU.sunHor.value;
+
+        // Screen-space sun glow: High tier, dawn/dusk only. Reuses the beauty
+        // buffer inside MiniaturePass, so no extra program or draw call.
         if (
           !this.isSoftwareGl &&
-          this.qualityIndex < 2 &&
-          (this.dissolvePhase > 0 || keyMoved || animateShadows)
+          this.qualityIndex === 0 &&
+          GOD_RAYS_ENABLED &&
+          this.studioWeight < 0.5
         ) {
-          this.renderer.shadowMap.needsUpdate = true;
-          this.lastShadowKeyPos.copy(this.keyLight.position);
+          const disc = this.weather.sunDisc;
+          this.sunScreenTmp.copy(disc.position).project(this.camera);
+          const onScreen =
+            disc.visible &&
+            this.sunScreenTmp.z < 1 &&
+            Math.abs(this.sunScreenTmp.x) < 1.2 &&
+            Math.abs(this.sunScreenTmp.y) < 1.2;
+          const glow = onScreen ? (disc.material as THREE.MeshBasicMaterial).opacity : 0;
+          this.miniaturePass.setSunGlow(
+            this.sunScreenTmp.x * 0.5 + 0.5,
+            this.sunScreenTmp.y * 0.5 + 0.5,
+            glow,
+            GOD_RAY_STRENGTH * horVal * (1 - nightVal)
+          );
+        } else {
+          this.miniaturePass.setSunGlow(0.5, 0.85, 0, 0);
         }
-        const benchmarkStart = this.qualityBenchmark ? performance.now() : 0;
-        this.renderer.startGpuTiming();
-        this.renderCurrentPass();
-        this.renderer.endGpuTiming();
-        if (this.qualityBenchmark) {
-          this.sampleQualityBenchmark(
-            rawFrameMs,
-            performance.now() - benchmarkStart,
-            this.renderer.takeGpuMs()
+
+        // Analytical time-of-day grade on top of the authored per-site split tone:
+        // warm highlights / cool shadows at dusk, teal-leaning night, neutral noon.
+        const gradeKey = nightVal * 2 + horVal;
+        if (TIME_OF_DAY_GRADE_SHIFT > 0 && Math.abs(gradeKey - this.lastGradeHour) > 0.02) {
+          this.lastGradeHour = gradeKey;
+          const k = TIME_OF_DAY_GRADE_SHIFT;
+          const dusk = horVal * (1 - nightVal) * k;
+          this.gradeShadowNow.copy(this.gradeShadowBase).lerp(this.duskShadowTint, dusk);
+          this.gradeShadowNow.lerp(this.nightShadowTint, nightVal * k);
+          this.gradeHighlightNow.copy(this.gradeHighlightBase).lerp(this.duskHighlightTint, dusk);
+          this.gradeHighlightNow.lerp(this.nightHighlightTint, nightVal * k);
+          (this.miniaturePass.uniforms.uShadowTint.value as THREE.Vector3).copy(
+            this.gradeShadowNow
+          );
+          (this.miniaturePass.uniforms.uHighlightTint.value as THREE.Vector3).copy(
+            this.gradeHighlightNow
           );
         }
-        this.lastRenderAt = now;
-        this.updateAutoExposure(dt);
-      }
-    }
 
-    this.afterDraw(() => this.scheduleNextFrame());
+        // Emitter-gated bloom: the daylight threshold sits above pale sunlit masonry
+        // so only true light sources bloom by day; at night it drops back to let lit
+        // windows and lamps glow as before.
+        const bloomGoalThreshold = this.isStudio()
+          ? 1.15
+          : THREE.MathUtils.lerp(1.22, 0.8, nightBloomMix) - horVal * 0.06;
+        const bloomGoalStrength = this.isStudio()
+          ? 0.14
+          : THREE.MathUtils.lerp(0.16, 0.26, nightBloomMix) + horVal * 0.04;
+        this.bloomPass.threshold += (bloomGoalThreshold - this.bloomPass.threshold) * themeLerp;
+        this.bloomPass.strength += (bloomGoalStrength - this.bloomPass.strength) * themeLerp;
+
+        // Dynamic day / golden-hour / night IBL regime switch (zero per-frame PMREM cost)
+        const desiredSkyProbe =
+          nightVal > 0.55 ? this.nightEnvTex : horVal > 0.35 ? this.goldenEnvTex : this.dayEnvTex;
+        this.envTex = desiredSkyProbe;
+        const desiredEnv = this.studioWeight > 0.5 ? this.roomEnvTex : desiredSkyProbe;
+        if (this.scene.environment !== desiredEnv) {
+          this.scene.environment = desiredEnv;
+        }
+
+        const envCeiling = this.usingSkyHdr && desiredSkyProbe === this.dayEnvTex ? 0.36 : 0.62;
+        const envFloor =
+          desiredSkyProbe === this.nightEnvTex ? 0.34 : this.usingSkyHdr ? 0.18 : 0.3;
+        const rainSpecularBoost = 1 + this.weather.current.rain * 0.28;
+        const skyEnvIntensity =
+          (envFloor +
+            (envCeiling - envFloor) *
+              (1 - this.weather.current.night * 0.85) *
+              (1 - this.weather.current.cover * 0.32)) *
+          rainSpecularBoost;
+        const targetEnvIntensity = skyEnvIntensity + (0.55 - skyEnvIntensity) * this.studioWeight;
+        this.scene.environmentIntensity +=
+          (targetEnvIntensity - this.scene.environmentIntensity) * envLerp;
+        updateWetSurfaces(this.weather.current.rain);
+
+        // Localized atmosphere shell: ridge fog, heat shimmer, valley mist, sea and spray mist
+        const fog = this.scene.fog;
+        const fogColor =
+          fog instanceof THREE.FogExp2 ? fog.color : (this.scene.background as THREE.Color);
+        this.atmosphere.update(dt, this.elapsed, {
+          qualityIndex: this.qualityIndex,
+          motionScale: this.motionScale,
+          night: this.weather.current.night,
+          rain: this.weather.current.rain,
+          fog: this.weather.current.fog,
+          cover: this.weather.current.cover,
+          wind: this.weather.current.wind,
+          fogColor,
+          studioWeight: this.studioWeight,
+        });
+
+        // Wind-driven leaves & grass wisps + distant biome horizon relief
+        this.windParticles.update(dt, this.elapsed, {
+          qualityIndex: this.qualityIndex,
+          motionScale: this.motionScale,
+          wind: this.weather.current.wind,
+          rain: this.weather.current.rain,
+          fog: this.weather.current.fog,
+          storm: this.weather.current.storm,
+          cover: this.weather.current.cover,
+          night: this.weather.current.night,
+          season: WU.season.value,
+          windDir: WU.windDir.value,
+        });
+        if (this.studioWeight >= 0.96) {
+          this.windParticles.points.visible = false;
+        }
+        this.horizon.update(dt, this.motionScale, {
+          fogColor,
+          skyColor: this.weather.skyTopColor,
+          sunGlow: this.weather.sunGlowColor,
+          pollutionTint: this.pollutionTintCol,
+          hor: WU.sunHor.value,
+          night: this.weather.current.night,
+          rain: this.weather.current.rain,
+          studioWeight: this.studioWeight,
+        });
+
+        // Gentle gyro tilt offset + responsive viewport framing. When inspecting a fact pin,
+        // preserve the custom focus center until reset/reframe.
+        if (!this.isStudio() && !this.targetGoalActive) {
+          if (this.hasCustomFocus) {
+            this.controls.target.set(
+              this.targetEnd.x + this.tiltOffsetX,
+              this.targetEnd.y + this.tiltOffsetY,
+              this.targetEnd.z
+            );
+          } else if (this.hasHeroFit) {
+            this.controls.target.set(
+              this.heroFitCenter.x + this.tiltOffsetX,
+              this.heroFitCenter.y + this.tiltOffsetY,
+              this.heroFitCenter.z
+            );
+          } else {
+            this.controls.target.set(
+              this.baseTargetX + this.tiltOffsetX,
+              this.baseTargetY + this.tiltOffsetY,
+              0
+            );
+          }
+        }
+        this.controls.update();
+        this.updateLods(this.camera);
+
+        // Update ambient audio synthesizer and position the listener in the diorama
+        const lm = LANDMARKS[this.activeIndex] ?? LANDMARKS[0];
+        this.camera.updateMatrixWorld();
+        audioRight.setFromMatrixColumn(this.camera.matrixWorld, 0).normalize();
+        audioForward.setFromMatrixColumn(this.camera.matrixWorld, 2).normalize().negate();
+        ambientAudio.setCameraYaw(
+          Math.atan2(
+            this.camera.position.x - this.controls.target.x,
+            this.camera.position.z - this.controls.target.z
+          )
+        );
+        setSpatialListener(this.camera, audioRight, audioForward);
+        ambientAudio.update(
+          dt,
+          this.elapsed,
+          lm.ambient,
+          lm.biome,
+          this.weather.current.wind,
+          this.weather.current.rain,
+          this.weather.current.night,
+          this.weather.current.storm,
+          this.weather.current.fog,
+          this.weather.current.timeOfDay
+        );
+
+        // Adaptive idle frame pacing, now shared with the Places and Globe
+        // stages. Never throttle while orbiting, dissolving, flying, time-lapsing
+        // or within the settle window; simulation still advances every rAF.
+        const camDeltaSq = this.camera.position.distanceToSquared(this.prevFrameCamPos);
+        this.prevFrameCamPos.copy(this.camera.position);
+        const heroActive =
+          this.isUserOrbiting ||
+          this.dissolvePhase > 0 ||
+          this.camGoal !== null ||
+          this.timeLapsePlaying ||
+          camDeltaSq >= 1e-6;
+        const throttleMs = this.stageThrottle(heroActive, WU.cursorStrength.value < 0.01, 1.5);
+
+        if (throttleMs === 0 || now - this.lastRenderAt >= throttleMs) {
+          const shadowStride = this.isUserOrbiting ? 3 : 2;
+          const keyMoved = this.keyLight.position.distanceToSquared(this.lastShadowKeyPos) > 0.002;
+          const animateShadows =
+            this.hasAnimatedShadowScene &&
+            this.motionScale > 0 &&
+            this.shadowFrameCounter++ % shadowStride === 0;
+          if (
+            !this.isSoftwareGl &&
+            this.qualityIndex < 2 &&
+            (this.dissolvePhase > 0 || keyMoved || animateShadows)
+          ) {
+            this.renderer.shadowMap.needsUpdate = true;
+            this.lastShadowKeyPos.copy(this.keyLight.position);
+          }
+          const benchmarkStart = this.qualityBenchmark ? performance.now() : 0;
+          this.renderer.startGpuTiming();
+          this.renderCurrentPass();
+          this.renderer.endGpuTiming();
+          if (this.qualityBenchmark) {
+            this.sampleQualityBenchmark(
+              rawFrameMs,
+              performance.now() - benchmarkStart,
+              this.renderer.takeGpuMs()
+            );
+          }
+          this.lastRenderAt = now;
+          this.updateAutoExposure(dt);
+        }
+      }
+
+      this.afterDraw(() => this.scheduleNextFrame());
     } catch (err) {
       // An unhandled exception inside a rAF callback silently kills the loop.
       // Log the error and always reschedule the next frame so the render loop

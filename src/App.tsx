@@ -365,6 +365,7 @@ export function App() {
 
   const [tourActive, setTourActive] = useState(false);
   const [compact, setCompact] = useState(() => {
+    if (window.matchMedia('(max-height: 560px)').matches) return true;
     try {
       const stored = window.localStorage.getItem('cl-compact');
       if (stored === '0' || stored === '1') return stored === '1';
@@ -373,7 +374,7 @@ export function App() {
     }
     return (
       window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`).matches ||
-      window.matchMedia('(max-height: 480px)').matches
+      window.matchMedia('(max-height: 560px)').matches
     );
   });
   const [showDirection, setShowDirection] = useState(false);
@@ -428,34 +429,35 @@ export function App() {
     );
   }, [settings.motion]);
 
-  // Keep the compact shell in step with the breakpoint token. A persisted
-  // manual choice (cl-compact) still wins, as it did before this listener.
+  // Keep compact mode in step with viewport changes. Short screens always
+  // collapse the card; outside that case an explicit user choice wins.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return undefined;
-    const mq = window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`);
-    const onChange = (e: MediaQueryListEvent) => {
+    const narrow = window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT_PX}px)`);
+    const short = window.matchMedia('(max-height: 560px)');
+    const syncCompact = () => {
+      if (short.matches) {
+        setCompact(true);
+        return;
+      }
       try {
-        if (window.localStorage.getItem('cl-compact') !== null) return;
+        const stored = window.localStorage.getItem('cl-compact');
+        if (stored === '0' || stored === '1') {
+          setCompact(stored === '1');
+          return;
+        }
       } catch {
         // Ignore storage failures.
       }
-      setCompact(e.matches);
+      setCompact(narrow.matches);
     };
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  // A short viewport (a phone on its side) cannot fit the full card, so it
-  // collapses to the compact shell even when the user picked the wide one.
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
-    const mq = window.matchMedia('(max-height: 480px)');
-    const onChange = () => {
-      if (mq.matches) setCompact(true);
+    syncCompact();
+    narrow.addEventListener('change', syncCompact);
+    short.addEventListener('change', syncCompact);
+    return () => {
+      narrow.removeEventListener('change', syncCompact);
+      short.removeEventListener('change', syncCompact);
     };
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
   }, []);
 
   // Publish how much of the visual viewport the on-screen keyboard covers.
@@ -694,7 +696,7 @@ export function App() {
         instance.setWildlifeEnabled(initialSettings.wildlife ?? true);
         instance.setHiddenDetailsEnabled(initialSettings.hiddenDetails ?? true);
         instance.setScaleReference(
-          initialSettings.scaleMode ? initialSettings.scaleReference ?? 'person' : null
+          initialSettings.scaleMode ? (initialSettings.scaleReference ?? 'person') : null
         );
         for (const [lmKey, lmNotes] of Object.entries(notesByLandmarkRef.current)) {
           instance.setUserNotes(Number(lmKey), lmNotes);
@@ -817,7 +819,7 @@ export function App() {
     engineRef.current?.setCinematic(settings.cinematic);
     settingsRef.current = settings;
     engineRef.current?.setScaleReference(
-      settings.scaleMode ? settings.scaleReference ?? 'person' : null
+      settings.scaleMode ? (settings.scaleReference ?? 'person') : null
     );
     engineRef.current?.setWildlifeEnabled(settings.wildlife ?? true);
     engineRef.current?.setHiddenDetailsEnabled(settings.hiddenDetails ?? true);
@@ -920,9 +922,7 @@ export function App() {
   );
   const weatherMoment = useMemo<WeatherMoment | null>(
     () =>
-      weatherState.live
-        ? getWeatherMoment(LANDMARKS[index]?.k ?? '', weatherState.live)
-        : null,
+      weatherState.live ? getWeatherMoment(LANDMARKS[index]?.k ?? '', weatherState.live) : null,
     [index, weatherState.live]
   );
 
@@ -1727,7 +1727,9 @@ export function App() {
             >
               <div className="font-medium">
                 {formatMetres(scaleFact.magnitudeM)} {scaleFact.label} · ≈
-                {Math.round(scaleRatio(scaleFact.magnitudeM, referenceHeightM(scaleKind))).toLocaleString('en-ZA')}{' '}
+                {Math.round(
+                  scaleRatio(scaleFact.magnitudeM, referenceHeightM(scaleKind))
+                ).toLocaleString('en-ZA')}{' '}
                 {scaleKind === 'eiffel' ? 'Eiffel Towers' : `${scaleKind}s`} tall
               </div>
               {referenceFactor !== null && Math.abs(referenceFactor - 1) >= 0.02 && (
@@ -2146,9 +2148,12 @@ export function App() {
               exit="exit"
               transition={reducedMotion ? { duration: 0 } : undefined}
               style={{ zIndex: Z.transient + 5 }}
-              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] px-3.5 py-1 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[11.5px] text-[#e8b04a]"
+              role="status"
+              aria-live="polite"
+              className="fixed left-1/2 -translate-x-1/2 bottom-[calc(18px+env(safe-area-inset-bottom,0px))] px-3.5 py-1.5 rounded-full bg-[#14161e] border border-[#e8b04a]/40 text-[12px] text-[#e8b04a] text-center max-w-[calc(100vw-2rem)]"
             >
-              Offline mode · 3D models & cached photos ready
+              Offline · 3D landmarks are available; live weather, search & uncached photos need
+              internet
             </motion.div>
           )}
         </AnimatePresence>
@@ -2213,9 +2218,19 @@ export function App() {
               className="fixed inset-0 z-50 grid place-items-center pointer-events-none"
             >
               <motion.div
-                initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 2.6, rotate: -14, filter: 'blur(8px)' }}
-                animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, rotate: -14, filter: 'blur(0px)' }}
-                exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.9, filter: 'blur(4px)' }}
+                initial={
+                  reducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, scale: 2.6, rotate: -14, filter: 'blur(8px)' }
+                }
+                animate={
+                  reducedMotion
+                    ? { opacity: 1 }
+                    : { opacity: 1, scale: 1, rotate: -14, filter: 'blur(0px)' }
+                }
+                exit={
+                  reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.9, filter: 'blur(4px)' }
+                }
                 transition={reducedMotion ? { duration: 0 } : { ...SPRING.pop }}
                 className="px-6 py-4 rounded-2xl border-2 border-[#e8b04a] bg-[#121319]/95 text-center shadow-2xl"
               >

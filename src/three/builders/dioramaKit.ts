@@ -10,14 +10,9 @@ import type {
   ScaleReferenceKind,
   SpatialAudioSource,
 } from '../../types/citylit';
-import {
-  WU,
-  flagWindy,
-  getSoftTexture,
-  normalMapsActive,
-  waterize,
-} from '../shaders';
+import { WU, flagWindy, normalMapsActive, prepareCanvasTexture, waterize } from '../shaders';
 import { MAX_REFERENCE_UNITS, MIN_REFERENCE_UNITS } from '../../lib/scale';
+import { cloudOpacity, sampleCloudDensity } from '../../lib/cloudShape';
 import { STAND_BLOCK_HALF, STAND_HALF } from '../../lib/standFootprint';
 import { getSeasonMonth, isSpeciesBlooming } from '../../lib/season';
 import { createAnimalScaffold, getAnimalSeasonMonth } from './animalKit';
@@ -776,12 +771,7 @@ function getRimPalette(profile: SiteProfile): RimColorPalette {
   return pal;
 }
 
-function rimEdgeColor(
-  x: number,
-  z: number,
-  profile: SiteProfile,
-  tmp: THREE.Color
-): THREE.Color {
+function rimEdgeColor(x: number, z: number, profile: SiteProfile, tmp: THREE.Color): THREE.Color {
   const pal = getRimPalette(profile);
   const isCoastalOrWet = profile.biome === 'coastal' || profile.biome === 'wetland';
   const isWaterfall = profile.biome === 'waterfall';
@@ -822,11 +812,14 @@ export function addSquareRim(g: THREE.Group, profile: SiteProfile): void {
   // Shallower block (0.62 deep, was 1.2) so the stand reads as a thin plinth
   // under the terrain rather than a second slab. Fewer, softer seams keep the
   // wall from repeating the same stripe pattern all the way down.
-  const geo = new THREE.BoxGeometry(STAND_BLOCK_HALF * 2, 0.62, STAND_BLOCK_HALF * 2, 10, 12, 10).translate(
-    0,
-    -0.31,
-    0
-  );
+  const geo = new THREE.BoxGeometry(
+    STAND_BLOCK_HALF * 2,
+    0.62,
+    STAND_BLOCK_HALF * 2,
+    10,
+    12,
+    10
+  ).translate(0, -0.31, 0);
   paintStrata(geo, [wall, band, edge], 3.4, 0.05);
   const pos = geo.attributes.position;
   const col = geo.attributes.color as THREE.BufferAttribute;
@@ -1134,12 +1127,8 @@ function addEdgeWaterfall(g: THREE.Group, angle: number, profile: SiteProfile): 
   const indices: number[] = [];
   const isWetland = profile.biome === 'wetland';
   const isWaterfall = profile.biome === 'waterfall';
-  const cTop = new THREE.Color(
-    isWetland ? '#98aa9e' : isWaterfall ? '#a8d4c0' : '#bad8e0'
-  );
-  const cBottom = new THREE.Color(
-    isWetland ? '#485f54' : isWaterfall ? '#2e6b52' : '#21627b'
-  );
+  const cTop = new THREE.Color(isWetland ? '#98aa9e' : isWaterfall ? '#a8d4c0' : '#bad8e0');
+  const cBottom = new THREE.Color(isWetland ? '#485f54' : isWaterfall ? '#2e6b52' : '#21627b');
   const tmp = new THREE.Color();
 
   for (let r = 0; r <= rows; r++) {
@@ -1193,12 +1182,8 @@ function addSquareWaterPlate(g: THREE.Group, profile: SiteProfile): void {
   const cols = new Float32Array(pos.count * 3);
   const isWetland = profile.biome === 'wetland';
   const isWaterfall = profile.biome === 'waterfall';
-  const deep = new THREE.Color(
-    isWetland ? '#3e5449' : isWaterfall ? '#2a5540' : '#16526d'
-  );
-  const shallow = new THREE.Color(
-    isWetland ? '#607767' : isWaterfall ? '#4a8060' : '#2d7a89'
-  );
+  const deep = new THREE.Color(isWetland ? '#3e5449' : isWaterfall ? '#2a5540' : '#16526d');
+  const shallow = new THREE.Color(isWetland ? '#607767' : isWaterfall ? '#4a8060' : '#2d7a89');
   const tmp = new THREE.Color();
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
@@ -1232,17 +1217,46 @@ function addSquareWaterPlate(g: THREE.Group, profile: SiteProfile): void {
 /* ------------------------------------------------------------------ */
 
 let dioramaCloudMat: THREE.SpriteMaterial | null = null;
+let dioramaCloudTexture: THREE.CanvasTexture | null = null;
+
+/** A soft, multi-lobed cumulus silhouette rather than a radial balloon sprite. */
+function getDioramaCloudTexture(): THREE.CanvasTexture {
+  if (dioramaCloudTexture) return dioramaCloudTexture;
+
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (!context) return prepareCanvasTexture(new THREE.CanvasTexture(canvas));
+
+  const pixels = context.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const density = sampleCloudDensity(x / (size - 1), y / (size - 1));
+      const alpha = Math.round(cloudOpacity(density) * 255);
+      const pixel = (y * size + x) * 4;
+      pixels.data[pixel] = alpha;
+      pixels.data[pixel + 1] = alpha;
+      pixels.data[pixel + 2] = alpha;
+      pixels.data[pixel + 3] = 255;
+    }
+  }
+  context.putImageData(pixels, 0, 0);
+  dioramaCloudTexture = prepareCanvasTexture(new THREE.CanvasTexture(canvas));
+  dioramaCloudTexture.userData.sharedResource = true;
+  return dioramaCloudTexture;
+}
 
 /**
- * One soft, shared sprite material for all cloud puffs. Tinted toward the
- * current sky uniform and alpha-mapped with the shared radial texture, the
- * puffs dissolve at their edges instead of reading as solid balloons.
+ * One shared, feathered cloud-bank material. The silhouette gives the drifting
+ * puffs a coherent cumulus profile instead of a cluster of detached circles.
  */
 function getDioramaCloudMat(): THREE.SpriteMaterial {
   if (!dioramaCloudMat) {
     const tint = new THREE.Color('#f4f8fc').lerp(WU.sky.value, 0.24);
     dioramaCloudMat = new THREE.SpriteMaterial({
-      map: getSoftTexture(),
+      alphaMap: getDioramaCloudTexture(),
       color: tint,
       transparent: true,
       opacity: 0.52,
@@ -1258,26 +1272,20 @@ function getDioramaCloudMat(): THREE.SpriteMaterial {
 function addDioramaClouds(g: THREE.Group): Update[] {
   const updates: Update[] = [];
   const mat = getDioramaCloudMat();
-  // Fewer but much larger puffs: two drifting banks of three overlapping
-  // sprites, no shadows and no geometry to merge.
+  // Two broad, feathered banks: one sprite per bank avoids stacking repeated
+  // cumulus silhouettes while keeping the effect geometry-free and inexpensive.
   const specs: ReadonlyArray<readonly [number, number, number, number]> = [
     [-4.4, 5.5, -3.9, 1],
     [4.4, 5.6, -3.5, 1.15],
   ];
   specs.forEach(([bx, by, bz, s], i) => {
     const cluster = new THREE.Group();
-    for (let j = 0; j < 3; j++) {
-      const puff = new THREE.Sprite(mat);
-      const width = s * (2.5 + R(i * 13 + j) * 0.9);
-      puff.scale.set(width, width * (0.46 + R(i * 17 + j) * 0.12), 1);
-      puff.position.set(
-        (j - 1) * s * 1.05 + (R(i * 7 + j) - 0.5) * 0.3,
-        (R(i * 11 + j) - 0.5) * s * 0.34,
-        (R(i * 19 + j) - 0.5) * s * 0.4
-      );
-      puff.userData.noShadow = true;
-      cluster.add(puff);
-    }
+    const puff = new THREE.Sprite(mat);
+    puff.scale.set(s * 6.2, s * 2.55, 1);
+    puff.material = mat;
+    puff.center.set(0.5, 0.5);
+    puff.userData.noShadow = true;
+    cluster.add(puff);
     cluster.position.set(bx, by, bz);
     g.add(cluster);
     updates.push((t) => {
@@ -2461,7 +2469,9 @@ function getLampHardwareGeo(kind: StreetLampKind): THREE.BufferGeometry {
   const merged = mergeGeometries(parts, false);
   for (const p of parts) p.dispose();
   if (!merged) {
-    const fallback = markSharedGeo(new THREE.CylinderGeometry(0.02, 0.03, 0.4, 6).translate(0, 0.2, 0));
+    const fallback = markSharedGeo(
+      new THREE.CylinderGeometry(0.02, 0.03, 0.4, 6).translate(0, 0.2, 0)
+    );
     lampGeoCache[kind] = fallback;
     return fallback;
   }
@@ -2790,9 +2800,7 @@ let lampReflectionGeoShared: THREE.BufferGeometry | null = null;
 function getLampReflectionGeo(): THREE.BufferGeometry {
   if (!lampReflectionGeoShared) {
     // Unit plane lying on the water, streak running away from the fixture.
-    lampReflectionGeoShared = markSharedGeo(
-      new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)
-    );
+    lampReflectionGeoShared = markSharedGeo(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2));
   }
   return lampReflectionGeoShared;
 }
@@ -2953,7 +2961,13 @@ function getWetRoadMat(): THREE.ShaderMaterial {
 /** Rain-soaked road reflection streaks under every street lamp. */
 function addWetRoadStreaks(
   g: THREE.Object3D,
-  items: ReadonlyArray<{ x: number; y: number; z: number; color: THREE.ColorRepresentation; scale: number }>
+  items: ReadonlyArray<{
+    x: number;
+    y: number;
+    z: number;
+    color: THREE.ColorRepresentation;
+    scale: number;
+  }>
 ): void {
   const transforms: InstanceTransform[] = [];
   const colors: THREE.ColorRepresentation[] = [];
@@ -3005,10 +3019,14 @@ export function addStreetLampSet(
     const kind: StreetLampKind = specs[i].kind ?? 'victorian';
     if (!LAMP_ARCHETYPES[kind].upward && kind !== 'flood') lightCandidates.push(i);
   }
-  const promotedCount = withAnchors ? Math.min(STREET_POINT_LIGHT_LIMIT, lightCandidates.length) : 0;
+  const promotedCount = withAnchors
+    ? Math.min(STREET_POINT_LIGHT_LIMIT, lightCandidates.length)
+    : 0;
   const promotedIndices: number[] = [];
   for (let k = 0; k < promotedCount; k++) {
-    promotedIndices.push(lightCandidates[Math.floor(((k + 0.5) * lightCandidates.length) / promotedCount)]);
+    promotedIndices.push(
+      lightCandidates[Math.floor(((k + 0.5) * lightCandidates.length) / promotedCount)]
+    );
   }
   const promotedSet = new Set(promotedIndices);
   const reflections: Array<{
@@ -3034,7 +3052,8 @@ export function addStreetLampSet(
     const ry = s.ry ?? 0;
     const cosR = Math.cos(ry);
     const sinR = Math.sin(ry);
-    const col = s.color ?? (kind === 'cobra' ? '#ffb25c' : kind === 'flood' ? '#e2f0ff' : '#ffd280');
+    const col =
+      s.color ?? (kind === 'cobra' ? '#ffb25c' : kind === 'flood' ? '#e2f0ff' : '#ffd280');
 
     let kindList = byKind.get(kind);
     if (!kindList) {
@@ -3517,10 +3536,31 @@ function silhouetteFor(kind: ScaleReferenceKind, height: number): THREE.Group {
       arm.rotation.z = s * 0.16;
     }
   } else if (kind === 'springbok') {
-    const body = add(holder, new THREE.SphereGeometry(height * 0.19, 12, 10), tan, 0, height * 0.58, 0);
+    const body = add(
+      holder,
+      new THREE.SphereGeometry(height * 0.19, 12, 10),
+      tan,
+      0,
+      height * 0.58,
+      0
+    );
     body.scale.set(1.5, 0.72, 0.62);
-    add(holder, C(height * 0.06, height * 0.09, height * 0.3, 8), tan, height * 0.22, height * 0.72, 0).rotation.z = -0.55;
-    const head = add(holder, new THREE.SphereGeometry(height * 0.08, 10, 8), tan, height * 0.33, height * 0.85, 0);
+    add(
+      holder,
+      C(height * 0.06, height * 0.09, height * 0.3, 8),
+      tan,
+      height * 0.22,
+      height * 0.72,
+      0
+    ).rotation.z = -0.55;
+    const head = add(
+      holder,
+      new THREE.SphereGeometry(height * 0.08, 10, 8),
+      tan,
+      height * 0.33,
+      height * 0.85,
+      0
+    );
     head.scale.set(1.2, 0.85, 0.7);
     for (const sx of [-0.16, 0.16]) {
       for (const sz of [-0.07, 0.07]) {
@@ -3560,8 +3600,22 @@ function silhouetteFor(kind: ScaleReferenceKind, height: number): THREE.Group {
         leg.rotation.x = sz * 0.09;
       }
     }
-    add(holder, CB(height * 0.42, height * 0.035, height * 0.42, height * 0.008), iron, 0, legHeight, 0);
-    add(holder, CB(height * 0.26, height * 0.028, height * 0.26, height * 0.008), iron, 0, height * 0.68, 0);
+    add(
+      holder,
+      CB(height * 0.42, height * 0.035, height * 0.42, height * 0.008),
+      iron,
+      0,
+      legHeight,
+      0
+    );
+    add(
+      holder,
+      CB(height * 0.26, height * 0.028, height * 0.26, height * 0.008),
+      iron,
+      0,
+      height * 0.68,
+      0
+    );
     add(holder, C(height * 0.012, height * 0.055, height * 0.28, 8), iron, 0, height * 0.84, 0);
     add(holder, C(height * 0.004, height * 0.006, height * 0.06, 6), iron, 0, height * 1.0, 0);
   }
@@ -3714,7 +3768,14 @@ function addHiddenDetail(group: THREE.Group, key: string): void {
     body.scale.set(1.3, 0.8, 0.9);
     add(holder, new THREE.SphereGeometry(small * 0.5, 8, 6), dark, small, small * 1.5, 0);
     for (const s of [-1, 1]) {
-      add(holder, C(small * 0.09, small * 0.09, small * 0.8, 6), dark, s * small * 0.5, small * 0.4, 0);
+      add(
+        holder,
+        C(small * 0.09, small * 0.09, small * 0.8, 6),
+        dark,
+        s * small * 0.5,
+        small * 0.4,
+        0
+      );
     }
   } else {
     add(holder, C(small, small * 0.8, small * 1.6, 8), warm, 0, small * 0.8, 0);
