@@ -1,5 +1,5 @@
 import { MapPin, Sparkle, Trash, X } from '@phosphor-icons/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import {
   COMPACT_BREAKPOINT_PX,
@@ -10,6 +10,12 @@ import {
   Z,
 } from './lib/motion';
 import { referenceDisplayFactor } from './lib/scale';
+import { syncThemeColor } from './lib/themeColor';
+import {
+  getSystemMotionPreference,
+  shouldReduceMotion,
+  subscribeToMotionPreference,
+} from './lib/motionPreference';
 import { getSafeArea, onSafeAreaChange } from './lib/uiSafeArea';
 import { msUntilNextThemeBoundary, resolveAutoTheme, resolveTheme } from './lib/theme';
 import {
@@ -422,12 +428,12 @@ export function App() {
     indexRef.current = index;
   }, [index]);
 
-  const reducedMotion = useMemo(() => {
-    if (settings.motion === 'reduce') return true;
-    return (
-      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    );
-  }, [settings.motion]);
+  const systemReducedMotion = useSyncExternalStore(
+    subscribeToMotionPreference,
+    getSystemMotionPreference,
+    () => false
+  );
+  const reducedMotion = shouldReduceMotion(settings.motion, systemReducedMotion);
 
   // Keep compact mode in step with viewport changes. Short screens always
   // collapse the card; outside that case an explicit user choice wins.
@@ -811,6 +817,7 @@ export function App() {
       uiSounds: settings.uiSounds,
     });
     document.documentElement.dataset.theme = effectiveTheme;
+    syncThemeColor(effectiveTheme, document);
     engineRef.current?.applyQuality(settings.quality);
     engineRef.current?.setFpsCap(settings.fpsCap ?? 'auto');
     engineRef.current?.setTheme(effectiveTheme);

@@ -140,13 +140,22 @@ export function readCachedBenchmark(
       parsed.version !== CACHE_VERSION ||
       parsed.backend !== backend ||
       parsed.dpr !== dpr ||
-      typeof parsed.tier !== 'number' ||
+      (parsed.tier !== 0 && parsed.tier !== 1 && parsed.tier !== 2) ||
+      typeof parsed.medianMs !== 'number' ||
       !Number.isFinite(parsed.medianMs) ||
-      typeof parsed.measuredAt !== 'number'
+      parsed.medianMs < 0 ||
+      parsed.medianMs > DEFAULT_BENCHMARK_CONFIG.maxFrameMs ||
+      typeof parsed.p95Ms !== 'number' ||
+      !Number.isFinite(parsed.p95Ms) ||
+      parsed.p95Ms < parsed.medianMs ||
+      parsed.p95Ms > DEFAULT_BENCHMARK_CONFIG.maxFrameMs ||
+      typeof parsed.measuredAt !== 'number' ||
+      !Number.isFinite(parsed.measuredAt)
     ) {
       return null;
     }
-    if (Date.now() - parsed.measuredAt > maxAgeMs) return null;
+    const age = Date.now() - parsed.measuredAt;
+    if (age < 0 || age > maxAgeMs) return null;
     return parsed as CachedBenchmark;
   } catch {
     return null;
