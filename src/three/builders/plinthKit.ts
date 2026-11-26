@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import {
-  clamp,
-} from '../../lib/fitMath';
+import { clamp } from '../../lib/fitMath';
+import { terrainNormalFromTangents } from '../../lib/terrainNormal';
 import {
   formatDmsCoords,
   getPlinthOutlinePoints,
@@ -551,10 +550,7 @@ void main() {
   });
 }
 
-function buildNameplateMesh(
-  spec: PlinthSiteSpec,
-  meta: LandmarkMeta
-): THREE.Group {
+function buildNameplateMesh(spec: PlinthSiteSpec, meta: LandmarkMeta): THREE.Group {
   const grp = new THREE.Group();
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -631,10 +627,7 @@ function buildNameplateMesh(
  * Adds merged geological cutaway storytelling relief details along the slab
  * faces (penguin burrow niche, termite fungus galleries, or industrial conduits).
  */
-function buildUndergroundStories(
-  story: UndergroundStoryKind,
-  spec: PlinthSiteSpec
-): THREE.Group {
+function buildUndergroundStories(story: UndergroundStoryKind, spec: PlinthSiteSpec): THREE.Group {
   const grp = new THREE.Group();
   const half = spec.halfExtent;
   const parts: THREE.BufferGeometry[] = [];
@@ -699,9 +692,7 @@ function buildUndergroundStories(
       [-0.44, -0.02, 0.18, 0.11],
     ]) {
       pushGeo(
-        new THREE.SphereGeometry(1, 10, 8)
-          .scale(0.05, ry, rx)
-          .translate(ex + 0.008, dy, ez + dz),
+        new THREE.SphereGeometry(1, 10, 8).scale(0.05, ry, rx).translate(ex + 0.008, dy, ez + dz),
         '#361f14'
       );
       pushGeo(
@@ -748,14 +739,8 @@ function buildUndergroundStories(
     // Concrete tower pad footing band
     const [fxL, fzL] = mapDomainToPlinth(-0.31, 1, spec.silhouette, half);
     const [fxR, fzR] = mapDomainToPlinth(0.31, 1, spec.silhouette, half);
-    pushGeo(
-      new THREE.BoxGeometry(1.1, 0.14, 0.08).translate(fxL, 0.08, fzL + 0.01),
-      '#7f827a'
-    );
-    pushGeo(
-      new THREE.BoxGeometry(1.1, 0.14, 0.08).translate(fxR, 0.08, fzR + 0.01),
-      '#7f827a'
-    );
+    pushGeo(new THREE.BoxGeometry(1.1, 0.14, 0.08).translate(fxL, 0.08, fzL + 0.01), '#7f827a');
+    pushGeo(new THREE.BoxGeometry(1.1, 0.14, 0.08).translate(fxR, 0.08, fzR + 0.01), '#7f827a');
   }
 
   if (parts.length === 0) return grp;
@@ -848,14 +833,17 @@ export function buildPilotPlinth(
       const kR = iz * (N + 1) + Math.min(N, ix + 1);
       const kD = Math.max(0, iz - 1) * (N + 1) + ix;
       const kU = Math.min(N, iz + 1) * (N + 1) + ix;
-      const dxSpan = Math.max(1e-4, xs[kR] - xs[kL]);
-      const dzSpan = Math.max(1e-4, zs[kU] - zs[kD]);
-      const dx = (hs[kR] - hs[kL]) / dxSpan;
-      const dz = (hs[kU] - hs[kD]) / dzSpan;
-      const len = Math.hypot(dx, 1, dz) || 1;
-      const nx = -dx / len;
-      const ny = 1 / len;
-      const nz = -dz / len;
+      const tangentX: [number, number, number] = [
+        xs[kR] - xs[kL],
+        hs[kR] - hs[kL],
+        zs[kR] - zs[kL],
+      ];
+      const tangentZ: [number, number, number] = [
+        xs[kU] - xs[kD],
+        hs[kU] - hs[kD],
+        zs[kU] - zs[kD],
+      ];
+      const [nx, ny, nz] = terrainNormalFromTangents(tangentX, tangentZ);
       const slope = 1 - ny;
 
       topColorAt(x, z, y, slope, cTop);
@@ -878,10 +866,7 @@ export function buildPilotPlinth(
   }
 
   // Emit exact vertical geological cutaway walls stitched to edge top heights
-  const emitSideWall = (
-    edgeIndices: number[],
-    flipWinding: boolean
-  ) => {
+  const emitSideWall = (edgeIndices: number[], flipWinding: boolean) => {
     const startVert = pos.length / 3;
     const nPts = edgeIndices.length;
     for (let i = 0; i < nPts; i++) {
@@ -910,14 +895,8 @@ export function buildPilotPlinth(
       // wall so rivers, roads, soil seams and vegetation borders read as
       // continuing through the geological section face.
       const cSurface = new THREE.Color();
-      const kL = edgeIndices[Math.max(0, i - 1)];
-      const kR = edgeIndices[Math.min(nPts - 1, i + 1)];
-      const dxSpan = Math.max(1e-4, xs[kR] - xs[kL]);
-      const dzSpan = Math.max(1e-4, zs[kR] - zs[kL]);
-      const dx = (hs[kR] - hs[kL]) / dxSpan;
-      const dz = (hs[kR] - hs[kL]) / dzSpan;
-      const nLen = Math.hypot(dx, 1, dz) || 1;
-      const slope = 1 - (1 / nLen);
+      const surfaceNy = norm[kCurr * 3 + 1];
+      const slope = 1 - surfaceNy;
       topColorAt(x, z, topY, slope, cSurface);
       // Blend: surface colour at the very top, fading into the mid-rock tone
       // over the upper quarter of the wall so the transition stays geological.
@@ -1012,8 +991,10 @@ export function buildPilotPlinth(
   const skirtVertCount = skirtPos.length / 3;
   const skirtColArr = new Float32Array(skirtVertCount * 3);
   const cSkirtBase = new THREE.Color(spec.strata.skirtColor);
-  const cGroundBlend = new THREE.Color(spec.strata.groundBase)
-    .lerp(new THREE.Color(spec.strata.upperRock), 0.45);
+  const cGroundBlend = new THREE.Color(spec.strata.groundBase).lerp(
+    new THREE.Color(spec.strata.upperRock),
+    0.45
+  );
   const skirtSpan = Math.max(0.001, baseY - botY);
   for (let vi = 0; vi < skirtVertCount; vi++) {
     const vy = skirtPos[vi * 3 + 1];
@@ -1024,7 +1005,7 @@ export function buildPilotPlinth(
     const vx = skirtPos[vi * 3];
     const vz = skirtPos[vi * 3 + 2];
     const grain = 1 + 0.04 * Math.sin(vx * 3.7 + vz * 2.9) + 0.025 * Math.sin(vz * 7.1 - vx * 4.3);
-    skirtColArr[vi * 3]     = Math.min(1, c.r * grain);
+    skirtColArr[vi * 3] = Math.min(1, c.r * grain);
     skirtColArr[vi * 3 + 1] = Math.min(1, c.g * grain);
     skirtColArr[vi * 3 + 2] = Math.min(1, c.b * grain);
   }
@@ -1144,12 +1125,7 @@ export function buildPilotPlinth(
         const b0 = Math.min(wl, hs[k0]);
         const b1 = Math.min(wl, hs[k1]);
         const base = wwPos.length / 3;
-        wwPos.push(
-          xs[k0], b0, zs[k0],
-          xs[k0], wl, zs[k0],
-          xs[k1], b1, zs[k1],
-          xs[k1], wl, zs[k1]
-        );
+        wwPos.push(xs[k0], b0, zs[k0], xs[k0], wl, zs[k0], xs[k1], b1, zs[k1], xs[k1], wl, zs[k1]);
         wwUv.push(i / m, 0, i / m, 1, (i + 1) / m, 0, (i + 1) / m, 1);
         if (flip) {
           wwIdx.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
@@ -1197,10 +1173,7 @@ export function buildPilotPlinth(
  * Attaches built plinth meshes to a landmark group and registers metadata so
  * CitylitEngine adapts the glowing plinth collar to this site's silhouette.
  */
-export function attachPilotPlinthToGroup(
-  group: THREE.Group,
-  built: BuiltPilotPlinth
-): void {
+export function attachPilotPlinthToGroup(group: THREE.Group, built: BuiltPilotPlinth): void {
   group.add(built.terrainMesh);
   group.add(built.pedestalGroup);
   if (built.waterTopMesh) group.add(built.waterTopMesh);

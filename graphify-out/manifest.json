@@ -55,9 +55,9 @@
     "semantic_hash": ""
   },
   "src/components/BootSplash.tsx": {
-    "mtime": 1794994847.9410985,
-    "seen": 1795270207.962024,
-    "ast_hash": "0150ec1f3c216340c9cd0174fc3e8e43",
+    "mtime": 1795719479.286312,
+    "seen": 1795722094.2397325,
+    "ast_hash": "df14cf1ffe7f4db7f2dd249d5aaef873",
     "semantic_hash": ""
   },
   "src/components/GalleryModal.tsx": {
@@ -6535,9 +6535,9 @@
     "semantic_hash": ""
   },
   "src/three/builders/plinthKit.ts": {
-    "mtime": 1795630444.3210292,
-    "seen": 1795630933.4918811,
-    "ast_hash": "4f1186ad46d580c2021269551f07084e",
+    "mtime": 1795722088.0389695,
+    "seen": 1795722094.2399216,
+    "ast_hash": "38e463a1ee8ebb232daf2ae25f0b386d",
     "semantic_hash": ""
   },
   "src/three/creatures/effects.ts": {
@@ -6724,6 +6724,18 @@
     "mtime": 1795678869.0826871,
     "seen": 1795678890.8908274,
     "ast_hash": "0ed91be87889b5fcb17cf0a55586853e",
+    "semantic_hash": ""
+  },
+  "src/lib/terrainNormal.test.ts": {
+    "mtime": 1795721685.2092469,
+    "seen": 1795722094.2398765,
+    "ast_hash": "7e602c041c2133ee0943e594c48a1a2d",
+    "semantic_hash": ""
+  },
+  "src/lib/terrainNormal.ts": {
+    "mtime": 1795721654.5227325,
+    "seen": 1795722094.239879,
+    "ast_hash": "e69c2fa27fbeb220d2165c821868a10a",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {
