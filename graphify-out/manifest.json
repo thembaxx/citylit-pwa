@@ -223,9 +223,9 @@
     "semantic_hash": ""
   },
   "src/three/CitylitEngine.ts": {
-    "mtime": 1795640947.4256368,
-    "seen": 1795674410.0377436,
-    "ast_hash": "e6989d531586929c151affbf18fb29c4",
+    "mtime": 1795714648.8059945,
+    "seen": 1795714714.847268,
+    "ast_hash": "d398b564bff29f76232ec69014291efe",
     "semantic_hash": ""
   },
   "src/three/builders/dioramaKit.ts": {
@@ -265,9 +265,9 @@
     "semantic_hash": ""
   },
   "src/three/placesClouds.ts": {
-    "mtime": 1795597082.85375,
-    "seen": 1795600513.8304262,
-    "ast_hash": "91fdae0ee7a2d1842dc751cc8363b0c7",
+    "mtime": 1795715306.3299036,
+    "seen": 1795715726.652984,
+    "ast_hash": "a387a3b8359963df4257091ffb8d82d2",
     "semantic_hash": ""
   },
   "src/three/placesScene.ts": {
@@ -277,15 +277,15 @@
     "semantic_hash": ""
   },
   "src/three/placesShaders.ts": {
-    "mtime": 1795597083.3977015,
-    "seen": 1795600513.8304338,
-    "ast_hash": "55be90dacfbc8df3e141ecc537b51c66",
+    "mtime": 1795678869.0826871,
+    "seen": 1795678890.8915408,
+    "ast_hash": "296641a05c0ec4476bf6be73ee85f13c",
     "semantic_hash": ""
   },
   "src/three/placesSliceBuilders.ts": {
-    "mtime": 1795597083.6635716,
-    "seen": 1795600513.8304365,
-    "ast_hash": "f2aab772e52a457d734811299fe4599b",
+    "mtime": 1795679206.6590998,
+    "seen": 1795679263.530486,
+    "ast_hash": "8abd38faf171ed07461478d44ff20339",
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
@@ -301,9 +301,9 @@
     "semantic_hash": ""
   },
   "src/three/shaders/cloud.glsl.ts": {
-    "mtime": 1795522306.569423,
-    "seen": 1795524429.1143138,
-    "ast_hash": "9f61627967beea36e3d0a04aa67e6f58",
+    "mtime": 1795678824.1365004,
+    "seen": 1795678890.8916183,
+    "ast_hash": "696c9712e7d12ac50d596871bace0f44",
     "semantic_hash": ""
   },
   "src/three/shaders/noise.glsl.ts": {
@@ -343,9 +343,9 @@
     "semantic_hash": ""
   },
   "src/three/weatherScene.ts": {
-    "mtime": 1795597085.6673827,
-    "seen": 1795600513.8304927,
-    "ast_hash": "1a4b1ea5283f16a4f51045e28f1c4e78",
+    "mtime": 1795715438.164276,
+    "seen": 1795715726.653072,
+    "ast_hash": "b11fd6f8ff27ad5940425ff9f507c6fd",
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {
@@ -6700,6 +6700,30 @@
     "mtime": 1795675127.9147553,
     "seen": 1795675337.9565437,
     "ast_hash": "dd818fac1f58c75cf9e087ac52739dbc",
+    "semantic_hash": ""
+  },
+  "src/lib/roadRibbon.test.ts": {
+    "mtime": 1795677863.9643881,
+    "seen": 1795677889.967556,
+    "ast_hash": "1ff56c98b8bac004bae634aecbb0c81c",
+    "semantic_hash": ""
+  },
+  "src/lib/roadRibbon.ts": {
+    "mtime": 1795677863.9643881,
+    "seen": 1795677889.9675648,
+    "ast_hash": "b3f4f114f09ada08412319d68b1f7aa3",
+    "semantic_hash": ""
+  },
+  "src/lib/cloudMotion.test.ts": {
+    "mtime": 1795678859.4552264,
+    "seen": 1795678890.890817,
+    "ast_hash": "65987dd7f35f5722d12c2f01f5bcbe7c",
+    "semantic_hash": ""
+  },
+  "src/lib/cloudMotion.ts": {
+    "mtime": 1795678869.0826871,
+    "seen": 1795678890.8908274,
+    "ast_hash": "0ed91be87889b5fcb17cf0a55586853e",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

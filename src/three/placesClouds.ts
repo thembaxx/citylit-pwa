@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { getSoftTexture } from './shaders';
+import { cloudDrift } from '../lib/cloudMotion';
+import { getSoftTexture, WU } from './shaders';
 
 interface CloudAssets {
   sphereGeo: THREE.BufferGeometry;
@@ -70,29 +71,29 @@ export function createSliceCloudLayer(
   const group = new THREE.Group();
 
   const puffs: CloudPuffInstance[] = [];
-  const shadowSpots: Array<{ x: number; z: number }> = [];
+  const shadowSpots: Array<{ x: number; z: number; phase: number }> = [];
 
   // Reference-style cumulus: a wide flat base row of puffs, a bulging middle
   // and a stacked cauliflower crown, so the cluster silhouettes as a single
   // chunky cloud instead of a ring of spheres.
   const PuffOffsets: ReadonlyArray<readonly [number, number, number, number]> = [
     // flat, slightly shaded base
-    [0.0, -0.035, 0.0, 1.30],
+    [0.0, -0.035, 0.0, 1.3],
     [0.19, -0.045, 0.03, 0.92],
-    [-0.18, -0.04, -0.02, 0.90],
-    [0.06, -0.05, 0.15, 0.80],
+    [-0.18, -0.04, -0.02, 0.9],
+    [0.06, -0.05, 0.15, 0.8],
     [-0.08, -0.05, -0.14, 0.78],
     // main billows
     [0.02, 0.075, 0.01, 1.14],
     [0.22, 0.05, -0.07, 0.86],
     [-0.21, 0.06, 0.07, 0.84],
-    [0.10, 0.03, 0.20, 0.74],
+    [0.1, 0.03, 0.2, 0.74],
     [-0.13, 0.04, -0.18, 0.72],
     // cauliflower crown, kept broad rather than tall
-    [0.02, 0.185, 0.0, 0.90],
+    [0.02, 0.185, 0.0, 0.9],
     [-0.12, 0.16, -0.05, 0.76],
     [0.14, 0.165, -0.02, 0.78],
-    [0.01, 0.225, 0.03, 0.60],
+    [0.01, 0.225, 0.03, 0.6],
     [-0.02, 0.14, 0.12, 0.66],
   ];
 
@@ -101,9 +102,11 @@ export function createSliceCloudLayer(
     const angle = seed * 2.1 + c * 2.35;
     const rad = 0.52 + c * 0.16;
     const cx = Math.cos(angle) * rad;
-    const cy = maxTopY + 0.78 + c * 0.21;
+    // Keep cloud crowns inside the Places overview frame; tall ridge slices
+    // otherwise project the upper puffs beyond the camera's top edge.
+    const cy = maxTopY + 0.18 + c * 0.1;
     const cz = Math.sin(angle) * rad * 0.85;
-    shadowSpots.push({ x: cx, z: cz });
+    shadowSpots.push({ x: cx, z: cz, phase: seed * 1.7 + c * 2.3 });
 
     PuffOffsets.forEach(([ox, oy, oz, weight], p) => {
       // Clusters shrink and thin out as they climb, giving the sky depth.
@@ -112,7 +115,7 @@ export function createSliceCloudLayer(
         x: cx + ox * (1 - c * 0.05),
         y: cy + oy * (1 - c * 0.04),
         z: cz + oz * (1 - c * 0.05),
-        sx: s * 1.30,
+        sx: s * 1.3,
         sy: s * (0.94 + oy * 0.18),
         sz: s * 1.16,
         phase: seed * 1.7 + c * 2.3 + p * 0.37,
@@ -121,6 +124,7 @@ export function createSliceCloudLayer(
   }
 
   const cloudMesh = createCloudPuffMesh(shared, puffs);
+  if (cloudMesh.boundingSphere) cloudMesh.boundingSphere.radius += 0.16;
   group.add(cloudMesh);
 
   const shadowGeo = new THREE.PlaneGeometry(1, 1);
@@ -134,15 +138,23 @@ export function createSliceCloudLayer(
   });
   const shadows = new THREE.InstancedMesh(shadowGeo, shadowMat, shadowSpots.length);
   const dummy = new THREE.Object3D();
-  shadowSpots.forEach((spot, i) => {
-    dummy.position.set(spot.x, heightAt(spot.x, spot.z) + 0.018, spot.z);
-    dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(0.62, 1, 0.46);
-    dummy.updateMatrix();
-    shadows.setMatrixAt(i, dummy.matrix);
-  });
-  shadows.instanceMatrix.needsUpdate = true;
+  const updateShadows = (elapsed: number) => {
+    const windDir = WU.windDir.value;
+    shadowSpots.forEach((spot, i) => {
+      const drift = cloudDrift(elapsed, spot.phase, WU.wind.value, windDir.x, windDir.y);
+      const x = spot.x + drift.x;
+      const z = spot.z + drift.z;
+      dummy.position.set(x, heightAt(x, z) + 0.018, z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(0.62, 1, 0.46);
+      dummy.updateMatrix();
+      shadows.setMatrixAt(i, dummy.matrix);
+    });
+    shadows.instanceMatrix.needsUpdate = true;
+  };
+  updateShadows(WU.t.value);
   shadows.computeBoundingSphere();
+  if (shadows.boundingSphere) shadows.boundingSphere.radius += 0.16;
   shadows.renderOrder = 1;
   shadows.userData.noShadow = true;
   shadows.userData.cannotReceiveAO = true;
@@ -150,8 +162,9 @@ export function createSliceCloudLayer(
 
   return {
     group,
-    tick: () => {
-      // Drift, bob and shading are driven by WU.t inside the cloud shader.
+    tick: (elapsed: number) => {
+      // Cloud motion stays on the GPU; only the few terrain shadows follow it here.
+      updateShadows(elapsed);
     },
     dispose: () => {
       cloudMesh.geometry.dispose();

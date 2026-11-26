@@ -8,6 +8,8 @@ import { PLACES_VOLUMETRIC_FOG_GLSL } from './volumetricFog.glsl';
 export const CLOUD_VERTEX = /* glsl */ `
 attribute float aPhase;
 uniform float uTime;
+uniform float uWind;
+uniform vec2 uWindDir;
 varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
 varying vec3 vViewDir;
@@ -16,7 +18,11 @@ varying float vSeed;
 
 void main() {
   vec4 inst = instanceMatrix * vec4(position, 1.0);
-  inst.x += sin(uTime * 0.28 + aPhase) * 0.14;
+  float wind = clamp(uWind, 0.0, 2.0);
+  vec2 windDir = length(uWindDir) > 0.0001 ? normalize(uWindDir) : vec2(1.0, 0.0);
+  float along = sin(uTime * (0.12 + wind * 0.04) + aPhase) * (0.03 + wind * 0.035);
+  float across = sin(uTime * 0.07 + aPhase * 1.7) * (0.025 + wind * 0.01);
+  inst.xz += vec2(windDir.x * along - windDir.y * across, windDir.y * along + windDir.x * across);
   inst.y += cos(uTime * 0.45 + aPhase * 1.13) * 0.045;
 
   // Per-puff colour jitter from a hash of the instance translation, so

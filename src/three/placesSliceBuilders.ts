@@ -1,12 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LANDMARKS } from '../data/landmarks';
-import {
-  getSeasonMonth,
-  isSpeciesBlooming,
-  PLANT_SPECIES,
-  type PlantSpecies,
-} from '../lib/season';
+import { getSeasonMonth, isSpeciesBlooming, PLANT_SPECIES, type PlantSpecies } from '../lib/season';
+import { sampleRoadRibbon } from '../lib/roadRibbon';
 import { addStreetLampSet, type StreetLampSpec } from './builders/dioramaKit';
 import { BESPOKE_INTERIORS, type BespokeInteriorKind } from './placesInteriors';
 import { createCloudPuffMesh, createSliceCloudLayer } from './placesClouds';
@@ -110,17 +106,17 @@ function createFoliageGeo(): THREE.BufferGeometry {
   const lobes: Array<{ x: number; y: number; z: number; s: number; tint: number }> = [
     // broad dome core + asymmetric side clumps
     { x: 0.0, y: 0.04, z: 0.0, s: 0.84, tint: 1.0 },
-    { x: 0.42, y: -0.02, z: 0.10, s: 0.58, tint: 0.94 },
-    { x: -0.40, y: 0.0, z: -0.08, s: 0.60, tint: 0.97 },
+    { x: 0.42, y: -0.02, z: 0.1, s: 0.58, tint: 0.94 },
+    { x: -0.4, y: 0.0, z: -0.08, s: 0.6, tint: 0.97 },
     { x: 0.16, y: -0.02, z: -0.38, s: 0.54, tint: 0.91 },
     { x: -0.18, y: 0.02, z: 0.36, s: 0.52, tint: 0.95 },
     // crown clumps catching the light
-    { x: 0.02, y: 0.40, z: -0.04, s: 0.55, tint: 1.14 },
-    { x: 0.24, y: 0.30, z: 0.20, s: 0.44, tint: 1.08 },
+    { x: 0.02, y: 0.4, z: -0.04, s: 0.55, tint: 1.14 },
+    { x: 0.24, y: 0.3, z: 0.2, s: 0.44, tint: 1.08 },
     { x: -0.24, y: 0.28, z: 0.18, s: 0.43, tint: 1.05 },
     { x: -0.02, y: 0.26, z: -0.28, s: 0.42, tint: 1.02 },
     // tucked-under shadow clump so canopies never read as a floating ball
-    { x: 0.0, y: -0.22, z: 0.0, s: 0.62, tint: 0.80 },
+    { x: 0.0, y: -0.22, z: 0.0, s: 0.62, tint: 0.8 },
   ];
   const parts = lobes.map((lobe, k) => {
     const geo = new THREE.IcosahedronGeometry(1, 2);
@@ -143,8 +139,7 @@ function createFoliageGeo(): THREE.BufferGeometry {
       const crown = Math.max(0, y);
       const crevice = 0.74 + 0.24 * smoothstep(-0.55, 0.55, y);
       const fleck =
-        0.14 * Math.sin(x * 31.0 + z * 27.0 + y * 19.0) *
-        Math.sin(z * 23.0 - x * 17.0 + k * 3.1);
+        0.14 * Math.sin(x * 31.0 + z * 27.0 + y * 19.0) * Math.sin(z * 23.0 - x * 17.0 + k * 3.1);
       // Tuned against true 13:00 key light (not the brighter night exposure):
       // canopy highlights stay olive rather than neon.
       const shade = lobe.tint * (0.72 + 0.24 * crown + 0.12 * fleck) * crevice;
@@ -161,12 +156,15 @@ function createFoliageGeo(): THREE.BufferGeometry {
   const merged = mergeGeometries(parts, false);
   parts.forEach((p) => p.dispose());
   const geo = merged ?? new THREE.IcosahedronGeometry(1, 2);
-  if (!merged) geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(1), 3));
+  if (!merged)
+    geo.setAttribute(
+      'color',
+      new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 3).fill(1), 3)
+    );
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
 }
-
 
 export function createSliceSharedAssets(
   env: PlacesShaderEnvironment,
@@ -728,8 +726,8 @@ function addInstancedTrees(
           y: t.y + th + (k === 0 ? 0.015 : 0),
           z: t.z + Math.sin(ang) * off,
           sx: t.scale * (k === 0 ? 1.75 : 1.15),
-          sy: t.scale * 0.20,
-          sz: t.scale * (k === 0 ? 1.65 : 1.10),
+          sy: t.scale * 0.2,
+          sz: t.scale * (k === 0 ? 1.65 : 1.1),
           rx: 0.08,
           ry: ang,
           color: t.color,
@@ -761,9 +759,9 @@ function addInstancedTrees(
       trunkItems.push({ x: t.x, y: t.y + th * 0.48, z: t.z, sx: t.scale * 0.42, sy: th, r: seedA });
       for (let k = 0; k < 5; k++) {
         const ang = seedB * 6.28 + k * 1.31;
-        const off = k === 0 ? 0 : t.scale * (0.30 + (k % 2) * 0.14);
-        const lift = k === 0 ? 0.38 : k < 3 ? 0.20 : 0.30;
-        const size = k === 0 ? 0.96 : k < 3 ? 0.80 : 0.66;
+        const off = k === 0 ? 0 : t.scale * (0.3 + (k % 2) * 0.14);
+        const lift = k === 0 ? 0.38 : k < 3 ? 0.2 : 0.3;
+        const size = k === 0 ? 0.96 : k < 3 ? 0.8 : 0.66;
         const puff: TreePuff = {
           x: t.x + Math.cos(ang) * off,
           y: t.y + th + t.scale * lift,
@@ -779,7 +777,13 @@ function addInstancedTrees(
         if (isJacaranda) {
           // A slightly larger shell of violet blooms wraps the green canopy so
           // the tree stays leafy outside its Oct/Nov flowering window.
-          blossomItems.push({ ...puff, sx: puff.sx * 1.06, sy: puff.sy * 1.06, sz: puff.sz * 1.06, color: t.color });
+          blossomItems.push({
+            ...puff,
+            sx: puff.sx * 1.06,
+            sy: puff.sy * 1.06,
+            sz: puff.sz * 1.06,
+            color: t.color,
+          });
         }
       }
     }
@@ -816,7 +820,11 @@ function addInstancedTrees(
       c.set(p.color);
       // Small per-lobe sun variation; no saturation lift, which turned canopies
       // fluorescent under real daylight.
-      c.offsetHSL((hashSeed(i, 11) - 0.5) * 0.025, -0.03 + (hashSeed(i, 13) - 0.5) * 0.06, (hashSeed(i, 7) - 0.5) * 0.10);
+      c.offsetHSL(
+        (hashSeed(i, 11) - 0.5) * 0.025,
+        -0.03 + (hashSeed(i, 13) - 0.5) * 0.06,
+        (hashSeed(i, 7) - 0.5) * 0.1
+      );
       puffMesh.setColorAt(i, c);
     }
     puffMesh.instanceMatrix.needsUpdate = true;
@@ -837,7 +845,11 @@ function addInstancedTrees(
     dummy.updateMatrix();
     blossomMesh.setMatrixAt(i, dummy.matrix);
     c.set(p.color);
-    c.offsetHSL((hashSeed(i, 11) - 0.5) * 0.025, -0.03 + (hashSeed(i, 13) - 0.5) * 0.06, (hashSeed(i, 7) - 0.5) * 0.10);
+    c.offsetHSL(
+      (hashSeed(i, 11) - 0.5) * 0.025,
+      -0.03 + (hashSeed(i, 13) - 0.5) * 0.06,
+      (hashSeed(i, 7) - 0.5) * 0.1
+    );
     blossomMesh.setColorAt(i, c);
   }
   blossomMesh.instanceMatrix.needsUpdate = true;
@@ -1052,6 +1064,8 @@ function makeSafariVehicle(
  * as the slice's lamps are batched.
  */
 let roadLampSink: StreetLampSpec[] | null = null;
+let roadMaterialSink: THREE.MeshPhysicalMaterial[] | null = null;
+let roadHeightSink: ((x: number, z: number) => number) | null = null;
 
 function addRoadRibbon(
   parent: THREE.Group,
@@ -1061,66 +1075,182 @@ function addRoadRibbon(
   geosToDispose: THREE.BufferGeometry[],
   matsToDispose: THREE.Material[]
 ): void {
-  const curve = new THREE.CatmullRomCurve3(points);
+  const segments = 38;
+  const heightAt = roadHeightSink;
+  if (!heightAt) return;
+  const samples = sampleRoadRibbon(points, heightAt, segments);
+  if (samples.length < 2) return;
+
   if (roadLampSink && roadLampSink.length < 10 && width >= 0.16) {
-    for (let i = 1; i <= 2; i++) {
-      const t = i / 3;
-      const p = curve.getPoint(t);
-      const tangent = curve.getTangent(t);
-      const len = Math.hypot(tangent.x, tangent.z) || 1;
+    for (const i of [Math.floor(segments / 3), Math.floor((segments * 2) / 3)]) {
+      const p = samples[i];
+      const next = samples[Math.min(samples.length - 1, i + 1)];
+      const prev = samples[Math.max(0, i - 1)];
+      const dx = next.x - prev.x;
+      const dz = next.z - prev.z;
+      const len = Math.hypot(dx, dz) || 1;
       const side = i % 2 === 0 ? 1 : -1;
       const offset = width * 0.5 + 0.07;
       roadLampSink.push({
-        x: p.x + (-tangent.z / len) * side * offset,
+        x: p.x + (dz / len) * side * offset,
         y: p.y + 0.01,
-        z: p.z + (tangent.x / len) * side * offset,
+        z: p.z - (dx / len) * side * offset,
         kind: width >= 0.28 ? 'cobra' : 'lantern',
-        ry: -Math.atan2(tangent.z, tangent.x),
+        ry: -Math.atan2(dz, dx),
         scale: 0.38,
         color: '#ffd694',
         poolRadius: 0.42,
       });
     }
   }
-  const segs = 38;
-  const pos: number[] = [];
-  const idx: number[] = [];
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  const edgePositions: number[] = [];
+  const edgeIndices: number[] = [];
   const up = new THREE.Vector3(0, 1, 0);
   const tangent = new THREE.Vector3();
   const side = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  const left = new THREE.Vector3();
+  const right = new THREE.Vector3();
+  const shoulder = Math.min(0.018, width * 0.12);
+  const edgeLift = 0.0015;
 
-  for (let i = 0; i <= segs; i++) {
-    const t = i / segs;
-    const p = curve.getPoint(t);
-    curve.getTangent(t, tangent);
-    side
-      .crossVectors(tangent, up)
-      .normalize()
-      .multiplyScalar(width * 0.5);
-    pos.push(p.x - side.x, p.y + 0.016, p.z - side.z);
-    pos.push(p.x + side.x, p.y + 0.016, p.z + side.z);
-    if (i < segs) {
-      const b = i * 2;
-      idx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
+  for (let i = 0; i < samples.length; i++) {
+    const p = samples[i];
+    center.set(p.x, p.y + 0.012, p.z);
+    const prev = samples[Math.max(0, i - 1)];
+    const next = samples[Math.min(samples.length - 1, i + 1)];
+    tangent.set(next.x - prev.x, next.y - prev.y, next.z - prev.z).normalize();
+    side.crossVectors(tangent, up).normalize();
+    if (side.lengthSq() < 1e-6) side.set(1, 0, 0);
+    left.copy(center).addScaledVector(side, width * 0.5);
+    right.copy(center).addScaledVector(side, -width * 0.5);
+    positions.push(left.x, left.y, left.z, right.x, right.y, right.z);
+    edgePositions.push(
+      left.x + side.x * shoulder,
+      left.y + edgeLift,
+      left.z + side.z * shoulder,
+      left.x,
+      left.y + edgeLift,
+      left.z,
+      right.x,
+      right.y + edgeLift,
+      right.z,
+      right.x - side.x * shoulder,
+      right.y + edgeLift,
+      right.z - side.z * shoulder
+    );
+
+    if (i < samples.length - 1) {
+      const base = i * 2;
+      indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
+      const edgeBase = i * 4;
+      for (let strip = 0; strip < 3; strip++) {
+        const a = edgeBase + strip;
+        const b = a + 4;
+        edgeIndices.push(a, b, a + 1, a + 1, b, b + 1);
+      }
     }
   }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();
-  const mat = new THREE.MeshStandardMaterial({
+
+  const makeRibbonMesh = (
+    verts: number[],
+    tris: number[],
+    material: THREE.Material,
+    name: string
+  ) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setIndex(tris);
+    geo.computeVertexNormals();
+    geosToDispose.push(geo);
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.name = name;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
+  };
+
+  const asphalt = new THREE.MeshPhysicalMaterial({
     color,
-    roughness: 0.92,
+    roughness: 0.84,
+    metalness: 0.025,
+    clearcoat: 0.08,
+    clearcoatRoughness: 0.58,
     side: THREE.DoubleSide,
     polygonOffset: true,
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   });
-  geosToDispose.push(geo);
-  matsToDispose.push(mat);
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
-  parent.add(mesh);
+  const roadMesh = makeRibbonMesh(positions, indices, asphalt, 'terrain-conformed-road');
+  roadMesh.userData.placeRoad = true;
+  matsToDispose.push(asphalt);
+  roadMaterialSink?.push(asphalt);
+
+  // A narrow muted shoulder helps the road read against soil without outlining every path.
+  const edgeMat = new THREE.MeshStandardMaterial({
+    color: '#d4c7a6',
+    roughness: 0.92,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -1,
+  });
+  const edgeMesh = makeRibbonMesh(edgePositions, edgeIndices, edgeMat, 'road-shoulder');
+  edgeMesh.userData.noShadow = true;
+  edgeMesh.userData.cannotReceiveAO = true;
+  matsToDispose.push(edgeMat);
+
+  // Broken pale lane marks are reserved for wider paved roads; tracks remain natural.
+  if (width >= 0.14) {
+    const dashPositions: number[] = [];
+    const dashIndices: number[] = [];
+    const dashCount = Math.max(2, Math.floor(segments / 6));
+    const dashWidth = Math.min(0.006, width * 0.055);
+    const dashLength = width * 0.27;
+    for (let dash = 0; dash < dashCount; dash++) {
+      const index = Math.floor(((dash + 0.5) / dashCount) * (samples.length - 1));
+      const p = samples[index];
+      const before = samples[Math.max(0, index - 1)];
+      const after = samples[Math.min(samples.length - 1, index + 1)];
+      const dx = after.x - before.x;
+      const dz = after.z - before.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const sideX = -dz / len;
+      const sideZ = dx / len;
+      const start = dashPositions.length / 3;
+      for (const [along, across] of [
+        [-0.5, -1],
+        [0.5, -1],
+        [0.5, 1],
+        [-0.5, 1],
+      ]) {
+        dashPositions.push(
+          p.x +
+            (dx / len) * dashLength * along +
+            sideX * dashWidth * across +
+            sideX * width * 0.012,
+          p.y + 0.014,
+          p.z + (dz / len) * dashLength * along + sideZ * dashWidth * across + sideZ * width * 0.012
+        );
+      }
+      dashIndices.push(start, start + 1, start + 2, start, start + 2, start + 3);
+    }
+    const markingMat = new THREE.MeshBasicMaterial({
+      color: '#e5d9b9',
+      transparent: true,
+      opacity: 0.48,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const markingMesh = makeRibbonMesh(dashPositions, dashIndices, markingMat, 'road-center-marks');
+    markingMesh.userData.noShadow = true;
+    markingMesh.userData.cannotReceiveAO = true;
+    matsToDispose.push(markingMat);
+  }
 }
 
 /**
@@ -1317,7 +1447,9 @@ export function buildPlaceSlice(
   seed: number
 ): BuiltPlaceSlice {
   const sliceLamps: StreetLampSpec[] = [];
+  const roadMaterials: THREE.MeshPhysicalMaterial[] = [];
   roadLampSink = sliceLamps;
+  roadMaterialSink = roadMaterials;
   const root = new THREE.Group();
   root.position.set(0, 0, 0);
   root.visible = false;
@@ -1418,18 +1550,18 @@ export function buildPlaceSlice(
     shallowColor: '#83704f',
     deepColor: '#3f3322',
     foamStrength: 0.06,
-    turbulence: 0.30,
+    turbulence: 0.3,
     clarity: 0.34,
   };
   const emeraldWater: CutawayWaterOptions = {
     shallowColor: '#1c9e83',
     deepColor: '#07513f',
     foamStrength: 0.08,
-    turbulence: 0.20,
+    turbulence: 0.2,
     clarity: 0.88,
-    glint: 0.30,
+    glint: 0.3,
     caustic: 0.22,
-    fresnel: 0.30,
+    fresnel: 0.3,
     minAlpha: 0.62,
   };
 
@@ -2259,7 +2391,7 @@ export function buildPlaceSlice(
         const fz = -1.36 + hashSeed(i, 62) * 2.72;
         const patch = fbm2(fx * 2.8 + 1.2, fz * 2.8 + 4.6);
         const sub = noise2(fx * 6.5, fz * 6.5);
-        if (patch > 0.40) {
+        if (patch > 0.4) {
           const col =
             patch > 0.66
               ? '#ff6f17'
@@ -4746,6 +4878,7 @@ export function buildPlaceSlice(
     );
   }
 
+  roadHeightSink = terrainCfg.heightAt;
   const builtTerrain = buildTerrainAndWaterMeshes(shared, name, terrainCfg);
   localGeometries.push(...builtTerrain.localGeometries);
   root.add(builtTerrain.terrainMesh);
@@ -4760,6 +4893,8 @@ export function buildPlaceSlice(
   // diorama instanced hardware/bulb/pool shaders without promoting a light or
   // queuing contact stamps — the hero-only 4-light pool is untouched.
   roadLampSink = null;
+  roadMaterialSink = null;
+  roadHeightSink = null;
   if (sliceLamps.length) {
     addStreetLampSet(root, sliceLamps, { anchors: false, contactShadows: false });
   }
@@ -4809,7 +4944,18 @@ export function buildPlaceSlice(
   hitBox.userData.sliceIndex = seed;
   root.add(hitBox);
 
+  let lastRoadWet = -1;
   const tick = (elapsed: number, litStrength: number) => {
+    cloudLayer.tick(elapsed);
+    const wet = Math.max(0, Math.min(1, WU.rain.value));
+    if (Math.abs(wet - lastRoadWet) > 0.01) {
+      lastRoadWet = wet;
+      for (const road of roadMaterials) {
+        road.roughness = 0.84 - wet * 0.42;
+        road.clearcoat = 0.08 + wet * 0.56;
+        road.clearcoatRoughness = 0.58 - wet * 0.36;
+      }
+    }
     for (let i = 0; i < glowMats.length; i++) {
       glowMats[i].emissiveIntensity = 0.28 + litStrength * 1.5;
     }

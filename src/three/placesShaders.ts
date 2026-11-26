@@ -173,8 +173,11 @@ export function createStrataTerrainMaterial(
         '#include <common>',
         `#include <common>\n${STRATA_FRAG_COMMON}\n${PLACES_VOLUMETRIC_FOG_GLSL}`
       )
-      .replace('#include <alphatest_fragment>', `#include <alphatest_fragment>
-if (uDY < 90.0 && vPlacePos.y > uDY && dot(vPlacePos.xz, vPlacePos.xz) < 110.0 && vPlacePos.y < 14.0) discard;`)
+      .replace(
+        '#include <alphatest_fragment>',
+        `#include <alphatest_fragment>
+if (uDY < 90.0 && vPlacePos.y > uDY && dot(vPlacePos.xz, vPlacePos.xz) < 110.0 && vPlacePos.y < 14.0) discard;`
+      )
       .replace('#include <color_fragment>', STRATA_COLOR_FRAGMENT)
       .replace('#include <roughnessmap_fragment>', STRATA_ROUGHNESS_FRAGMENT)
       .replace(
@@ -537,6 +540,8 @@ export function createSliceCloudMaterial(env: PlacesShaderEnvironment): THREE.Sh
     side: THREE.FrontSide,
     uniforms: {
       uTime: WU.t,
+      uWind: WU.wind,
+      uWindDir: WU.windDir,
       uDY: WU.dy,
       uSun: WU.sun,
       uLit: WU.lit,

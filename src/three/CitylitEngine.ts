@@ -3644,6 +3644,7 @@ export class CitylitEngine {
   }
 
   openGlobe(visited: Set<number>): void {
+    this.weather.setSkyCloudsEnabled(true);
     this.cursorStrengthTarget = 0;
     WU.cursorStrength.value = 0;
     this.wakeStrengthTarget = 0;
@@ -3683,6 +3684,7 @@ export class CitylitEngine {
 
   closeGlobe(): void {
     this.globe.close();
+    this.weather.setSkyCloudsEnabled(true);
     this.heroRoot.visible = true;
     if (this.cutawayActive) this.applyCutawayAmount(this.cutawayAmount);
     this.updatePlinthVisibility();
@@ -3712,6 +3714,7 @@ export class CitylitEngine {
     this.wakeStrengthTarget = 0;
     WU.wakeStrength.value = 0;
     this.lastInteractAt = this.elapsed;
+    this.weather.setSkyCloudsEnabled(false);
     if (this.globe.isOpen) {
       this.globe.close();
     }
@@ -3763,6 +3766,7 @@ export class CitylitEngine {
 
   closePlaces(): void {
     this.places.close();
+    this.weather.setSkyCloudsEnabled(true);
     this.weather.rainLines.position.set(0, 0, 0);
     this.weather.rainLines.visible = this.weather.current.rain > 0.03;
     this.weather.stormCurtain.position.set(0, 14, 0);

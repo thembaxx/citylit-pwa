@@ -55,6 +55,8 @@ export interface WeatherSceneController {
   setTheme: (theme: ThemeSetting, immediate?: boolean) => void;
   /** Blend subtle per-landmark atmospheric sky zenith & horizon tints. */
   setSiteSkyTint: (topHex: string, horizonHex: string, immediate?: boolean) => void;
+  /** Hide the broad skybox cloud deck when a scene supplies its own local clouds. */
+  setSkyCloudsEnabled: (enabled: boolean) => void;
   /** Drive the dated sky calendar (meteor showers, eclipses, comets). */
   setSkyEvent: (event: SkyEvent | null) => void;
   /** Amplify the scene for a place-specific, observation-driven weather moment. */
@@ -98,6 +100,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       cv: { value: 0.2 },
       uCirrus: { value: 0.16 },
       uCumulus: { value: 0.12 },
+      uSkyClouds: { value: 1 },
       uSkyStorm: { value: 0 },
       uFlash: { value: 0 },
       nt: { value: 0 },
@@ -116,7 +119,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       'varying vec3 v;void main(){v=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
     fragmentShader: /* glsl */ `
       varying vec3 v;
-      uniform float t, uSiteWeight, cv, uCirrus, uCumulus, uSkyStorm, uFlash, nt, hor, rb, uPol;
+      uniform float t, uSiteWeight, cv, uCirrus, uCumulus, uSkyClouds, uSkyStorm, uFlash, nt, hor, rb, uPol;
       uniform float astro, uMeteorFade;
       uniform vec3 top, bot, uSiteHor, sunDir, glow, uMeteorHead, uMeteorTail;
       ${SKY_NOISE_GLSL}
@@ -192,19 +195,19 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
         col += mix(vec3(1.0, 0.96, 0.88), glow, hor) * sp * 1.5;
 
         // Dual skybox cloud layers: high wispy cirrus + lower billowy cumulus/nimbus
-        if (v.y > 0.02 && (uCirrus > 0.01 || uCumulus > 0.01 || cv > 0.01)) {
+        if (uSkyClouds > 0.01 && v.y > 0.02 && (uCirrus > 0.01 || uCumulus > 0.01 || cv > 0.01)) {
           vec2 p = v.xz / (v.y + 0.18);
           float altMask = smoothstep(0.02, 0.22, v.y);
 
           // Layer 1: High-altitude wispy cirrus streaks
           float cirNoise = fbm(vec2(p.x * 1.55 + t * 0.022, p.y * 0.95 + t * 0.008));
-          float cirMask = smoothstep(0.66 - uCirrus * 0.32, 0.90 - uCirrus * 0.22, cirNoise) * altMask * uCirrus;
+          float cirMask = smoothstep(0.66 - uCirrus * 0.32, 0.90 - uCirrus * 0.22, cirNoise) * altMask * uCirrus * uSkyClouds;
           vec3 cirCol = mix(vec3(0.92, 0.95, 1.0), vec3(0.34, 0.39, 0.52), nt * 0.72) + glow * hor * 0.58;
           col = mix(col, cirCol, cirMask * 0.56);
 
           // Layer 2: Lower cumulus/nimbus cloud deck with storm under-belly & lightning scatter
           float cumNoise = fbm(p * 0.74 + vec2(t * 0.011, -t * 0.004));
-          float cumMask = smoothstep(0.62 - uCumulus * 0.44, 0.86 - uCumulus * 0.32, cumNoise) * altMask * uCumulus;
+          float cumMask = smoothstep(0.62 - uCumulus * 0.44, 0.86 - uCumulus * 0.32, cumNoise) * altMask * uCumulus * uSkyClouds;
           vec3 cumDay = mix(vec3(0.90, 0.93, 0.97), vec3(0.28, 0.31, 0.38), uSkyStorm * 0.78);
           vec3 cumCol = mix(cumDay, vec3(0.18, 0.22, 0.33), nt * 0.78 + cv * 0.22);
           cumCol += glow * hor * (0.48 * (1.0 - uSkyStorm * 0.65));
@@ -591,15 +594,14 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
   let lightningFlash = 0;
   let thunderTimer = 3;
   let rainbowTimer = 0;
+  let skyCloudsEnabled = true;
 
   // Shooting-star scheduler. Fixed path table + preallocated vectors: the
   // update loop only mutates these, never allocates colours/vectors/materials.
   const METEOR_DURATION = 0.85;
   const meteorPaths = new Float32Array([
-    0.146, 0.367, 0.923, 0.02, 0.20, 0.98,
-    -0.22, 0.46, 0.86, -0.52, 0.30, 0.80,
-    0.62, 0.30, 0.72, 0.42, 0.14, 0.90,
-    -0.60, 0.34, 0.72, -0.82, 0.18, 0.54,
+    0.146, 0.367, 0.923, 0.02, 0.2, 0.98, -0.22, 0.46, 0.86, -0.52, 0.3, 0.8, 0.62, 0.3, 0.72, 0.42,
+    0.14, 0.9, -0.6, 0.34, 0.72, -0.82, 0.18, 0.54,
   ]);
   const meteorStart = new THREE.Vector3();
   const meteorEnd = new THREE.Vector3();
@@ -805,6 +807,12 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     root.visible = !hidden;
   };
 
+  const setSkyCloudsEnabled = (enabled: boolean) => {
+    skyCloudsEnabled = enabled;
+    skyMat.uniforms.uSkyClouds.value = enabled ? 1 : 0;
+    skyDome.visible = enabled;
+  };
+
   const update: WeatherSceneController['update'] = (
     dt,
     elapsed,
@@ -850,7 +858,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       }
     }
 
-    skyDome.visible = wStudio < 0.995;
+    skyDome.visible = wStudio < 0.995 && skyCloudsEnabled;
     const k = motionScale === 0 ? 1 : 1 - Math.exp(-safeDt * 1.8);
     const sk = motionScale === 0 ? 1 : 1 - Math.exp(-safeDt * 0.55);
     current.sky.lerp(target.sky, k);
@@ -910,9 +918,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     if (eclipseDisc.visible) {
       camera.getWorldPosition(cameraWorldPos);
       eclipseTowardCamera.copy(cameraWorldPos).sub(sunDisc.position).normalize();
-      eclipseDisc.position
-        .copy(sunDisc.position)
-        .addScaledVector(eclipseTowardCamera, 2.2);
+      eclipseDisc.position.copy(sunDisc.position).addScaledVector(eclipseTowardCamera, 2.2);
       eclipseDisc.quaternion.copy(camera.quaternion);
       coronaMat.opacity = eclipseMat.opacity * 0.55;
     } else {
@@ -978,6 +984,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     skyMat.uniforms.cv.value += (targetCover - skyMat.uniforms.cv.value) * skyLerp;
     skyMat.uniforms.uCirrus.value += (targetCirrus - skyMat.uniforms.uCirrus.value) * skyLerp;
     skyMat.uniforms.uCumulus.value += (targetCumulus - skyMat.uniforms.uCumulus.value) * skyLerp;
+    skyMat.uniforms.uSkyClouds.value = skyCloudsEnabled ? 1 : 0;
     skyMat.uniforms.uSkyStorm.value += (targetStorm - skyMat.uniforms.uSkyStorm.value) * skyLerp;
     skyMat.uniforms.uFlash.value = lightningFlash * (1 - wStudio);
     skyMat.uniforms.nt.value += (targetNight - skyMat.uniforms.nt.value) * skyLerp;
@@ -1066,10 +1073,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     } else if (meteorLife > 0) {
       meteorLife -= safeDt;
       const progress = THREE.MathUtils.clamp(1 - meteorLife / METEOR_DURATION, 0, 1);
-      skyMat.uniforms.uMeteorHead.value
-        .copy(meteorStart)
-        .lerp(meteorEnd, progress)
-        .normalize();
+      skyMat.uniforms.uMeteorHead.value.copy(meteorStart).lerp(meteorEnd, progress).normalize();
       skyMat.uniforms.uMeteorTail.value
         .copy(meteorStart)
         .lerp(meteorEnd, Math.max(0, progress - 0.075))
@@ -1081,7 +1085,9 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
       meteorTimer -= safeDt;
       if (meteorTimer <= 0) {
         const base = (meteorIndex % (meteorPaths.length / 6)) * 6;
-        meteorStart.set(meteorPaths[base], meteorPaths[base + 1], meteorPaths[base + 2]).normalize();
+        meteorStart
+          .set(meteorPaths[base], meteorPaths[base + 1], meteorPaths[base + 2])
+          .normalize();
         meteorEnd
           .set(meteorPaths[base + 3], meteorPaths[base + 4], meteorPaths[base + 5])
           .normalize();
@@ -1236,7 +1242,10 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     snowMat.uniforms.uOpacity.value += (snowOpacity - snowMat.uniforms.uOpacity.value) * skyLerp;
     snowMat.uniforms.uTime.value = animTime;
     snowMat.uniforms.uWind.value = current.wind;
-    snowGeo.setDrawRange(0, Math.floor(SNOW_COUNT * Math.min(1, snowMat.uniforms.uOpacity.value * 1.6)));
+    snowGeo.setDrawRange(
+      0,
+      Math.floor(SNOW_COUNT * Math.min(1, snowMat.uniforms.uOpacity.value * 1.6))
+    );
     snowPoints.visible = snowMat.uniforms.uOpacity.value > 0.008;
 
     const targetSun = day * (1 - current.cover * 0.65);
@@ -1281,6 +1290,7 @@ export function createWeatherScene(scene: THREE.Scene): WeatherSceneController {
     setSiteLatitude,
     setTheme,
     setSiteSkyTint,
+    setSkyCloudsEnabled,
     setSkyEvent,
     setWeatherMoment,
     triggerRainbow,
