@@ -4167,8 +4167,12 @@ export function orlando(): THREE.Group {
       const y = (i * 6.4) / 24;
       p.push(new THREE.Vector2(1.3 + (y < 3.2 ? 1.4 : 1) * ((y - 3.2) / 3.2) ** 2, y));
     }
+    const tower = new THREE.Group();
+    tower.position.set(x, orlandoGroundHeight(x, 0), 0);
+    tower.scale.setScalar(0.85);
+    g.add(tower);
     add(
-      g,
+      tower,
       tint(new THREE.LatheGeometry(p, 72), (k, X, Y, Z) => {
         const q = Math.sin(Math.atan2(Z, X) * 9 + Y * 2.4) + Math.sin(Y * 5);
         k.set(q > 0.6 ? c2 : q < -0.8 ? '#f2f2f2' : c1);
@@ -4178,11 +4182,16 @@ export function orlando(): THREE.Group {
         roughness: 0.78,
         ...surfaceDetail('plaster', 0.015),
         side: THREE.DoubleSide,
-      }),
-      x,
-      0.72,
+      })
+    );
+    add(
+      tower,
+      new THREE.TorusGeometry(2.7, 0.032, 6, 64).rotateX(Math.PI / 2),
+      MStone('#8c8b81', 0.9),
+      0,
+      0.025,
       0
-    ).scale.setScalar(0.85);
+    );
   };
   T(-2.4, '#a4a798', '#6a7478');
   T(2.4, '#a4a798', '#6a7478');
