@@ -238,16 +238,16 @@ body,
 }
 
 .boot-splash__bar {
-  transform-origin: left center;
-  animation: bootBar 2.2s cubic-bezier(0.16, 0.84, 0.3, 1) forwards;
+  width: 28%;
+  animation: bootBar 1.35s linear infinite;
 }
 
 @keyframes bootBar {
   from {
-    transform: scaleX(0.06);
+    transform: translateX(-110%);
   }
   to {
-    transform: scaleX(0.86);
+    transform: translateX(360%);
   }
 }
 
@@ -265,7 +265,7 @@ body,
 
 .boot-splash[data-static='true'] .boot-splash__bar {
   animation: none;
-  transform: scaleX(0.4);
+  transform: translateX(0);
 }
 
 /* ── In-card weather glyph ─────────────────────────────────────────────
@@ -380,7 +380,9 @@ body,
 
 /* Province pills settle with a small squash when they take the filter. */
 .province-pill {
-  transition: transform 180ms var(--ease-out), background-color 180ms var(--ease-out);
+  transition:
+    transform 180ms var(--ease-out),
+    background-color 180ms var(--ease-out);
 }
 
 .province-pill[aria-pressed='true'] {

@@ -343,9 +343,9 @@
     "semantic_hash": ""
   },
   "src/three/weatherScene.ts": {
-    "mtime": 1795715438.164276,
-    "seen": 1795715726.653072,
-    "ast_hash": "b11fd6f8ff27ad5940425ff9f507c6fd",
+    "mtime": 1795719027.7987733,
+    "seen": 1795719053.1972613,
+    "ast_hash": "77e68c695997dba33dc4667015fbb5f0",
     "semantic_hash": ""
   },
   "src/types/citylit.ts": {

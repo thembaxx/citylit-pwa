@@ -186,7 +186,7 @@ export function BootSplash({ done, reducedMotion }: BootSplashProps) {
 
         <div className="boot-splash__rise mt-7 w-full" style={{ animationDelay: '0.15s' }}>
           <div className="h-[3px] w-full rounded-full bg-white/10 overflow-hidden">
-            <div className="boot-splash__bar h-full w-full rounded-full bg-[#e8b04a]" />
+            <div className="boot-splash__bar h-full rounded-full bg-[#e8b04a]" />
           </div>
           <div className="mt-3 text-[11.5px] text-[#a9a69e]">Sketching the diorama…</div>
         </div>
