@@ -39,6 +39,15 @@ test('triangulated terrain sampler matches the mesh triangles between grid verti
   assert.equal(sample(-0.5, -0.5), 1.5);
   assert.equal(sample(0.5, 0.5), 6.5);
   assert.equal(sample(0, 0), 3);
+
+  const firstTriangleNormal = sample.normalAt(-0.5, -0.5);
+  assert.ok(Math.abs(firstTriangleNormal.x + 1 / Math.sqrt(6)) < 1e-12);
+  assert.ok(Math.abs(firstTriangleNormal.y - 1 / Math.sqrt(6)) < 1e-12);
+  assert.ok(Math.abs(firstTriangleNormal.z + 2 / Math.sqrt(6)) < 1e-12);
+
+  const secondTriangleNormal = sample.normalAt(0.5, 0.5);
+  assert.ok(Math.abs(secondTriangleNormal.x + 3 / Math.sqrt(26)) < 1e-12);
+  assert.ok(Math.abs(secondTriangleNormal.z + 4 / Math.sqrt(26)) < 1e-12);
 });
 
 test('triangulated sampler clamps to terrain edges and keeps the safe floor', () => {

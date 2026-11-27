@@ -2,7 +2,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LANDMARKS } from '../data/landmarks';
 import { getSeasonMonth, isSpeciesBlooming, PLANT_SPECIES, type PlantSpecies } from '../lib/season';
-import { createTerrainHeightSampler, createTriangulatedTerrainSampler } from '../lib/terrainHeight';
+import {
+  createTerrainHeightSampler,
+  createTriangulatedTerrainSampler,
+  type TriangulatedTerrainSampler,
+} from '../lib/terrainHeight';
 import { sampleRoadRibbon } from '../lib/roadRibbon';
 import { addStreetLampSet, type StreetLampSpec } from './builders/dioramaKit';
 import { BESPOKE_INTERIORS, type BespokeInteriorKind } from './placesInteriors';
@@ -19,6 +23,8 @@ import {
 } from './placesShaders';
 
 export const SLICE_HALF = 1.5;
+const UP_VECTOR = new THREE.Vector3(0, 1, 0);
+const ROCK_NORMAL = new THREE.Vector3();
 
 export interface PlaceSliceSpec {
   landmarkName: string;
@@ -878,6 +884,7 @@ function addInstancedRocks(
   matsToDispose: THREE.Material[]
 ): void {
   if (rocks.length === 0) return;
+  const normalAt = terrainNormalSink;
   const mat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.04 });
   matsToDispose.push(mat);
   const mesh = new THREE.InstancedMesh(shared.rockGeo, mat, rocks.length);
@@ -885,7 +892,16 @@ function addInstancedRocks(
   const c = new THREE.Color();
   rocks.forEach((r, i) => {
     dummy.position.set(r.x, r.y, r.z);
-    dummy.rotation.set(0.18 * (i % 3), r.ry, 0.12 * (i % 2));
+    if (normalAt) {
+      const normal = normalAt(r.x, r.z);
+      ROCK_NORMAL.set(normal.x, normal.y, normal.z);
+      dummy.quaternion.setFromUnitVectors(UP_VECTOR, ROCK_NORMAL);
+      dummy.rotateY(r.ry);
+      dummy.rotateX(0.18 * (i % 3));
+      dummy.rotateZ(0.12 * (i % 2));
+    } else {
+      dummy.rotation.set(0.18 * (i % 3), r.ry, 0.12 * (i % 2));
+    }
     dummy.scale.set(r.sx, r.sy, r.sz);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
@@ -1068,6 +1084,7 @@ function makeSafariVehicle(
 let roadLampSink: StreetLampSpec[] | null = null;
 let roadMaterialSink: THREE.MeshPhysicalMaterial[] | null = null;
 let roadHeightSink: ((x: number, z: number) => number) | null = null;
+let terrainNormalSink: TriangulatedTerrainSampler['normalAt'] | null = null;
 
 function addRoadRibbon(
   parent: THREE.Group,
@@ -4886,6 +4903,7 @@ export function buildPlaceSlice(
     baseY: terrainCfg.baseY,
   });
   roadHeightSink = terrainHeightAt;
+  terrainNormalSink = terrainHeightAt.normalAt;
   const builtTerrain = buildTerrainAndWaterMeshes(shared, name, {
     ...terrainCfg,
     heightAt: terrainHeightAt,
@@ -4905,6 +4923,7 @@ export function buildPlaceSlice(
   roadLampSink = null;
   roadMaterialSink = null;
   roadHeightSink = null;
+  terrainNormalSink = null;
   if (sliceLamps.length) {
     addStreetLampSet(root, sliceLamps, { anchors: false, contactShadows: false });
   }

@@ -13,6 +13,17 @@ export function createTerrainHeightSampler(
   };
 }
 
+export interface TerrainSurfaceNormal {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface TriangulatedTerrainSampler {
+  (x: number, z: number): number;
+  normalAt(x: number, z: number): TerrainSurfaceNormal;
+}
+
 export interface TerrainGridSamplerOptions {
   halfExtent: number;
   segments: number;
@@ -27,7 +38,7 @@ export interface TerrainGridSamplerOptions {
 export function createTriangulatedTerrainSampler(
   heightAt: (x: number, z: number) => number,
   options: TerrainGridSamplerOptions
-): (x: number, z: number) => number {
+): TriangulatedTerrainSampler {
   const halfExtent =
     Number.isFinite(options.halfExtent) && options.halfExtent > 0 ? options.halfExtent : 1.5;
   const segments = Number.isFinite(options.segments)
@@ -47,14 +58,17 @@ export function createTriangulatedTerrainSampler(
     }
   }
 
-  return (x, z) => {
-    if (!Number.isFinite(x) || !Number.isFinite(z)) return floor;
+  const gridCoords = (x: number, z: number) => {
     const gridX = (Math.max(-halfExtent, Math.min(halfExtent, x)) + halfExtent) / step;
     const gridZ = (Math.max(-halfExtent, Math.min(halfExtent, z)) + halfExtent) / step;
     const ix = Math.min(segments - 1, Math.floor(gridX));
     const iz = Math.min(segments - 1, Math.floor(gridZ));
-    const tx = gridX - ix;
-    const tz = gridZ - iz;
+    return { ix, iz, tx: gridX - ix, tz: gridZ - iz };
+  };
+
+  const sample: TriangulatedTerrainSampler = (x, z) => {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return floor;
+    const { ix, iz, tx, tz } = gridCoords(x, z);
     const a = heights[iz * stride + ix];
     const b = heights[iz * stride + ix + 1];
     const c = heights[(iz + 1) * stride + ix];
@@ -63,4 +77,28 @@ export function createTriangulatedTerrainSampler(
     if (tx + tz <= 1) return a + tx * (b - a) + tz * (c - a);
     return b * (1 - tz) + c * (1 - tx) + d * (tx + tz - 1);
   };
+
+  sample.normalAt = (x, z) => {
+    if (!Number.isFinite(x) || !Number.isFinite(z)) return { x: 0, y: 1, z: 0 };
+    const { ix, iz, tx, tz } = gridCoords(x, z);
+    const a = heights[iz * stride + ix];
+    const b = heights[iz * stride + ix + 1];
+    const c = heights[(iz + 1) * stride + ix];
+    const d = heights[(iz + 1) * stride + ix + 1];
+    let dx: number;
+    let dz: number;
+
+    if (tx + tz <= 1) {
+      dx = (b - a) / step;
+      dz = (c - a) / step;
+    } else {
+      dx = (d - c) / step;
+      dz = (d - b) / step;
+    }
+
+    const length = Math.hypot(dx, 1, dz);
+    return { x: -dx / length, y: 1 / length, z: -dz / length };
+  };
+
+  return sample;
 }
