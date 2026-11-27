@@ -283,9 +283,9 @@
     "semantic_hash": ""
   },
   "src/three/placesSliceBuilders.ts": {
-    "mtime": 1795799919.8778572,
-    "seen": 1795800149.2498927,
-    "ast_hash": "079026c5596008880f9921f0980a6730",
+    "mtime": 1795802112.8269482,
+    "seen": 1795802172.4690511,
+    "ast_hash": "bdbb0c5df22b7f7fa91dc1fa3083e082",
     "semantic_hash": ""
   },
   "src/three/postfx.ts": {
@@ -6739,15 +6739,15 @@
     "semantic_hash": ""
   },
   "src/lib/terrainHeight.test.ts": {
-    "mtime": 1795800180.5100837,
-    "seen": 1795800193.3239946,
-    "ast_hash": "5b0b521fb73b2d164fbab9ff2c9a0fc0",
+    "mtime": 1795802117.7690287,
+    "seen": 1795802172.4689658,
+    "ast_hash": "bbf7f4b18cf2303e658ece7dc4f437d5",
     "semantic_hash": ""
   },
   "src/lib/terrainHeight.ts": {
-    "mtime": 1795800129.4930441,
-    "seen": 1795800149.2496822,
-    "ast_hash": "17d68906b712a284eb6bbb13163f0367",
+    "mtime": 1795802112.818927,
+    "seen": 1795802172.4689682,
+    "ast_hash": "24d9c2261158921d8257451c1c69f72b",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

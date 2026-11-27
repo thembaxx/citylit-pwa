@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LANDMARKS } from '../data/landmarks';
 import { getSeasonMonth, isSpeciesBlooming, PLANT_SPECIES, type PlantSpecies } from '../lib/season';
-import { createTerrainHeightSampler } from '../lib/terrainHeight';
+import { createTerrainHeightSampler, createTriangulatedTerrainSampler } from '../lib/terrainHeight';
 import { sampleRoadRibbon } from '../lib/roadRibbon';
 import { addStreetLampSet, type StreetLampSpec } from './builders/dioramaKit';
 import { BESPOKE_INTERIORS, type BespokeInteriorKind } from './placesInteriors';
@@ -4880,7 +4880,11 @@ export function buildPlaceSlice(
     );
   }
 
-  const terrainHeightAt = createTerrainHeightSampler(terrainCfg.heightAt, terrainCfg.baseY ?? 0);
+  const terrainHeightAt = createTriangulatedTerrainSampler(terrainCfg.heightAt, {
+    halfExtent: SLICE_HALF,
+    segments: terrainCfg.segments ?? 44,
+    baseY: terrainCfg.baseY,
+  });
   roadHeightSink = terrainHeightAt;
   const builtTerrain = buildTerrainAndWaterMeshes(shared, name, {
     ...terrainCfg,
