@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { LANDMARKS } from '../data/landmarks';
 import { getSeasonMonth, isSpeciesBlooming, PLANT_SPECIES, type PlantSpecies } from '../lib/season';
+import { createTerrainHeightSampler } from '../lib/terrainHeight';
 import { sampleRoadRibbon } from '../lib/roadRibbon';
 import { addStreetLampSet, type StreetLampSpec } from './builders/dioramaKit';
 import { BESPOKE_INTERIORS, type BespokeInteriorKind } from './placesInteriors';
@@ -318,9 +319,10 @@ function buildTerrainAndWaterMeshes(
     zs[i] = coord;
   }
 
+  const terrainHeightAt = createTerrainHeightSampler(cfg.heightAt, baseY);
   for (let iz = 0; iz <= N; iz++) {
     for (let ix = 0; ix <= N; ix++) {
-      heights[iz * (N + 1) + ix] = Math.max(baseY + 0.08, cfg.heightAt(xs[ix], zs[iz]));
+      heights[iz * (N + 1) + ix] = terrainHeightAt(xs[ix], zs[iz]);
     }
   }
 
@@ -4878,15 +4880,19 @@ export function buildPlaceSlice(
     );
   }
 
-  roadHeightSink = terrainCfg.heightAt;
-  const builtTerrain = buildTerrainAndWaterMeshes(shared, name, terrainCfg);
+  const terrainHeightAt = createTerrainHeightSampler(terrainCfg.heightAt, terrainCfg.baseY ?? 0);
+  roadHeightSink = terrainHeightAt;
+  const builtTerrain = buildTerrainAndWaterMeshes(shared, name, {
+    ...terrainCfg,
+    heightAt: terrainHeightAt,
+  });
   localGeometries.push(...builtTerrain.localGeometries);
   root.add(builtTerrain.terrainMesh);
   if (builtTerrain.waterTopMesh) root.add(builtTerrain.waterTopMesh);
   if (builtTerrain.waterWallMesh) root.add(builtTerrain.waterWallMesh);
 
   for (const dec of postDecorators) {
-    dec(terrainCfg.heightAt);
+    dec(terrainHeightAt);
   }
 
   // Street furniture lamps sampled from the curated road ribbons. Reuses the
@@ -4900,7 +4906,7 @@ export function buildPlaceSlice(
   }
 
   // Hovering instanced stylised cloud clusters above the slice (GPU drift/bob)
-  const cloudLayer = createSliceCloudLayer(shared, seed, maxTopY, terrainCfg.heightAt);
+  const cloudLayer = createSliceCloudLayer(shared, seed, maxTopY, terrainHeightAt);
   const cloudGroup = cloudLayer.group;
   root.add(cloudGroup);
 
