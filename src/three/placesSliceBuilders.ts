@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { LANDMARKS } from '../data/landmarks';
 import { getSeasonMonth, isSpeciesBlooming, PLANT_SPECIES, type PlantSpecies } from '../lib/season';
 import {
+  computeTerrainContactLift,
   createTerrainHeightSampler,
   createTriangulatedTerrainSampler,
   type TriangulatedTerrainSampler,
@@ -890,6 +891,7 @@ function addInstancedRocks(
   const mesh = new THREE.InstancedMesh(shared.rockGeo, mat, rocks.length);
   const dummy = new THREE.Object3D();
   const c = new THREE.Color();
+  const positionAttribute = shared.rockGeo.attributes.position;
   rocks.forEach((r, i) => {
     dummy.position.set(r.x, r.y, r.z);
     if (normalAt) {
@@ -904,6 +906,15 @@ function addInstancedRocks(
     }
     dummy.scale.set(r.sx, r.sy, r.sz);
     dummy.updateMatrix();
+    if (normalAt && terrainHeightSink) {
+      const lift = computeTerrainContactLift(
+        positionAttribute.array,
+        dummy.matrix.elements,
+        terrainHeightSink
+      );
+      if (lift > 0) dummy.position.y += lift;
+      dummy.updateMatrix();
+    }
     mesh.setMatrixAt(i, dummy.matrix);
     c.set(r.color);
     mesh.setColorAt(i, c);
@@ -1085,6 +1096,7 @@ let roadLampSink: StreetLampSpec[] | null = null;
 let roadMaterialSink: THREE.MeshPhysicalMaterial[] | null = null;
 let roadHeightSink: ((x: number, z: number) => number) | null = null;
 let terrainNormalSink: TriangulatedTerrainSampler['normalAt'] | null = null;
+let terrainHeightSink: ((x: number, z: number) => number) | null = null;
 
 function addRoadRibbon(
   parent: THREE.Group,
@@ -4903,6 +4915,7 @@ export function buildPlaceSlice(
     baseY: terrainCfg.baseY,
   });
   roadHeightSink = terrainHeightAt;
+  terrainHeightSink = terrainHeightAt;
   terrainNormalSink = terrainHeightAt.normalAt;
   const builtTerrain = buildTerrainAndWaterMeshes(shared, name, {
     ...terrainCfg,
@@ -4923,6 +4936,7 @@ export function buildPlaceSlice(
   roadLampSink = null;
   roadMaterialSink = null;
   roadHeightSink = null;
+  terrainHeightSink = null;
   terrainNormalSink = null;
   if (sliceLamps.length) {
     addStreetLampSet(root, sliceLamps, { anchors: false, contactShadows: false });

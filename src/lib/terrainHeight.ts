@@ -35,6 +35,40 @@ export interface TerrainGridSamplerOptions {
  * Sample the piecewise-planar surface formed by the terrain mesh's grid triangles.
  * This keeps props and roads on the visible surface between authored grid vertices.
  */
+export function computeTerrainContactLift(
+  positions: ArrayLike<number>,
+  matrix: ArrayLike<number>,
+  heightAt: (x: number, z: number) => number,
+  clearance = 0.004
+): number {
+  if (positions.length < 3 || matrix.length < 16) return 0;
+  const safeClearance = Number.isFinite(clearance) ? Math.max(0, clearance) : 0;
+  let lift = 0;
+
+  for (let i = 0; i + 2 < positions.length; i += 3) {
+    const x =
+      matrix[0] * positions[i] +
+      matrix[4] * positions[i + 1] +
+      matrix[8] * positions[i + 2] +
+      matrix[12];
+    const y =
+      matrix[1] * positions[i] +
+      matrix[5] * positions[i + 1] +
+      matrix[9] * positions[i + 2] +
+      matrix[13];
+    const z =
+      matrix[2] * positions[i] +
+      matrix[6] * positions[i + 1] +
+      matrix[10] * positions[i + 2] +
+      matrix[14];
+    const ground = heightAt(x, z);
+    if (!Number.isFinite(ground) || !Number.isFinite(y)) continue;
+    lift = Math.max(lift, ground + safeClearance - y);
+  }
+
+  return Math.max(0, lift);
+}
+
 export function createTriangulatedTerrainSampler(
   heightAt: (x: number, z: number) => number,
   options: TerrainGridSamplerOptions
