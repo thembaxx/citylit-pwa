@@ -317,7 +317,7 @@ export function SettingsModal({
           <div className="min-w-0">
             <span className="text-[14px] whitespace-nowrap text-[#f3efe6]">Auto tour</span>
             <p className="mt-0.5 m-0 text-[11.5px] text-[#a9a69e]/80">
-              Step through landmarks automatically · Space
+              Follow the active route, or roam all places · 18 sec per stop · Space
             </p>
           </div>
           <LiquidToggle

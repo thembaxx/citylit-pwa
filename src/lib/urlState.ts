@@ -5,6 +5,19 @@ export interface GlobeUrlState {
   province: string;
 }
 
+/** `?route=cape-peninsula` restores a curated route alongside the hash stop. */
+export function readInitialRouteId(validRouteIds: readonly string[]): string | null {
+  if (typeof window === 'undefined') return null;
+  const requested = new URLSearchParams(window.location.search).get('route');
+  return requested && validRouteIds.includes(requested) ? requested : null;
+}
+
+/** Keep a shared landmark if it belongs to the route; otherwise open its first stop. */
+export function resolveRouteStopIndex(stops: readonly number[], requestedIndex: number): number {
+  if (stops.length === 0) return 0;
+  return stops.includes(requestedIndex) ? requestedIndex : stops[0];
+}
+
 /** `?globe=1&province=Western%20Cape` deep-links into the globe. */
 export function readInitialGlobeState(validProvinces: readonly string[]): GlobeUrlState {
   if (typeof window === 'undefined') return { open: false, province: 'All' };
@@ -51,6 +64,16 @@ export function setUrlForCoordinates({ lat, lon }: LatLon): void {
   );
 }
 
-export function setUrlForLandmark(slug: string): void {
-  window.history.replaceState(null, '', `${window.location.pathname}#${slug}`);
+export function setUrlForLandmark(slug: string, routeId: string | null = null): void {
+  const query = routeId ? `?route=${encodeURIComponent(routeId)}` : '';
+  window.history.replaceState(null, '', `${window.location.pathname}${query}#${slug}`);
+}
+
+/** Build a clean share URL that restores a landmark and, when supplied, its route. */
+export function getLandmarkShareUrl(slug: string, routeId: string | null = null): string {
+  const url = new URL(window.location.href);
+  url.search = '';
+  if (routeId) url.searchParams.set('route', routeId);
+  url.hash = slug;
+  return url.toString();
 }

@@ -190,6 +190,7 @@ interface LandmarkCardProps {
   onApplyCameraPreset?: (preset: CameraPreset) => void;
   onStepPin?: (dir: 1 | -1) => void;
   onNextRouteStop?: () => void;
+  onPreviousRouteStop?: () => void;
   onClearRoute?: () => void;
   onAddNote: (
     text: string,
@@ -321,6 +322,7 @@ export function LandmarkCard({
   onApplyCameraPreset,
   onStepPin,
   onNextRouteStop,
+  onPreviousRouteStop,
   onClearRoute,
   onAddNote,
   onUpdateNote,
@@ -518,6 +520,14 @@ export function LandmarkCard({
   const progressPct = ((index + 1) / LANDMARKS.length) * 100;
   const totalInteractivePins = lm.dots.length + notes.length;
   const routeStopIdx = activeRoute ? activeRoute.stopIndices.indexOf(index) : -1;
+  const routeNextIndex =
+    activeRoute && activeRoute.stopIndices.length > 0
+      ? activeRoute.stopIndices[(Math.max(routeStopIdx, -1) + 1) % activeRoute.stopIndices.length]
+      : null;
+  const routeNextLandmark = routeNextIndex === null ? null : LANDMARKS[routeNextIndex];
+  const routeLegKm = routeNextLandmark
+    ? nextBearingSummary(lm.coords, routeNextLandmark.coords).km
+    : null;
 
   const clearHold = () => {
     if (holdTimer.current !== null) {
@@ -796,10 +806,23 @@ export function LandmarkCard({
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {onPreviousRouteStop && (
+                  <button
+                    type="button"
+                    onClick={onPreviousRouteStop}
+                    aria-label="Previous route stop"
+                    title="Previous stop"
+                    className="h-6 w-6 rounded-full grid place-items-center text-[#e8b04a] hover:bg-[#e8b04a]/18 transition-colors cursor-pointer"
+                  >
+                    <CaretLeft size={13} weight="bold" />
+                  </button>
+                )}
                 {onNextRouteStop && (
                   <button
                     type="button"
                     onClick={onNextRouteStop}
+                    aria-label="Next route stop"
+                    title="Next stop"
                     className="h-6 px-2 rounded-full bg-[#e8b04a]/18 border border-[#e8b04a]/60 text-[10.5px] font-medium text-[#e8b04a] hover:bg-[#e8b04a]/28 transition-colors cursor-pointer whitespace-nowrap"
                   >
                     Next Stop →
@@ -816,6 +839,30 @@ export function LandmarkCard({
                     <X size={12} />
                   </button>
                 )}
+              </div>
+            </div>
+          )}
+          {activeRoute && routeNextLandmark && routeLegKm !== null && (
+            <div className="mb-3 px-2.5" aria-live="polite">
+              <div className="mb-1 flex items-center justify-between gap-2 text-[10px]">
+                <span className="text-[#a9a69e]">NEXT · {routeNextLandmark.k}</span>
+                <span className="text-[#a9a69e]/75 tabular-nums">≈ {routeLegKm} km direct</span>
+              </div>
+              <div
+                className="h-1 overflow-hidden rounded-full bg-white/10"
+                role="progressbar"
+                aria-label={`${activeRoute.name} progress`}
+                aria-valuemin={0}
+                aria-valuemax={activeRoute.stopIndices.length}
+                aria-valuenow={routeStopIdx >= 0 ? routeStopIdx + 1 : 0}
+              >
+                <div
+                  className="h-full rounded-full transition-[width] duration-300"
+                  style={{
+                    width: `${Math.max(0, (routeStopIdx + 1) / activeRoute.stopIndices.length) * 100}%`,
+                    backgroundColor: activeRoute.color,
+                  }}
+                />
               </div>
             </div>
           )}

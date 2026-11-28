@@ -9,6 +9,7 @@ import {
   toastVariants,
   Z,
 } from './lib/motion';
+import { adjacentRouteStop } from './lib/routeNavigation';
 import { referenceDisplayFactor } from './lib/scale';
 import { syncThemeColor } from './lib/themeColor';
 import {
@@ -20,7 +21,10 @@ import { getSafeArea, onSafeAreaChange } from './lib/uiSafeArea';
 import { msUntilNextThemeBoundary, resolveAutoTheme, resolveTheme } from './lib/theme';
 import {
   readInitialCoordinate,
+  getLandmarkShareUrl,
   readInitialGlobeState,
+  readInitialRouteId,
+  resolveRouteStopIndex,
   setUrlForCoordinates,
   setUrlForGlobe,
   setUrlForLandmark,
@@ -80,12 +84,14 @@ import type {
 
 function readInitialLandmarkIndex(): number {
   const hash = window.location.hash.slice(1).toLowerCase();
-  if (!hash) return 0;
-  const idx = LANDMARKS.findIndex((lm) => slugifyLandmark(lm.k) === hash);
-  return idx >= 0 ? idx : 0;
+  const requestedIndex = LANDMARKS.findIndex((lm) => slugifyLandmark(lm.k) === hash);
+  const route = HERITAGE_ROUTES.find((candidate) => candidate.id === INITIAL_ROUTE_ID);
+  if (route) return resolveRouteStopIndex(route.stopIndices, requestedIndex);
+  return requestedIndex >= 0 ? requestedIndex : 0;
 }
 
 const INITIAL_GLOBE = readInitialGlobeState(PROVINCES);
+const INITIAL_ROUTE_ID = readInitialRouteId(HERITAGE_ROUTES.map((route) => route.id));
 
 function readStoredSet(key: string): Set<number> {
   try {
@@ -388,7 +394,8 @@ export function App() {
   const [cutawaySupported, setCutawaySupported] = useState(true);
   const [pinDropMode, setPinDropMode] = useState(false);
   const [pendingDropPos, setPendingDropPos] = useState<[number, number, number] | null>(null);
-  const [activeRouteId, setActiveRouteId] = useState<string | null>(null);
+  const [activeRouteId, setActiveRouteId] = useState<string | null>(INITIAL_ROUTE_ID);
+  const activeRouteIdRef = useRef<string | null>(INITIAL_ROUTE_ID);
   const [savedPlaces, setSavedPlaces] = useState<SavedCustomPlace[]>(readStoredSavedPlaces);
   const [activeExplorerCoords, setActiveExplorerCoords] = useState<{
     lat: number;
@@ -594,7 +601,7 @@ export function App() {
       setCutawayActive(false);
       engineRef.current?.setPinDropMode(false);
       engineRef.current?.setCutawayMode(false);
-      setUrlForLandmark(slugifyLandmark(LANDMARKS[wrapped].k));
+      setUrlForLandmark(slugifyLandmark(LANDMARKS[wrapped].k), activeRouteIdRef.current);
       engineRef.current?.setUserNotes(wrapped, notesByLandmarkRef.current[wrapped] ?? []);
       engineRef.current?.transitionToLandmark(wrapped);
       if (opts.cinematic && !reducedMotion) {
@@ -1028,12 +1035,21 @@ export function App() {
     return () => window.clearTimeout(timer);
   }, [index, visited, launchConfetti]);
 
-  // Auto-tour progression
+  // Auto-tour follows the active curated route, or the full atlas when no route is selected.
+  // Pausing while the document is hidden avoids advancing through places off-screen.
   useEffect(() => {
     if (!tourActive) return undefined;
     const timer = window.setInterval(() => {
-      selectLandmark(index + 1, { cinematic: true });
-    }, 10000);
+      if (document.hidden) return;
+      const route = HERITAGE_ROUTES.find((candidate) => candidate.id === activeRouteIdRef.current);
+      const stops = route?.stopIndices;
+      if (!stops?.length) {
+        selectLandmark(index + 1, { cinematic: true });
+        return;
+      }
+      const nextStop = adjacentRouteStop(stops, index);
+      if (nextStop !== null) selectLandmark(nextStop, { cinematic: true });
+    }, 18000);
     return () => window.clearInterval(timer);
   }, [tourActive, index, selectLandmark]);
 
@@ -1384,7 +1400,9 @@ export function App() {
 
   const handleSelectRoute = useCallback(
     (routeId: string | null) => {
+      activeRouteIdRef.current = routeId;
       setActiveRouteId(routeId);
+      setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k), routeId);
       if (!routeId) {
         showToast('Heritage route cleared');
         return;
@@ -1399,21 +1417,24 @@ export function App() {
     [index, selectLandmark, showToast]
   );
 
-  const handleNextRouteStop = useCallback(() => {
-    if (!activeRoute || activeRoute.stopIndices.length === 0) return;
-    const curPos = activeRoute.stopIndices.indexOf(index);
-    const nextStop =
-      curPos >= 0
-        ? activeRoute.stopIndices[(curPos + 1) % activeRoute.stopIndices.length]
-        : activeRoute.stopIndices[0];
-    selectLandmark(nextStop, { cinematic: true });
-  }, [activeRoute, index, selectLandmark]);
+  const stepRouteStop = useCallback(
+    (direction: 1 | -1) => {
+      if (!activeRoute || activeRoute.stopIndices.length === 0) return;
+      const nextStop = adjacentRouteStop(activeRoute.stopIndices, index, direction);
+      if (nextStop !== null) selectLandmark(nextStop, { cinematic: true });
+    },
+    [activeRoute, index, selectLandmark]
+  );
+  const handleNextRouteStop = useCallback(() => stepRouteStop(1), [stepRouteStop]);
+  const handlePreviousRouteStop = useCallback(() => stepRouteStop(-1), [stepRouteStop]);
 
   const handleViewRouteOnGlobe = useCallback(
     (routeId: string) => {
       const route = HERITAGE_ROUTES.find((r) => r.id === routeId);
       if (!route || !engineRef.current) return;
+      activeRouteIdRef.current = routeId;
       setActiveRouteId(routeId);
+      setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k), routeId);
       setSearchOpen(false);
       setInfoOpen(false);
       setWeatherExpanded(false);
@@ -1423,7 +1444,7 @@ export function App() {
       engineRef.current.globe.setActiveRoute(route.stopIndices, route.color);
       setGlobeOpen(true);
     },
-    [visited]
+    [visited, index]
   );
 
   const handleToggleSound = useCallback(() => {
@@ -1434,7 +1455,7 @@ export function App() {
 
   const shareCurrentLandmark = useCallback(async () => {
     const lm = LANDMARKS[index];
-    const url = window.location.href.split('#')[0] + '#' + slugifyLandmark(lm.k);
+    const url = getLandmarkShareUrl(slugifyLandmark(lm.k), activeRouteIdRef.current);
     if (navigator.share) {
       try {
         await navigator.share({ title: `${lm.k} · Citylit`, text: lm.f, url });
@@ -1532,7 +1553,7 @@ export function App() {
     setPlacesOpen(false);
     setGlobeOpen(false);
     setSelectedPlace(null);
-    setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k));
+    setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k), activeRouteIdRef.current);
   }, [index]);
 
   const toggleGlobe = useCallback(() => {
@@ -1658,7 +1679,7 @@ export function App() {
     setPlacesOpen(false);
     setSelectedPlace(null);
     setActiveExplorerCoords(null);
-    setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k));
+    setUrlForLandmark(slugifyLandmark(LANDMARKS[index].k), activeRouteIdRef.current);
   }, [index]);
 
   const forecast = useMemo(
@@ -1907,6 +1928,7 @@ export function App() {
           }}
           onStepPin={handleStepPin}
           onNextRouteStop={handleNextRouteStop}
+          onPreviousRouteStop={handlePreviousRouteStop}
           onClearRoute={() => handleSelectRoute(null)}
           onAddNote={handleAddNote}
           onUpdateNote={handleUpdateNote}
