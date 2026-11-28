@@ -518,9 +518,9 @@ export function pilanesberg(): THREE.Group {
     [1.85, 0.06],
     [3.1, 0.42],
     [4.1, 1.55],
-    [4.9, 2.25],
-    [5.6, 1.35],
-    [6.4, 0.72],
+    [4.85, 2.48],
+    [5.45, 1.72],
+    [6.35, 0.58],
     [7.55, 0.12],
   ].map((p) => new THREE.Vector2(...p));
   const ge = new THREE.LatheGeometry(pr, 120);
@@ -533,8 +533,15 @@ export function pilanesberg(): THREE.Group {
     // Concentric eroded alkaline ring complex incised by radial drainage kloofs
     const kloof = Math.pow(Math.abs(Math.sin(a * 5 + 0.4)), 2.2) * 0.34;
     const secondary = 0.18 * Math.sin(a * 9 - 0.6);
-    p.setY(i, Y * (1 + 0.28 * Math.sin(a * 3) + secondary - kloof * 0.55));
+    // Sharpen the outer crater crest and let the radial kloofs cut clearly
+    // through it, so the ring complex reads at thumbnail scale.
+    const rimLift = Y > 1.25 ? 0.12 * THREE.MathUtils.smoothstep(Y, 1.25, 2.2) : 0;
+    p.setY(i, Y * (1 + 0.28 * Math.sin(a * 3) + secondary - kloof * 0.55) + rimLift);
   }
+  p.needsUpdate = true;
+  ge.computeVertexNormals();
+  ge.computeBoundingBox();
+  ge.computeBoundingSphere();
   const lo = new THREE.Color('#747b54');
   const mid = new THREE.Color('#5f6d4c');
   const hi = new THREE.Color('#9c775c');
@@ -1018,9 +1025,14 @@ export function isandlwana(): THREE.Group {
     const h = (Y + 2.175) / 4.35;
     // Asymmetric elongation (head peak west-left, long rocky back sloping east-right toward the nek)
     const neckSlope = X > 0.2 && h > 0.52 ? (X - 0.2) * 0.58 * h : 0;
-    const capCliff = h > 0.62 ? 0.85 : 1.0;
+    // A wider cap overhang makes the dolerite sill read as a ledge above the talus.
+    const capCliff = h > 0.62 ? 1.04 : 1.0;
     sp.setXYZ(i, X * 1.45 * capCliff, Y - neckSlope, Z * 0.72 * capCliff);
   }
+  sp.needsUpdate = true;
+  sphinxGeo.computeVertexNormals();
+  sphinxGeo.computeBoundingBox();
+  sphinxGeo.computeBoundingSphere();
   const cTalus = new THREE.Color('#878b5e');
   const cDolerite = new THREE.Color('#4c4c48');
   tint(sphinxGeo, (k, X, Y) => {
@@ -2078,16 +2090,16 @@ export function richtersveld(): THREE.Group {
     ...surfaceDetail('stone', 0.03),
   });
   const shard = (x: number, z: number, rb: number, h: number, ry: number) => {
-    const ge = C(rb * 0.3, rb, h, 5, 1);
+    const ge = C(rb * 0.045, rb, h, 5, 1);
     tint(ge, (k, _X, Y) => k.set(Y > 0 ? '#bc9672' : '#925f49'));
     add(g, ge, shardMat, x, 0.2 + h / 2, z).rotation.y = ry;
   };
   [
-    [-4.6, -2.6, 1.5, 2.7, 0.3],
-    [4.4, -3, 1.3, 2.3, -0.4],
-    [0, -5, 1.7, 3.1, 0.8],
-    [-3, 3.6, 0.9, 1.5, 1.2],
-    [3.2, 2.8, 1.0, 1.8, -0.6],
+    [-4.6, -2.6, 1.5, 2.9, 0.3],
+    [4.4, -3, 1.3, 2.45, -0.4],
+    [0, -5, 1.7, 3.35, 0.8],
+    [-3, 3.6, 0.9, 1.65, 1.2],
+    [3.2, 2.8, 1.0, 1.95, -0.6],
   ].forEach(([x, z, rb, h, ry]) => shard(x, z, rb, h, ry));
 
   // Pale white Namaqualand quartz-pebble scree mixed with rusted granite scree
@@ -2171,10 +2183,14 @@ export function vredefort(): THREE.Group {
     const r = Math.hypot(X, Z);
     const a = Math.atan2(Z, X);
     // Concentric collar ridges stand highest on the north & west horseshoe (-x, -z) and open to SE Karoo plain
-    const crescent = r > 2.4 ? 0.32 + 0.72 * Math.max(0, Math.cos(a + Math.PI * 0.75) * 0.5 + 0.5) : 1.0;
+    const crescent = r > 2.4 ? 0.18 + 1.02 * Math.max(0, Math.cos(a + Math.PI * 0.75)) : 1.0;
     const strata = r > 2.4 ? 1 + 0.22 * Math.sin(r * 4.2 + a * 2) : 1;
     p.setY(i, Y * crescent * strata * (1 + 0.2 * Math.sin(a * 3 + 1)));
   }
+  p.needsUpdate = true;
+  ge.computeVertexNormals();
+  ge.computeBoundingBox();
+  ge.computeBoundingSphere();
   // #8 albedo: eroded granite/quartzite over dry pasture (LANDMARK-RESEARCH
   // 3.38). Pull the pale dome collar down into the research grey-brown band.
   const lo = new THREE.Color('#93896a');

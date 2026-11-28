@@ -94,10 +94,12 @@ const platteklip = (x: number, z: number): number => {
 
 const warpTable = <T extends THREE.BufferGeometry>(geo: T, cap: boolean): T => {
   const p = geo.attributes.position;
-  const a1 = new THREE.Color('#797a73');
-  const a2 = new THREE.Color('#aaa394');
-  const a3 = new THREE.Color('#697051');
-  const aoDark = new THREE.Color('#565d5b');
+  // Table Mountain sandstone reads as pale grey-buff in daylight; keep the
+  // fynbos palette on the summit rather than tinting the entire cliff green.
+  const a1 = new THREE.Color('#887f70');
+  const a2 = new THREE.Color('#c0ad91');
+  const a3 = new THREE.Color('#777c68');
+  const aoDark = new THREE.Color('#514d44');
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i);
     const y = p.getY(i);
@@ -105,9 +107,15 @@ const warpTable = <T extends THREE.BufferGeometry>(geo: T, cap: boolean): T => {
     const a = Math.atan2(z, x);
     const gorge = platteklip(x, z);
     const ribs = 0.045 * Math.cos(a * 11) * Math.max(0, (y + 1.2) / 2.4);
+    const sandstoneBeds = Math.sin(y * 15 + a * 0.22 + n(x * 0.9, z * 0.9) * 0.8);
     // The plateau outline cuts in further than the cliff shell so the notch
     // reads as one continuous gorge from the summit down the north face.
-    const f = 1 + 0.09 * n(a * 3, y * 2) + ribs - gorge * (cap ? 0.5 : 0.32);
+    const f =
+      1 +
+      0.09 * n(a * 3, y * 2) +
+      ribs +
+      sandstoneBeds * 0.008 * Math.max(0, 1 - Math.abs(y) / 1.3) -
+      gorge * (cap ? 0.64 : 0.5);
     if (cap) {
       // Very subtle summit undulation — enough to break a perfectly flat disc
       // under raking sun without disturbing the tors, beacon or cableway.
@@ -118,12 +126,18 @@ const warpTable = <T extends THREE.BufferGeometry>(geo: T, cap: boolean): T => {
       p.setXYZ(i, x * f, y + 0.045 * n(x * 2, z * 2) - notch, z * f);
     }
   }
+  p.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingBox();
+  geo.computeBoundingSphere();
   tint(geo, (k, _x, y) => {
     if (cap) {
       k.copy(a3);
     } else {
       const t = Math.floor(((y + 1.2) / 2.4) * 10) / 10;
+      const beds = 0.5 + 0.5 * Math.sin(y * 15 + Math.atan2(_x, 1) * 0.22);
       k.copy(a1).lerp(a2, Math.min(1, Math.max(0, (t - 0.25) * 1.9)));
+      k.lerp(a2, THREE.MathUtils.smoothstep(beds, 0.88, 0.99) * 0.1);
       const ao = Math.min(1, Math.max(0, (y + 1.2) / 0.65));
       k.lerp(aoDark, (1 - ao) * 0.45);
     }
@@ -149,6 +163,10 @@ const lump = (
     const f = 1 + 0.08 * n(p.getX(i) * 3, p.getZ(i) * 3);
     p.setXYZ(i, p.getX(i) * f * sx, p.getY(i) * f * sy, p.getZ(i) * f);
   }
+  p.needsUpdate = true;
+  s.computeVertexNormals();
+  s.computeBoundingBox();
+  s.computeBoundingSphere();
   const ca = new THREE.Color(c1);
   const cb = new THREE.Color(c2);
   tint(s, (k, _X, Y) => k.copy(ca).lerp(cb, Math.min(1, Math.max(0, (Y + r) / (r * 2)))));
@@ -176,7 +194,7 @@ export function table(): THREE.Group {
     ...surfaceDetail('stone', 0.06),
     side: THREE.DoubleSide,
   });
-  add(g, B(12.4, 0.5, 12.4), MStone('#697051', 0.95), 0, 0.25, 0);
+  add(g, B(12.4, 0.5, 12.4), MStone('#827b68', 0.95), 0, 0.25, 0);
   // One continuous cliff shell with a single deep notch; the cap is one flat plane.
   add(g, warpTable(C(3.6, 5.6, 2.4, 84, 14, true), false), vm, 0, 1.45, 0);
   add(
@@ -202,7 +220,7 @@ export function table(): THREE.Group {
   ];
   apostles.forEach(([x, z, r, sy], i) => {
     // Low-poly ribs: a distant silhouette does not resolve 48×24 segments.
-    lump(g, r, x, z, 0.82, sy, i % 2 ? '#797a73' : '#8e937f', '#c0ae90', 14, 10);
+    lump(g, r, x, z, 0.82, sy, i % 2 ? '#887f70' : '#9c907b', '#c4b18f', 14, 10);
   });
 
   // Tablecloth mist cascades gracefully over the windward (north) rim only.
@@ -303,7 +321,7 @@ export function table(): THREE.Group {
       sz: 0.35 + R(i + 1) * 0.42,
     });
   }
-  scatterRocks(g, torTransforms, '#797a73', '#aaa394');
+  scatterRocks(g, torTransforms, '#8b806e', '#c0ad91');
 
   // Shallow sandstone reservoirs: flat dark discs tucked between the tors.
   // They give the plateau a lived-in top surface at macro-camera distance.
@@ -2123,6 +2141,7 @@ export function bokaap(): THREE.Group {
         wall: pal[(j * 5 + r * 3) % 8],
         roof: roofs[(j + r) % 4],
         capeDutch: r === 0 && j === 2,
+        thumbnailDetail: true,
       });
       add(g, CB(1.68, 0.06, 0.34, 0.02), MStone('#8d8374', 0.92), x, b0 + 0.05, z + 0.86);
       add(g, CB(1.68, 0.09, 0.14, 0.02), MPlaster('#ddd5c4', 0.8), x, b0 + h + 0.04, z + 0.66);
@@ -2402,14 +2421,21 @@ export function rondavels(): THREE.Group {
   for (let i = 0; i < tp.count; i++) {
     tp.setY(i, hAt(tp.getX(i), tp.getZ(i)));
   }
-  const cFloor = new THREE.Color('#3f5b39');
-  const cMid = new THREE.Color('#6b7a46');
-  const cCliff = new THREE.Color('#8e6447');
-  const cWet = new THREE.Color('#43604f');
+  tp.needsUpdate = true;
+  terrain.computeVertexNormals();
+  terrain.computeBoundingBox();
+  terrain.computeBoundingSphere();
+  const cFloor = new THREE.Color('#4e5b3a');
+  const cMid = new THREE.Color('#77774c');
+  const cCliff = new THREE.Color('#a16f52');
+  const cWet = new THREE.Color('#4a6255');
   tint(terrain, (k, x, y, z) => {
     const steep = Math.abs(hAt(x + 0.25, z) - hAt(x - 0.25, z));
-    k.copy(cFloor).lerp(cMid, THREE.MathUtils.clamp((y - FLOOR) / 2.6, 0, 1));
+    const elevation = THREE.MathUtils.clamp((y - FLOOR) / 2.6, 0, 1);
+    const bedding = Math.pow(Math.max(0, Math.sin(y * 7.5 + Math.sin(z * 0.52 + x * 0.18) * 0.6)), 10);
+    k.copy(cFloor).lerp(cMid, elevation);
     if (steep > 0.16) k.lerp(cCliff, THREE.MathUtils.clamp((steep - 0.16) * 2.4, 0, 0.7));
+    k.lerp(cCliff, bedding * THREE.MathUtils.smoothstep(steep, 0.08, 0.5) * 0.22);
     // Damp margin along the channel, so the water sits in wet ground instead of
     // being cut out of dry lawn.
     const dch = channelDist(x, z);
@@ -2443,7 +2469,8 @@ export function rondavels(): THREE.Group {
   const crest = new THREE.Group();
   g.add(crest);
   const capGeo = new THREE.SphereGeometry(1, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2);
-  const helmetMat = MStone('#5d733e', 0.94, 0.025);
+  const helmetMat = MStone('#a99a78', 0.94, 0.025);
+  const capRimMat = MStone('#c4b18d', 0.92, 0.022);
   [
     [1.9, -2.25, 3.05, 0.96],
     [3.05, 0.05, 3.45, 1.08],
@@ -2451,6 +2478,9 @@ export function rondavels(): THREE.Group {
   ].forEach(([x, z, h, r], idx) => {
     const baseY = hAt(x, z) - 0.18;
     rock(g, r * 0.78, r * 1.18, h, x, z, '#96805f', '#cbbb95', 0.11, baseY);
+    // Pale, weathered caprock and a thin overhanging bedding lip give each
+    // peak the distinctive table-top silhouette at thumbnail scale.
+    add(crest, C(r * 1.12, r * 1.08, 0.12, 18), capRimMat, x, baseY + h + 0.01, z);
     const dome = add(crest, capGeo, helmetMat, x, baseY + h - 0.06, z);
     dome.scale.set(r * 0.96, r * (0.44 + idx * 0.04), r * 0.96);
     const hutTip = add(
@@ -2466,6 +2496,7 @@ export function rondavels(): THREE.Group {
   // Mapjaneng, the broad flat-topped chief peak
   const mapBase = hAt(-0.15, 0.15) - 0.18;
   rock(g, 1.18, 1.56, 2.75, -0.15, 0.15, '#96805f', '#cbbb95', 0.09, mapBase);
+  add(crest, C(1.26, 1.22, 0.14, 24), capRimMat, -0.15, mapBase + 2.8, 0.15);
   add(crest, C(1.14, 1.16, 0.12, 32), helmetMat, -0.15, mapBase + 2.74, 0.15);
   mergeByMaterial(crest);
 

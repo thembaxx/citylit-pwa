@@ -39,6 +39,7 @@ import {
   type StandPolygon,
 } from '../lib/standFootprint';
 import { auditStandContainment, type StandAudit } from './standAudit';
+import { auditLandmarkGeometry } from './landmarkGeometryAudit';
 import {
   computeFoliageSwayAngle,
   computeFoliageWindStrength,
@@ -354,6 +355,8 @@ export class CitylitEngine {
   private readonly dustMat: THREE.ShaderMaterial;
 
   private currentGroup: THREE.Group | null = null;
+  /** Landmark currently mounted in currentGroup; activeIndex may lead during a dissolve. */
+  private currentGroupIndex = 0;
   private outgoingGroup: THREE.Group | null = null;
   private markerSprites: THREE.Sprite[] = [];
   private interactives: InteractiveTarget[] = [];
@@ -2298,6 +2301,9 @@ export class CitylitEngine {
   /** Dev-only: run the stand containment audit on every built landmark. */
   standAuditEnabled = false;
 
+  /** Dev-only: run geometry integrity checks on every built landmark. */
+  geometryAuditEnabled = false;
+
   /** Dev-only: the last containment audit for the mounted landmark. */
   get standAudit(): StandAudit | undefined {
     return this.currentGroup?.userData.standAudit as StandAudit | undefined;
@@ -2325,6 +2331,16 @@ export class CitylitEngine {
       }
     });
     this.fitGroupToPlinth(group);
+    if (this.geometryAuditEnabled) {
+      const audit = auditLandmarkGeometry(group);
+      group.userData.geometryAudit = audit;
+      if (!audit.ok) {
+        console.warn(
+          `[citylit] geometry audit failed for ${meta.k} (${audit.triangles.toLocaleString()} triangles) —`,
+          audit.issues.slice(0, 12).join('; ')
+        );
+      }
+    }
     return group;
   }
 
@@ -2680,10 +2696,11 @@ export class CitylitEngine {
     // The departing diorama returns to the LRU pool instead of being disposed,
     // so revisiting a landmark is a cache hit rather than a rebuild: no new
     // materials, no shader recompiles, no multi-hundred-millisecond swap frame.
-    const prevIndex = this.activeIndex;
+    const prevIndex = this.currentGroupIndex;
     const prevGroup = this.currentGroup;
     const prevDynamic = this.currentDynamic;
     this.activeIndex = index;
+    this.currentGroupIndex = index;
     this.lastSwitchAt = this.elapsed;
     this.resetCutawayOffsets();
     ambientAudio.setSpatialFocusBoost(0);

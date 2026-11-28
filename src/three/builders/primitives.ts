@@ -752,7 +752,7 @@ export function add<T extends THREE.BufferGeometry, U extends THREE.Material>(
  * Collapse a group's plain-coloured child meshes into one mesh per material.
  * Lets builders add fine architectural detail without paying a draw call per part.
  */
-export function mergeByMaterial(g: THREE.Group): THREE.Group {
+export function mergeByMaterial(g: THREE.Group, roundedBoxSegments?: number): THREE.Group {
   g.updateMatrixWorld(true);
   const buckets = new Map<THREE.Material, THREE.Mesh[]>();
   for (const child of [...g.children]) {
@@ -780,7 +780,25 @@ export function mergeByMaterial(g: THREE.Group): THREE.Group {
     const geos: THREE.BufferGeometry[] = [];
     for (const m of meshes) {
       const src = m.geometry;
-      const geo = src.index ? src.toNonIndexed() : src.clone();
+      const params = (src as THREE.BufferGeometry & {
+        parameters?: { width?: number; height?: number; depth?: number; radius?: number };
+      }).parameters;
+      const geo =
+        roundedBoxSegments !== undefined &&
+        src.type === 'RoundedBoxGeometry' &&
+        params?.width !== undefined &&
+        params.height !== undefined &&
+        params.depth !== undefined
+          ? new RoundedBoxGeometry(
+              params.width,
+              params.height,
+              params.depth,
+              roundedBoxSegments,
+              params.radius
+            )
+          : src.index
+            ? src.toNonIndexed()
+            : src.clone();
       if (dropUv) geo.deleteAttribute('uv');
       geo.deleteAttribute('uv1');
       geo.deleteAttribute('uv2');
@@ -1179,6 +1197,7 @@ export function rock(
     const Y = p.getY(i);
     const Z = p.getZ(i);
     const a = Math.atan2(Z, X);
+    const strata = Math.sin(Y * 17 + Math.sin(a * 2.5 + x) * 0.45) * 0.5 + 0.5;
     const bedding = Math.sin(Y * 14 + a * 0.4) * 0.028;
     const ledge = Math.pow(Math.max(0, Math.sin(Y * 8.5 + a * 0.5)), 8) * 0.05;
     const fissure = Math.pow(Math.max(0, Math.cos(a * 7 + Y * 1.2)), 16) * 0.03;
@@ -1190,9 +1209,14 @@ export function rock(
           Math.sin(a * 8 - Y * 3.1 + z) * 0.2) +
       bedding +
       ledge -
-      fissure;
+      fissure +
+      (strata - 0.5) * 0.016;
     p.setXYZ(i, X * f, Y, Z * f);
   }
+  p.needsUpdate = true;
+  gm.computeVertexNormals();
+  gm.computeBoundingBox();
+  gm.computeBoundingSphere();
   const a = new THREE.Color(c1);
   const b = new THREE.Color(c2);
   const aoDark = a.clone().multiplyScalar(0.68);
@@ -1202,6 +1226,10 @@ export function rock(
     const bandShade = 0.86 + 0.17 * (0.5 + 0.5 * Math.sin(band * 2.4 + 1.1));
     c.copy(a).lerp(b, hNorm).multiplyScalar(bandShade);
     const ang = Math.atan2(Z, X);
+    // Weathered sedimentary bands follow the rock horizontally, with a
+    // little angular breakup so they read as strata rather than perfect rings.
+    const strata = Math.sin(Y * 15 + Math.sin(ang * 2.2 + x) * 0.55 + z * 0.16);
+    c.multiplyScalar(0.94 + Math.max(0, strata) * 0.085);
     const crevice = Math.pow(Math.max(0, Math.cos(ang * 7 + Y * 1.2)), 16);
     c.multiplyScalar(1 - crevice * 0.32);
     const ao = Math.min(1, Math.max(0, (Y + h * 0.5) / Math.max(0.2, h * 0.28)));
@@ -1235,14 +1263,24 @@ export function scatterRocks(
   if (!organicBoulderGeo) {
     const ge = new THREE.IcosahedronGeometry(0.45, 1);
     const p = ge.attributes.position;
+    const colors = new Float32Array(p.count * 3);
     for (let i = 0; i < p.count; i++) {
       const X = p.getX(i);
       const Y = p.getY(i);
       const Z = p.getZ(i);
       const d = 0.92 + 0.22 * Math.sin(X * 5.2 + Z * 3.1) + 0.12 * Math.cos(Y * 6.5 - X * 2.7);
       p.setXYZ(i, X * d, Y * (Y < 0 ? 0.68 : 0.92), Z * d);
+      // Gentle per-facet value variation improves the low-poly rock silhouette.
+      const facet = 0.88 + 0.1 * Math.max(0, Y) + 0.035 * Math.sin(X * 13 + Z * 9 + Y * 7);
+      colors[i * 3] = facet;
+      colors[i * 3 + 1] = facet;
+      colors[i * 3 + 2] = facet;
     }
+    p.needsUpdate = true;
+    ge.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     ge.computeVertexNormals();
+    ge.computeBoundingBox();
+    ge.computeBoundingSphere();
     ge.userData.sharedResource = true;
     organicBoulderGeo = ge;
   }
@@ -1253,6 +1291,8 @@ export function scatterRocks(
   const dryColor = colA.clone().lerp(colB, 0.5);
   const wetColor = dryColor.clone().multiplyScalar(0.68);
   const mat = new THREE.MeshPhysicalMaterial({
+    vertexColors: true,
+    flatShading: true,
     roughness: 0.93,
     metalness: 0.02,
     clearcoat: 0.02,
@@ -1854,6 +1894,8 @@ export function colonialHouse(
     roof: string;
     trim?: string;
     capeDutch?: boolean;
+    /** Reduce bevel tessellation for house rows viewed at thumbnail scale. */
+    thumbnailDetail?: boolean;
   }
 ): THREE.Group {
   const {
@@ -1868,6 +1910,7 @@ export function colonialHouse(
     roof,
     trim = '#e8e2d5',
     capeDutch = false,
+    thumbnailDetail = false,
   } = opts;
   const grp = new THREE.Group();
   grp.position.set(x, y, z);
@@ -1980,7 +2023,16 @@ export function colonialHouse(
       }
     }
   }
-  mergeByMaterial(grp);
+  if (thumbnailDetail) {
+    // Tiny door insets and four shutter slats per window collapse to noise in
+    // Bo-Kaap's full-scene view; retain the colored shutters and window frames.
+    // (The slats were the largest per-house source of hidden micro-detail.)
+    for (const child of [...grp.children]) {
+      if (child instanceof THREE.Mesh && child.material === slatMat) child.removeFromParent();
+      if (child instanceof THREE.Mesh && child.material === panelMat) child.removeFromParent();
+    }
+  }
+  mergeByMaterial(grp, thumbnailDetail ? 1 : undefined);
   g.add(grp);
   return grp;
 }
